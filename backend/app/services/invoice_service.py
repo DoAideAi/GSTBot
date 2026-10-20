@@ -30,7 +30,7 @@ from app.models.invoice import (
     InvoiceType,
 )
 from app.models.supplier import Supplier
-from app.services import gst_calendar
+from app.services import gst_calendar, jev_service
 from app.services import gstin as gstin_service
 from app.services.invoice_parser import ParsedInvoice, parse_invoice
 
@@ -490,6 +490,14 @@ def apply_parsed(
     if invoice.invoice_type == InvoiceType.PURCHASE and counterparty:
         supplier = get_or_create_supplier(db, invoice.business_id, counterparty, counterparty_name)
         invoice.supplier_id = supplier.id
+
+    # Jev's supply category, compliance risk, tax route and (when the parser
+    # found no code) HSN chapter. Stored beside the extraction for the review
+    # screen and never over a field: the tax heads stay whatever the document
+    # and the state codes say. Absent when Jev is off or unreachable.
+    assessment = jev_service.assess_invoice(invoice, business_gstin=business_gstin)
+    if assessment is not None:
+        invoice.extraction = {**invoice.extraction, "jev": assessment}
 
     return invoice
 

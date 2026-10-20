@@ -28,7 +28,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from app.core.rate_limit import RateLimit
 from app.models.mixins import MONEY_MAX
 from app.schemas.gpt import GSTIN_INPUT_MAX, STATE_CODE_PATTERN, InvoiceRequest
-from app.services import filing_dates, gst_calendar, hsn
+from app.services import filing_dates, gst_calendar, hsn, jev_service
 from app.services import gst_calculator as calc
 from app.services import gstin as gstin_service
 
@@ -149,9 +149,23 @@ def search_hsn(
         # so its row leads the list rather than being absent from it.
         if entry is not None and entry not in results:
             results = [entry, *results][:limit]
+    # Nothing in the table matched the words, so ask Jev which chapter the
+    # description belongs to and point the caller there. Only on a miss: a
+    # table hit is an exact tariff heading and outranks a model's guess.
+    suggestion = None
+    if not results and best is None:
+        chapter = jev_service.classify_hsn_chapter(q)
+        if chapter is not None:
+            suggestion = {
+                "chapter": chapter.label,
+                "heading": jev_service.hsn_chapters()[chapter.label],
+                "confidence": round(chapter.confidence, 4),
+                "browse_query": chapter.label,
+            }
     return {
         "query": q,
         "best_match": best,
+        **({"suggested_chapter": suggestion} if suggestion else {}),
         "results": [
             {
                 "hsn_code": e.code,

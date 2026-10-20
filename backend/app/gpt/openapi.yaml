@@ -261,6 +261,17 @@ components:
           type: array
           items: {$ref: "#/components/schemas/HsnEntry"}
         count: {type: integer}
+        suggested_chapter:
+          type: object
+          description: >-
+            Present only when nothing matched: the HSN/SAC chapter a classifier
+            judged most likely. A pointer for browsing, not a tariff heading;
+            search the chapter code to see its entries.
+          properties:
+            chapter: {type: string}
+            heading: {type: string}
+            confidence: {type: number}
+            browse_query: {type: string}
         note: {type: string}
         browse_url: {type: string}
     TaxSplit:
