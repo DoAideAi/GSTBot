@@ -190,6 +190,7 @@ DEFINED_EXCEPTIONS = _exception_classes()
 CLIENT_FACING = {
     "DuplicateInvoice": "409 on upload — carries the id of the invoice already on file",
     "FilingNotRecordable": "422 from POST /filing/{return_type}/filed",
+    "GstInputError": "422 from the GPT Actions calculator and invoice routes",
     "GSTR2BParseError": "422 from the GSTR-2B import",
     "InvalidGSTIN": "422 through the schema validators, and /meta/gstin's `error`",
     "NoGSTR2BImported": "422 from a reconciliation run",

@@ -20,6 +20,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import (
     AccessLogMiddleware,
     CorrelationIdMiddleware,
+    GptActionsCorsMiddleware,
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -35,6 +36,7 @@ from app.routers import (
     businesses,
     dashboard,
     filing,
+    gpt,
     invoices,
     itc,
     misc,
@@ -170,6 +172,14 @@ TAGS_METADATA = [
             "about one: mark it seen, or dismiss it. Nothing here is delivered "
             "anywhere yet — an alert lives in the product, so `channel` and "
             "`sent_at` are null on every row."
+        ),
+    },
+    {
+        "name": "gpt",
+        "description": (
+            "The free GST tools as ChatGPT GPT Actions: GSTIN validation, HSN "
+            "search, GST calculation, invoice data and filing dates. Public, "
+            "stateless, rate-limited by address."
         ),
     },
     {
@@ -359,6 +369,10 @@ def create_app() -> FastAPI:
         secret_key=derive_session_key(settings.jwt_secret),
     )
 
+    # Outermost of all, so a preflight from ChatGPT is answered before the
+    # credentialed app-wide policy above can refuse an origin it does not list.
+    application.add_middleware(GptActionsCorsMiddleware, prefix=f"{settings.api_v1_prefix}/gpt/")
+
     prefix = settings.api_v1_prefix
     application.include_router(advisor.router, prefix=prefix)
     application.include_router(misc.router, prefix=prefix)
@@ -375,8 +389,8 @@ def create_app() -> FastAPI:
     application.include_router(subscriptions.router, prefix=prefix)
     application.include_router(referrals.router, prefix=prefix)
     application.include_router(seo.router, prefix=prefix)
-    application.include_router(advisor.router, prefix=prefix)
     application.include_router(whatsapp.router, prefix=prefix)
+    application.include_router(gpt.router, prefix=prefix)
 
     @application.get("/", include_in_schema=False)
     def root() -> dict[str, str | None]:

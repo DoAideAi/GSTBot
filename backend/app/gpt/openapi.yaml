@@ -1,0 +1,403 @@
+openapi: 3.1.0
+info:
+  title: DoAide GST Tools
+  description: >-
+    Free Indian GST tools from DoAide GST (gst.doaide.com): GSTIN validation,
+    HSN code and rate search, GST calculation, GST invoice data generation and
+    return filing due dates. No authentication. Amounts are decimal strings in
+    rupees.
+  version: 1.0.0
+servers:
+  - url: https://gst.doaide.com/api/v1/gpt
+paths:
+  /gstin/{gstin}:
+    get:
+      operationId: validateGstin
+      summary: Validate and decode a GSTIN
+      description: >-
+        Checks a 15-character GSTIN's format and check digit and decodes its
+        state, PAN and entity type. Offline check; does not confirm active
+        status or legal name. An invalid GSTIN returns valid=false with a reason.
+      parameters:
+        - name: gstin
+          in: path
+          required: true
+          description: The GSTIN, e.g. 27AAPFU0939F1ZV. Spaces and hyphens are ignored.
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        "200":
+          description: Validation result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GstinResult"
+  /hsn:
+    get:
+      operationId: searchHsn
+      summary: Search HSN codes and GST rates
+      description: >-
+        Finds HSN codes by product name, keywords or code prefix (e.g. rice,
+        mobile phone, 8517) and returns each with its GST rate. best_match is
+        set when the query names a common product.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Product name, keywords, or HSN code prefix.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results (1-50, default 10).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Matching HSN codes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HsnSearchResult"
+  /calculate:
+    get:
+      operationId: calculateGst
+      summary: Calculate GST on an amount
+      description: >-
+        Adds GST to a price (exclusive) or extracts it from a GST-inclusive
+        price (inclusive). Splits into CGST+SGST for intra-state or IGST for
+        inter-state supply. If both state codes are given they decide the
+        supply type.
+      parameters:
+        - name: amount
+          in: query
+          required: true
+          description: Amount in rupees, e.g. 1000 or 1180.50.
+          schema:
+            type: number
+            minimum: 0
+        - name: rate
+          in: query
+          required: true
+          description: GST rate in percent. One of 0, 0.1, 0.25, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40.
+          schema:
+            type: number
+            minimum: 0
+            maximum: 40
+        - name: mode
+          in: query
+          required: false
+          description: exclusive = amount is before GST; inclusive = amount already includes GST.
+          schema:
+            type: string
+            enum: [exclusive, inclusive]
+            default: exclusive
+        - name: supply_type
+          in: query
+          required: false
+          description: intra_state (CGST+SGST) or inter_state (IGST). Ignored when both state codes are given.
+          schema:
+            type: string
+            enum: [intra_state, inter_state]
+            default: intra_state
+        - name: supplier_state_code
+          in: query
+          required: false
+          description: Two-digit GST state code of the supplier, e.g. 27 for Maharashtra.
+          schema:
+            type: string
+            pattern: "^\\d{2}$"
+        - name: buyer_state_code
+          in: query
+          required: false
+          description: Two-digit GST state code of the buyer / place of supply.
+          schema:
+            type: string
+            pattern: "^\\d{2}$"
+      responses:
+        "200":
+          description: Tax breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalculationResult"
+        "422":
+          description: Not a valid GST rate or state code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /invoice:
+    post:
+      operationId: generateInvoice
+      summary: Generate GST invoice data
+      description: >-
+        Computes a complete GST tax invoice as structured data: line amounts,
+        discounts, CGST/SGST or IGST by place of supply, rate-wise tax summary,
+        round off and amount in words. Nothing is stored and no file is made.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequest"
+      responses:
+        "200":
+          description: The computed invoice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResult"
+        "422":
+          description: Invalid GSTIN, rate, or missing state information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /filing-dates:
+    get:
+      operationId: getFilingDates
+      summary: GST return due dates for a period
+      description: >-
+        Lists the returns due for a tax period (default last month) for a
+        monthly, quarterly (QRMP) or composition taxpayer, with due date, days
+        remaining, status, and late fee accrued so far when overdue.
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: Tax period as YYYY-MM, e.g. 2026-09. Defaults to the previous month.
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}$"
+        - name: filer_type
+          in: query
+          required: false
+          description: monthly (regular), quarterly (QRMP scheme) or composition.
+          schema:
+            type: string
+            enum: [monthly, quarterly, composition]
+            default: monthly
+        - name: state_code
+          in: query
+          required: false
+          description: Two-digit GST state code. Decides the quarterly GSTR-3B date (22nd or 24th).
+          schema:
+            type: string
+            pattern: "^\\d{2}$"
+        - name: previous_year_turnover
+          in: query
+          required: false
+          description: Previous financial year's turnover in rupees. Sets the late-fee cap.
+          schema:
+            type: number
+            minimum: 0
+        - name: as_of
+          in: query
+          required: false
+          description: Date to measure from, YYYY-MM-DD. Defaults to today in India.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Deadlines for the period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FilingDatesResult"
+        "422":
+          description: Invalid period or state code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    State:
+      type: object
+      properties:
+        code: {type: string}
+        name: {type: string}
+    GstinResult:
+      type: object
+      properties:
+        gstin: {type: string}
+        valid: {type: boolean}
+        error: {type: string, description: Why the GSTIN is invalid (only when valid is false).}
+        state: {$ref: "#/components/schemas/State"}
+        pan: {type: string}
+        entity_type: {type: [string, "null"], description: "e.g. Company, Firm / LLP, Individual / Proprietor"}
+        registration_number_in_state: {type: string}
+        note: {type: string}
+        lookup_url: {type: string}
+    HsnEntry:
+      type: object
+      properties:
+        hsn_code: {type: string}
+        code_type: {type: string, enum: [HSN, SAC], description: SAC for services, HSN for goods.}
+        description: {type: string}
+        category: {type: string}
+        gst_rate: {type: string, description: Percent, e.g. "18"}
+    HsnSearchResult:
+      type: object
+      properties:
+        query: {type: string}
+        best_match:
+          type: [object, "null"]
+          properties:
+            product: {type: string}
+            hsn_code: {type: string}
+            gst_rate: {type: string}
+            description: {type: [string, "null"]}
+        results:
+          type: array
+          items: {$ref: "#/components/schemas/HsnEntry"}
+        count: {type: integer}
+        note: {type: string}
+        browse_url: {type: string}
+    TaxSplit:
+      type: object
+      properties:
+        taxable_value: {type: string}
+        gst_rate: {type: string}
+        cgst: {type: string}
+        sgst: {type: string}
+        igst: {type: string}
+        total_tax: {type: string}
+        total: {type: string}
+    CalculationResult:
+      allOf:
+        - $ref: "#/components/schemas/TaxSplit"
+        - type: object
+          properties:
+            mode: {type: string}
+            supply_type: {type: string}
+            input_amount: {type: string}
+            calculator_url: {type: string}
+    InvoiceParty:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 200}
+        gstin: {type: string, maxLength: 64, description: GSTIN if registered. Its state decides the tax split.}
+        state_code: {type: string, pattern: "^\\d{2}$", description: Two-digit state code; needed when there is no GSTIN.}
+        address: {type: string, maxLength: 500}
+    InvoiceItem:
+      type: object
+      required: [description, quantity, unit_price, gst_rate]
+      properties:
+        description: {type: string, maxLength: 300}
+        hsn_code: {type: string, pattern: "^\\d{4,8}$"}
+        quantity: {type: number, exclusiveMinimum: 0}
+        unit: {type: string, maxLength: 20, description: "e.g. pcs, kg, hrs"}
+        unit_price: {type: number, minimum: 0, description: Price per unit before GST.}
+        gst_rate: {type: number, minimum: 0, maximum: 40, description: GST rate in percent.}
+        discount_percent: {type: number, minimum: 0, maximum: 100, default: 0}
+    InvoiceRequest:
+      type: object
+      required: [seller, buyer, items]
+      properties:
+        seller: {$ref: "#/components/schemas/InvoiceParty"}
+        buyer: {$ref: "#/components/schemas/InvoiceParty"}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: {$ref: "#/components/schemas/InvoiceItem"}
+        invoice_number: {type: string, maxLength: 50}
+        invoice_date: {type: string, format: date, description: Defaults to today.}
+        place_of_supply: {type: string, pattern: "^\\d{2}$", description: State code of delivery. Defaults to the buyer's state.}
+        round_off: {type: boolean, default: true, description: Round the grand total to the nearest rupee.}
+        notes: {type: string, maxLength: 1000}
+    InvoiceLine:
+      allOf:
+        - $ref: "#/components/schemas/TaxSplit"
+        - type: object
+          properties:
+            line: {type: integer}
+            description: {type: string}
+            hsn_code: {type: [string, "null"]}
+            quantity: {type: string}
+            unit: {type: [string, "null"]}
+            unit_price: {type: string}
+            gross_amount: {type: string}
+            discount_percent: {type: string}
+            discount: {type: string}
+    InvoiceResult:
+      type: object
+      properties:
+        invoice_number: {type: [string, "null"]}
+        invoice_date: {type: string}
+        seller: {type: object}
+        buyer: {type: object}
+        place_of_supply: {$ref: "#/components/schemas/State"}
+        supply_type: {type: string}
+        reverse_charge: {type: boolean}
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/InvoiceLine"}
+        tax_summary:
+          type: array
+          items: {$ref: "#/components/schemas/TaxSplit"}
+        totals:
+          type: object
+          properties:
+            taxable_value: {type: string}
+            cgst: {type: string}
+            sgst: {type: string}
+            igst: {type: string}
+            total_tax: {type: string}
+            round_off: {type: string}
+            grand_total: {type: string}
+        amount_in_words: {type: string}
+        notes: {type: [string, "null"]}
+        warnings:
+          type: array
+          items: {type: string}
+        pdf_tool_url: {type: string}
+        disclaimer: {type: string}
+    Deadline:
+      type: object
+      properties:
+        form: {type: string}
+        description: {type: string}
+        covers: {type: string}
+        due_date: {type: string, format: date}
+        days_remaining: {type: integer, description: Negative when overdue.}
+        status: {type: string, enum: [upcoming, due_today, overdue]}
+        optional: {type: boolean}
+        late_fee_so_far: {type: string}
+        nil_return_late_fee_so_far: {type: string}
+    FilingDatesResult:
+      type: object
+      properties:
+        period: {type: string}
+        financial_year: {type: string}
+        filer_type: {type: string}
+        state: {oneOf: [{$ref: "#/components/schemas/State"}, {type: "null"}]}
+        as_of: {type: string}
+        deadlines:
+          type: array
+          items: {$ref: "#/components/schemas/Deadline"}
+        late_fee_rules: {type: string}
+        note: {type: string}
+        calendar_url: {type: string}
+        disclaimer: {type: string}
+    Error:
+      type: object
+      properties:
+        detail: {description: Human-readable reason.}
+        error:
+          type: object
+          properties:
+            code: {type: string}
+            status: {type: integer}
+            message: {type: string}

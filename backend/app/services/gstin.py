@@ -163,6 +163,29 @@ def state_code_of(gstin: str) -> str | None:
         return None
 
 
+# The fourth character of a PAN says what kind of person holds it. A GSTIN
+# embeds the PAN, so a valid GSTIN answers "is my supplier a company or a
+# proprietor?" without a portal lookup — which is the question a buyer asking
+# about TDS, reverse charge or composition eligibility usually has.
+PAN_ENTITY_TYPES: dict[str, str] = {
+    "P": "Individual / Proprietor",
+    "C": "Company",
+    "H": "Hindu Undivided Family (HUF)",
+    "F": "Firm / LLP",
+    "A": "Association of Persons (AOP)",
+    "T": "Trust",
+    "B": "Body of Individuals (BOI)",
+    "L": "Local Authority",
+    "J": "Artificial Juridical Person",
+    "G": "Government",
+}
+
+
+def entity_type(pan: str) -> str | None:
+    """What kind of holder *pan* belongs to, or ``None`` for an unassigned letter."""
+    return PAN_ENTITY_TYPES.get(pan[3:4])
+
+
 def find_gstins(text: str) -> list[str]:
     """Every checksum-valid GSTIN in *text*, in order, de-duplicated.
 

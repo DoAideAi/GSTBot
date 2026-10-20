@@ -125,6 +125,15 @@ class TestSetOffNeedsAToken:
             # CA referral program — tracking and leaderboard are public.
             "/api/v1/referrals/track",
             "/api/v1/referrals/leaderboard",
+            # GPT Actions — the free tools for ChatGPT Custom GPTs. Stateless
+            # arithmetic and lookups over public tables; no tenant data.
+            "/api/v1/gpt/gstin/{gstin}",
+            "/api/v1/gpt/hsn",
+            "/api/v1/gpt/calculate",
+            "/api/v1/gpt/invoice",
+            "/api/v1/gpt/filing-dates",
+            "/api/v1/gpt/openapi.yaml",
+            "/api/v1/gpt/privacy",
         }
 
         def calls(dependant):

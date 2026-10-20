@@ -1,0 +1,6477 @@
+{
+ "hsn": [
+  {
+   "code": "0101",
+   "description": "Live horses, asses, mules and hinnies",
+   "rate": 0,
+   "category": "Live Animals",
+   "sac": false
+  },
+  {
+   "code": "0102",
+   "description": "Live bovine animals",
+   "rate": 0,
+   "category": "Live Animals",
+   "sac": false
+  },
+  {
+   "code": "0105",
+   "description": "Live poultry (fowls, ducks, geese, turkeys)",
+   "rate": 0,
+   "category": "Live Animals",
+   "sac": false
+  },
+  {
+   "code": "0106",
+   "description": "Other live animals",
+   "rate": 0,
+   "category": "Live Animals",
+   "sac": false
+  },
+  {
+   "code": "0201",
+   "description": "Meat of bovine animals, fresh or chilled",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0202",
+   "description": "Frozen bovine meat",
+   "rate": 0,
+   "category": "Meat",
+   "sac": false
+  },
+  {
+   "code": "0203",
+   "description": "Fresh, chilled or frozen pork",
+   "rate": 0,
+   "category": "Meat",
+   "sac": false
+  },
+  {
+   "code": "0204",
+   "description": "Fresh, chilled or frozen meat of sheep or goats",
+   "rate": 0,
+   "category": "Meat",
+   "sac": false
+  },
+  {
+   "code": "0207",
+   "description": "Fresh, chilled or frozen poultry meat and offal",
+   "rate": 0,
+   "category": "Meat",
+   "sac": false
+  },
+  {
+   "code": "0208",
+   "description": "Other fresh, chilled or frozen meat (rabbit, venison)",
+   "rate": 0,
+   "category": "Meat",
+   "sac": false
+  },
+  {
+   "code": "0210",
+   "description": "Dried, salted or smoked meat and edible offal",
+   "rate": 5,
+   "category": "Meat",
+   "sac": false
+  },
+  {
+   "code": "0301",
+   "description": "Live fish",
+   "rate": 0,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0302",
+   "description": "Fresh or chilled fish (excluding fillets)",
+   "rate": 0,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0303",
+   "description": "Frozen fish (excluding fillets)",
+   "rate": 0,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0304",
+   "description": "Fish fillets and other fish meat (fresh, chilled, frozen)",
+   "rate": 0,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0305",
+   "description": "Dried, salted or smoked fish; fish meal",
+   "rate": 5,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0306",
+   "description": "Crustaceans (shrimps, crabs, lobsters) fresh or frozen",
+   "rate": 0,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0307",
+   "description": "Molluscs (oysters, mussels, squid, octopus) fresh or frozen",
+   "rate": 0,
+   "category": "Fish",
+   "sac": false
+  },
+  {
+   "code": "0401",
+   "description": "Milk and cream, not concentrated",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0402",
+   "description": "Milk and cream, concentrated or sweetened",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0403",
+   "description": "Buttermilk, curd, yogurt and kephir",
+   "rate": 0,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0404",
+   "description": "Whey and modified whey products",
+   "rate": 5,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0405",
+   "description": "Butter and ghee",
+   "rate": 5,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0406",
+   "description": "Cheese and curd",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0407",
+   "description": "Birds' eggs in shell, fresh",
+   "rate": 0,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0408",
+   "description": "Egg yolks (dried, cooked, preserved)",
+   "rate": 5,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0409",
+   "description": "Natural honey",
+   "rate": 0,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0410",
+   "description": "Edible products of animal origin not elsewhere specified",
+   "rate": 5,
+   "category": "Dairy",
+   "sac": false
+  },
+  {
+   "code": "0504",
+   "description": "Guts, bladders and stomachs of animals",
+   "rate": 0,
+   "category": "Animal Products",
+   "sac": false
+  },
+  {
+   "code": "0505",
+   "description": "Skins and feathers of birds; down",
+   "rate": 5,
+   "category": "Animal Products",
+   "sac": false
+  },
+  {
+   "code": "0511",
+   "description": "Animal semen; animal products not elsewhere specified",
+   "rate": 0,
+   "category": "Animal Products",
+   "sac": false
+  },
+  {
+   "code": "0601",
+   "description": "Bulbs, tubers, corms, crowns and rhizomes",
+   "rate": 0,
+   "category": "Plants",
+   "sac": false
+  },
+  {
+   "code": "0602",
+   "description": "Live plants, cuttings and slips; mushroom spawn",
+   "rate": 0,
+   "category": "Plants",
+   "sac": false
+  },
+  {
+   "code": "0603",
+   "description": "Cut flowers and flower buds for bouquets, fresh or dried",
+   "rate": 5,
+   "category": "Plants",
+   "sac": false
+  },
+  {
+   "code": "0604",
+   "description": "Foliage, branches without flowers",
+   "rate": 0,
+   "category": "Plants",
+   "sac": false
+  },
+  {
+   "code": "0701",
+   "description": "Potatoes, fresh or chilled",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0702",
+   "description": "Tomatoes, fresh or chilled",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0703",
+   "description": "Onions, shallots, garlic and leeks, fresh or chilled",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0704",
+   "description": "Cabbages, cauliflowers, broccoli, fresh or chilled",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0706",
+   "description": "Carrots, turnips, beetroot, radishes, fresh or chilled",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0707",
+   "description": "Cucumbers and gherkins, fresh or chilled",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0708",
+   "description": "Leguminous vegetables (peas, beans) fresh or chilled",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0709",
+   "description": "Other fresh vegetables (mushrooms, capsicum, spinach)",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0710",
+   "description": "Frozen vegetables (uncooked or cooked by steaming)",
+   "rate": 5,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0712",
+   "description": "Dried vegetables, whole, cut, sliced or in powder",
+   "rate": 0,
+   "category": "Vegetables",
+   "sac": false
+  },
+  {
+   "code": "0713",
+   "description": "Dried leguminous vegetables (dal, lentils)",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0801",
+   "description": "Coconuts, brazil nuts and cashew nuts, fresh or dried",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0802",
+   "description": "Almonds, hazelnuts, walnuts, pistachios and other nuts",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0803",
+   "description": "Bananas and plantains, fresh or dried",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0804",
+   "description": "Dates, figs, pineapples, avocados, mangoes, fresh",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0805",
+   "description": "Citrus fruit (oranges, lemons, limes, grapefruit)",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0806",
+   "description": "Grapes, fresh or dried (raisins)",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0807",
+   "description": "Melons and papayas, fresh",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0808",
+   "description": "Apples, pears and quinces, fresh",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0809",
+   "description": "Apricots, cherries, peaches, plums and sloes, fresh",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0810",
+   "description": "Strawberries, raspberries, kiwifruit and other fresh fruits",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0811",
+   "description": "Frozen fruits and nuts (uncooked or steamed)",
+   "rate": 5,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0813",
+   "description": "Dried fruits (apricots, prunes, raisins, mixed)",
+   "rate": 0,
+   "category": "Fruits",
+   "sac": false
+  },
+  {
+   "code": "0901",
+   "description": "Coffee, whether or not roasted",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0902",
+   "description": "Tea, whether or not flavoured",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "0903",
+   "description": "Mate",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0904",
+   "description": "Pepper (black, white, long) and capsicum dried",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0905",
+   "description": "Vanilla beans",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0906",
+   "description": "Cinnamon and cinnamon-tree bark",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0907",
+   "description": "Cloves (whole fruit, cloves and stems)",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0908",
+   "description": "Nutmeg, mace and cardamoms",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0909",
+   "description": "Seeds of anise, cumin, coriander, fennel",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "0910",
+   "description": "Ginger, turmeric, saffron, thyme, bay leaves, curry powder",
+   "rate": 5,
+   "category": "Spices",
+   "sac": false
+  },
+  {
+   "code": "1001",
+   "description": "Wheat and meslin",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1002",
+   "description": "Rye",
+   "rate": 0,
+   "category": "Cereals",
+   "sac": false
+  },
+  {
+   "code": "1003",
+   "description": "Barley",
+   "rate": 0,
+   "category": "Cereals",
+   "sac": false
+  },
+  {
+   "code": "1004",
+   "description": "Oats",
+   "rate": 0,
+   "category": "Cereals",
+   "sac": false
+  },
+  {
+   "code": "1005",
+   "description": "Maize (corn)",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1006",
+   "description": "Rice",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1007",
+   "description": "Grain sorghum (jowar)",
+   "rate": 0,
+   "category": "Cereals",
+   "sac": false
+  },
+  {
+   "code": "1008",
+   "description": "Millets, buckwheat, quinoa and other cereals",
+   "rate": 0,
+   "category": "Cereals",
+   "sac": false
+  },
+  {
+   "code": "1101",
+   "description": "Wheat or meslin flour (atta)",
+   "rate": 0,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1102",
+   "description": "Cereal flours (other than wheat or meslin)",
+   "rate": 0,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1103",
+   "description": "Cereal groats, meal, pellets; semolina (suji/rava)",
+   "rate": 0,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1104",
+   "description": "Rolled, flaked or milled cereal grains (oatmeal, poha)",
+   "rate": 5,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1105",
+   "description": "Flour, meal, powder and flakes of potato",
+   "rate": 0,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1106",
+   "description": "Flour and meal of dried leguminous vegetables (besan)",
+   "rate": 0,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1107",
+   "description": "Malt, whether or not roasted",
+   "rate": 18,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1108",
+   "description": "Starches; inulin",
+   "rate": 18,
+   "category": "Milling",
+   "sac": false
+  },
+  {
+   "code": "1201",
+   "description": "Soybeans, whether or not broken",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1202",
+   "description": "Groundnuts (peanuts), not roasted",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1205",
+   "description": "Rape or colza seeds (mustard seeds)",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1206",
+   "description": "Sunflower seeds, whether or not broken",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1207",
+   "description": "Other oil seeds (sesame, safflower, linseed)",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1209",
+   "description": "Seeds, fruits and spores for sowing",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1210",
+   "description": "Hop cones, fresh or dried; lupulin",
+   "rate": 5,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1211",
+   "description": "Medicinal plants (tulsi, neem, ashwagandha, aloe vera)",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1212",
+   "description": "Seaweed, sugar beet, sugar cane",
+   "rate": 0,
+   "category": "Oil Seeds",
+   "sac": false
+  },
+  {
+   "code": "1301",
+   "description": "Lac, shellac and similar natural gums and resins",
+   "rate": 5,
+   "category": "Gums & Resins",
+   "sac": false
+  },
+  {
+   "code": "1302",
+   "description": "Vegetable saps and extracts (henna, aloe)",
+   "rate": 5,
+   "category": "Gums & Resins",
+   "sac": false
+  },
+  {
+   "code": "1401",
+   "description": "Bamboo, rattan, reeds and similar materials",
+   "rate": 0,
+   "category": "Vegetable Plaiting",
+   "sac": false
+  },
+  {
+   "code": "1404",
+   "description": "Other vegetable products not elsewhere specified",
+   "rate": 0,
+   "category": "Vegetable Plaiting",
+   "sac": false
+  },
+  {
+   "code": "1501",
+   "description": "Animal fats and oils",
+   "rate": 18,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1502",
+   "description": "Rendered fats of bovine animals, sheep or goats (tallow)",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1504",
+   "description": "Fish oils and fats (cod liver oil)",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1507",
+   "description": "Soya-bean oil",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1508",
+   "description": "Groundnut (peanut) oil and its fractions",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1509",
+   "description": "Olive oil, virgin",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1510",
+   "description": "Other olive oils and blends",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1511",
+   "description": "Palm oil",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1512",
+   "description": "Sunflower oil, safflower oil",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1513",
+   "description": "Coconut oil (copra oil) and its fractions",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1514",
+   "description": "Rapeseed (canola) or mustard oil",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1515",
+   "description": "Groundnut oil, olive oil, other fixed vegetable oils",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1516",
+   "description": "Hydrogenated animal or vegetable fats (vanaspati)",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1517",
+   "description": "Margarine and edible preparations of fats",
+   "rate": 5,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1518",
+   "description": "Animal or vegetable fats, boiled, oxidised or modified",
+   "rate": 18,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1520",
+   "description": "Glycerol, crude; glycerol waters and lyes",
+   "rate": 18,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1521",
+   "description": "Vegetable waxes, beeswax and other insect waxes",
+   "rate": 18,
+   "category": "Fats & Oils",
+   "sac": false
+  },
+  {
+   "code": "1601",
+   "description": "Sausages and similar products of meat or offal",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "1602",
+   "description": "Prepared or preserved meat (corned beef, luncheon meat)",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "1604",
+   "description": "Prepared or preserved fish; caviar",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "1605",
+   "description": "Prepared or preserved crustaceans and molluscs",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "1701",
+   "description": "Cane or beet sugar",
+   "rate": 5,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1702",
+   "description": "Other sugars (glucose, fructose, maltose)",
+   "rate": 18,
+   "category": "Sugar & Confectionery",
+   "sac": false
+  },
+  {
+   "code": "1703",
+   "description": "Molasses from sugar extraction or refining",
+   "rate": 18,
+   "category": "Sugar & Confectionery",
+   "sac": false
+  },
+  {
+   "code": "1704",
+   "description": "Sugar confectionery (not containing cocoa)",
+   "rate": 18,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1801",
+   "description": "Cocoa beans, whole or broken, raw or roasted",
+   "rate": 5,
+   "category": "Cocoa",
+   "sac": false
+  },
+  {
+   "code": "1803",
+   "description": "Cocoa paste, whether or not defatted",
+   "rate": 18,
+   "category": "Cocoa",
+   "sac": false
+  },
+  {
+   "code": "1804",
+   "description": "Cocoa butter, fat and oil",
+   "rate": 18,
+   "category": "Cocoa",
+   "sac": false
+  },
+  {
+   "code": "1805",
+   "description": "Cocoa powder, not containing added sugar",
+   "rate": 18,
+   "category": "Cocoa",
+   "sac": false
+  },
+  {
+   "code": "1806",
+   "description": "Chocolate and other food preparations containing cocoa",
+   "rate": 18,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1901",
+   "description": "Malt extract; food preparations of flour",
+   "rate": 18,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "1902",
+   "description": "Pasta, noodles, couscous and vermicelli",
+   "rate": 18,
+   "category": "Cereal Preparations",
+   "sac": false
+  },
+  {
+   "code": "1903",
+   "description": "Tapioca and substitutes from starch (sago)",
+   "rate": 0,
+   "category": "Cereal Preparations",
+   "sac": false
+  },
+  {
+   "code": "1904",
+   "description": "Prepared cereal-based foods (cornflakes, muesli, puffed rice)",
+   "rate": 18,
+   "category": "Cereal Preparations",
+   "sac": false
+  },
+  {
+   "code": "1905",
+   "description": "Bread, biscuits, cakes, pastry",
+   "rate": 18,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "2001",
+   "description": "Pickles; vegetables/fruits preserved in vinegar",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2002",
+   "description": "Tomatoes prepared or preserved (tomato paste)",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2003",
+   "description": "Mushrooms and truffles prepared or preserved",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2004",
+   "description": "Frozen prepared or preserved vegetables",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2005",
+   "description": "Other prepared vegetables (potato chips, canned)",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2006",
+   "description": "Vegetables, fruits, nuts preserved by sugar",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2007",
+   "description": "Jams, fruit jellies, marmalades and fruit pastes",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2008",
+   "description": "Prepared nuts, peanut butter, fruits prepared",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2009",
+   "description": "Fruit juices and vegetable juices, unfermented",
+   "rate": 18,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2101",
+   "description": "Coffee and tea extracts, essences and concentrates",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2102",
+   "description": "Yeast (active or inactive); baking powders",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2103",
+   "description": "Sauces, ketchup, mustard, mixed condiments",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2104",
+   "description": "Soups and broths, preparations thereof",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2105",
+   "description": "Ice cream and other edible ice",
+   "rate": 18,
+   "category": "Prepared Foods",
+   "sac": false
+  },
+  {
+   "code": "2106",
+   "description": "Food preparations not elsewhere specified (namkeen, papad)",
+   "rate": 18,
+   "category": "Food",
+   "sac": false
+  },
+  {
+   "code": "2201",
+   "description": "Waters, including mineral and aerated waters",
+   "rate": 18,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2202",
+   "description": "Sweetened or flavoured water, soft drinks",
+   "rate": 40,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2203",
+   "description": "Beer made from malt",
+   "rate": 0,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2204",
+   "description": "Wine of fresh grapes",
+   "rate": 0,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2207",
+   "description": "Undenatured ethyl alcohol; denatured spirits",
+   "rate": 18,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2209",
+   "description": "Vinegar and substitutes from acetic acid",
+   "rate": 18,
+   "category": "Beverages",
+   "sac": false
+  },
+  {
+   "code": "2301",
+   "description": "Flour, meals of meat/fish for animal feed",
+   "rate": 0,
+   "category": "Animal Feed",
+   "sac": false
+  },
+  {
+   "code": "2302",
+   "description": "Bran, sharps and other residues of cereals",
+   "rate": 0,
+   "category": "Animal Feed",
+   "sac": false
+  },
+  {
+   "code": "2304",
+   "description": "Oil-cake and residues of soybean oil extraction",
+   "rate": 0,
+   "category": "Animal Feed",
+   "sac": false
+  },
+  {
+   "code": "2306",
+   "description": "Oil-cake and residues of other vegetable fats",
+   "rate": 0,
+   "category": "Animal Feed",
+   "sac": false
+  },
+  {
+   "code": "2309",
+   "description": "Preparations for animal feeding (cattle/poultry feed)",
+   "rate": 0,
+   "category": "Animal Feed",
+   "sac": false
+  },
+  {
+   "code": "2401",
+   "description": "Unmanufactured tobacco; tobacco refuse",
+   "rate": 40,
+   "category": "Tobacco",
+   "sac": false
+  },
+  {
+   "code": "2402",
+   "description": "Cigars, cigarettes, tobacco",
+   "rate": 40,
+   "category": "Tobacco",
+   "sac": false
+  },
+  {
+   "code": "2403",
+   "description": "Other manufactured tobacco (gutka, pan masala with tobacco)",
+   "rate": 40,
+   "category": "Tobacco",
+   "sac": false
+  },
+  {
+   "code": "2501",
+   "description": "Common salt, sea salt, rock salt",
+   "rate": 0,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2505",
+   "description": "Natural sands (silica, quartz, industrial sands)",
+   "rate": 5,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2506",
+   "description": "Quartz and quartzite",
+   "rate": 5,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2510",
+   "description": "Natural calcium phosphates and phosphatic chalk",
+   "rate": 5,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2515",
+   "description": "Marble, travertine and calcareous stone",
+   "rate": 18,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2516",
+   "description": "Granite, sandstone and building stone",
+   "rate": 18,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2517",
+   "description": "Pebbles, gravel, broken or crushed stone; macadam",
+   "rate": 5,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2521",
+   "description": "Limestone for cement manufacture",
+   "rate": 5,
+   "category": "Minerals",
+   "sac": false
+  },
+  {
+   "code": "2523",
+   "description": "Portland cement, aluminous cement",
+   "rate": 18,
+   "category": "Construction",
+   "sac": false
+  },
+  {
+   "code": "2601",
+   "description": "Iron ores and concentrates",
+   "rate": 5,
+   "category": "Ores",
+   "sac": false
+  },
+  {
+   "code": "2602",
+   "description": "Manganese ores and concentrates",
+   "rate": 5,
+   "category": "Ores",
+   "sac": false
+  },
+  {
+   "code": "2603",
+   "description": "Copper ores and concentrates",
+   "rate": 5,
+   "category": "Ores",
+   "sac": false
+  },
+  {
+   "code": "2606",
+   "description": "Aluminium ores (bauxite) and concentrates",
+   "rate": 5,
+   "category": "Ores",
+   "sac": false
+  },
+  {
+   "code": "2701",
+   "description": "Coal; briquettes and solid fuels from coal",
+   "rate": 5,
+   "category": "Mineral Fuels",
+   "sac": false
+  },
+  {
+   "code": "2702",
+   "description": "Lignite, whether or not agglomerated",
+   "rate": 5,
+   "category": "Mineral Fuels",
+   "sac": false
+  },
+  {
+   "code": "2704",
+   "description": "Coke and semi-coke of coal, lignite or peat",
+   "rate": 5,
+   "category": "Mineral Fuels",
+   "sac": false
+  },
+  {
+   "code": "2706",
+   "description": "Tar distilled from coal, lignite or peat",
+   "rate": 18,
+   "category": "Mineral Fuels",
+   "sac": false
+  },
+  {
+   "code": "2710",
+   "description": "Petroleum oils (petrol, diesel, ATF)",
+   "rate": 18,
+   "category": "Fuel",
+   "sac": false
+  },
+  {
+   "code": "2711",
+   "description": "Petroleum gases (LPG, natural gas)",
+   "rate": 5,
+   "category": "Fuel",
+   "sac": false
+  },
+  {
+   "code": "2713",
+   "description": "Petroleum coke, petroleum bitumen and residues",
+   "rate": 18,
+   "category": "Mineral Fuels",
+   "sac": false
+  },
+  {
+   "code": "2801",
+   "description": "Fluorine, chlorine, bromine and iodine",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2803",
+   "description": "Carbon (carbon blacks and other forms)",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2804",
+   "description": "Hydrogen, nitrogen, oxygen, rare gases",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2806",
+   "description": "Hydrochloric acid; chlorosulphuric acid",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2807",
+   "description": "Sulphuric acid; oleum",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2811",
+   "description": "Other inorganic acids and oxygen compounds",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2814",
+   "description": "Ammonia, anhydrous or in aqueous solution",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2815",
+   "description": "Sodium hydroxide (caustic soda); potassium hydroxide",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2836",
+   "description": "Carbonates; peroxocarbonates; sodium bicarbonate",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2901",
+   "description": "Acyclic hydrocarbons (ethylene, propylene)",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2902",
+   "description": "Cyclic hydrocarbons (benzene, toluene, xylenes)",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2905",
+   "description": "Acyclic alcohols (methanol, propanol, glycerol)",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2915",
+   "description": "Acetic acid, its salts and anhydrides",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2933",
+   "description": "Heterocyclic compounds with nitrogen hetero-atoms",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2936",
+   "description": "Provitamins and vitamins, natural or synthesised",
+   "rate": 5,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2937",
+   "description": "Hormones, prostaglandins, thromboxanes",
+   "rate": 5,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "2941",
+   "description": "Antibiotics",
+   "rate": 5,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3001",
+   "description": "Dried glands and organs for organotherapeutic uses",
+   "rate": 5,
+   "category": "Pharmaceuticals",
+   "sac": false
+  },
+  {
+   "code": "3002",
+   "description": "Human/animal blood; antisera, vaccines, toxins",
+   "rate": 5,
+   "category": "Pharmaceuticals",
+   "sac": false
+  },
+  {
+   "code": "3003",
+   "description": "Medicaments (unmixed, not in measured doses)",
+   "rate": 5,
+   "category": "Pharmaceuticals",
+   "sac": false
+  },
+  {
+   "code": "3004",
+   "description": "Medicaments (medicines for therapeutic use)",
+   "rate": 5,
+   "category": "Pharma",
+   "sac": false
+  },
+  {
+   "code": "3005",
+   "description": "Bandages, dressings, medical supplies",
+   "rate": 5,
+   "category": "Pharma",
+   "sac": false
+  },
+  {
+   "code": "3006",
+   "description": "Pharmaceutical preparations (surgical sutures, blood-grouping reagents)",
+   "rate": 5,
+   "category": "Pharma",
+   "sac": false
+  },
+  {
+   "code": "3101",
+   "description": "Animal or vegetable fertilisers; guano",
+   "rate": 5,
+   "category": "Fertilizers",
+   "sac": false
+  },
+  {
+   "code": "3102",
+   "description": "Mineral or chemical nitrogenous fertilisers (urea)",
+   "rate": 5,
+   "category": "Fertilizers",
+   "sac": false
+  },
+  {
+   "code": "3103",
+   "description": "Mineral or chemical phosphatic fertilisers",
+   "rate": 5,
+   "category": "Fertilizers",
+   "sac": false
+  },
+  {
+   "code": "3104",
+   "description": "Mineral or chemical potassic fertilisers",
+   "rate": 5,
+   "category": "Fertilizers",
+   "sac": false
+  },
+  {
+   "code": "3105",
+   "description": "Mineral/chemical fertilisers with two or more nutrients",
+   "rate": 5,
+   "category": "Fertilizers",
+   "sac": false
+  },
+  {
+   "code": "3201",
+   "description": "Tanning extracts of vegetable origin; tannins",
+   "rate": 18,
+   "category": "Dyes & Pigments",
+   "sac": false
+  },
+  {
+   "code": "3204",
+   "description": "Synthetic colouring matter; dyes",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3205",
+   "description": "Colour lakes; preparations based on colour lakes",
+   "rate": 18,
+   "category": "Dyes & Pigments",
+   "sac": false
+  },
+  {
+   "code": "3206",
+   "description": "Inorganic pigments (titanium dioxide, chrome colours)",
+   "rate": 18,
+   "category": "Dyes & Pigments",
+   "sac": false
+  },
+  {
+   "code": "3207",
+   "description": "Prepared pigments and colours for ceramics",
+   "rate": 18,
+   "category": "Dyes & Pigments",
+   "sac": false
+  },
+  {
+   "code": "3208",
+   "description": "Paints and varnishes",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3209",
+   "description": "Water-based paints and varnishes (emulsions)",
+   "rate": 18,
+   "category": "Paints",
+   "sac": false
+  },
+  {
+   "code": "3210",
+   "description": "Other paints and varnishes; prepared water pigments",
+   "rate": 18,
+   "category": "Paints",
+   "sac": false
+  },
+  {
+   "code": "3213",
+   "description": "Artists' colours",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3214",
+   "description": "Glaziers putty, grafting putty, resin cements",
+   "rate": 18,
+   "category": "Paints",
+   "sac": false
+  },
+  {
+   "code": "3215",
+   "description": "Printing ink, writing or drawing ink",
+   "rate": 18,
+   "category": "Dyes & Pigments",
+   "sac": false
+  },
+  {
+   "code": "3301",
+   "description": "Essential oils (lemon, peppermint, eucalyptus)",
+   "rate": 18,
+   "category": "Perfumery",
+   "sac": false
+  },
+  {
+   "code": "3302",
+   "description": "Mixtures of odoriferous substances for food industry",
+   "rate": 18,
+   "category": "Perfumery",
+   "sac": false
+  },
+  {
+   "code": "3303",
+   "description": "Perfumes and toilet waters (eau de toilette)",
+   "rate": 18,
+   "category": "Perfumery",
+   "sac": false
+  },
+  {
+   "code": "3304",
+   "description": "Beauty or make-up preparations, skincare",
+   "rate": 18,
+   "category": "Cosmetics",
+   "sac": false
+  },
+  {
+   "code": "3305",
+   "description": "Hair care preparations (shampoo, conditioner)",
+   "rate": 18,
+   "category": "Cosmetics",
+   "sac": false
+  },
+  {
+   "code": "3306",
+   "description": "Oral or dental hygiene preparations (toothpaste)",
+   "rate": 18,
+   "category": "Cosmetics",
+   "sac": false
+  },
+  {
+   "code": "3307",
+   "description": "Deodorants, bath preparations, room fresheners",
+   "rate": 18,
+   "category": "Perfumery",
+   "sac": false
+  },
+  {
+   "code": "3401",
+   "description": "Soap, washing preparations, detergent",
+   "rate": 18,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "3402",
+   "description": "Cleaning preparations, surface-active agents",
+   "rate": 18,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "3403",
+   "description": "Lubricating preparations (cutting oil, rust preventives)",
+   "rate": 18,
+   "category": "Soap & Cleaning",
+   "sac": false
+  },
+  {
+   "code": "3405",
+   "description": "Polishes and creams for footwear, furniture, floors",
+   "rate": 18,
+   "category": "Soap & Cleaning",
+   "sac": false
+  },
+  {
+   "code": "3406",
+   "description": "Candles, tapers and the like",
+   "rate": 5,
+   "category": "Soap & Cleaning",
+   "sac": false
+  },
+  {
+   "code": "3501",
+   "description": "Casein, caseinates and other casein derivatives",
+   "rate": 18,
+   "category": "Protein Substances",
+   "sac": false
+  },
+  {
+   "code": "3503",
+   "description": "Gelatin and gelatin derivatives; isinglass",
+   "rate": 18,
+   "category": "Protein Substances",
+   "sac": false
+  },
+  {
+   "code": "3506",
+   "description": "Prepared glues and adhesives not elsewhere specified",
+   "rate": 18,
+   "category": "Protein Substances",
+   "sac": false
+  },
+  {
+   "code": "3604",
+   "description": "Fireworks, signalling flares, rain rockets",
+   "rate": 18,
+   "category": "Explosives",
+   "sac": false
+  },
+  {
+   "code": "3605",
+   "description": "Matches (other than pyrotechnic articles)",
+   "rate": 5,
+   "category": "Explosives",
+   "sac": false
+  },
+  {
+   "code": "3701",
+   "description": "Photographic plates and film, sensitised",
+   "rate": 18,
+   "category": "Photography",
+   "sac": false
+  },
+  {
+   "code": "3702",
+   "description": "Photographic film in rolls, sensitised",
+   "rate": 18,
+   "category": "Photography",
+   "sac": false
+  },
+  {
+   "code": "3802",
+   "description": "Activated carbon; activated natural mineral products",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3808",
+   "description": "Insecticides, fungicides, herbicides",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3814",
+   "description": "Organic composite solvents and thinners",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3822",
+   "description": "Diagnostic or laboratory reagents on a backing",
+   "rate": 18,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3826",
+   "description": "Biodiesel and mixtures thereof",
+   "rate": 5,
+   "category": "Chemicals",
+   "sac": false
+  },
+  {
+   "code": "3901",
+   "description": "Polyethylene in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3902",
+   "description": "Polypropylene in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3903",
+   "description": "Polystyrene in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3904",
+   "description": "PVC (polyvinyl chloride) in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3906",
+   "description": "Acrylic polymers in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3907",
+   "description": "Polyacetals, polyesters in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3909",
+   "description": "Amino resins, phenolic resins in primary forms",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3917",
+   "description": "Tubes, pipes and hoses of plastics",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3918",
+   "description": "Plastic floor coverings, wall/ceiling coverings",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3919",
+   "description": "Self-adhesive plates, sheets, film of plastics",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3920",
+   "description": "Plastic plates, sheets, film (packaging)",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3921",
+   "description": "Plastic plates, sheets (cellular)",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3922",
+   "description": "Plastic baths, sinks, wash basins, toilets",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3923",
+   "description": "Plastic containers, bottles, bags",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3924",
+   "description": "Plastic tableware, kitchenware, household articles",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3925",
+   "description": "Plastic builders' ware (doors, windows, shutters)",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "3926",
+   "description": "Other articles of plastics",
+   "rate": 18,
+   "category": "Plastics",
+   "sac": false
+  },
+  {
+   "code": "4001",
+   "description": "Natural rubber in primary forms",
+   "rate": 5,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4002",
+   "description": "Synthetic rubber in primary forms",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4008",
+   "description": "Vulcanised rubber plates, sheets, strips",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4009",
+   "description": "Rubber tubes, pipes and hoses",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4010",
+   "description": "Conveyor/transmission belts of vulcanised rubber",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4011",
+   "description": "New pneumatic tyres of rubber",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4012",
+   "description": "Retreaded or used pneumatic tyres of rubber",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4013",
+   "description": "Inner tubes of rubber",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4014",
+   "description": "Rubber hygienic/pharmaceutical articles, teats",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4015",
+   "description": "Rubber garments, gloves, mittens",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4016",
+   "description": "Other articles of vulcanised rubber (erasers, gaskets)",
+   "rate": 18,
+   "category": "Rubber",
+   "sac": false
+  },
+  {
+   "code": "4101",
+   "description": "Raw hides and skins of bovine/equine animals",
+   "rate": 5,
+   "category": "Leather",
+   "sac": false
+  },
+  {
+   "code": "4104",
+   "description": "Tanned/crust leather of bovine/equine animals",
+   "rate": 5,
+   "category": "Leather",
+   "sac": false
+  },
+  {
+   "code": "4107",
+   "description": "Leather of other animals, tanned or crust",
+   "rate": 5,
+   "category": "Leather",
+   "sac": false
+  },
+  {
+   "code": "4201",
+   "description": "Saddlery and harness for animals",
+   "rate": 18,
+   "category": "Leather Goods",
+   "sac": false
+  },
+  {
+   "code": "4202",
+   "description": "Trunks, suitcases, handbags, wallets",
+   "rate": 18,
+   "category": "Leather",
+   "sac": false
+  },
+  {
+   "code": "4203",
+   "description": "Leather garments, gloves, belts",
+   "rate": 5,
+   "category": "Leather",
+   "sac": false
+  },
+  {
+   "code": "4205",
+   "description": "Other articles of leather or composition leather",
+   "rate": 18,
+   "category": "Leather Goods",
+   "sac": false
+  },
+  {
+   "code": "4301",
+   "description": "Raw furskins, heads, tails, paws",
+   "rate": 5,
+   "category": "Furskins",
+   "sac": false
+  },
+  {
+   "code": "4303",
+   "description": "Articles of apparel and accessories of furskin",
+   "rate": 18,
+   "category": "Furskins",
+   "sac": false
+  },
+  {
+   "code": "4401",
+   "description": "Fuel wood, wood chips, sawdust",
+   "rate": 5,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4403",
+   "description": "Wood in the rough, treated or untreated",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4407",
+   "description": "Wood sawn or chipped lengthwise, sliced/peeled",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4408",
+   "description": "Veneer sheets, sheets for plywood",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4410",
+   "description": "Particle board and oriented strand board (OSB)",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4411",
+   "description": "Fibreboard, MDF of wood or ligneous materials",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4412",
+   "description": "Plywood, veneered panels, laminated wood",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4415",
+   "description": "Wooden packing cases, boxes, crates, pallets",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4418",
+   "description": "Builders' joinery (doors, windows, parquet)",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4419",
+   "description": "Wooden tableware and kitchenware",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4421",
+   "description": "Other articles of wood (pegs, hangers, spools)",
+   "rate": 18,
+   "category": "Wood",
+   "sac": false
+  },
+  {
+   "code": "4601",
+   "description": "Plaits, basketwork, wickerwork products",
+   "rate": 18,
+   "category": "Straw & Plaiting",
+   "sac": false
+  },
+  {
+   "code": "4602",
+   "description": "Basketwork, wickerwork articles, loofah",
+   "rate": 18,
+   "category": "Straw & Plaiting",
+   "sac": false
+  },
+  {
+   "code": "4801",
+   "description": "Newsprint, in rolls or sheets",
+   "rate": 5,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4802",
+   "description": "Paper and paperboard, uncoated",
+   "rate": 5,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4804",
+   "description": "Uncoated kraft paper and paperboard",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4808",
+   "description": "Corrugated paper and paperboard",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4810",
+   "description": "Coated paper and paperboard",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4811",
+   "description": "Paper, coated, impregnated",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4817",
+   "description": "Envelopes, letter cards, postcards of paper",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4818",
+   "description": "Toilet paper, tissues, napkins of paper",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4819",
+   "description": "Cartons, boxes, bags of paper",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4820",
+   "description": "Registers, notebooks, diaries",
+   "rate": 5,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4821",
+   "description": "Paper labels and tags, printed or not",
+   "rate": 18,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4901",
+   "description": "Printed books, brochures, leaflets",
+   "rate": 0,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "4902",
+   "description": "Newspapers, journals, periodicals",
+   "rate": 0,
+   "category": "Paper",
+   "sac": false
+  },
+  {
+   "code": "5001",
+   "description": "Silk-worm cocoons suitable for reeling",
+   "rate": 5,
+   "category": "Silk",
+   "sac": false
+  },
+  {
+   "code": "5004",
+   "description": "Silk yarn (not from waste), not for retail",
+   "rate": 5,
+   "category": "Silk",
+   "sac": false
+  },
+  {
+   "code": "5007",
+   "description": "Woven fabrics of silk",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5201",
+   "description": "Cotton, not carded or combed (raw cotton)",
+   "rate": 5,
+   "category": "Cotton",
+   "sac": false
+  },
+  {
+   "code": "5204",
+   "description": "Cotton sewing thread, retail or not",
+   "rate": 5,
+   "category": "Cotton",
+   "sac": false
+  },
+  {
+   "code": "5205",
+   "description": "Cotton yarn (not sewing thread), 85%+ cotton",
+   "rate": 5,
+   "category": "Cotton",
+   "sac": false
+  },
+  {
+   "code": "5208",
+   "description": "Woven fabrics of cotton",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5209",
+   "description": "Woven fabrics of cotton (above 200g/m2)",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5210",
+   "description": "Woven cotton fabric with man-made fibre, denim",
+   "rate": 5,
+   "category": "Cotton",
+   "sac": false
+  },
+  {
+   "code": "5303",
+   "description": "Jute and other textile bast fibres, raw",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5305",
+   "description": "Coconut, abaca, sisal and other plant fibres",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5310",
+   "description": "Woven fabrics of jute or other bast fibres",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5402",
+   "description": "Synthetic filament yarn, not for retail sale",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5407",
+   "description": "Woven fabrics of synthetic filament yarn",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5503",
+   "description": "Synthetic staple fibres, not carded/combed",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5509",
+   "description": "Yarn of synthetic staple fibres, not retail",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5512",
+   "description": "Woven fabrics of synthetic staple fibres, 85%+",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5513",
+   "description": "Woven fabrics of synthetic staple fibres",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5601",
+   "description": "Wadding of textile materials and articles",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5603",
+   "description": "Nonwovens, whether or not impregnated/coated",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5607",
+   "description": "Twine, cordage, ropes and cables",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5608",
+   "description": "Knotted netting of twine, rope (fishing nets)",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5701",
+   "description": "Carpets, hand-knotted or hand-woven",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5702",
+   "description": "Carpets, woven, not tufted or flocked",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5703",
+   "description": "Carpets, tufted, whether or not made up",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "5903",
+   "description": "Textile fabrics, impregnated, coated, laminated",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6001",
+   "description": "Pile fabrics, knitted or crocheted",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6101",
+   "description": "Men's overcoats, jackets (knitted)",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6102",
+   "description": "Women's overcoats, cloaks, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6103",
+   "description": "Men's suits, jackets, trousers, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6104",
+   "description": "Women's suits, dresses, skirts (knitted)",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6105",
+   "description": "Men's shirts, knitted or crocheted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6106",
+   "description": "Women's blouses and shirts, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6107",
+   "description": "Men's underpants, pyjamas, robes, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6108",
+   "description": "Women's slips, petticoats, briefs, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6109",
+   "description": "T-shirts, singlets, vests (knitted)",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6110",
+   "description": "Jerseys, pullovers, cardigans (knitted)",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6111",
+   "description": "Babies' garments and accessories, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6112",
+   "description": "Track suits, ski suits, swimwear, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6114",
+   "description": "Other garments, knitted or crocheted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6115",
+   "description": "Hosiery, stockings, socks, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6116",
+   "description": "Gloves, mittens, mitts, knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6201",
+   "description": "Men's overcoats, cloaks, wind-jackets",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6202",
+   "description": "Women's overcoats, cloaks, wind-jackets",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6203",
+   "description": "Men's suits, trousers, shorts",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6204",
+   "description": "Women's suits, trousers, shorts",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6205",
+   "description": "Men's shirts",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6206",
+   "description": "Women's blouses, shirts",
+   "rate": 5,
+   "category": "Garments",
+   "sac": false
+  },
+  {
+   "code": "6207",
+   "description": "Men's singlets, undershirts, pyjamas",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6208",
+   "description": "Women's singlets, slips, petticoats",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6209",
+   "description": "Babies' garments and accessories, not knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6211",
+   "description": "Track suits, ski suits, swimwear, not knitted",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6212",
+   "description": "Brassieres, girdles, corsets, suspenders",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6213",
+   "description": "Handkerchiefs of textile materials",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6214",
+   "description": "Shawls, scarves, mufflers, veils",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6215",
+   "description": "Ties, bow ties, cravats",
+   "rate": 5,
+   "category": "Apparel",
+   "sac": false
+  },
+  {
+   "code": "6301",
+   "description": "Blankets and travelling rugs",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6302",
+   "description": "Bed linen, table linen, toilet/kitchen linen",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6303",
+   "description": "Curtains, drapes, interior blinds of textile",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6304",
+   "description": "Furnishing articles (bedspreads, cushions)",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6305",
+   "description": "Sacks and bags for packing of textile",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6306",
+   "description": "Tarpaulins, tents, sails, camping goods",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6307",
+   "description": "Floor cloths, dish cloths, dusters, life jackets",
+   "rate": 5,
+   "category": "Textiles",
+   "sac": false
+  },
+  {
+   "code": "6401",
+   "description": "Waterproof footwear",
+   "rate": 18,
+   "category": "Footwear",
+   "sac": false
+  },
+  {
+   "code": "6402",
+   "description": "Footwear with outer soles of rubber or plastics",
+   "rate": 18,
+   "category": "Footwear",
+   "sac": false
+  },
+  {
+   "code": "6403",
+   "description": "Footwear with leather uppers",
+   "rate": 18,
+   "category": "Footwear",
+   "sac": false
+  },
+  {
+   "code": "6404",
+   "description": "Footwear with textile uppers, rubber/plastic soles",
+   "rate": 5,
+   "category": "Footwear",
+   "sac": false
+  },
+  {
+   "code": "6405",
+   "description": "Other footwear (wooden, cork uppers)",
+   "rate": 5,
+   "category": "Footwear",
+   "sac": false
+  },
+  {
+   "code": "6406",
+   "description": "Parts of footwear (uppers, soles, heels)",
+   "rate": 18,
+   "category": "Footwear",
+   "sac": false
+  },
+  {
+   "code": "6505",
+   "description": "Hats and headgear, knitted or from lace/felt",
+   "rate": 18,
+   "category": "Headgear",
+   "sac": false
+  },
+  {
+   "code": "6506",
+   "description": "Safety headgear, helmets, hard hats",
+   "rate": 18,
+   "category": "Headgear",
+   "sac": false
+  },
+  {
+   "code": "6601",
+   "description": "Umbrellas and sun umbrellas",
+   "rate": 18,
+   "category": "Umbrellas",
+   "sac": false
+  },
+  {
+   "code": "6602",
+   "description": "Walking sticks, seat-sticks, whips, crops",
+   "rate": 18,
+   "category": "Umbrellas",
+   "sac": false
+  },
+  {
+   "code": "6702",
+   "description": "Artificial flowers, foliage, fruit",
+   "rate": 18,
+   "category": "Feathers & Artificial Flowers",
+   "sac": false
+  },
+  {
+   "code": "6704",
+   "description": "Wigs, false beards, eyebrows of human/animal hair",
+   "rate": 18,
+   "category": "Feathers & Artificial Flowers",
+   "sac": false
+  },
+  {
+   "code": "6801",
+   "description": "Setts, curbstones, flagstones of natural stone",
+   "rate": 18,
+   "category": "Stone & Cement",
+   "sac": false
+  },
+  {
+   "code": "6802",
+   "description": "Worked monumental stone, marble, granite",
+   "rate": 18,
+   "category": "Construction",
+   "sac": false
+  },
+  {
+   "code": "6806",
+   "description": "Mineral wool, slag wool thermal insulation",
+   "rate": 18,
+   "category": "Stone & Cement",
+   "sac": false
+  },
+  {
+   "code": "6809",
+   "description": "Articles of plaster or compositions of plaster",
+   "rate": 18,
+   "category": "Stone & Cement",
+   "sac": false
+  },
+  {
+   "code": "6810",
+   "description": "Cement, concrete or artificial stone articles",
+   "rate": 18,
+   "category": "Stone & Cement",
+   "sac": false
+  },
+  {
+   "code": "6813",
+   "description": "Friction material for brakes, clutches",
+   "rate": 18,
+   "category": "Stone & Cement",
+   "sac": false
+  },
+  {
+   "code": "6901",
+   "description": "Bricks, blocks, tiles of siliceous earth",
+   "rate": 5,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "6902",
+   "description": "Refractory bricks, blocks, tiles",
+   "rate": 18,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "6904",
+   "description": "Ceramic building bricks, flooring blocks",
+   "rate": 5,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "6905",
+   "description": "Roofing tiles, chimney pots of ceramics",
+   "rate": 5,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "6906",
+   "description": "Ceramic pipes, conduits, guttering",
+   "rate": 18,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "6907",
+   "description": "Ceramic tiles for floors and walls",
+   "rate": 18,
+   "category": "Construction",
+   "sac": false
+  },
+  {
+   "code": "6910",
+   "description": "Ceramic sinks, wash basins, baths, toilets",
+   "rate": 18,
+   "category": "Construction",
+   "sac": false
+  },
+  {
+   "code": "6911",
+   "description": "Tableware, kitchenware of porcelain",
+   "rate": 5,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "6912",
+   "description": "Ceramic tableware, kitchenware (non-porcelain)",
+   "rate": 18,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "6913",
+   "description": "Ceramic statuettes and ornamental articles",
+   "rate": 18,
+   "category": "Ceramics",
+   "sac": false
+  },
+  {
+   "code": "7005",
+   "description": "Float glass, polished glass in sheets",
+   "rate": 18,
+   "category": "Construction",
+   "sac": false
+  },
+  {
+   "code": "7007",
+   "description": "Safety glass (toughened/tempered, laminated)",
+   "rate": 18,
+   "category": "Glass",
+   "sac": false
+  },
+  {
+   "code": "7009",
+   "description": "Glass mirrors, framed or unframed",
+   "rate": 18,
+   "category": "Glass",
+   "sac": false
+  },
+  {
+   "code": "7010",
+   "description": "Glass carboys, bottles, jars, phials, ampoules",
+   "rate": 18,
+   "category": "Glass",
+   "sac": false
+  },
+  {
+   "code": "7013",
+   "description": "Glassware for table, kitchen use",
+   "rate": 18,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "7016",
+   "description": "Glass paving blocks, bricks for building",
+   "rate": 18,
+   "category": "Glass",
+   "sac": false
+  },
+  {
+   "code": "7017",
+   "description": "Laboratory, hygienic, pharmaceutical glassware",
+   "rate": 18,
+   "category": "Glass",
+   "sac": false
+  },
+  {
+   "code": "7019",
+   "description": "Glass fibres, rovings, yarn, mats, fabrics",
+   "rate": 18,
+   "category": "Glass",
+   "sac": false
+  },
+  {
+   "code": "7101",
+   "description": "Pearls, natural or cultured",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7102",
+   "description": "Diamonds, worked or unworked",
+   "rate": 0.25,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7103",
+   "description": "Precious stones (rubies, sapphires, emeralds)",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7104",
+   "description": "Synthetic or reconstructed precious stones",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7106",
+   "description": "Silver, unwrought or semi-manufactured",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7108",
+   "description": "Gold, unwrought or semi-manufactured",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7110",
+   "description": "Platinum, unwrought or semi-manufactured",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7113",
+   "description": "Jewellery of precious metal",
+   "rate": 3,
+   "category": "Jewellery",
+   "sac": false
+  },
+  {
+   "code": "7114",
+   "description": "Articles of goldsmiths' or silversmiths' wares",
+   "rate": 3,
+   "category": "Jewellery",
+   "sac": false
+  },
+  {
+   "code": "7115",
+   "description": "Articles of precious metal (wire, foil, tubes)",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7117",
+   "description": "Imitation jewellery",
+   "rate": 18,
+   "category": "Jewellery",
+   "sac": false
+  },
+  {
+   "code": "7118",
+   "description": "Coin, including legal tender",
+   "rate": 3,
+   "category": "Precious Metals & Stones",
+   "sac": false
+  },
+  {
+   "code": "7201",
+   "description": "Pig iron and spiegeleisen, ingots",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7202",
+   "description": "Ferro-alloys",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7204",
+   "description": "Ferrous waste and scrap, remelting ingots",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7207",
+   "description": "Semi-finished products of iron or non-alloy steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7208",
+   "description": "Flat-rolled iron/steel, hot-rolled, width >=600mm",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7209",
+   "description": "Flat-rolled iron/steel, cold-rolled, width >=600mm",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7210",
+   "description": "Hot rolled / cold rolled steel sheets",
+   "rate": 18,
+   "category": "Metals",
+   "sac": false
+  },
+  {
+   "code": "7211",
+   "description": "Flat-rolled iron/steel, width <600mm",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7212",
+   "description": "Flat-rolled iron/steel, plated or coated",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7213",
+   "description": "Hot-rolled bars and rods of iron or steel",
+   "rate": 18,
+   "category": "Metals",
+   "sac": false
+  },
+  {
+   "code": "7214",
+   "description": "Iron or non-alloy steel bars, rods",
+   "rate": 18,
+   "category": "Metals",
+   "sac": false
+  },
+  {
+   "code": "7215",
+   "description": "Bars and rods of iron/steel, cold-formed",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7216",
+   "description": "Angles, shapes, sections of iron/steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7217",
+   "description": "Wire of iron or non-alloy steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7219",
+   "description": "Stainless steel flat-rolled, width >=600mm",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7222",
+   "description": "Stainless steel bars, rods, angles, shapes",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7225",
+   "description": "Flat-rolled products of alloy steel, width >=600mm",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7228",
+   "description": "Bars, rods of other alloy steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7301",
+   "description": "Sheet piling of iron or steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7304",
+   "description": "Seamless tubes and pipes of iron/steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7305",
+   "description": "Other tubes, pipes, welded, >406mm dia",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7306",
+   "description": "Steel tubes, pipes, hollow profiles",
+   "rate": 18,
+   "category": "Metals",
+   "sac": false
+  },
+  {
+   "code": "7307",
+   "description": "Tube or pipe fittings of iron/steel (elbows)",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7308",
+   "description": "Structures and parts of iron or steel",
+   "rate": 18,
+   "category": "Metals",
+   "sac": false
+  },
+  {
+   "code": "7309",
+   "description": "Reservoirs, tanks, vats of iron/steel, >300L",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7310",
+   "description": "Tanks, casks, drums, boxes of iron/steel, <=300L",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7311",
+   "description": "Containers for compressed/liquefied gas, steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7312",
+   "description": "Stranded wire, ropes, cables of iron/steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7313",
+   "description": "Barbed wire of iron/steel, fencing wire",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7314",
+   "description": "Cloth, grill, netting, fencing of iron/steel wire",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7315",
+   "description": "Chain and parts thereof of iron or steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7317",
+   "description": "Nails, tacks, drawing pins, staples of iron/steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7318",
+   "description": "Screws, bolts, nuts, washers of iron",
+   "rate": 18,
+   "category": "Metals",
+   "sac": false
+  },
+  {
+   "code": "7320",
+   "description": "Springs and leaves for springs, of iron/steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7321",
+   "description": "Stoves, cookers, grills (iron or steel)",
+   "rate": 18,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "7322",
+   "description": "Radiators and parts, air heaters of iron/steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7323",
+   "description": "Table, kitchen articles of iron or steel",
+   "rate": 18,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "7324",
+   "description": "Sanitary ware (sinks, baths) of stainless steel",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7326",
+   "description": "Other articles of iron or steel (forgings)",
+   "rate": 18,
+   "category": "Iron & Steel",
+   "sac": false
+  },
+  {
+   "code": "7403",
+   "description": "Refined copper, unwrought, alloys",
+   "rate": 18,
+   "category": "Copper",
+   "sac": false
+  },
+  {
+   "code": "7404",
+   "description": "Copper waste and scrap",
+   "rate": 18,
+   "category": "Copper",
+   "sac": false
+  },
+  {
+   "code": "7407",
+   "description": "Copper bars, rods and profiles",
+   "rate": 18,
+   "category": "Copper",
+   "sac": false
+  },
+  {
+   "code": "7408",
+   "description": "Copper wire",
+   "rate": 18,
+   "category": "Copper",
+   "sac": false
+  },
+  {
+   "code": "7411",
+   "description": "Copper tubes and pipes",
+   "rate": 18,
+   "category": "Copper",
+   "sac": false
+  },
+  {
+   "code": "7418",
+   "description": "Copper table, kitchen, sanitary ware",
+   "rate": 18,
+   "category": "Copper",
+   "sac": false
+  },
+  {
+   "code": "7601",
+   "description": "Unwrought aluminium (alloys, ingots)",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7604",
+   "description": "Aluminium bars, rods and profiles",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7606",
+   "description": "Aluminium plates, sheets, strip",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7607",
+   "description": "Aluminium foil, thickness <=0.2mm",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7608",
+   "description": "Aluminium tubes and pipes",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7610",
+   "description": "Aluminium structures (bridges, towers, doors)",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7615",
+   "description": "Aluminium table, kitchen articles",
+   "rate": 5,
+   "category": "Household",
+   "sac": false
+  },
+  {
+   "code": "7616",
+   "description": "Other articles of aluminium",
+   "rate": 18,
+   "category": "Aluminium",
+   "sac": false
+  },
+  {
+   "code": "7801",
+   "description": "Unwrought lead",
+   "rate": 18,
+   "category": "Other Base Metals",
+   "sac": false
+  },
+  {
+   "code": "7901",
+   "description": "Unwrought zinc",
+   "rate": 18,
+   "category": "Other Base Metals",
+   "sac": false
+  },
+  {
+   "code": "8001",
+   "description": "Unwrought tin",
+   "rate": 18,
+   "category": "Other Base Metals",
+   "sac": false
+  },
+  {
+   "code": "8201",
+   "description": "Hand tools (spades, shovels, picks, hoes, forks)",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8202",
+   "description": "Hand saws, blades for saws of all kinds",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8203",
+   "description": "Files, rasps, pliers, pincers, tweezers, shears",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8204",
+   "description": "Hand-operated spanners and wrenches",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8205",
+   "description": "Other hand tools (anvils, vices, blow torches)",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8207",
+   "description": "Interchangeable tools for drilling, boring, milling",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8211",
+   "description": "Knives with cutting blades, table/pocket knives",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8212",
+   "description": "Razors and razor blades",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8213",
+   "description": "Scissors, tailors' shears, and blades",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8215",
+   "description": "Spoons, forks, ladles, skimmers, cake-servers",
+   "rate": 18,
+   "category": "Tools & Cutlery",
+   "sac": false
+  },
+  {
+   "code": "8301",
+   "description": "Padlocks, locks (key/combination)",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8302",
+   "description": "Base metal mountings, fittings (hinges, castors)",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8303",
+   "description": "Armoured safes, strongboxes, vault doors",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8305",
+   "description": "Staples in strips, letter clips of base metal",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8306",
+   "description": "Bells, gongs, statuettes, trophies of base metal",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8309",
+   "description": "Stoppers, caps, lids, seals of base metal",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8311",
+   "description": "Wire, rods, electrodes for soldering/welding",
+   "rate": 18,
+   "category": "Base Metal Articles",
+   "sac": false
+  },
+  {
+   "code": "8402",
+   "description": "Steam or other vapour generating boilers",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8407",
+   "description": "Spark-ignition internal combustion engines",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8408",
+   "description": "Compression-ignition diesel/semi-diesel engines",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8409",
+   "description": "Parts for spark-ignition/diesel engines",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8411",
+   "description": "Turbo-jets, turbo-propellers, gas turbines",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8413",
+   "description": "Pumps for liquids, liquid elevators",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8414",
+   "description": "Air pumps, vacuum pumps, compressors, fans",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8415",
+   "description": "Air conditioning machines",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8418",
+   "description": "Refrigerators, freezers",
+   "rate": 18,
+   "category": "Appliances",
+   "sac": false
+  },
+  {
+   "code": "8419",
+   "description": "Machinery for heat treatment (pasteurisers, dryers)",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8421",
+   "description": "Centrifuges, filters, water purifiers",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8422",
+   "description": "Dish washing machines",
+   "rate": 18,
+   "category": "Appliances",
+   "sac": false
+  },
+  {
+   "code": "8423",
+   "description": "Weighing machinery, weights for balances",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8424",
+   "description": "Mechanical spraying apparatus, fire extinguishers",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8426",
+   "description": "Ships' derricks, cranes, mobile lifting frames",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8427",
+   "description": "Fork-lift trucks, works trucks with lifting gear",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8429",
+   "description": "Self-propelled bulldozers, excavators, graders",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8432",
+   "description": "Agricultural machinery (ploughs, harrows, seeders)",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8433",
+   "description": "Harvesting, threshing machinery, mowers",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8436",
+   "description": "Other agricultural/horticultural/poultry machinery",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8437",
+   "description": "Machines for cleaning, sorting seed/grain, milling",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8438",
+   "description": "Food/drink industry machinery, sugar manufacture",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8443",
+   "description": "Printing machinery; printers, copiers",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8446",
+   "description": "Weaving machines, looms",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8450",
+   "description": "Washing machines",
+   "rate": 18,
+   "category": "Appliances",
+   "sac": false
+  },
+  {
+   "code": "8452",
+   "description": "Sewing machines",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8462",
+   "description": "Machine tools for forging, stamping, pressing metal",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8465",
+   "description": "Machine tools for working wood, cork, bone",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8467",
+   "description": "Pneumatic hand tools (rotary, percussive)",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8471",
+   "description": "Computers and data processing machines",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8473",
+   "description": "Parts and accessories for computers",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8474",
+   "description": "Machinery for sorting, screening, crushing, mixing",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8477",
+   "description": "Machinery for working rubber or plastics",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8479",
+   "description": "Machines with individual functions (presses, mixers)",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8481",
+   "description": "Taps, cocks, valves for pipes, tanks, boilers",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8482",
+   "description": "Ball or roller bearings",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8483",
+   "description": "Transmission shafts, cranks, bearing housings, gears",
+   "rate": 18,
+   "category": "Machinery",
+   "sac": false
+  },
+  {
+   "code": "8501",
+   "description": "Electric motors and generators",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8502",
+   "description": "Electric generating sets and rotary converters",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8503",
+   "description": "Parts for electric motors, generators",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8504",
+   "description": "Electrical transformers, static converters, UPS",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8505",
+   "description": "Electro-magnets, electromagnetic chucks, brakes",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8506",
+   "description": "Primary cells and batteries",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8507",
+   "description": "Electric accumulators (lithium-ion batteries)",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8508",
+   "description": "Vacuum cleaners, including dry and wet types",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8509",
+   "description": "Electromechanical domestic appliances (mixers, grinders)",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8510",
+   "description": "Electric shavers, hair clippers, hair removers",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8511",
+   "description": "Electrical ignition/starting equipment for engines",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8512",
+   "description": "Electrical lighting/signalling for vehicles, wipers",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8513",
+   "description": "Portable electric lamps (torches, lanterns)",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8515",
+   "description": "Electric brazing/soldering/welding machines",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8516",
+   "description": "Electric water heaters, hair dryers, irons",
+   "rate": 18,
+   "category": "Appliances",
+   "sac": false
+  },
+  {
+   "code": "8517",
+   "description": "Telephone sets including smartphones",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8518",
+   "description": "Microphones, speakers, headphones",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8519",
+   "description": "Sound recording or reproducing apparatus",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8521",
+   "description": "Video recording or reproducing apparatus",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8523",
+   "description": "Discs, tapes, solid-state storage devices (pen drives, memory cards)",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8525",
+   "description": "Transmission apparatus; cameras, camcorders",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8526",
+   "description": "Radar apparatus, radio navigational aid apparatus",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8527",
+   "description": "Radio broadcast receivers",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8528",
+   "description": "Monitors and projectors; televisions",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8529",
+   "description": "Parts for television, radio receivers/transmitters",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8531",
+   "description": "Electric sound or visual signalling apparatus",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8532",
+   "description": "Electrical capacitors, fixed, variable, adjustable",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8534",
+   "description": "Printed circuits (PCBs)",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8535",
+   "description": "Electrical apparatus for switching, >1000V",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8536",
+   "description": "Electrical switches, fuses, connectors",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8537",
+   "description": "Boards, panels, consoles for electric control",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8539",
+   "description": "Electric filament or LED lamps",
+   "rate": 5,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8541",
+   "description": "Semiconductor devices; LEDs; solar cells",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8542",
+   "description": "Electronic integrated circuits and microassemblies",
+   "rate": 18,
+   "category": "Electrical",
+   "sac": false
+  },
+  {
+   "code": "8544",
+   "description": "Insulated wire, cable; optical fibre cables",
+   "rate": 18,
+   "category": "Electronics",
+   "sac": false
+  },
+  {
+   "code": "8601",
+   "description": "Rail locomotives powered by electric current",
+   "rate": 18,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8603",
+   "description": "Self-propelled railway/tramway coaches",
+   "rate": 18,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8605",
+   "description": "Railway passenger coaches, luggage/mail vans",
+   "rate": 5,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8606",
+   "description": "Railway freight wagons (tank, hopper, flat)",
+   "rate": 5,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8607",
+   "description": "Parts of railway locomotives or rolling stock",
+   "rate": 18,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8608",
+   "description": "Railway track fixtures (rails, sleepers, points)",
+   "rate": 18,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8609",
+   "description": "Containers designed for transport by multiple modes",
+   "rate": 18,
+   "category": "Railway",
+   "sac": false
+  },
+  {
+   "code": "8701",
+   "description": "Tractors (agricultural, road, industrial)",
+   "rate": 5,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8702",
+   "description": "Motor vehicles for 10+ persons, buses",
+   "rate": 18,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8703",
+   "description": "Motor cars and vehicles (petrol/diesel/electric)",
+   "rate": 18,
+   "category": "Automobiles",
+   "sac": false
+  },
+  {
+   "code": "8704",
+   "description": "Motor vehicles for transport of goods (trucks)",
+   "rate": 18,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8706",
+   "description": "Chassis fitted with engines for motor vehicles",
+   "rate": 18,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8707",
+   "description": "Bodies including cabs for motor vehicles",
+   "rate": 18,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8708",
+   "description": "Parts and accessories of motor vehicles",
+   "rate": 18,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8711",
+   "description": "Motorcycles and cycles with auxiliary motor",
+   "rate": 18,
+   "category": "Automobiles",
+   "sac": false
+  },
+  {
+   "code": "8712",
+   "description": "Bicycles and other cycles (not motorized)",
+   "rate": 5,
+   "category": "Automobiles",
+   "sac": false
+  },
+  {
+   "code": "8713",
+   "description": "Wheelchairs, whether or not motorised",
+   "rate": 0,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8714",
+   "description": "Parts and accessories for motorcycles and bicycles",
+   "rate": 18,
+   "category": "Automobiles",
+   "sac": false
+  },
+  {
+   "code": "8716",
+   "description": "Trailers, semi-trailers, non-mechanical vehicles",
+   "rate": 18,
+   "category": "Vehicles",
+   "sac": false
+  },
+  {
+   "code": "8801",
+   "description": "Balloons, dirigibles, gliders, hang gliders, kites",
+   "rate": 5,
+   "category": "Aircraft",
+   "sac": false
+  },
+  {
+   "code": "8802",
+   "description": "Aeroplanes, helicopters, spacecraft, satellites",
+   "rate": 5,
+   "category": "Aircraft",
+   "sac": false
+  },
+  {
+   "code": "8803",
+   "description": "Parts of balloons, aircraft, helicopters, spacecraft",
+   "rate": 18,
+   "category": "Aircraft",
+   "sac": false
+  },
+  {
+   "code": "8804",
+   "description": "Parachutes and rotochutes, parts and accessories",
+   "rate": 18,
+   "category": "Aircraft",
+   "sac": false
+  },
+  {
+   "code": "8901",
+   "description": "Cruise ships, cargo vessels, barges",
+   "rate": 5,
+   "category": "Ships",
+   "sac": false
+  },
+  {
+   "code": "8902",
+   "description": "Fishing vessels, factory ships",
+   "rate": 5,
+   "category": "Ships",
+   "sac": false
+  },
+  {
+   "code": "8903",
+   "description": "Yachts and other pleasure or sports boats",
+   "rate": 40,
+   "category": "Ships",
+   "sac": false
+  },
+  {
+   "code": "8904",
+   "description": "Tugs and pusher craft",
+   "rate": 5,
+   "category": "Ships",
+   "sac": false
+  },
+  {
+   "code": "8905",
+   "description": "Light-vessels, dredgers, floating docks/cranes",
+   "rate": 5,
+   "category": "Ships",
+   "sac": false
+  },
+  {
+   "code": "8907",
+   "description": "Floating structures (rafts, pontoons, buoys)",
+   "rate": 18,
+   "category": "Ships",
+   "sac": false
+  },
+  {
+   "code": "9001",
+   "description": "Optical fibres and cables; lenses",
+   "rate": 18,
+   "category": "Optical",
+   "sac": false
+  },
+  {
+   "code": "9002",
+   "description": "Lenses, prisms, mirrors, optical elements mounted",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9003",
+   "description": "Frames and mountings for spectacles/goggles",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9004",
+   "description": "Spectacles, goggles, sunglasses",
+   "rate": 18,
+   "category": "Optical",
+   "sac": false
+  },
+  {
+   "code": "9005",
+   "description": "Binoculars, monoculars, telescopes",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9006",
+   "description": "Photographic cameras, flash apparatus",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9011",
+   "description": "Compound optical microscopes",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9015",
+   "description": "Surveying, hydrographic, meteorological instruments",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9017",
+   "description": "Drawing, marking-out, mathematical instruments",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9018",
+   "description": "Medical, surgical or dental instruments",
+   "rate": 5,
+   "category": "Medical",
+   "sac": false
+  },
+  {
+   "code": "9021",
+   "description": "Orthopaedic appliances, hearing aids",
+   "rate": 5,
+   "category": "Medical",
+   "sac": false
+  },
+  {
+   "code": "9022",
+   "description": "Apparatus based on X-rays, alpha, beta, gamma rays",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9025",
+   "description": "Hydrometers, thermometers, pyrometers",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9026",
+   "description": "Instruments for measuring flow, level, pressure",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9027",
+   "description": "Instruments for physical/chemical analysis (spectrometers)",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9028",
+   "description": "Gas, liquid, electricity supply meters",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9030",
+   "description": "Oscilloscopes, spectrum analysers, multimeters",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9031",
+   "description": "Measuring or checking instruments (projectors)",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9032",
+   "description": "Automatic regulating or controlling instruments",
+   "rate": 18,
+   "category": "Instruments",
+   "sac": false
+  },
+  {
+   "code": "9101",
+   "description": "Wrist-watches with case of precious metal",
+   "rate": 18,
+   "category": "Clocks & Watches",
+   "sac": false
+  },
+  {
+   "code": "9102",
+   "description": "Wrist-watches, other than precious metal case",
+   "rate": 18,
+   "category": "Clocks & Watches",
+   "sac": false
+  },
+  {
+   "code": "9103",
+   "description": "Clocks with watch movements",
+   "rate": 18,
+   "category": "Clocks & Watches",
+   "sac": false
+  },
+  {
+   "code": "9105",
+   "description": "Other clocks (wall, mantel, cuckoo, alarm)",
+   "rate": 18,
+   "category": "Clocks & Watches",
+   "sac": false
+  },
+  {
+   "code": "9111",
+   "description": "Watch cases and parts of watch cases",
+   "rate": 18,
+   "category": "Clocks & Watches",
+   "sac": false
+  },
+  {
+   "code": "9113",
+   "description": "Watch straps, bands and bracelets",
+   "rate": 18,
+   "category": "Clocks & Watches",
+   "sac": false
+  },
+  {
+   "code": "9201",
+   "description": "Pianos, including automatic, harpsichords",
+   "rate": 18,
+   "category": "Musical Instruments",
+   "sac": false
+  },
+  {
+   "code": "9202",
+   "description": "String instruments (guitars, violins, harps)",
+   "rate": 18,
+   "category": "Musical Instruments",
+   "sac": false
+  },
+  {
+   "code": "9205",
+   "description": "Wind instruments (clarinets, trumpets, flutes)",
+   "rate": 18,
+   "category": "Musical Instruments",
+   "sac": false
+  },
+  {
+   "code": "9206",
+   "description": "Percussion instruments (drums, xylophones, cymbals)",
+   "rate": 18,
+   "category": "Musical Instruments",
+   "sac": false
+  },
+  {
+   "code": "9207",
+   "description": "Musical instruments, sound produced electrically",
+   "rate": 18,
+   "category": "Musical Instruments",
+   "sac": false
+  },
+  {
+   "code": "9209",
+   "description": "Parts and accessories of musical instruments",
+   "rate": 18,
+   "category": "Musical Instruments",
+   "sac": false
+  },
+  {
+   "code": "9301",
+   "description": "Military weapons, other than revolvers/pistols",
+   "rate": 18,
+   "category": "Arms & Ammunition",
+   "sac": false
+  },
+  {
+   "code": "9303",
+   "description": "Other firearms (shotguns, rifles)",
+   "rate": 18,
+   "category": "Arms & Ammunition",
+   "sac": false
+  },
+  {
+   "code": "9304",
+   "description": "Air guns, spring guns, truncheons",
+   "rate": 18,
+   "category": "Arms & Ammunition",
+   "sac": false
+  },
+  {
+   "code": "9306",
+   "description": "Bombs, grenades, ammunition, cartridges, pellets",
+   "rate": 18,
+   "category": "Arms & Ammunition",
+   "sac": false
+  },
+  {
+   "code": "9401",
+   "description": "Seats and parts (chairs, sofas)",
+   "rate": 18,
+   "category": "Furniture",
+   "sac": false
+  },
+  {
+   "code": "9402",
+   "description": "Medical, surgical, dental, veterinary furniture",
+   "rate": 18,
+   "category": "Furniture",
+   "sac": false
+  },
+  {
+   "code": "9403",
+   "description": "Other furniture (tables, desks, wardrobes)",
+   "rate": 18,
+   "category": "Furniture",
+   "sac": false
+  },
+  {
+   "code": "9404",
+   "description": "Mattress supports; mattresses",
+   "rate": 18,
+   "category": "Furniture",
+   "sac": false
+  },
+  {
+   "code": "9405",
+   "description": "Lamps and lighting fittings",
+   "rate": 18,
+   "category": "Furniture",
+   "sac": false
+  },
+  {
+   "code": "9406",
+   "description": "Prefabricated buildings",
+   "rate": 18,
+   "category": "Furniture",
+   "sac": false
+  },
+  {
+   "code": "9503",
+   "description": "Toys, games; tricycles, dolls",
+   "rate": 5,
+   "category": "Toys",
+   "sac": false
+  },
+  {
+   "code": "9504",
+   "description": "Video game consoles, carrom boards, chess",
+   "rate": 18,
+   "category": "Toys",
+   "sac": false
+  },
+  {
+   "code": "9505",
+   "description": "Festive, carnival, entertainment articles",
+   "rate": 18,
+   "category": "Toys & Games",
+   "sac": false
+  },
+  {
+   "code": "9506",
+   "description": "Sports equipment, gym articles",
+   "rate": 5,
+   "category": "Sports",
+   "sac": false
+  },
+  {
+   "code": "9507",
+   "description": "Fishing rods, tackle, landing nets",
+   "rate": 18,
+   "category": "Toys & Games",
+   "sac": false
+  },
+  {
+   "code": "9601",
+   "description": "Worked ivory, bone, horn, coral, shell",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9603",
+   "description": "Brooms, brushes, squeegees, mops, feather dusters",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9606",
+   "description": "Buttons, press-fasteners, snap-fasteners",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9607",
+   "description": "Slide fasteners, zippers, and parts thereof",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9608",
+   "description": "Ball point pens, felt tipped pens",
+   "rate": 18,
+   "category": "Stationery",
+   "sac": false
+  },
+  {
+   "code": "9609",
+   "description": "Pencils, crayons, chalk",
+   "rate": 5,
+   "category": "Stationery",
+   "sac": false
+  },
+  {
+   "code": "9611",
+   "description": "Date, sealing, numbering stamps",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9613",
+   "description": "Cigarette lighters and other lighters",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9615",
+   "description": "Combs, hair-slides, hairpins, curling pins",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9617",
+   "description": "Vacuum flasks, thermos, parts",
+   "rate": 18,
+   "category": "Miscellaneous",
+   "sac": false
+  },
+  {
+   "code": "9619",
+   "description": "Sanitary towels, napkins, diapers",
+   "rate": 5,
+   "category": "Health",
+   "sac": false
+  },
+  {
+   "code": "9954",
+   "description": "Construction services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9961",
+   "description": "Financial and insurance services",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9962",
+   "description": "Financial and related services (banking, lending)",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9963",
+   "description": "Leasing or rental services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9964",
+   "description": "Passenger transport services",
+   "rate": 5,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9965",
+   "description": "Goods transport services",
+   "rate": 5,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9966",
+   "description": "Rental services of transport vehicles",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9967",
+   "description": "Cargo handling, warehousing and storage services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9968",
+   "description": "Postal and courier services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9969",
+   "description": "Electricity, gas and water distribution services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9970",
+   "description": "Environmental protection services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9971",
+   "description": "Financial intermediation and related services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9972",
+   "description": "Real estate services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9973",
+   "description": "Leasing / rental without operator",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9974",
+   "description": "Accommodation, food and beverage services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9975",
+   "description": "Public healthcare and residential care services",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9976",
+   "description": "Government social security and welfare services",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9977",
+   "description": "Community, social and personal services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9978",
+   "description": "Printing, publishing and reproduction services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9979",
+   "description": "Entertainment, amusement and recreation services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9980",
+   "description": "Domestic services (cooks, drivers, maids)",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9981",
+   "description": "Research and development services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9982",
+   "description": "Legal and accounting services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9983",
+   "description": "Other professional, technical, business services (IT, consulting)",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9984",
+   "description": "Telecommunications, broadcasting services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9985",
+   "description": "Support services (security, cleaning, temp staffing)",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9986",
+   "description": "Support services to agriculture, forestry",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9987",
+   "description": "Maintenance and repair services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9988",
+   "description": "Manufacturing services on physical inputs",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9989",
+   "description": "Other manufacturing services, sub-contracting",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9990",
+   "description": "Services of charitable/religious organisations",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9991",
+   "description": "Public administration services",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9992",
+   "description": "Education services",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9993",
+   "description": "Health and social care services",
+   "rate": 0,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9994",
+   "description": "Sewage and waste collection, treatment, disposal",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9995",
+   "description": "Services of membership organisations",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9996",
+   "description": "Recreational, cultural and sporting services",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9997",
+   "description": "Other services (laundry, beauty, wellness, funeral)",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  },
+  {
+   "code": "9998",
+   "description": "Employment services, manpower supply",
+   "rate": 18,
+   "category": "Services",
+   "sac": true
+  }
+ ],
+ "products": [
+  {
+   "product": "rice",
+   "hsn": "1006",
+   "rate": 5
+  },
+  {
+   "product": "wheat",
+   "hsn": "1001",
+   "rate": 0
+  },
+  {
+   "product": "wheat flour",
+   "hsn": "1101",
+   "rate": 0
+  },
+  {
+   "product": "atta",
+   "hsn": "1101",
+   "rate": 0
+  },
+  {
+   "product": "sugar",
+   "hsn": "1701",
+   "rate": 5
+  },
+  {
+   "product": "milk",
+   "hsn": "0401",
+   "rate": 0
+  },
+  {
+   "product": "tea",
+   "hsn": "0902",
+   "rate": 5
+  },
+  {
+   "product": "coffee",
+   "hsn": "0901",
+   "rate": 5
+  },
+  {
+   "product": "dal",
+   "hsn": "0713",
+   "rate": 0
+  },
+  {
+   "product": "lentils",
+   "hsn": "0713",
+   "rate": 0
+  },
+  {
+   "product": "biscuits",
+   "hsn": "1905",
+   "rate": 18
+  },
+  {
+   "product": "bread",
+   "hsn": "1905",
+   "rate": 18
+  },
+  {
+   "product": "chocolate",
+   "hsn": "1806",
+   "rate": 18
+  },
+  {
+   "product": "soft drinks",
+   "hsn": "2202",
+   "rate": 40
+  },
+  {
+   "product": "cold drinks",
+   "hsn": "2202",
+   "rate": 40
+  },
+  {
+   "product": "cola",
+   "hsn": "2202",
+   "rate": 40
+  },
+  {
+   "product": "bottled water",
+   "hsn": "2201",
+   "rate": 18
+  },
+  {
+   "product": "mineral water",
+   "hsn": "2201",
+   "rate": 18
+  },
+  {
+   "product": "cement",
+   "hsn": "2523",
+   "rate": 18
+  },
+  {
+   "product": "medicine",
+   "hsn": "3004",
+   "rate": 5
+  },
+  {
+   "product": "medicines",
+   "hsn": "3004",
+   "rate": 5
+  },
+  {
+   "product": "drugs",
+   "hsn": "3004",
+   "rate": 5
+  },
+  {
+   "product": "toothpaste",
+   "hsn": "3306",
+   "rate": 18
+  },
+  {
+   "product": "shampoo",
+   "hsn": "3305",
+   "rate": 18
+  },
+  {
+   "product": "soap",
+   "hsn": "3401",
+   "rate": 18
+  },
+  {
+   "product": "detergent",
+   "hsn": "3402",
+   "rate": 18
+  },
+  {
+   "product": "paint",
+   "hsn": "3208",
+   "rate": 18
+  },
+  {
+   "product": "plastic bags",
+   "hsn": "3923",
+   "rate": 18
+  },
+  {
+   "product": "plastic bottles",
+   "hsn": "3923",
+   "rate": 18
+  },
+  {
+   "product": "tyres",
+   "hsn": "4011",
+   "rate": 18
+  },
+  {
+   "product": "tires",
+   "hsn": "4011",
+   "rate": 18
+  },
+  {
+   "product": "books",
+   "hsn": "4901",
+   "rate": 0
+  },
+  {
+   "product": "newspapers",
+   "hsn": "4902",
+   "rate": 0
+  },
+  {
+   "product": "cotton fabric",
+   "hsn": "5208",
+   "rate": 5
+  },
+  {
+   "product": "silk fabric",
+   "hsn": "5007",
+   "rate": 5
+  },
+  {
+   "product": "t-shirts",
+   "hsn": "6109",
+   "rate": 5
+  },
+  {
+   "product": "shirts",
+   "hsn": "6205",
+   "rate": 5
+  },
+  {
+   "product": "jeans",
+   "hsn": "6203",
+   "rate": 5
+  },
+  {
+   "product": "trousers",
+   "hsn": "6203",
+   "rate": 5
+  },
+  {
+   "product": "dresses",
+   "hsn": "6204",
+   "rate": 5
+  },
+  {
+   "product": "shoes",
+   "hsn": "6403",
+   "rate": 18
+  },
+  {
+   "product": "footwear",
+   "hsn": "6402",
+   "rate": 18
+  },
+  {
+   "product": "sandals",
+   "hsn": "6402",
+   "rate": 18
+  },
+  {
+   "product": "ceramic tiles",
+   "hsn": "6907",
+   "rate": 18
+  },
+  {
+   "product": "tiles",
+   "hsn": "6907",
+   "rate": 18
+  },
+  {
+   "product": "marble",
+   "hsn": "6802",
+   "rate": 18
+  },
+  {
+   "product": "granite",
+   "hsn": "6802",
+   "rate": 18
+  },
+  {
+   "product": "gold jewellery",
+   "hsn": "7113",
+   "rate": 3
+  },
+  {
+   "product": "silver jewellery",
+   "hsn": "7113",
+   "rate": 3
+  },
+  {
+   "product": "jewellery",
+   "hsn": "7113",
+   "rate": 3
+  },
+  {
+   "product": "steel",
+   "hsn": "7210",
+   "rate": 18
+  },
+  {
+   "product": "iron",
+   "hsn": "7214",
+   "rate": 18
+  },
+  {
+   "product": "air conditioner",
+   "hsn": "8415",
+   "rate": 18
+  },
+  {
+   "product": "ac",
+   "hsn": "8415",
+   "rate": 18
+  },
+  {
+   "product": "refrigerator",
+   "hsn": "8418",
+   "rate": 18
+  },
+  {
+   "product": "fridge",
+   "hsn": "8418",
+   "rate": 18
+  },
+  {
+   "product": "washing machine",
+   "hsn": "8450",
+   "rate": 18
+  },
+  {
+   "product": "laptop",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "computer",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "desktop",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "printer",
+   "hsn": "8443",
+   "rate": 18
+  },
+  {
+   "product": "mobile phone",
+   "hsn": "8517",
+   "rate": 18
+  },
+  {
+   "product": "smartphone",
+   "hsn": "8517",
+   "rate": 18
+  },
+  {
+   "product": "phone",
+   "hsn": "8517",
+   "rate": 18
+  },
+  {
+   "product": "headphones",
+   "hsn": "8518",
+   "rate": 18
+  },
+  {
+   "product": "earphones",
+   "hsn": "8518",
+   "rate": 18
+  },
+  {
+   "product": "speaker",
+   "hsn": "8518",
+   "rate": 18
+  },
+  {
+   "product": "television",
+   "hsn": "8528",
+   "rate": 18
+  },
+  {
+   "product": "tv",
+   "hsn": "8528",
+   "rate": 18
+  },
+  {
+   "product": "monitor",
+   "hsn": "8528",
+   "rate": 18
+  },
+  {
+   "product": "led bulb",
+   "hsn": "8539",
+   "rate": 5
+  },
+  {
+   "product": "car",
+   "hsn": "8703",
+   "rate": 18
+  },
+  {
+   "product": "motor car",
+   "hsn": "8703",
+   "rate": 18
+  },
+  {
+   "product": "suv",
+   "hsn": "8703",
+   "rate": 18
+  },
+  {
+   "product": "motorcycle",
+   "hsn": "8711",
+   "rate": 18
+  },
+  {
+   "product": "bike",
+   "hsn": "8711",
+   "rate": 18
+  },
+  {
+   "product": "scooter",
+   "hsn": "8711",
+   "rate": 18
+  },
+  {
+   "product": "bicycle",
+   "hsn": "8712",
+   "rate": 5
+  },
+  {
+   "product": "spectacles",
+   "hsn": "9004",
+   "rate": 18
+  },
+  {
+   "product": "sunglasses",
+   "hsn": "9004",
+   "rate": 18
+  },
+  {
+   "product": "glasses",
+   "hsn": "9004",
+   "rate": 18
+  },
+  {
+   "product": "furniture",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "chair",
+   "hsn": "9401",
+   "rate": 18
+  },
+  {
+   "product": "sofa",
+   "hsn": "9401",
+   "rate": 18
+  },
+  {
+   "product": "table",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "desk",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "mattress",
+   "hsn": "9404",
+   "rate": 18
+  },
+  {
+   "product": "toys",
+   "hsn": "9503",
+   "rate": 5
+  },
+  {
+   "product": "pen",
+   "hsn": "9608",
+   "rate": 18
+  },
+  {
+   "product": "pencil",
+   "hsn": "9609",
+   "rate": 5
+  },
+  {
+   "product": "diapers",
+   "hsn": "9619",
+   "rate": 5
+  },
+  {
+   "product": "sanitary pads",
+   "hsn": "9619",
+   "rate": 5
+  },
+  {
+   "product": "it services",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "consulting",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "software services",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "legal services",
+   "hsn": "9982",
+   "rate": 18
+  },
+  {
+   "product": "accounting services",
+   "hsn": "9982",
+   "rate": 18
+  },
+  {
+   "product": "ca services",
+   "hsn": "9982",
+   "rate": 18
+  },
+  {
+   "product": "construction services",
+   "hsn": "9954",
+   "rate": 18
+  },
+  {
+   "product": "cab",
+   "hsn": "9964",
+   "rate": 5
+  },
+  {
+   "product": "taxi",
+   "hsn": "9964",
+   "rate": 5
+  },
+  {
+   "product": "uber",
+   "hsn": "9964",
+   "rate": 5
+  },
+  {
+   "product": "ola",
+   "hsn": "9964",
+   "rate": 5
+  },
+  {
+   "product": "freight",
+   "hsn": "9965",
+   "rate": 5
+  },
+  {
+   "product": "courier",
+   "hsn": "9965",
+   "rate": 5
+  },
+  {
+   "product": "education",
+   "hsn": "9992",
+   "rate": 0
+  },
+  {
+   "product": "tuition",
+   "hsn": "9992",
+   "rate": 0
+  },
+  {
+   "product": "hospital",
+   "hsn": "9993",
+   "rate": 0
+  },
+  {
+   "product": "healthcare",
+   "hsn": "9993",
+   "rate": 0
+  },
+  {
+   "product": "insurance",
+   "hsn": "9961",
+   "rate": 0
+  },
+  {
+   "product": "banking",
+   "hsn": "9962",
+   "rate": 18
+  },
+  {
+   "product": "gym",
+   "hsn": "9996",
+   "rate": 18
+  },
+  {
+   "product": "salon",
+   "hsn": "9997",
+   "rate": 18
+  },
+  {
+   "product": "laundry",
+   "hsn": "9997",
+   "rate": 18
+  },
+  {
+   "product": "rent",
+   "hsn": "9972",
+   "rate": 18
+  },
+  {
+   "product": "oil",
+   "hsn": "1515",
+   "rate": 5
+  },
+  {
+   "product": "cooking oil",
+   "hsn": "1515",
+   "rate": 5
+  },
+  {
+   "product": "sunflower oil",
+   "hsn": "1512",
+   "rate": 5
+  },
+  {
+   "product": "palm oil",
+   "hsn": "1511",
+   "rate": 5
+  },
+  {
+   "product": "soybean oil",
+   "hsn": "1507",
+   "rate": 5
+  },
+  {
+   "product": "potato",
+   "hsn": "0701",
+   "rate": 0
+  },
+  {
+   "product": "tomato",
+   "hsn": "0702",
+   "rate": 0
+  },
+  {
+   "product": "vegetables",
+   "hsn": "0702",
+   "rate": 0
+  },
+  {
+   "product": "cheese",
+   "hsn": "0406",
+   "rate": 5
+  },
+  {
+   "product": "paneer",
+   "hsn": "0406",
+   "rate": 5
+  },
+  {
+   "product": "ghee",
+   "hsn": "0405",
+   "rate": 5
+  },
+  {
+   "product": "butter",
+   "hsn": "0405",
+   "rate": 5
+  },
+  {
+   "product": "curd",
+   "hsn": "0403",
+   "rate": 0
+  },
+  {
+   "product": "yogurt",
+   "hsn": "0403",
+   "rate": 0
+  },
+  {
+   "product": "cream",
+   "hsn": "0401",
+   "rate": 0
+  },
+  {
+   "product": "honey",
+   "hsn": "0409",
+   "rate": 0
+  },
+  {
+   "product": "eggs",
+   "hsn": "0407",
+   "rate": 0
+  },
+  {
+   "product": "chicken",
+   "hsn": "0207",
+   "rate": 0
+  },
+  {
+   "product": "mutton",
+   "hsn": "0204",
+   "rate": 0
+  },
+  {
+   "product": "fish",
+   "hsn": "0302",
+   "rate": 0
+  },
+  {
+   "product": "prawns",
+   "hsn": "0306",
+   "rate": 0
+  },
+  {
+   "product": "shrimp",
+   "hsn": "0306",
+   "rate": 0
+  },
+  {
+   "product": "onion",
+   "hsn": "0703",
+   "rate": 0
+  },
+  {
+   "product": "garlic",
+   "hsn": "0703",
+   "rate": 0
+  },
+  {
+   "product": "ginger",
+   "hsn": "0910",
+   "rate": 5
+  },
+  {
+   "product": "turmeric",
+   "hsn": "0910",
+   "rate": 5
+  },
+  {
+   "product": "spices",
+   "hsn": "0910",
+   "rate": 5
+  },
+  {
+   "product": "chilli",
+   "hsn": "0904",
+   "rate": 5
+  },
+  {
+   "product": "pepper",
+   "hsn": "0904",
+   "rate": 5
+  },
+  {
+   "product": "salt",
+   "hsn": "2501",
+   "rate": 0
+  },
+  {
+   "product": "jaggery",
+   "hsn": "1701",
+   "rate": 0
+  },
+  {
+   "product": "maida",
+   "hsn": "1101",
+   "rate": 0
+  },
+  {
+   "product": "semolina",
+   "hsn": "1103",
+   "rate": 0
+  },
+  {
+   "product": "suji",
+   "hsn": "1103",
+   "rate": 0
+  },
+  {
+   "product": "noodles",
+   "hsn": "1902",
+   "rate": 18
+  },
+  {
+   "product": "pasta",
+   "hsn": "1902",
+   "rate": 18
+  },
+  {
+   "product": "chips",
+   "hsn": "2005",
+   "rate": 18
+  },
+  {
+   "product": "namkeen",
+   "hsn": "2106",
+   "rate": 18
+  },
+  {
+   "product": "papad",
+   "hsn": "2106",
+   "rate": 0
+  },
+  {
+   "product": "pickles",
+   "hsn": "2001",
+   "rate": 18
+  },
+  {
+   "product": "jam",
+   "hsn": "2007",
+   "rate": 18
+  },
+  {
+   "product": "ketchup",
+   "hsn": "2103",
+   "rate": 18
+  },
+  {
+   "product": "sauce",
+   "hsn": "2103",
+   "rate": 18
+  },
+  {
+   "product": "ice cream",
+   "hsn": "2105",
+   "rate": 18
+  },
+  {
+   "product": "juice",
+   "hsn": "2009",
+   "rate": 18
+  },
+  {
+   "product": "fruit juice",
+   "hsn": "2009",
+   "rate": 18
+  },
+  {
+   "product": "coconut oil",
+   "hsn": "1513",
+   "rate": 5
+  },
+  {
+   "product": "mustard oil",
+   "hsn": "1514",
+   "rate": 5
+  },
+  {
+   "product": "cigarettes",
+   "hsn": "2402",
+   "rate": 40
+  },
+  {
+   "product": "tobacco",
+   "hsn": "2401",
+   "rate": 40
+  },
+  {
+   "product": "petrol",
+   "hsn": "2710",
+   "rate": 18
+  },
+  {
+   "product": "diesel",
+   "hsn": "2710",
+   "rate": 18
+  },
+  {
+   "product": "lpg",
+   "hsn": "2711",
+   "rate": 5
+  },
+  {
+   "product": "natural gas",
+   "hsn": "2711",
+   "rate": 5
+  },
+  {
+   "product": "perfume",
+   "hsn": "3303",
+   "rate": 18
+  },
+  {
+   "product": "deodorant",
+   "hsn": "3307",
+   "rate": 18
+  },
+  {
+   "product": "cosmetics",
+   "hsn": "3304",
+   "rate": 18
+  },
+  {
+   "product": "lipstick",
+   "hsn": "3304",
+   "rate": 18
+  },
+  {
+   "product": "face cream",
+   "hsn": "3304",
+   "rate": 18
+  },
+  {
+   "product": "sunscreen",
+   "hsn": "3304",
+   "rate": 18
+  },
+  {
+   "product": "hair oil",
+   "hsn": "3305",
+   "rate": 18
+  },
+  {
+   "product": "conditioner",
+   "hsn": "3305",
+   "rate": 18
+  },
+  {
+   "product": "hand wash",
+   "hsn": "3401",
+   "rate": 18
+  },
+  {
+   "product": "sanitizer",
+   "hsn": "3808",
+   "rate": 18
+  },
+  {
+   "product": "disinfectant",
+   "hsn": "3808",
+   "rate": 18
+  },
+  {
+   "product": "mosquito repellent",
+   "hsn": "3808",
+   "rate": 18
+  },
+  {
+   "product": "fertilizer",
+   "hsn": "3105",
+   "rate": 5
+  },
+  {
+   "product": "pesticide",
+   "hsn": "3808",
+   "rate": 18
+  },
+  {
+   "product": "pvc pipe",
+   "hsn": "3917",
+   "rate": 18
+  },
+  {
+   "product": "plastic sheet",
+   "hsn": "3920",
+   "rate": 18
+  },
+  {
+   "product": "rubber",
+   "hsn": "4001",
+   "rate": 5
+  },
+  {
+   "product": "handbag",
+   "hsn": "4202",
+   "rate": 18
+  },
+  {
+   "product": "wallet",
+   "hsn": "4202",
+   "rate": 18
+  },
+  {
+   "product": "belt",
+   "hsn": "4203",
+   "rate": 5
+  },
+  {
+   "product": "suitcase",
+   "hsn": "4202",
+   "rate": 18
+  },
+  {
+   "product": "backpack",
+   "hsn": "4202",
+   "rate": 18
+  },
+  {
+   "product": "paper",
+   "hsn": "4802",
+   "rate": 5
+  },
+  {
+   "product": "notebook",
+   "hsn": "4820",
+   "rate": 5
+  },
+  {
+   "product": "diary",
+   "hsn": "4820",
+   "rate": 5
+  },
+  {
+   "product": "cardboard box",
+   "hsn": "4819",
+   "rate": 18
+  },
+  {
+   "product": "tissue paper",
+   "hsn": "4818",
+   "rate": 18
+  },
+  {
+   "product": "saree",
+   "hsn": "5208",
+   "rate": 5
+  },
+  {
+   "product": "kurta",
+   "hsn": "6205",
+   "rate": 5
+  },
+  {
+   "product": "salwar",
+   "hsn": "6204",
+   "rate": 5
+  },
+  {
+   "product": "jacket",
+   "hsn": "6101",
+   "rate": 5
+  },
+  {
+   "product": "sweater",
+   "hsn": "6110",
+   "rate": 5
+  },
+  {
+   "product": "socks",
+   "hsn": "6115",
+   "rate": 5
+  },
+  {
+   "product": "undergarments",
+   "hsn": "6108",
+   "rate": 5
+  },
+  {
+   "product": "towel",
+   "hsn": "6302",
+   "rate": 5
+  },
+  {
+   "product": "bedsheet",
+   "hsn": "6304",
+   "rate": 5
+  },
+  {
+   "product": "curtain",
+   "hsn": "6303",
+   "rate": 5
+  },
+  {
+   "product": "carpet",
+   "hsn": "5701",
+   "rate": 5
+  },
+  {
+   "product": "rug",
+   "hsn": "5701",
+   "rate": 5
+  },
+  {
+   "product": "helmet",
+   "hsn": "6506",
+   "rate": 18
+  },
+  {
+   "product": "cap",
+   "hsn": "6505",
+   "rate": 18
+  },
+  {
+   "product": "hat",
+   "hsn": "6505",
+   "rate": 18
+  },
+  {
+   "product": "umbrella",
+   "hsn": "6601",
+   "rate": 18
+  },
+  {
+   "product": "bricks",
+   "hsn": "6901",
+   "rate": 5
+  },
+  {
+   "product": "cement blocks",
+   "hsn": "6810",
+   "rate": 18
+  },
+  {
+   "product": "sanitary ware",
+   "hsn": "6910",
+   "rate": 18
+  },
+  {
+   "product": "glass",
+   "hsn": "7005",
+   "rate": 18
+  },
+  {
+   "product": "mirror",
+   "hsn": "7009",
+   "rate": 18
+  },
+  {
+   "product": "gold",
+   "hsn": "7108",
+   "rate": 3
+  },
+  {
+   "product": "silver",
+   "hsn": "7106",
+   "rate": 3
+  },
+  {
+   "product": "diamond",
+   "hsn": "7102",
+   "rate": 0.25
+  },
+  {
+   "product": "platinum",
+   "hsn": "7110",
+   "rate": 3
+  },
+  {
+   "product": "stainless steel",
+   "hsn": "7219",
+   "rate": 18
+  },
+  {
+   "product": "aluminium",
+   "hsn": "7601",
+   "rate": 18
+  },
+  {
+   "product": "copper",
+   "hsn": "7403",
+   "rate": 18
+  },
+  {
+   "product": "brass",
+   "hsn": "7403",
+   "rate": 18
+  },
+  {
+   "product": "steel pipe",
+   "hsn": "7306",
+   "rate": 18
+  },
+  {
+   "product": "steel rod",
+   "hsn": "7213",
+   "rate": 18
+  },
+  {
+   "product": "tmt bar",
+   "hsn": "7214",
+   "rate": 18
+  },
+  {
+   "product": "nuts and bolts",
+   "hsn": "7318",
+   "rate": 18
+  },
+  {
+   "product": "wire",
+   "hsn": "7217",
+   "rate": 18
+  },
+  {
+   "product": "nail",
+   "hsn": "7317",
+   "rate": 18
+  },
+  {
+   "product": "lock",
+   "hsn": "8301",
+   "rate": 18
+  },
+  {
+   "product": "fan",
+   "hsn": "8414",
+   "rate": 18
+  },
+  {
+   "product": "ceiling fan",
+   "hsn": "8414",
+   "rate": 18
+  },
+  {
+   "product": "water heater",
+   "hsn": "8516",
+   "rate": 18
+  },
+  {
+   "product": "geyser",
+   "hsn": "8516",
+   "rate": 18
+  },
+  {
+   "product": "iron box",
+   "hsn": "8516",
+   "rate": 18
+  },
+  {
+   "product": "mixer grinder",
+   "hsn": "8509",
+   "rate": 18
+  },
+  {
+   "product": "microwave",
+   "hsn": "8516",
+   "rate": 18
+  },
+  {
+   "product": "oven",
+   "hsn": "8516",
+   "rate": 18
+  },
+  {
+   "product": "water purifier",
+   "hsn": "8421",
+   "rate": 18
+  },
+  {
+   "product": "inverter",
+   "hsn": "8504",
+   "rate": 18
+  },
+  {
+   "product": "ups",
+   "hsn": "8504",
+   "rate": 18
+  },
+  {
+   "product": "battery",
+   "hsn": "8507",
+   "rate": 18
+  },
+  {
+   "product": "solar panel",
+   "hsn": "8541",
+   "rate": 18
+  },
+  {
+   "product": "cable",
+   "hsn": "8544",
+   "rate": 18
+  },
+  {
+   "product": "switch",
+   "hsn": "8536",
+   "rate": 18
+  },
+  {
+   "product": "cctv camera",
+   "hsn": "8525",
+   "rate": 18
+  },
+  {
+   "product": "router",
+   "hsn": "8517",
+   "rate": 18
+  },
+  {
+   "product": "tablet",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "ipad",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "pen drive",
+   "hsn": "8523",
+   "rate": 18
+  },
+  {
+   "product": "hard disk",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "keyboard",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "mouse",
+   "hsn": "8471",
+   "rate": 18
+  },
+  {
+   "product": "projector",
+   "hsn": "8528",
+   "rate": 18
+  },
+  {
+   "product": "camera",
+   "hsn": "8525",
+   "rate": 18
+  },
+  {
+   "product": "smartwatch",
+   "hsn": "9102",
+   "rate": 18
+  },
+  {
+   "product": "watch",
+   "hsn": "9101",
+   "rate": 18
+  },
+  {
+   "product": "wristwatch",
+   "hsn": "9101",
+   "rate": 18
+  },
+  {
+   "product": "electric vehicle",
+   "hsn": "8703",
+   "rate": 5
+  },
+  {
+   "product": "ev",
+   "hsn": "8703",
+   "rate": 5
+  },
+  {
+   "product": "auto rickshaw",
+   "hsn": "8703",
+   "rate": 18
+  },
+  {
+   "product": "tractor",
+   "hsn": "8701",
+   "rate": 5
+  },
+  {
+   "product": "truck",
+   "hsn": "8704",
+   "rate": 18
+  },
+  {
+   "product": "bus",
+   "hsn": "8702",
+   "rate": 18
+  },
+  {
+   "product": "ambulance",
+   "hsn": "8703",
+   "rate": 18
+  },
+  {
+   "product": "stethoscope",
+   "hsn": "9018",
+   "rate": 5
+  },
+  {
+   "product": "wheelchair",
+   "hsn": "8713",
+   "rate": 0
+  },
+  {
+   "product": "hearing aid",
+   "hsn": "9021",
+   "rate": 0
+  },
+  {
+   "product": "contact lens",
+   "hsn": "9001",
+   "rate": 18
+  },
+  {
+   "product": "bed",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "wardrobe",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "dining table",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "bookshelf",
+   "hsn": "9403",
+   "rate": 18
+  },
+  {
+   "product": "lamp",
+   "hsn": "9405",
+   "rate": 18
+  },
+  {
+   "product": "chandelier",
+   "hsn": "9405",
+   "rate": 18
+  },
+  {
+   "product": "pillow",
+   "hsn": "9404",
+   "rate": 18
+  },
+  {
+   "product": "cricket bat",
+   "hsn": "9506",
+   "rate": 5
+  },
+  {
+   "product": "football",
+   "hsn": "9506",
+   "rate": 5
+  },
+  {
+   "product": "badminton racket",
+   "hsn": "9506",
+   "rate": 5
+  },
+  {
+   "product": "chess",
+   "hsn": "9504",
+   "rate": 18
+  },
+  {
+   "product": "video game",
+   "hsn": "9504",
+   "rate": 18
+  },
+  {
+   "product": "playing cards",
+   "hsn": "9504",
+   "rate": 18
+  },
+  {
+   "product": "doll",
+   "hsn": "9503",
+   "rate": 5
+  },
+  {
+   "product": "board game",
+   "hsn": "9504",
+   "rate": 18
+  },
+  {
+   "product": "eraser",
+   "hsn": "4016",
+   "rate": 18
+  },
+  {
+   "product": "stapler",
+   "hsn": "8305",
+   "rate": 18
+  },
+  {
+   "product": "scissors",
+   "hsn": "8213",
+   "rate": 18
+  },
+  {
+   "product": "tape",
+   "hsn": "3919",
+   "rate": 18
+  },
+  {
+   "product": "glue",
+   "hsn": "3506",
+   "rate": 18
+  },
+  {
+   "product": "parachute",
+   "hsn": "8804",
+   "rate": 18
+  },
+  {
+   "product": "hotel room",
+   "hsn": "9963",
+   "rate": 18
+  },
+  {
+   "product": "restaurant food",
+   "hsn": "9963",
+   "rate": 5
+  },
+  {
+   "product": "catering",
+   "hsn": "9963",
+   "rate": 5
+  },
+  {
+   "product": "movie ticket",
+   "hsn": "9996",
+   "rate": 18
+  },
+  {
+   "product": "event ticket",
+   "hsn": "9996",
+   "rate": 18
+  },
+  {
+   "product": "security services",
+   "hsn": "9985",
+   "rate": 18
+  },
+  {
+   "product": "cleaning services",
+   "hsn": "9985",
+   "rate": 18
+  },
+  {
+   "product": "transport",
+   "hsn": "9965",
+   "rate": 5
+  },
+  {
+   "product": "logistics",
+   "hsn": "9965",
+   "rate": 5
+  },
+  {
+   "product": "warehousing",
+   "hsn": "9967",
+   "rate": 18
+  },
+  {
+   "product": "advertising",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "web development",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "app development",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "cloud hosting",
+   "hsn": "9984",
+   "rate": 18
+  },
+  {
+   "product": "internet",
+   "hsn": "9984",
+   "rate": 18
+  },
+  {
+   "product": "broadband",
+   "hsn": "9984",
+   "rate": 18
+  },
+  {
+   "product": "mobile recharge",
+   "hsn": "9984",
+   "rate": 18
+  },
+  {
+   "product": "electricity",
+   "hsn": "2716",
+   "rate": 18
+  },
+  {
+   "product": "real estate",
+   "hsn": "9972",
+   "rate": 18
+  },
+  {
+   "product": "flat",
+   "hsn": "9972",
+   "rate": 18
+  },
+  {
+   "product": "apartment",
+   "hsn": "9972",
+   "rate": 18
+  },
+  {
+   "product": "life insurance",
+   "hsn": "9961",
+   "rate": 0
+  },
+  {
+   "product": "health insurance",
+   "hsn": "9961",
+   "rate": 0
+  },
+  {
+   "product": "motor insurance",
+   "hsn": "9961",
+   "rate": 0
+  },
+  {
+   "product": "mutual fund",
+   "hsn": "9971",
+   "rate": 18
+  },
+  {
+   "product": "stock broking",
+   "hsn": "9971",
+   "rate": 18
+  },
+  {
+   "product": "chartered accountant",
+   "hsn": "9982",
+   "rate": 18
+  },
+  {
+   "product": "audit services",
+   "hsn": "9982",
+   "rate": 18
+  },
+  {
+   "product": "architect services",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "photography",
+   "hsn": "9983",
+   "rate": 18
+  },
+  {
+   "product": "printing services",
+   "hsn": "9989",
+   "rate": 18
+  },
+  {
+   "product": "courier services",
+   "hsn": "9965",
+   "rate": 18
+  },
+  {
+   "product": "dry cleaning",
+   "hsn": "9997",
+   "rate": 18
+  },
+  {
+   "product": "tailoring",
+   "hsn": "9997",
+   "rate": 18
+  },
+  {
+   "product": "beauty parlour",
+   "hsn": "9997",
+   "rate": 18
+  },
+  {
+   "product": "spa",
+   "hsn": "9997",
+   "rate": 18
+  },
+  {
+   "product": "yoga classes",
+   "hsn": "9996",
+   "rate": 18
+  },
+  {
+   "product": "coaching",
+   "hsn": "9992",
+   "rate": 18
+  },
+  {
+   "product": "training",
+   "hsn": "9992",
+   "rate": 18
+  }
+ ]
+}

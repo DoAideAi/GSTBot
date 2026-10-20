@@ -512,6 +512,9 @@ UNGATED_MUTATIONS = {
     "/api/v1/advisor/ask",
     # CA referral tracking — public, records a visit by hashed IP.
     "/api/v1/referrals/track",
+    # GPT Actions invoice — arithmetic over the body, like ``/itc/set-off``;
+    # nothing is read or stored, and there is no session to hold a role.
+    "/api/v1/gpt/invoice",
 }
 
 

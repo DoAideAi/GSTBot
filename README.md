@@ -136,7 +136,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-71 routes under `/api/v1`. The generated reference is the authority — start the
+78 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -166,6 +166,7 @@ The surface, by area:
 | `dashboard` | 1 | The monthly summary |
 | `health` | 4 | `live`, `ready`, `/health`, `/health/jobs` |
 | `meta` | 2 | State codes, GSTIN lookup |
+| `gpt` | 7 | GPT Actions for ChatGPT: GSTIN, HSN, calculator, invoice data, filing dates, spec, privacy |
 
 Every response — a 404 from a route, a 422 from validation, a constraint
 violation from Postgres, or a bug — has one shape:
@@ -181,6 +182,15 @@ violation from Postgres, or a bug — has one shape:
 `detail` is what to show a person; `error.code` is what to branch on. A 500
 never carries the exception — only the correlation id to quote. See
 `backend/app/core/errors.py`.
+
+### ChatGPT Custom GPT (GPT Actions)
+
+The free tools are also published for ChatGPT under `/api/v1/gpt` — public,
+stateless, rate-limited by address. To build a GPT on them, import
+`https://gst.doaide.com/api/v1/gpt/openapi.yaml` as an Action (no auth), link
+`https://gst.doaide.com/api/v1/gpt/privacy` as the privacy policy, and paste
+the prompt from [`backend/app/gpt/gpt_instructions.md`](backend/app/gpt/gpt_instructions.md).
+Scope and design: [`FEATURE_GPT_ACTIONS.md`](FEATURE_GPT_ACTIONS.md).
 
 ## Things worth knowing before changing anything
 

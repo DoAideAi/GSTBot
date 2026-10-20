@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -356,3 +357,82 @@ def _client_ip(request: Request) -> str:
     from app.core.rate_limit import client_ip
 
     return client_ip(request)
+
+
+# The origins ChatGPT's GPT builder and its clients run on. Actions themselves
+# are fetched server-side by OpenAI and send no ``Origin``, so this is for the
+# builder's "Test" panel and any browser client OpenAI ships later.
+GPT_ACTIONS_ORIGINS = frozenset(
+    {"https://chat.openai.com", "https://chatgpt.com", "https://platform.openai.com"}
+)
+
+
+class GptActionsCorsMiddleware:
+    """CORS for OpenAI's origins on ``/gpt/*``, and nowhere else.
+
+    A second policy rather than three more entries in ``BACKEND_CORS_ORIGINS``:
+    that list is credentialed, so adding OpenAI to it would let a page on
+    chatgpt.com make requests to *every* route carrying the user's cookies.
+    These routes are public and stateless, so the grant here carries no
+    credentials and stops at the prefix.
+
+    Added outermost, so a preflight is answered before the app-wide
+    ``CORSMiddleware`` — which does not know these origins — can refuse it. A
+    preflight from any other origin falls through to that middleware and gets
+    its usual answer.
+
+    Pure ASGI rather than ``BaseHTTPMiddleware``, which runs everything inside
+    it in a child task. Outermost, that would put the correlation id
+    ``CorrelationIdMiddleware`` binds in a context the 500 handler cannot see,
+    and every unhandled error would quote ``-`` instead of the caller's id.
+    """
+
+    _METHODS = "GET, POST, OPTIONS"
+    _HEADERS = (
+        "Content-Type, Authorization, X-Request-ID, "
+        "OpenAI-Conversation-ID, OpenAI-Ephemeral-User-ID"
+    )
+    _EXPOSE = "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After"
+
+    def __init__(self, app, prefix: str = "/api/v1/gpt/") -> None:
+        self.app = app
+        self._prefix = prefix
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http" or not scope["path"].startswith(self._prefix):
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        origin = headers.get("origin")
+        if origin not in GPT_ACTIONS_ORIGINS:
+            await self.app(scope, receive, send)
+            return
+
+        if scope["method"] == "OPTIONS" and "access-control-request-method" in headers:
+            response = Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": self._METHODS,
+                    "Access-Control-Allow-Headers": self._HEADERS,
+                    "Access-Control-Max-Age": "600",
+                    "Vary": "Origin",
+                },
+            )
+            await response(scope, receive, send)
+            return
+
+        async def decorate(message) -> None:
+            if message["type"] == "http.response.start":
+                out = MutableHeaders(scope=message)
+                out["Access-Control-Allow-Origin"] = origin
+                out["Access-Control-Expose-Headers"] = self._EXPOSE
+                # The app-wide middleware adds ``Allow-Credentials: true`` to
+                # every response that carries an Origin, listed or not. Next
+                # to the grant above that would be a credentialed grant to
+                # OpenAI, and nothing under this prefix reads a cookie.
+                del out["access-control-allow-credentials"]
+                out.add_vary_header("Origin")
+            await send(message)
+
+        await self.app(scope, receive, decorate)
