@@ -17,6 +17,7 @@ import tempfile
 
 # A clean, keyless config *before* any app module imports settings.
 os.environ.setdefault("OPENROUTER_API_KEY", "")
+os.environ.setdefault("TYPESAFE_API_KEY", "")
 os.environ.setdefault("JWT_SECRET", "test-secret-key-for-tests-only")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ENVIRONMENT", "development")

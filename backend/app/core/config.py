@@ -168,6 +168,18 @@ class Settings(BaseSettings):
     # taken: falling back to heuristics now beats the same failure 30s later.
     openrouter_retry_max_wait_seconds: float = Field(default=30.0, ge=0, le=300)
 
+    # ---- AI (TypeSafe Jev — structured classification) ----
+    # Empty key = Jev is never called and every caller keeps its non-Jev path.
+    # Jev's answers are advisory: stored beside the extraction for a reviewer,
+    # never written over a parsed figure or used to pick the tax heads.
+    typesafe_api_key: str = ""
+    typesafe_model: str = "jev-latest"
+    # Inline with an upload when Celery is off, so a user may be waiting on it.
+    # Short, no SDK retries, and skipped for a while after a failure so a
+    # fifty-file batch during an outage doesn't wait out fifty timeouts.
+    jev_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    jev_failure_cooldown_seconds: int = Field(default=60, ge=0, le=3600)
+
     # ---- AI (Gemini — GST advisor chatbot) ----
     gemini_api_key: str = ""
 
