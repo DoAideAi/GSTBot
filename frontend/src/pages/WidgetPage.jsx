@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { calculate, formatINR, GST_SLABS, reverseCalculate } from "../lib/gstCalc";
+import SeoHead from "../components/SeoHead";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { track } from "../lib/track";
 
 function parseWidgetParams(params) {
@@ -17,6 +19,7 @@ function parseWidgetParams(params) {
 export { parseWidgetParams };
 
 export default function WidgetPage() {
+  usePageTitle("Embeddable GST Calculator Widget");
   const [params] = useSearchParams();
   const config = useMemo(() => parseWidgetParams(params), [params]);
 
@@ -55,6 +58,11 @@ export default function WidgetPage() {
 
   return (
     <div className="widget-page" style={maxWidth ? { maxWidth } : undefined}>
+      <SeoHead
+        title="Embeddable GST Calculator Widget — Free for Your Website"
+        description="A free GST calculator you can embed on your website: add or remove GST at any slab, with CGST, SGST and IGST breakup. Light and dark themes."
+        path="/widget"
+      />
       <div className="widget-header">
         <strong>GST Calculator</strong>
       </div>

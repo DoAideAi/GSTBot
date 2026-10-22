@@ -1,4 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
+import SeoHead from "../components/SeoHead";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 const ARTICLES = [
   {
@@ -159,8 +161,14 @@ export default function BlogLayout() {
 }
 
 export function BlogIndex() {
+  usePageTitle("GST Guides for Indian Businesses");
   return (
     <div className="blog-index">
+      <SeoHead
+        title="GST Guides for Indian Businesses — Filing, ITC, E-Invoicing & HSN Codes"
+        description="Practical GST guides for Indian businesses: return filing, GSTR-1 and GSTR-3B, input tax credit, e-invoicing, e-way bills, registration and HSN codes."
+        path="/blog"
+      />
       {ARTICLES.map((a) => (
         <Link key={a.slug} to={`/blog/${a.slug}`} className="blog-card">
           <h2>{a.title}</h2>
