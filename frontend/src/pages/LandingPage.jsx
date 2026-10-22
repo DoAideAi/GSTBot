@@ -224,6 +224,7 @@ const TOOL_CATEGORIES = [
     title: "Calculators",
     tools: [
       { to: "/calculator", title: "GST Calculator", desc: "CGST, SGST, IGST breakdown instantly" },
+      { to: "/reverse-gst-calculator", title: "Reverse GST Calculator", desc: "Remove GST from an inclusive price" },
       { to: "/penalty-calculator", title: "Penalty Calculator", desc: "Late filing penalties & interest" },
       { to: "/late-fee-calculator", title: "Late Fee Calculator", desc: "Late filing fees for any GST return" },
       { to: "/interest-calculator", title: "Interest Calculator", desc: "Interest on delayed GST payment" },

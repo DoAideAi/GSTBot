@@ -124,6 +124,9 @@ const PlaceOfSupplyPage = lazy(() => import("./pages/PlaceOfSupplyPage"));
 const RefundCalculatorPage = lazy(() => import("./pages/RefundCalculatorPage"));
 const EInvoiceGeneratorPage = lazy(() => import("./pages/EInvoiceGeneratorPage"));
 const Gstr9HelperPage = lazy(() => import("./pages/Gstr9HelperPage"));
+const ReverseGstCalculatorPage = lazy(() => import("./pages/ReverseGstCalculatorPage"));
+const Gstr9AnnualReturnGuide = lazy(() => import("./pages/blog/Gstr9AnnualReturnGuide"));
+const GstImsGuide = lazy(() => import("./pages/blog/GstImsGuide"));
 
 function LazyFallback() {
   return (
@@ -221,6 +224,8 @@ export default function App() {
           <Route path="gst-rate-finder-find-gst-rate-for-any-product" element={<Lazy><GstRateFinderGuide /></Lazy>} />
           <Route path="how-to-file-nil-gst-return-online-sms" element={<Lazy><HowToFileNilGstReturn /></Lazy>} />
           <Route path="gstr-1-vs-gstr-3b-mismatch-how-to-fix" element={<Lazy><Gstr1Gstr3bMismatchFix /></Lazy>} />
+          <Route path="gstr-9-annual-return-fy-2025-26-guide" element={<Lazy><Gstr9AnnualReturnGuide /></Lazy>} />
+          <Route path="gst-invoice-management-system-ims-guide" element={<Lazy><GstImsGuide /></Lazy>} />
         </Route>
         <Route path="/calculator" element={<Lazy><CalculatorPage /></Lazy>} />
         <Route path="/lookup" element={<Lazy><LookupPage /></Lazy>} />
@@ -254,6 +259,7 @@ export default function App() {
         <Route path="/registration-checker" element={<Lazy><RegistrationCheckerPage /></Lazy>} />
         <Route path="/return-calendar" element={<Lazy><ReturnDueDateCalendarPage /></Lazy>} />
         <Route path="/interest-calculator" element={<Lazy><InterestCalculatorPage /></Lazy>} />
+        <Route path="/reverse-gst-calculator" element={<Lazy><ReverseGstCalculatorPage /></Lazy>} />
         <Route path="/hsn-sac-finder" element={<Lazy><HsnSacFinderPage /></Lazy>} />
         <Route path="/scheme-comparison" element={<Lazy><SchemeComparisonPage /></Lazy>} />
         <Route path="/payment-challan" element={<Lazy><PaymentChallanPage /></Lazy>} />

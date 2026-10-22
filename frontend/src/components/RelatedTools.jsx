@@ -15,6 +15,7 @@ const ALL_TOOLS = [
   { path: "/registration-checker", label: "Registration Checker", desc: "Do you need GST registration?" },
   { path: "/return-calendar", label: "Return Calendar", desc: "GST return due date calendar" },
   { path: "/interest-calculator", label: "Interest Calculator", desc: "Late payment interest under GST" },
+  { path: "/reverse-gst-calculator", label: "Reverse GST Calculator", desc: "Remove GST from an inclusive price" },
   { path: "/hsn-sac-finder", label: "HSN/SAC Finder", desc: "Search HSN & SAC codes by name" },
   { path: "/turnover-limit", label: "Turnover Limit", desc: "Check if GST registration needed" },
   { path: "/resources", label: "All GST Tools", desc: "Complete tools & guides hub" },
@@ -40,7 +41,8 @@ const ALL_TOOLS = [
 // Contextual cross-links: which tools are most relevant to which page.
 // Each key maps a tool path to an array of 3-4 related tool paths.
 const RECOMMENDED = {
-  "/calculator": ["/hsn", "/invoice-generator", "/itc-calculator", "/penalty-calculator"],
+  "/calculator": ["/reverse-gst-calculator", "/hsn", "/invoice-generator", "/itc-calculator"],
+  "/reverse-gst-calculator": ["/calculator", "/hsn", "/invoice-generator", "/itc-calculator"],
   "/lookup": ["/gstin-validator", "/registration-checker", "/hsn", "/calculator"],
   "/hsn": ["/hsn-sac-finder", "/calculator", "/invoice-generator", "/lookup"],
   "/due-dates": ["/return-calendar", "/penalty-calculator", "/late-fee-calculator", "/interest-calculator"],

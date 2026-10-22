@@ -158,6 +158,16 @@ const ARTICLES = [
     title: "GSTR-1 vs GSTR-3B Mismatch: Why It Happens and How to Fix It",
     description: "Common causes of GSTR-1 and GSTR-3B mismatches, how to reconcile them, correcting errors with GSTR-1A, and replying to a DRC-01B notice.",
   },
+  {
+    slug: "gstr-9-annual-return-fy-2025-26-guide",
+    title: "GSTR-9 Annual Return FY 2025-26: Due Date, Applicability, Late Fees",
+    description: "Who must file GSTR-9 and GSTR-9C for FY 2025-26, the 31 December 2026 deadline, late fee slabs by turnover, table-wise walkthrough and pre-filing reconciliations.",
+  },
+  {
+    slug: "gst-invoice-management-system-ims-guide",
+    title: "GST Invoice Management System (IMS) Explained: Accept, Reject, Pending",
+    description: "How IMS works on the GST portal — what accept, reject and pending do to your GSTR-2B and ITC, credit note rules, and a month-end IMS workflow.",
+  },
 ];
 
 export { ARTICLES };

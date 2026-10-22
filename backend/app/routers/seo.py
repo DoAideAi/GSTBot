@@ -38,12 +38,15 @@ STATIC_PAGES = [
     "/composition-scheme",
     "/invoice-generator",
     "/reverse-charge",
+    "/reverse-gst-calculator",
     "/itc-mismatch",
     "/whatsapp",
     "/blog",
     "/blog/gst-filing-guide-india-2026",
     "/blog/hsn-code-lookup",
     "/blog/gst-compliance-checklist-small-business",
+    "/blog/gstr-9-annual-return-fy-2025-26-guide",
+    "/blog/gst-invoice-management-system-ims-guide",
 ]
 
 HSN_CODES = [

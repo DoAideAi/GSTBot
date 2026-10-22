@@ -173,6 +173,16 @@ const TOOLS = [
     ),
   },
   {
+    to: "/reverse-gst-calculator",
+    title: "Reverse GST Calculator",
+    desc: "Remove GST from a GST-inclusive price. Get the base amount and CGST/SGST or IGST split for any slab.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+      </svg>
+    ),
+  },
+  {
     to: "/hsn-sac-finder",
     title: "HSN/SAC Code Finder",
     desc: "Search HSN and SAC codes by product name, service description, or code number. Browse by category with GST rates.",

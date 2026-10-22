@@ -2803,6 +2803,44 @@ a:focus-visible {
 }
 .calc-total strong { color: var(--brand); }
 
+/* Touch devices: comfortable targets for every calculator control */
+@media (pointer: coarse) {
+  .calc-input,
+  .calc-select {
+    min-height: 48px;
+    font-size: 1.05rem; /* ≥16px so iOS Safari doesn't zoom on focus */
+  }
+  .calc-mode-btn {
+    min-height: 48px;
+  }
+  .calc-checkbox-label {
+    min-height: 44px;
+  }
+  .calc-checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Small screens: results stay legible and tappable */
+@media (max-width: 600px) {
+  .calc-result-row {
+    font-size: 1rem;
+    padding: 0.5rem 0;
+  }
+  .calc-total {
+    border-top: 1px solid var(--line);
+    font-size: 1.2rem;
+  }
+  .calc-result-actions {
+    flex-wrap: wrap;
+  }
+  .calc-result-actions .btn,
+  .calc-result-actions button {
+    min-height: 44px;
+  }
+}
+
 .calc-section-heading {
   font-size: 0.95rem;
   font-weight: 600;

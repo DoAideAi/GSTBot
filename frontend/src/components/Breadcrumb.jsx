@@ -15,6 +15,7 @@ const ROUTE_LABELS = {
   "/registration-checker": "Registration Checker",
   "/return-calendar": "Return Due Date Calendar",
   "/interest-calculator": "Interest Calculator",
+  "/reverse-gst-calculator": "Reverse GST Calculator",
   "/hsn-sac-finder": "HSN/SAC Code Finder",
   "/late-fee-calculator": "Late Fee Calculator",
   "/gstr9-checklist": "GSTR-9 Annual Return Checklist",
