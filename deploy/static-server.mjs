@@ -11,9 +11,12 @@
 // `root * <dist>` + `file_server` does the same job with one less process —
 // see deploy/README.md for why that is not the arrangement here.
 //
-// Anything that isn't an existing file resolves to index.html, because the
-// router is client-side: /invoices/42 is a real route to React and a 404 to
-// the filesystem.
+// Public pages are prerendered to dist/<route>/index.html (scripts/prerender.mjs
+// in frontend/) and served as directory indexes. Anything else that isn't an
+// existing file resolves to app-shell.html — the SPA with no canonical and
+// noindex — because the router is client-side: /invoices/42 is a real route to
+// React and a 404 to the filesystem. index.html is now the prerendered
+// homepage, so serving it there would hand every app URL the homepage canonical.
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -46,6 +49,7 @@ const TYPES = {
   ".ttf": "font/ttf",
   ".map": "application/json; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
   ".webmanifest": "application/manifest+json",
 };
 
@@ -109,7 +113,8 @@ const server = createServer(async (req, res) => {
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }).end("Not Found");
       return;
     }
-    file = join(ROOT, "index.html");
+    const shell = join(ROOT, "app-shell.html");
+    file = (await stat(shell).then((s) => s.isFile(), () => false)) ? shell : join(ROOT, "index.html");
   }
 
   res.writeHead(200, {

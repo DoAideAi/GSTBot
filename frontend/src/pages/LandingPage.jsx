@@ -418,13 +418,6 @@ export default function LandingPage() {
       priceCurrency: "INR",
       description: "Free plan with up to 50 invoices/month",
     },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "4.8",
-      ratingCount: "1247",
-      bestRating: "5",
-      worstRating: "1",
-    },
     featureList: "GST Calculator, GSTIN Lookup, HSN Code Finder, GSTR-2B Reconciliation, ITC Calculator, Invoice Generator, Penalty Calculator, E-Way Bill Checker",
     screenshot: "https://gst.doaide.com/og-image.png",
     author: {
