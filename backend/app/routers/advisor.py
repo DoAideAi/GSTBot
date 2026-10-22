@@ -22,10 +22,16 @@ router = APIRouter(tags=["advisor"])
 
 _advisor_limit = RateLimit("advisor_ask", "30/minute", by="ip")
 
-_GEMINI_MODEL = "gemini-3.8-flash"
-_GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL}:generateContent"
-)
+# Tried in order. One model is a single point of failure the advisor has
+# already met: gemini-3.8-flash answered 503 "high demand" for long enough that
+# every visitor got the apology below and nothing else. Overload and quota are
+# per model, so the next one in the list usually answers when the first will
+# not. Only those two kinds of failure move on — a 400 means the request itself
+# is wrong and every model would refuse it the same way.
+_GEMINI_MODELS = ("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite")
+_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+_RETRYABLE = frozenset({429, 500, 502, 503, 504})
+_NO_REPLY = "Sorry, I could not generate a response. Please try again."
 
 SYSTEM_PROMPT = (
     "You are GSTIndia AI Advisor, an expert on India's Goods and Services Tax. "
@@ -102,30 +108,35 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                _GEMINI_URL,
-                params={"key": api_key},
-                json=payload,
-            )
-        if response.status_code != 200:
-            logger.warning(
-                "Gemini API returned %d: %s",
-                response.status_code,
-                response.text[:200],
-            )
-            return {"reply": "Sorry, I could not generate a response. Please try again."}
-
-        data = response.json()
-        reply = (
-            data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "Sorry, I could not generate a response.")
-        )
-        return {"reply": reply}
+            for model in _GEMINI_MODELS:
+                response = await client.post(
+                    _GEMINI_URL.format(model=model),
+                    headers={"x-goog-api-key": api_key},
+                    json=payload,
+                )
+                if response.status_code == 200:
+                    return {"reply": _reply_text(response.json())}
+                logger.warning(
+                    "Gemini %s returned %d: %s",
+                    model,
+                    response.status_code,
+                    response.text[:200],
+                )
+                if response.status_code not in _RETRYABLE:
+                    break
+        return {"reply": _NO_REPLY}
 
     except httpx.TimeoutException:
         return {"reply": "The request timed out. Please try again."}
     except Exception:
         logger.exception("Advisor proxy error")
         return {"reply": "Something went wrong. Please try again later."}
+
+
+def _reply_text(data: dict) -> str:
+    # A 200 is not always an answer: a candidate stopped by a safety filter, or
+    # one that spent its whole budget thinking, arrives with no parts at all.
+    candidates = data.get("candidates") or [{}]
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts).strip()
+    return text or _NO_REPLY
