@@ -24,6 +24,7 @@ vi.mock("./pages/DashboardPage", () => ({
   },
 }));
 vi.mock("./pages/LandingPage", () => ({ default: () => <div>Landing page</div> }));
+vi.mock("./pages/LoginPage", () => ({ default: () => <div>Login page</div> }));
 vi.mock("./pages/InvoicesPage", () => ({ default: () => <div>Invoices page</div> }));
 vi.mock("./pages/InvoiceDetailPage", () => ({ default: () => <div>Invoice detail page</div> }));
 vi.mock("./pages/UploadPage", () => ({ default: () => <div>Upload page</div> }));
@@ -84,7 +85,7 @@ describe("App routing", () => {
       expect(screen.queryByText("Dashboard page")).not.toBeInTheDocument();
     });
 
-    it("holds /login behind the loading check too, via the redirect to /", () => {
+    it("holds /login behind the loading check too", () => {
       renderAt("/login", LOADING);
 
       expect(screen.getByText(/checking your session/i)).toBeInTheDocument();
@@ -107,10 +108,10 @@ describe("App routing", () => {
       expect(screen.queryByText("Alerts page")).not.toBeInTheDocument();
     });
 
-    it("redirects /login to the landing page", () => {
+    it("shows the sign-in page at /login", async () => {
       renderAt("/login", { user: null, loading: false });
 
-      expect(screen.getByText("Landing page")).toBeInTheDocument();
+      expect(await screen.findByText("Login page")).toBeInTheDocument();
     });
 
     it("shows the landing page to an anonymous visitor, not the shell", () => {

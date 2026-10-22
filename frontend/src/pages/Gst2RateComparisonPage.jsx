@@ -44,7 +44,7 @@ export default function Gst2RateComparisonPage() {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
     return products
-      .filter((p) => p.name.toLowerCase().includes(q) || (p.hsn && p.hsn.includes(q)))
+      .filter((p) => p.product.toLowerCase().includes(q) || (p.hsn && p.hsn.includes(q)))
       .slice(0, 20);
   }, [query, products]);
 
@@ -96,7 +96,7 @@ export default function Gst2RateComparisonPage() {
                       const newRate = p.rate;
                       const oldRate = RATE_MIGRATION[12]?.includes(newRate) && newRate <= 5 ? 12
                         : RATE_MIGRATION[28]?.includes(newRate) && newRate >= 40 ? 28
-                        : newRate === 0 && p.name.toLowerCase().includes("insurance") ? 18
+                        : newRate === 0 && p.product.toLowerCase().includes("insurance") ? 18
                         : newRate;
                       const diff = newRate - oldRate;
                       const changeColor = diff < 0 ? "#34d399" : diff > 0 ? "#f87171" : "var(--ink-soft)";
@@ -104,7 +104,7 @@ export default function Gst2RateComparisonPage() {
 
                       return (
                         <tr key={i}>
-                          <td>{p.name}</td>
+                          <td>{p.product}</td>
                           <td><code>{p.hsn || "—"}</code></td>
                           <td>{oldRate}%</td>
                           <td><strong>{newRate}%</strong></td>

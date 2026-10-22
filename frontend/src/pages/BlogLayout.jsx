@@ -168,6 +168,16 @@ const ARTICLES = [
     title: "GST Invoice Management System (IMS) Explained: Accept, Reject, Pending",
     description: "How IMS works on the GST portal — what accept, reject and pending do to your GSTR-2B and ITC, credit note rules, and a month-end IMS workflow.",
   },
+  {
+    slug: "gst-on-rental-income",
+    title: "GST on Rental Income in India 2026: Rates, Exemptions & RCM",
+    description: "When rent attracts GST — 18% on commercial property, the residential exemption, reverse charge on renting to registered businesses, and how to report rent in returns.",
+  },
+  {
+    slug: "gst-rates-india-2026-complete-list",
+    title: "GST Rates in India 2026: Complete List of All Slabs",
+    description: "Every GST slab in force in 2026 — 0%, 5%, 18% and 40%, special rates for gold and diamonds, and where the old 12% and 28% goods moved.",
+  },
 ];
 
 export { ARTICLES };

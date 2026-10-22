@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { HelmetProvider } from "react-helmet-async";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AdvisorPage from "./AdvisorPage";
 
@@ -9,13 +8,14 @@ const mockTrack = vi.fn();
 vi.mock("../lib/track", () => ({ track: (...args) => mockTrack(...args) }));
 vi.mock("../hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
 
+// jsdom has no layout, so the chat's auto-scroll target needs a stand-in.
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
 function renderAdvisor() {
   return render(
-    <HelmetProvider>
-      <MemoryRouter initialEntries={["/advisor"]}>
-        <AdvisorPage />
-      </MemoryRouter>
-    </HelmetProvider>,
+    <MemoryRouter initialEntries={["/advisor"]}>
+      <AdvisorPage />
+    </MemoryRouter>,
   );
 }
 

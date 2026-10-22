@@ -41,6 +41,7 @@ const SuppliersPage = lazy(() => import("./pages/SuppliersPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const UsagePage = lazy(() => import("./pages/UsagePage"));
 const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 const GstComplianceChecklist = lazy(() => import("./pages/blog/GstComplianceChecklist"));
 const GstFilingGuide = lazy(() => import("./pages/blog/GstFilingGuide"));
 const HsnCodeLookup = lazy(() => import("./pages/blog/HsnCodeLookup"));
@@ -127,6 +128,10 @@ const Gstr9HelperPage = lazy(() => import("./pages/Gstr9HelperPage"));
 const ReverseGstCalculatorPage = lazy(() => import("./pages/ReverseGstCalculatorPage"));
 const Gstr9AnnualReturnGuide = lazy(() => import("./pages/blog/Gstr9AnnualReturnGuide"));
 const GstImsGuide = lazy(() => import("./pages/blog/GstImsGuide"));
+const GstOnGoldPage = lazy(() => import("./pages/GstOnGoldPage"));
+const GstOnRealEstatePage = lazy(() => import("./pages/GstOnRealEstatePage"));
+const GstOnRentalIncome = lazy(() => import("./pages/blog/GstOnRentalIncome"));
+const GstRatesIndia2026List = lazy(() => import("./pages/blog/GstRatesIndia2026List"));
 
 function LazyFallback() {
   return (
@@ -182,13 +187,28 @@ function Lazy({ children }) {
   return <Suspense fallback={<LazyFallback />}>{children}</Suspense>;
 }
 
+// /login is the one public route whose content depends on the session: a
+// signed-in visitor belongs on the dashboard, not over a sign-in form.
+function LoginRoute() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="shell-main">
+        <SkeletonPanel lines={5} label="Checking your session" />
+      </div>
+    );
+  }
+  if (user) return <Navigate to="/" replace />;
+  return <Lazy><LoginPage /></Lazy>;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<LazyFallback />}>
       <ToolTracker />
       <SocialProofBar />
       <Routes>
-        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/login" element={<LoginRoute />} />
         <Route path="/auth/callback" element={<Lazy><AuthCallbackPage /></Lazy>} />
         <Route path="/pricing" element={<Lazy><PricingPage /></Lazy>} />
         <Route path="/blog" element={<Lazy><BlogLayout /></Lazy>}>
@@ -226,6 +246,8 @@ export default function App() {
           <Route path="gstr-1-vs-gstr-3b-mismatch-how-to-fix" element={<Lazy><Gstr1Gstr3bMismatchFix /></Lazy>} />
           <Route path="gstr-9-annual-return-fy-2025-26-guide" element={<Lazy><Gstr9AnnualReturnGuide /></Lazy>} />
           <Route path="gst-invoice-management-system-ims-guide" element={<Lazy><GstImsGuide /></Lazy>} />
+          <Route path="gst-on-rental-income" element={<Lazy><GstOnRentalIncome /></Lazy>} />
+          <Route path="gst-rates-india-2026-complete-list" element={<Lazy><GstRatesIndia2026List /></Lazy>} />
         </Route>
         <Route path="/calculator" element={<Lazy><CalculatorPage /></Lazy>} />
         <Route path="/lookup" element={<Lazy><LookupPage /></Lazy>} />
@@ -260,6 +282,8 @@ export default function App() {
         <Route path="/return-calendar" element={<Lazy><ReturnDueDateCalendarPage /></Lazy>} />
         <Route path="/interest-calculator" element={<Lazy><InterestCalculatorPage /></Lazy>} />
         <Route path="/reverse-gst-calculator" element={<Lazy><ReverseGstCalculatorPage /></Lazy>} />
+        <Route path="/gst-on-gold" element={<Lazy><GstOnGoldPage /></Lazy>} />
+        <Route path="/gst-on-real-estate" element={<Lazy><GstOnRealEstatePage /></Lazy>} />
         <Route path="/hsn-sac-finder" element={<Lazy><HsnSacFinderPage /></Lazy>} />
         <Route path="/scheme-comparison" element={<Lazy><SchemeComparisonPage /></Lazy>} />
         <Route path="/payment-challan" element={<Lazy><PaymentChallanPage /></Lazy>} />

@@ -47,7 +47,7 @@ const TOOLS = [
 const FAQ_ITEMS = [
   {
     q: "What is the best free GST calculator in India in 2026?",
-    a: "DoAide GST Calculator is the best free GST calculator in India in 2026. It offers instant CGST, SGST, and IGST calculation for all slab rates, plus free HSN code search, GSTIN verification, and filing date reminders — all without any signup or login.",
+    a: "DoAide GST Calculator is the best free GST calculator in India in 2026 — instant CGST, SGST and IGST calculation for every slab, plus free HSN code search, GSTIN verification and filing date reminders, with no signup.",
   },
   {
     q: "How to calculate GST online for free?",

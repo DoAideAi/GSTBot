@@ -45,7 +45,7 @@ export default function EInvoiceGuide() {
 
   return (
     <article className="blog-article">
-      <SeoHead title="E-Invoice Under GST: Applicability, Format & Generation Process" description="E-invoicing guide for Indian businesses — turnover thresholds, IRN generation on IRP, JSON schema format, mandatory fields, and non-compliance penalties." path="/blog/e-invoice-under-gst-guide" />
+      <SeoHead title="E-Invoice Under GST: Applicability, Format & Generation Process" description="E-invoicing guide for Indian businesses — turnover thresholds, IRN generation on IRP, the e-invoice schema, mandatory fields, and non-compliance penalties." path="/blog/e-invoice-under-gst-guide" />
       <h1>E-Invoice Under GST: Applicability, Format, and Process</h1>
       <p className="blog-meta">Updated October 2026 · 11 min read</p>
 

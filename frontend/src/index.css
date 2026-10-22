@@ -2802,6 +2802,11 @@ a:focus-visible {
   font-size: 1.1rem;
 }
 .calc-total strong { color: var(--brand); }
+.calc-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
 
 /* Touch devices: comfortable targets for every calculator control */
 @media (pointer: coarse) {

@@ -83,7 +83,7 @@ describe("ReturnDueDateCalendarPage", () => {
   it("shows late fee rates for GSTR-1 and GSTR-3B", () => {
     renderPage();
     expect(screen.getByText(/Rs 50\/day/)).toBeInTheDocument();
-    expect(screen.getByText(/18% p\.a\./)).toBeInTheDocument();
+    expect(screen.getAllByText(/18% p\.a\./).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows FAQ about late fee for GSTR-3B", () => {

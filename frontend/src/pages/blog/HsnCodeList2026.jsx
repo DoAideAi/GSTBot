@@ -31,11 +31,11 @@ export default function HsnCodeList2026() {
         "@context": "https://schema.org",
         "@type": "FAQPage",
         mainEntity: [
-          { "@type": "Question", name: "How many digits of HSN code are mandatory?", acceptedAnswer: { "@type": "Answer", text: "Businesses with turnover up to ₹5 crore must mention 4-digit HSN codes on B2B invoices. Businesses with turnover above ₹5 crore must mention 6-digit HSN codes on all invoices. For GSTR-1 filing, 6-digit codes are mandatory for all." } },
-          { "@type": "Question", name: "What is the difference between HSN and SAC codes?", acceptedAnswer: { "@type": "Answer", text: "HSN (Harmonized System of Nomenclature) codes classify goods/products and have 4-8 digits. SAC (Services Accounting Codes) classify services and have 6 digits starting with 99. Both are used to determine the applicable GST rate." } },
+          { "@type": "Question", name: "How many digits of HSN code are mandatory?", acceptedAnswer: { "@type": "Answer", text: "Businesses with turnover up to ₹5 crore must show 4-digit HSN codes on B2B invoices; above ₹5 crore, 6-digit codes on all invoices. For GSTR-1 filing, 6-digit codes are mandatory for everyone." } },
+          { "@type": "Question", name: "What is the difference between HSN and SAC codes?", acceptedAnswer: { "@type": "Answer", text: "HSN (Harmonized System of Nomenclature) codes classify goods and run 4-8 digits. SAC (Services Accounting Codes) classify services and are 6 digits starting with 99. Both determine the GST rate." } },
           { "@type": "Question", name: "Where can I find the HSN code for my product?", acceptedAnswer: { "@type": "Answer", text: "You can search HSN codes on the CBIC website, the GST portal, or use free tools like DoAide GST's HSN/SAC Finder. The code is based on the nature of the product — material, function, and end use." } },
           { "@type": "Question", name: "What happens if I use the wrong HSN code?", acceptedAnswer: { "@type": "Answer", text: "Using incorrect HSN codes can lead to wrong GST rate application, ITC mismatches, show-cause notices from the department, and penalties. It can also cause issues during GST audits and assessments." } },
-          { "@type": "Question", name: "Are HSN codes the same worldwide?", acceptedAnswer: { "@type": "Answer", text: "The first 6 digits of HSN codes are internationally standardized by the World Customs Organization (WCO). India adds 2 more digits (making it 8 digits) for more specific classification. Over 200 countries use HSN for customs and trade." } },
+          { "@type": "Question", name: "Are HSN codes the same worldwide?", acceptedAnswer: { "@type": "Answer", text: "The first 6 digits are standardized worldwide by the World Customs Organization. India adds 2 more for finer classification, making 8. Over 200 countries use HSN for customs and trade." } },
         ],
       },
     ]);

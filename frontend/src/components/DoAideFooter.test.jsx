@@ -8,13 +8,13 @@ describe("DoAideFooter", () => {
     expect(screen.getByText("More free tools from DoAide")).toBeInTheDocument();
   });
 
-  it("renders all five DoAide tools", () => {
+  it("renders the cross-product tools", () => {
     render(<DoAideFooter />);
     expect(screen.getByText("Invoicer")).toBeInTheDocument();
     expect(screen.getByText("Contracts")).toBeInTheDocument();
-    expect(screen.getByText("Comply")).toBeInTheDocument();
-    expect(screen.getByText("Salary")).toBeInTheDocument();
-    expect(screen.getByText("Calculator")).toBeInTheDocument();
+    expect(screen.getByText("InsureKit")).toBeInTheDocument();
+    expect(screen.getByText("TaxFile")).toBeInTheDocument();
+    expect(screen.getByText("Pulse")).toBeInTheDocument();
   });
 
   it("links to the correct domains", () => {
@@ -27,17 +27,17 @@ describe("DoAideFooter", () => {
       "href",
       "https://contracts.doaide.com",
     );
-    expect(screen.getByText("Comply").closest("a")).toHaveAttribute(
+    expect(screen.getByText("InsureKit").closest("a")).toHaveAttribute(
       "href",
-      "https://comply.doaide.com",
+      "https://insure.doaide.com",
     );
-    expect(screen.getByText("Salary").closest("a")).toHaveAttribute(
+    expect(screen.getByText("TaxFile").closest("a")).toHaveAttribute(
       "href",
-      "https://salary.doaide.com",
+      "https://tax.doaide.com",
     );
-    expect(screen.getByText("Calculator").closest("a")).toHaveAttribute(
+    expect(screen.getByText("Pulse").closest("a")).toHaveAttribute(
       "href",
-      "https://fincalc.doaide.com",
+      "https://pulse.doaide.com",
     );
   });
 
@@ -59,8 +59,8 @@ describe("DoAideFooter", () => {
     render(<DoAideFooter />);
     expect(screen.getByText("Create GST invoices in seconds")).toBeInTheDocument();
     expect(screen.getByText("Draft & manage business contracts")).toBeInTheDocument();
-    expect(screen.getByText("Track all compliance deadlines")).toBeInTheDocument();
-    expect(screen.getByText("Payroll & salary slip generation")).toBeInTheDocument();
-    expect(screen.getByText("Financial calculators & tools")).toBeInTheDocument();
+    expect(screen.getByText("LIC insurance calculators & tools")).toBeInTheDocument();
+    expect(screen.getByText("Income tax & financial calculators")).toBeInTheDocument();
+    expect(screen.getByText("Newsletter growth & email tools")).toBeInTheDocument();
   });
 });

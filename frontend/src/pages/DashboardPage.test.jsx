@@ -864,7 +864,7 @@ describe("DashboardPage", () => {
       }));
       renderPage();
 
-      const banner = await screen.findByText(/5 days overdue/);
+      const [banner] = await screen.findAllByText(/5 days overdue/);
       expect(banner).toBeInTheDocument();
       expect(screen.getByText(/₹500.00/)).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "File now" })).toHaveAttribute("href", "/filing");

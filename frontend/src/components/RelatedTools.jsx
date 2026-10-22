@@ -16,6 +16,8 @@ const ALL_TOOLS = [
   { path: "/return-calendar", label: "Return Calendar", desc: "GST return due date calendar" },
   { path: "/interest-calculator", label: "Interest Calculator", desc: "Late payment interest under GST" },
   { path: "/reverse-gst-calculator", label: "Reverse GST Calculator", desc: "Remove GST from an inclusive price" },
+  { path: "/gst-on-gold", label: "GST on Gold", desc: "3% on gold + 5% on making charges" },
+  { path: "/gst-on-real-estate", label: "GST on Real Estate", desc: "Tax on flats, property & construction" },
   { path: "/hsn-sac-finder", label: "HSN/SAC Finder", desc: "Search HSN & SAC codes by name" },
   { path: "/turnover-limit", label: "Turnover Limit", desc: "Check if GST registration needed" },
   { path: "/resources", label: "All GST Tools", desc: "Complete tools & guides hub" },
@@ -43,6 +45,8 @@ const ALL_TOOLS = [
 const RECOMMENDED = {
   "/calculator": ["/reverse-gst-calculator", "/hsn", "/invoice-generator", "/itc-calculator"],
   "/reverse-gst-calculator": ["/calculator", "/hsn", "/invoice-generator", "/itc-calculator"],
+  "/gst-on-gold": ["/calculator", "/reverse-gst-calculator", "/hsn", "/invoice-generator"],
+  "/gst-on-real-estate": ["/calculator", "/itc-calculator", "/place-of-supply", "/hsn-sac-finder"],
   "/lookup": ["/gstin-validator", "/registration-checker", "/hsn", "/calculator"],
   "/hsn": ["/hsn-sac-finder", "/calculator", "/invoice-generator", "/lookup"],
   "/due-dates": ["/return-calendar", "/penalty-calculator", "/late-fee-calculator", "/interest-calculator"],

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import SeoHead from "../components/SeoHead";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
 
@@ -104,14 +105,11 @@ export default function AdvisorPage() {
 
   return (
     <>
-      <Helmet>
-        <title>Free GST AI Advisor - Ask Any GST Question | DoAide GST</title>
-        <meta
-          name="description"
-          content="Ask our free AI-powered GST advisor any question about GST registration, filing, rates, compliance, ITC claims, and regulations. Get instant, expert answers."
-        />
-        <link rel="canonical" href="https://gst.doaide.com/advisor" />
-      </Helmet>
+      <SeoHead
+        title="Free GST AI Advisor - Ask Any GST Question | DoAide GST"
+        description="Ask our free AI-powered GST advisor any question about GST registration, filing, rates, compliance, ITC claims, and regulations. Get instant, expert answers."
+        path="/advisor"
+      />
 
       <div className="advisor-page">
         <header className="advisor-header">

@@ -53,7 +53,7 @@ describe("SavePrompt", () => {
     renderPrompt();
     expect(screen.getByRole("link", { name: "Sign up free" })).toHaveAttribute(
       "href",
-      "/?register=1",
+      "/login",
     );
   });
 

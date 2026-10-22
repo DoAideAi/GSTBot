@@ -33,7 +33,7 @@ export default function SavePrompt({ calcCount, onDismiss }) {
         calculation history and access it anytime.
       </p>
       <div className="save-prompt-actions">
-        <Link to="/?register=1" className="btn btn-primary btn-sm">
+        <Link to="/login" className="btn btn-primary btn-sm">
           Sign up free
         </Link>
         <button className="btn btn-ghost btn-sm" onClick={onDismiss}>

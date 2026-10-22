@@ -225,6 +225,8 @@ const TOOL_CATEGORIES = [
     tools: [
       { to: "/calculator", title: "GST Calculator", desc: "CGST, SGST, IGST breakdown instantly" },
       { to: "/reverse-gst-calculator", title: "Reverse GST Calculator", desc: "Remove GST from an inclusive price" },
+      { to: "/gst-on-gold", title: "GST on Gold", desc: "3% gold + 5% making charges, exact bill" },
+      { to: "/gst-on-real-estate", title: "GST on Real Estate", desc: "Flats, affordable housing & commercial" },
       { to: "/penalty-calculator", title: "Penalty Calculator", desc: "Late filing penalties & interest" },
       { to: "/late-fee-calculator", title: "Late Fee Calculator", desc: "Late filing fees for any GST return" },
       { to: "/interest-calculator", title: "Interest Calculator", desc: "Interest on delayed GST payment" },

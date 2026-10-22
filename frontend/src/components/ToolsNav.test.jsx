@@ -41,11 +41,11 @@ describe("ToolsNav", () => {
     expect(lookupLink.className).toContain("active");
   });
 
-  it("renders the sign-up CTA pointing to /", () => {
+  it("renders the sign-up CTA pointing to /login", () => {
     renderNav();
 
     const cta = screen.getByText("Sign up free");
-    expect(cta).toHaveAttribute("href", "/");
+    expect(cta).toHaveAttribute("href", "/login");
   });
 
   it("renders the brand link pointing to gst.doaide.com", () => {

@@ -183,6 +183,28 @@ const TOOLS = [
     ),
   },
   {
+    to: "/gst-on-gold",
+    title: "GST on Gold Calculator",
+    desc: "Calculate GST on gold jewellery, coins, and digital gold — 3% on the gold value plus 5% on making charges, with the exact final bill.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v10" /><path d="M15 9.5c0-1-1.3-1.8-3-1.8s-3 .8-3 1.8 1.3 1.8 3 1.8 3 .8 3 1.8-1.3 1.8-3 1.8-3-.8-3-1.8" />
+      </svg>
+    ),
+  },
+  {
+    to: "/gst-on-real-estate",
+    title: "GST on Real Estate Calculator",
+    desc: "GST on under-construction flats, affordable housing, commercial property, and ready-to-move homes — 1%, 5%, and effective 12% rates.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" />
+        <path d="M9 21v-6h6v6" /><path d="M9 10h.01" /><path d="M15 10h.01" />
+      </svg>
+    ),
+  },
+  {
     to: "/hsn-sac-finder",
     title: "HSN/SAC Code Finder",
     desc: "Search HSN and SAC codes by product name, service description, or code number. Browse by category with GST rates.",
