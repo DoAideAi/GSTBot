@@ -1,16 +1,21 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
-import InstallPrompt from "./components/InstallPrompt";
 import Shell from "./components/Shell";
 import { SkeletonPanel } from "./components/Skeleton";
 import { useAuth } from "./hooks/useAuth";
 import LandingPage from "./pages/LandingPage";
-import FeedbackWidget from "./components/FeedbackWidget";
-import GstAdvisor from "./components/GstAdvisor";
 import ToolTracker from "./components/ToolTracker";
 import SocialProofBar from "./components/SocialProofBar";
-import ReferralBanner from "./components/ReferralBanner";
+
+// The floating widgets are below the fold of every page and none of them is
+// what the visitor came for, so they load after the route rather than sitting
+// in the entry chunk every first paint has to download and parse.
+const InstallPrompt = lazy(() => import("./components/InstallPrompt"));
+const ReferralBanner = lazy(() => import("./components/ReferralBanner"));
+const GstAdvisor = lazy(() => import("./components/GstAdvisor"));
+const FeedbackWidget = lazy(() => import("./components/FeedbackWidget"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
 const BlogLayout = lazy(() => import("./pages/BlogLayout"));
@@ -142,7 +147,9 @@ function Protected({ children }) {
   // data rather than showing one business's numbers under another's name.
   return (
     <Shell>
-      <ErrorBoundary key={user.business?.id ?? "home"}>{children}</ErrorBoundary>
+      <ErrorBoundary key={user.business?.id ?? "home"}>
+        <Suspense fallback={<LazyFallback />}>{children}</Suspense>
+      </ErrorBoundary>
     </Shell>
   );
 }
@@ -179,49 +186,49 @@ export default function App() {
       <SocialProofBar />
       <Routes>
         <Route path="/login" element={<Navigate to="/" replace />} />
-        <Route path="/auth/callback" element={<AuthCallbackPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/auth/callback" element={<Lazy><AuthCallbackPage /></Lazy>} />
+        <Route path="/pricing" element={<Lazy><PricingPage /></Lazy>} />
         <Route path="/blog" element={<Lazy><BlogLayout /></Lazy>}>
           <Route index element={<Lazy><BlogIndex /></Lazy>} />
-          <Route path="gst-filing-guide-india-2026" element={<GstFilingGuide />} />
-          <Route path="hsn-code-lookup" element={<HsnCodeLookup />} />
-          <Route path="gst-compliance-checklist-small-business" element={<GstComplianceChecklist />} />
-          <Route path="gst-registration-online-guide" element={<GstRegistrationOnline />} />
-          <Route path="gstr-3b-filing-guide" element={<Gstr3bGuide />} />
-          <Route path="itc-reconciliation-gstr-2a-guide" element={<ItcReconciliationGuide />} />
-          <Route path="gst-return-filing-calendar-2026-27" element={<GstReturnCalendar />} />
-          <Route path="e-invoice-under-gst-guide" element={<EInvoiceGuide />} />
-          <Route path="gst-penalties-interest-late-filing" element={<GstPenaltyGuide />} />
-          <Route path="gst-composition-scheme-guide" element={<CompositionSchemeGuide />} />
-          <Route path="eway-bill-gst-rules-guide" element={<EwayBillBlogGuide />} />
-          <Route path="how-to-file-gstr-1-step-by-step-2026" element={<Gstr1FilingStepByStep />} />
-          <Route path="gst-registration-documents-required-2026" element={<GstRegistrationDocuments />} />
-          <Route path="gstr-1-vs-gstr-3b-difference" element={<Gstr1VsGstr3b />} />
-          <Route path="composition-scheme-vs-regular-scheme" element={<CompositionVsRegular />} />
-          <Route path="how-to-claim-input-tax-credit-gst" element={<HowToClaimItc />} />
-          <Route path="gst-registration-complete-guide-2026" element={<GstRegistrationGuide2026 />} />
-          <Route path="hsn-code-list-2026-complete-guide" element={<HsnCodeList2026 />} />
-          <Route path="gst-2-changes-explained-india" element={<Gst2ChangesExplained />} />
-          <Route path="how-to-file-gst-returns-online" element={<GstReturnFilingOnline />} />
-          <Route path="gst-rates-services-2026" element={<GstRatesServices2026 />} />
-          <Route path="difference-between-cgst-sgst-igst" element={<CgstSgstIgstDifference />} />
-          <Route path="gst-late-filing-penalty-calculator" element={<GstLatePenaltyCalculator />} />
-          <Route path="gst-compliance-tips-small-business-2026" element={<GstComplianceTipsSmallBusiness />} />
-          <Route path="reverse-charge-mechanism-gst-guide-2026" element={<ReverseChargeGstGuide />} />
-          <Route path="gst-registration-process-step-by-step-2026" element={<GstRegistrationProcess2026 />} />
-          <Route path="gstr-3b-common-mistakes-how-to-avoid" element={<Gstr3bCommonMistakes />} />
-          <Route path="itc-rules-2026-what-every-business-must-know" element={<ItcRules2026 />} />
-          <Route path="gst-rate-finder-find-gst-rate-for-any-product" element={<GstRateFinderGuide />} />
-          <Route path="how-to-file-nil-gst-return-online-sms" element={<HowToFileNilGstReturn />} />
-          <Route path="gstr-1-vs-gstr-3b-mismatch-how-to-fix" element={<Gstr1Gstr3bMismatchFix />} />
+          <Route path="gst-filing-guide-india-2026" element={<Lazy><GstFilingGuide /></Lazy>} />
+          <Route path="hsn-code-lookup" element={<Lazy><HsnCodeLookup /></Lazy>} />
+          <Route path="gst-compliance-checklist-small-business" element={<Lazy><GstComplianceChecklist /></Lazy>} />
+          <Route path="gst-registration-online-guide" element={<Lazy><GstRegistrationOnline /></Lazy>} />
+          <Route path="gstr-3b-filing-guide" element={<Lazy><Gstr3bGuide /></Lazy>} />
+          <Route path="itc-reconciliation-gstr-2a-guide" element={<Lazy><ItcReconciliationGuide /></Lazy>} />
+          <Route path="gst-return-filing-calendar-2026-27" element={<Lazy><GstReturnCalendar /></Lazy>} />
+          <Route path="e-invoice-under-gst-guide" element={<Lazy><EInvoiceGuide /></Lazy>} />
+          <Route path="gst-penalties-interest-late-filing" element={<Lazy><GstPenaltyGuide /></Lazy>} />
+          <Route path="gst-composition-scheme-guide" element={<Lazy><CompositionSchemeGuide /></Lazy>} />
+          <Route path="eway-bill-gst-rules-guide" element={<Lazy><EwayBillBlogGuide /></Lazy>} />
+          <Route path="how-to-file-gstr-1-step-by-step-2026" element={<Lazy><Gstr1FilingStepByStep /></Lazy>} />
+          <Route path="gst-registration-documents-required-2026" element={<Lazy><GstRegistrationDocuments /></Lazy>} />
+          <Route path="gstr-1-vs-gstr-3b-difference" element={<Lazy><Gstr1VsGstr3b /></Lazy>} />
+          <Route path="composition-scheme-vs-regular-scheme" element={<Lazy><CompositionVsRegular /></Lazy>} />
+          <Route path="how-to-claim-input-tax-credit-gst" element={<Lazy><HowToClaimItc /></Lazy>} />
+          <Route path="gst-registration-complete-guide-2026" element={<Lazy><GstRegistrationGuide2026 /></Lazy>} />
+          <Route path="hsn-code-list-2026-complete-guide" element={<Lazy><HsnCodeList2026 /></Lazy>} />
+          <Route path="gst-2-changes-explained-india" element={<Lazy><Gst2ChangesExplained /></Lazy>} />
+          <Route path="how-to-file-gst-returns-online" element={<Lazy><GstReturnFilingOnline /></Lazy>} />
+          <Route path="gst-rates-services-2026" element={<Lazy><GstRatesServices2026 /></Lazy>} />
+          <Route path="difference-between-cgst-sgst-igst" element={<Lazy><CgstSgstIgstDifference /></Lazy>} />
+          <Route path="gst-late-filing-penalty-calculator" element={<Lazy><GstLatePenaltyCalculator /></Lazy>} />
+          <Route path="gst-compliance-tips-small-business-2026" element={<Lazy><GstComplianceTipsSmallBusiness /></Lazy>} />
+          <Route path="reverse-charge-mechanism-gst-guide-2026" element={<Lazy><ReverseChargeGstGuide /></Lazy>} />
+          <Route path="gst-registration-process-step-by-step-2026" element={<Lazy><GstRegistrationProcess2026 /></Lazy>} />
+          <Route path="gstr-3b-common-mistakes-how-to-avoid" element={<Lazy><Gstr3bCommonMistakes /></Lazy>} />
+          <Route path="itc-rules-2026-what-every-business-must-know" element={<Lazy><ItcRules2026 /></Lazy>} />
+          <Route path="gst-rate-finder-find-gst-rate-for-any-product" element={<Lazy><GstRateFinderGuide /></Lazy>} />
+          <Route path="how-to-file-nil-gst-return-online-sms" element={<Lazy><HowToFileNilGstReturn /></Lazy>} />
+          <Route path="gstr-1-vs-gstr-3b-mismatch-how-to-fix" element={<Lazy><Gstr1Gstr3bMismatchFix /></Lazy>} />
         </Route>
-        <Route path="/calculator" element={<CalculatorPage />} />
-        <Route path="/lookup" element={<LookupPage />} />
-        <Route path="/hsn" element={<HsnFinderPage />} />
-        <Route path="/gstin/:gstin" element={<GstinPage />} />
-        <Route path="/gst-rate/:product" element={<GstRatePage />} />
-        <Route path="/due-dates" element={<DueDatesPage />} />
-        <Route path="/resources" element={<ResourcesPage />} />
+        <Route path="/calculator" element={<Lazy><CalculatorPage /></Lazy>} />
+        <Route path="/lookup" element={<Lazy><LookupPage /></Lazy>} />
+        <Route path="/hsn" element={<Lazy><HsnFinderPage /></Lazy>} />
+        <Route path="/gstin/:gstin" element={<Lazy><GstinPage /></Lazy>} />
+        <Route path="/gst-rate/:product" element={<Lazy><GstRatePage /></Lazy>} />
+        <Route path="/due-dates" element={<Lazy><DueDatesPage /></Lazy>} />
+        <Route path="/resources" element={<Lazy><ResourcesPage /></Lazy>} />
         <Route path="/compare/cleartax" element={<Lazy><ClearTaxCompare /></Lazy>} />
         <Route path="/compare/zoho-gst" element={<Lazy><ZohoGstCompare /></Lazy>} />
         <Route path="/compare/tally" element={<Lazy><TallyCompare /></Lazy>} />
@@ -273,7 +280,7 @@ export default function App() {
         <Route path="/e-invoice-generator" element={<Lazy><EInvoiceGeneratorPage /></Lazy>} />
         <Route path="/gstr9-helper" element={<Lazy><Gstr9HelperPage /></Lazy>} />
         <Route path="/whatsapp" element={<Lazy><WhatsAppPage /></Lazy>} />
-        <Route path="/embed" element={<EmbedPage />} />
+        <Route path="/embed" element={<Lazy><EmbedPage /></Lazy>} />
         <Route path="/widget" element={<Lazy><WidgetPage /></Lazy>} />
         <Route path="/widget/hsn" element={<Lazy><HsnWidgetPage /></Lazy>} />
         <Route path="/" element={<Home />} />
@@ -357,12 +364,14 @@ export default function App() {
             </Protected>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Lazy><NotFoundPage /></Lazy>} />
       </Routes>
-      <InstallPrompt />
-      <ReferralBanner />
-      <GstAdvisor />
-      <FeedbackWidget />
+      <Suspense fallback={null}>
+        <InstallPrompt />
+        <ReferralBanner />
+        <GstAdvisor />
+        <FeedbackWidget />
+      </Suspense>
     </Suspense>
   );
 }

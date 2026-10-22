@@ -120,10 +120,11 @@ describe("App routing", () => {
       expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
     });
 
-    it("lands an unknown path on the landing page, via the catch-all redirect", () => {
+    it("tells an anonymous visitor an unknown path does not exist, instead of silently showing the homepage", async () => {
       renderAt("/nope/not/a/page", { user: null, loading: false });
 
-      expect(screen.getByText("Landing page")).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+      expect(screen.queryByText("Landing page")).not.toBeInTheDocument();
     });
   });
 
@@ -209,10 +210,11 @@ describe("App routing", () => {
       expect(screen.queryByText("Login page")).not.toBeInTheDocument();
     });
 
-    it("sends an unknown path to the dashboard", async () => {
+    it("tells a signed-in user an unknown path does not exist and links them home", async () => {
       renderAt("/nope/not/a/page");
 
-      expect(await screen.findByText("Dashboard page")).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /homepage/i })).toHaveAttribute("href", "/");
     });
   });
 

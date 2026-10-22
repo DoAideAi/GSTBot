@@ -6,6 +6,25 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // React and the router change only when package.json does, while the
+        // app chunk changes on every release. Split, a returning visitor keeps
+        // the larger of the two cached across deploys instead of downloading
+        // both again for a one-line copy change.
+        //
+        // A function rather than the object form because scripts/prerender.mjs
+        // runs an SSR build off this same config, where React is external and
+        // the object form refuses to name an external module.
+        manualChunks(id) {
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) {
+            return "vendor";
+          }
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     // Proxy /api to the FastAPI backend during development, so the app talks
