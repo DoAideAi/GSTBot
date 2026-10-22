@@ -64,6 +64,9 @@ const ReverseChargeGstGuide = lazy(() => import("./pages/blog/ReverseChargeGstGu
 const GstRegistrationProcess2026 = lazy(() => import("./pages/blog/GstRegistrationProcess2026"));
 const Gstr3bCommonMistakes = lazy(() => import("./pages/blog/Gstr3bCommonMistakes"));
 const ItcRules2026 = lazy(() => import("./pages/blog/ItcRules2026"));
+const GstRateFinderGuide = lazy(() => import("./pages/blog/GstRateFinderGuide"));
+const HowToFileNilGstReturn = lazy(() => import("./pages/blog/HowToFileNilGstReturn"));
+const Gstr1Gstr3bMismatchFix = lazy(() => import("./pages/blog/Gstr1Gstr3bMismatchFix"));
 const ClearTaxCompare = lazy(() => import("./pages/compare/ClearTaxCompare"));
 const ZohoGstCompare = lazy(() => import("./pages/compare/ZohoGstCompare"));
 const TallyCompare = lazy(() => import("./pages/compare/TallyCompare"));
@@ -208,6 +211,9 @@ export default function App() {
           <Route path="gst-registration-process-step-by-step-2026" element={<GstRegistrationProcess2026 />} />
           <Route path="gstr-3b-common-mistakes-how-to-avoid" element={<Gstr3bCommonMistakes />} />
           <Route path="itc-rules-2026-what-every-business-must-know" element={<ItcRules2026 />} />
+          <Route path="gst-rate-finder-find-gst-rate-for-any-product" element={<GstRateFinderGuide />} />
+          <Route path="how-to-file-nil-gst-return-online-sms" element={<HowToFileNilGstReturn />} />
+          <Route path="gstr-1-vs-gstr-3b-mismatch-how-to-fix" element={<Gstr1Gstr3bMismatchFix />} />
         </Route>
         <Route path="/calculator" element={<CalculatorPage />} />
         <Route path="/lookup" element={<LookupPage />} />

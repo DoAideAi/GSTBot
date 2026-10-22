@@ -143,6 +143,21 @@ const ARTICLES = [
     title: "Input Tax Credit (ITC) Rules 2026: What Every Business Must Know",
     description: "Complete guide to ITC rules in 2026 — eligibility conditions, blocked credits, time limits, reversal rules, GSTR-2B matching, and ITC on capital goods.",
   },
+  {
+    slug: "gst-rate-finder-find-gst-rate-for-any-product",
+    title: "GST Rate Finder: How to Find the Correct GST Rate for Any Product in 2026",
+    description: "Find the right GST rate for any product or service — the 5%, 18% and 40% slabs, HSN and SAC codes, invoice rules, and common classification mistakes.",
+  },
+  {
+    slug: "how-to-file-nil-gst-return-online-sms",
+    title: "How to File a Nil GST Return Online (and by SMS) in 2026",
+    description: "File nil GSTR-3B and GSTR-1 on the GST portal or by SMS to 14409 — who qualifies, SMS formats, due dates, late fees and mistakes to avoid.",
+  },
+  {
+    slug: "gstr-1-vs-gstr-3b-mismatch-how-to-fix",
+    title: "GSTR-1 vs GSTR-3B Mismatch: Why It Happens and How to Fix It",
+    description: "Common causes of GSTR-1 and GSTR-3B mismatches, how to reconcile them, correcting errors with GSTR-1A, and replying to a DRC-01B notice.",
+  },
 ];
 
 export { ARTICLES };
