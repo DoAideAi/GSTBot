@@ -254,6 +254,8 @@ const TOOL_CATEGORIES = [
       { to: "/itc-mismatch", title: "ITC Mismatch Finder", desc: "Find mismatches in ITC claims" },
       { to: "/audit-checklist", title: "Audit Checklist", desc: "GSTR-9C compliance tracker" },
       { to: "/gstr9-checklist", title: "GSTR-9 Checklist", desc: "Annual return filing checklist" },
+      { to: "/gstr9-summary", title: "GSTR-9 Summary", desc: "Annual GSTR-1 vs 3B reconciliation" },
+      { to: "/itc-reconciliation-dashboard", title: "ITC Dashboard", desc: "Books vs GSTR-2B vs 3B for the year" },
       { to: "/composition-scheme", title: "Composition Scheme", desc: "Check eligibility & benefits" },
       { to: "/scheme-comparison", title: "Scheme Comparison", desc: "Regular vs Composition scheme" },
       { to: "/tools/composition-scheme-checker", title: "Composition Checker", desc: "Eligibility, tax rate & quarterly estimate" },

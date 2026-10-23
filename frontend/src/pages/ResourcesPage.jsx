@@ -248,6 +248,26 @@ const TOOLS = [
     ),
   },
   {
+    to: "/gstr9-summary",
+    title: "GSTR-9 Summary Generator",
+    desc: "Twelve months of GSTR-1 and GSTR-3B side by side: GSTR-9 table totals, month-wise mismatches, and the DRC-03 amount with interest.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="9" x2="9" y2="21" />
+      </svg>
+    ),
+  },
+  {
+    to: "/itc-reconciliation-dashboard",
+    title: "ITC Reconciliation Dashboard",
+    desc: "Books vs GSTR-2B vs GSTR-3B for the whole year. Excess claims with interest exposure, unclaimed credit, the Section 16(4) countdown and suppliers to chase.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="6" /><line x1="18" y1="20" x2="18" y2="14" />
+      </svg>
+    ),
+  },
+  {
     to: "/gstr2b-reconciliation",
     title: "GSTR-2B Reconciliation",
     desc: "Match your purchase register with GSTR-2B to find mismatches, missing invoices, and ITC at risk. Free, no login needed.",

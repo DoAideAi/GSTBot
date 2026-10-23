@@ -39,6 +39,8 @@ const ALL_TOOLS = [
   { path: "/refund-calculator", label: "Refund Calculator", desc: "Export & inverted duty refund" },
   { path: "/e-invoice-generator", label: "E-Invoice Generator", desc: "Generate e-invoice JSON for IRP" },
   { path: "/gstr9-helper", label: "GSTR-9 Helper", desc: "Annual return summary calculator" },
+  { path: "/gstr9-summary", label: "GSTR-9 Summary", desc: "GSTR-1 vs 3B for the year, DRC-03 amount" },
+  { path: "/itc-reconciliation-dashboard", label: "ITC Dashboard", desc: "Books vs GSTR-2B vs 3B, month by month" },
 ];
 
 // Contextual cross-links: which tools are most relevant to which page.
@@ -72,13 +74,15 @@ const RECOMMENDED = {
   "/audit-checklist": ["/gstr9-checklist", "/itc-mismatch", "/itc-calculator", "/due-dates"],
   "/late-fee-calculator": ["/gst-late-fee-interest-calculator", "/interest-calculator", "/due-dates", "/return-calendar"],
   "/gst-late-fee-interest-calculator": ["/late-fee-calculator", "/interest-calculator", "/due-dates", "/payment-challan"],
-  "/gstr9-checklist": ["/audit-checklist", "/due-dates", "/itc-mismatch", "/return-calendar"],
-  "/gstr2b-reconciliation": ["/itc-mismatch", "/itc-calculator", "/input-tax-credit", "/audit-checklist"],
+  "/gstr9-checklist": ["/gstr9-summary", "/audit-checklist", "/due-dates", "/itc-reconciliation-dashboard"],
+  "/gstr2b-reconciliation": ["/itc-reconciliation-dashboard", "/itc-mismatch", "/itc-calculator", "/input-tax-credit"],
   "/tds-calculator": ["/calculator", "/reverse-charge", "/rcm-calculator", "/payment-challan"],
   "/place-of-supply": ["/calculator", "/invoice-generator", "/e-invoice-generator", "/hsn-sac-finder"],
   "/refund-calculator": ["/itc-calculator", "/input-tax-credit", "/calculator", "/e-invoice-generator"],
   "/e-invoice-generator": ["/invoice-generator", "/hsn-sac-finder", "/place-of-supply", "/calculator"],
-  "/gstr9-helper": ["/gstr9-checklist", "/audit-checklist", "/due-dates", "/itc-calculator"],
+  "/gstr9-helper": ["/gstr9-summary", "/gstr9-checklist", "/audit-checklist", "/itc-reconciliation-dashboard"],
+  "/gstr9-summary": ["/gstr9-checklist", "/itc-reconciliation-dashboard", "/gst-late-fee-interest-calculator", "/audit-checklist"],
+  "/itc-reconciliation-dashboard": ["/gstr2b-reconciliation", "/itc-mismatch", "/gstr9-summary", "/itc-calculator"],
 };
 
 export default function RelatedTools({ current }) {

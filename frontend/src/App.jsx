@@ -126,6 +126,8 @@ const PlaceOfSupplyPage = lazy(() => import("./pages/PlaceOfSupplyPage"));
 const RefundCalculatorPage = lazy(() => import("./pages/RefundCalculatorPage"));
 const EInvoiceGeneratorPage = lazy(() => import("./pages/EInvoiceGeneratorPage"));
 const Gstr9HelperPage = lazy(() => import("./pages/Gstr9HelperPage"));
+const Gstr9SummaryPage = lazy(() => import("./pages/Gstr9SummaryPage"));
+const ItcReconciliationDashboardPage = lazy(() => import("./pages/ItcReconciliationDashboardPage"));
 const ReverseGstCalculatorPage = lazy(() => import("./pages/ReverseGstCalculatorPage"));
 const Gstr9AnnualReturnGuide = lazy(() => import("./pages/blog/Gstr9AnnualReturnGuide"));
 const GstImsGuide = lazy(() => import("./pages/blog/GstImsGuide"));
@@ -311,6 +313,8 @@ export default function App() {
         <Route path="/refund-calculator" element={<Lazy><RefundCalculatorPage /></Lazy>} />
         <Route path="/e-invoice-generator" element={<Lazy><EInvoiceGeneratorPage /></Lazy>} />
         <Route path="/gstr9-helper" element={<Lazy><Gstr9HelperPage /></Lazy>} />
+        <Route path="/gstr9-summary" element={<Lazy><Gstr9SummaryPage /></Lazy>} />
+        <Route path="/itc-reconciliation-dashboard" element={<Lazy><ItcReconciliationDashboardPage /></Lazy>} />
         <Route path="/whatsapp" element={<Lazy><WhatsAppPage /></Lazy>} />
         <Route path="/embed" element={<Lazy><EmbedPage /></Lazy>} />
         <Route path="/widget" element={<Lazy><WidgetPage /></Lazy>} />
