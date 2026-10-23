@@ -259,6 +259,7 @@ const TOOL_CATEGORIES = [
       { to: "/composition-scheme", title: "Composition Scheme", desc: "Check eligibility & benefits" },
       { to: "/scheme-comparison", title: "Scheme Comparison", desc: "Regular vs Composition scheme" },
       { to: "/tools/composition-scheme-checker", title: "Composition Checker", desc: "Eligibility, tax rate & quarterly estimate" },
+      { to: "/composition-tax-calculator", title: "Composition Tax Calculator", desc: "CMP-08 tax per quarter with RCM & interest" },
     ],
   },
   {

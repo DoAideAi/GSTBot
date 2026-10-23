@@ -114,6 +114,7 @@ const Gstr9ChecklistPage = lazy(() => import("./pages/Gstr9ChecklistPage"));
 const HsnWidgetPage = lazy(() => import("./pages/HsnWidgetPage"));
 const Gst2RateComparisonPage = lazy(() => import("./pages/Gst2RateComparisonPage"));
 const CompositionSchemeCheckerPage = lazy(() => import("./pages/CompositionSchemeCheckerPage"));
+const CompositionTaxCalculatorPage = lazy(() => import("./pages/CompositionTaxCalculatorPage"));
 const Gst2MigrationCheckerPage = lazy(() => import("./pages/Gst2MigrationCheckerPage"));
 const InsuranceSavingsPage = lazy(() => import("./pages/InsuranceSavingsPage"));
 const Gst2GuidePage = lazy(() => import("./pages/guides/Gst2GuidePage"));
@@ -289,6 +290,7 @@ export default function App() {
         <Route path="/gst-on-real-estate" element={<Lazy><GstOnRealEstatePage /></Lazy>} />
         <Route path="/hsn-sac-finder" element={<Lazy><HsnSacFinderPage /></Lazy>} />
         <Route path="/scheme-comparison" element={<Lazy><SchemeComparisonPage /></Lazy>} />
+        <Route path="/composition-tax-calculator" element={<Lazy><CompositionTaxCalculatorPage /></Lazy>} />
         <Route path="/payment-challan" element={<Lazy><PaymentChallanPage /></Lazy>} />
         <Route path="/itc-calculator" element={<Lazy><ItcCalculatorPage /></Lazy>} />
         <Route path="/registration-type-advisor" element={<Lazy><RegistrationTypeAdvisorPage /></Lazy>} />

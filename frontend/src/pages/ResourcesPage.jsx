@@ -279,6 +279,17 @@ const TOOLS = [
     ),
   },
   {
+    to: "/composition-tax-calculator",
+    title: "Composition Tax Calculator",
+    desc: "Quarter-by-quarter CMP-08 tax on the right base for your category, reverse charge on top, late-payment interest, and a running check against the composition limit.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="4" y="2" width="16" height="20" rx="2" /><line x1="8" y1="6" x2="16" y2="6" />
+        <line x1="8" y1="11" x2="10" y2="11" /><line x1="14" y1="11" x2="16" y2="11" /><line x1="8" y1="16" x2="10" y2="16" /><line x1="14" y1="16" x2="16" y2="16" />
+      </svg>
+    ),
+  },
+  {
     to: "/tools/composition-scheme-checker",
     title: "Composition Scheme Checker",
     desc: "Check eligibility for GST Composition Scheme. Get tax rates, quarterly tax estimate, and comparison with regular scheme.",
