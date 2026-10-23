@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
@@ -13,19 +14,17 @@ import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
+import { calculateLateFee, CRORE, daysLate, LATE_FEE_RETURNS, LATE_FEE_TABLE } from "../lib/gstPenalties";
 
-const RETURN_TYPES = [
-  { key: "gstr3b", label: "GSTR-3B", perDay: 50, max: 10000, nilPerDay: 20, nilMax: 500 },
-  { key: "gstr1", label: "GSTR-1", perDay: 50, max: 10000, nilPerDay: 20, nilMax: 500 },
-  { key: "gstr9", label: "GSTR-9 (Annual Return)", perDay: 200, max: null, nilPerDay: 200, nilMax: null },
-  { key: "gstr4", label: "GSTR-4 (Composition)", perDay: 50, max: 2000, nilPerDay: 20, nilMax: 500 },
-  { key: "cmp08", label: "CMP-08", perDay: 50, max: 5000, nilPerDay: 20, nilMax: 500 },
+const RETURN_TYPES = LATE_FEE_RETURNS;
+
+// Representative turnover for each band the caps are keyed on.
+const TURNOVER_BANDS = [
+  { value: 1 * CRORE, label: "Up to ₹1.5 crore" },
+  { value: 3 * CRORE, label: "₹1.5 – ₹5 crore" },
+  { value: 10 * CRORE, label: "₹5 – ₹20 crore" },
+  { value: 25 * CRORE, label: "Above ₹20 crore" },
 ];
-
-function daysBetween(from, to) {
-  const ms = to.getTime() - from.getTime();
-  return Math.max(0, Math.ceil(ms / 86400000));
-}
 
 const TOOL_SCHEMA = {
   "@context": "https://schema.org",
@@ -46,7 +45,7 @@ const FAQ_SCHEMA = {
       name: "What is the late fee for filing GSTR-3B after the due date?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "₹50/day (₹25 CGST + ₹25 SGST), max ₹10,000. For nil returns it is ₹20/day, max ₹500.",
+        text: "₹50/day (₹25 CGST + ₹25 SGST), capped by last year's aggregate turnover: ₹2,000 up to ₹1.5 crore, ₹5,000 for ₹1.5–5 crore and ₹10,000 above ₹5 crore. Nil returns: ₹20/day, max ₹500.",
       },
     },
     {
@@ -54,7 +53,7 @@ const FAQ_SCHEMA = {
       name: "Is there a cap on GST late fees?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "GSTR-1/3B: ₹10,000 per return. Nil returns: ₹500. GSTR-9: ₹200/day, capped at 0.5% of state turnover.",
+        text: "Yes. GSTR-1/3B: ₹2,000, ₹5,000 or ₹10,000 by turnover band (Notifications 19 and 20/2021-CT); nil returns ₹500. GSTR-4: ₹2,000 (₹500 nil). GSTR-9: 0.04% of state turnover up to ₹20 crore, 0.5% above.",
       },
     },
     {
@@ -62,7 +61,7 @@ const FAQ_SCHEMA = {
       name: "What is the late fee for GSTR-9?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "₹200/day (₹100 CGST + ₹100 SGST), no fixed upper cap. Subject to 0.5% of annual state turnover.",
+        text: "From FY 2022-23 (Notification 7/2023-CT): ₹50/day capped at 0.04% of state turnover for aggregate turnover up to ₹5 crore, ₹100/day capped at 0.04% for ₹5–20 crore, and ₹200/day capped at 0.5% above ₹20 crore.",
       },
     },
     {
@@ -84,29 +83,19 @@ export default function LateFeeCalculatorPage() {
   const [dueDate, setDueDate] = useState("");
   const [filingDate, setFilingDate] = useState("");
   const [turnover, setTurnover] = useState("");
+  const [aato, setAato] = useState(TURNOVER_BANDS[0].value);
 
   const result = useMemo(() => {
     if (!dueDate || !filingDate) return null;
-    const due = new Date(dueDate);
-    const filed = new Date(filingDate);
-    if (filed <= due) return { days: 0, lateFee: 0, cgst: 0, sgst: 0 };
-
-    const days = daysBetween(due, filed);
-    const rt = RETURN_TYPES.find((r) => r.key === returnType);
-    const perDay = isNil ? rt.nilPerDay : rt.perDay;
-    let rawFee = days * perDay;
-
-    let cap = isNil ? rt.nilMax : rt.max;
-    if (returnType === "gstr9" && turnover) {
-      const turnoverCap = Math.round(parseFloat(turnover) * 0.005);
-      cap = cap === null ? turnoverCap : Math.min(cap, turnoverCap);
-    }
-    if (cap !== null) rawFee = Math.min(rawFee, cap);
-
-    const cgst = Math.round(rawFee / 2);
-    const sgst = rawFee - cgst;
-    return { days, lateFee: rawFee, cgst, sgst, perDay };
-  }, [returnType, isNil, dueDate, filingDate, turnover]);
+    const days = daysLate(dueDate, filingDate);
+    if (days === 0) return { days: 0, lateFee: 0, cgst: 0, sgst: 0 };
+    const fee = calculateLateFee(returnType, days, {
+      nil: isNil && returnType !== "gstr9",
+      aato,
+      stateTurnover: parseFloat(turnover) || 0,
+    });
+    return { days, lateFee: fee.fee, cgst: fee.cgst, sgst: fee.sgst, perDay: fee.perDay, basis: fee.basis };
+  }, [returnType, isNil, dueDate, filingDate, turnover, aato]);
 
   return (
     <div className="tool-page">
@@ -129,7 +118,7 @@ export default function LateFeeCalculatorPage() {
         <div className="tool-container">
           <h1 className="tool-title">GST Late Fee Calculator</h1>
           <p className="tool-subtitle">
-            Calculate late filing fees for GSTR-3B, GSTR-1, GSTR-9, GSTR-4 &amp; CMP-08 returns
+            Late filing fees for GSTR-3B, GSTR-1, GSTR-4 &amp; GSTR-9 with the turnover-based caps in force. Need interest too? Use the <Link to="/gst-late-fee-interest-calculator">late fee + interest calculator</Link>.
           </p>
 
           <div className="calc-card">
@@ -144,11 +133,22 @@ export default function LateFeeCalculatorPage() {
               </div>
 
               <div className="field">
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={isNil} onChange={(e) => setIsNil(e.target.checked)} />
-                  Nil return (no tax liability)
-                </label>
+                <label htmlFor="late-fee-aato">Aggregate Turnover (previous FY)</label>
+                <select id="late-fee-aato" value={aato} onChange={(e) => setAato(Number(e.target.value))}>
+                  {TURNOVER_BANDS.map((b) => (
+                    <option key={b.value} value={b.value}>{b.label}</option>
+                  ))}
+                </select>
               </div>
+
+              {returnType !== "gstr9" && (
+                <div className="field">
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                    <input type="checkbox" checked={isNil} onChange={(e) => setIsNil(e.target.checked)} />
+                    Nil return (no tax liability)
+                  </label>
+                </div>
+              )}
 
               <div className="field">
                 <label>Due Date</label>
@@ -170,7 +170,7 @@ export default function LateFeeCalculatorPage() {
                     value={turnover}
                     onChange={(e) => setTurnover(e.target.value)}
                   />
-                  <small style={{ color: "var(--ink-soft)", fontSize: "0.75rem" }}>Used to calculate the 0.5% cap on GSTR-9 late fee</small>
+                  <small style={{ color: "var(--ink-soft)", fontSize: "0.75rem" }}>Sets the cap: 0.04% of state turnover (0.5% above ₹20 crore)</small>
                 </div>
               )}
             </div>
@@ -205,6 +205,7 @@ export default function LateFeeCalculatorPage() {
                       <strong>{formatINR(result.sgst)}</strong>
                     </div>
                   </div>
+                  <p className="calc-note">{result.basis}.</p>
                   <div className="calc-result-actions">
                     <PrintButton />
                     <ShareButtons title="GST Late Fee Calculator" url="https://gst.doaide.com/late-fee-calculator" />
@@ -220,21 +221,17 @@ export default function LateFeeCalculatorPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Return</th>
-                    <th>Regular (/day)</th>
+                    <th>Return &amp; turnover</th>
+                    <th>Per day</th>
                     <th>Max Cap</th>
-                    <th>Nil (/day)</th>
-                    <th>Nil Max</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {RETURN_TYPES.map((r) => (
-                    <tr key={r.key}>
-                      <td>{r.label}</td>
+                  {LATE_FEE_TABLE.map((r) => (
+                    <tr key={r.ret}>
+                      <td>{r.ret}</td>
                       <td>{formatINR(r.perDay)}</td>
-                      <td>{r.max ? formatINR(r.max) : "0.5% turnover"}</td>
-                      <td>{formatINR(r.nilPerDay)}</td>
-                      <td>{r.nilMax ? formatINR(r.nilMax) : "0.5% turnover"}</td>
+                      <td>{r.cap}</td>
                     </tr>
                   ))}
                 </tbody>

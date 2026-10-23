@@ -14,7 +14,7 @@ import { formatINR } from "../lib/gstCalc";
 
 const INTEREST_SCENARIOS = [
   { key: "late_payment", label: "Late payment of tax (Section 50(1))", rate: 18 },
-  { key: "excess_itc", label: "Excess ITC claimed (Section 50(3))", rate: 24 },
+  { key: "excess_itc", label: "ITC wrongly availed and utilised (Section 50(3))", rate: 18 },
   { key: "undue_refund", label: "Undue or excess refund (Section 50(1))", rate: 18 },
 ];
 
@@ -89,7 +89,7 @@ export default function InterestCalculatorPage() {
     <div className="tool-page">
       <SeoHead
         title="GST Interest Calculator — Late Payment Interest under Section 50"
-        description="Calculate interest on late GST payment under Section 50. Supports 18% and 24% interest rates for different scenarios. Free, no login required."
+        description="Calculate interest on late GST payment under Section 50. 18% p.a. on late tax and on wrongly utilised ITC (the old 24% ended in July 2022). Free, no login required."
         path="/interest-calculator"
         jsonLd={TOOL_SCHEMA}
         breadcrumbs={BREADCRUMBS}
@@ -227,7 +227,7 @@ export default function InterestCalculatorPage() {
             <h3>Interest Rates</h3>
             <ul>
               <li><strong>18% per annum</strong> — on late payment of tax (Section 50(1)). Calculated on net cash liability after adjusting ITC.</li>
-              <li><strong>24% per annum</strong> — on excess ITC claimed and utilized (Section 50(3)). Higher rate applies when ITC was wrongly availed and used.</li>
+              <li><strong>18% per annum</strong> — on ITC wrongly availed <em>and utilised</em> (Section 50(3)). This was 24% until 5 July 2022 (Notification 14/2022-CT); credit that was claimed but never used attracts no interest.</li>
             </ul>
             <h3>Key Points</h3>
             <ul>

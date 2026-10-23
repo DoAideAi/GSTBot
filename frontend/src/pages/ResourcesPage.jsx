@@ -227,6 +227,17 @@ const TOOLS = [
     ),
   },
   {
+    to: "/gst-late-fee-interest-calculator",
+    title: "Late Fee & Interest Calculator",
+    desc: "Late fee plus 18% interest on a delayed return in one step — turnover-based caps, post-2023 GSTR-9 slabs, interest on the cash portion only.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+        <line x1="17" y1="17" x2="21" y2="21" />
+      </svg>
+    ),
+  },
+  {
     to: "/gstr9-checklist",
     title: "GSTR-9 Annual Return Checklist",
     desc: "Step-by-step interactive checklist to prepare your GSTR-9 annual return. Track progress across all sections.",

@@ -229,6 +229,7 @@ const TOOL_CATEGORIES = [
       { to: "/gst-on-real-estate", title: "GST on Real Estate", desc: "Flats, affordable housing & commercial" },
       { to: "/penalty-calculator", title: "Penalty Calculator", desc: "Late filing penalties & interest" },
       { to: "/late-fee-calculator", title: "Late Fee Calculator", desc: "Late filing fees for any GST return" },
+      { to: "/gst-late-fee-interest-calculator", title: "Late Fee + Interest", desc: "What a late return really costs" },
       { to: "/interest-calculator", title: "Interest Calculator", desc: "Interest on delayed GST payment" },
       { to: "/itc-calculator", title: "ITC Calculator", desc: "Calculate eligible Input Tax Credit" },
       { to: "/rcm-calculator", title: "RCM Calculator", desc: "Reverse charge mechanism with ITC" },

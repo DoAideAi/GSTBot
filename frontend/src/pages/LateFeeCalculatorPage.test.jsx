@@ -59,6 +59,7 @@ describe("LateFeeCalculatorPage", () => {
     renderPage();
     expect(screen.getByText("GST Late Fee Rates — Quick Reference")).toBeInTheDocument();
     expect(screen.getAllByText("GSTR-9 (Annual Return)").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("GSTR-3B / GSTR-1 — ₹1.5 Cr to ₹5 Cr")).toBeInTheDocument();
   });
 
   it("shows turnover field for GSTR-9", () => {
@@ -67,11 +68,34 @@ describe("LateFeeCalculatorPage", () => {
     expect(screen.getByText(/Annual State Turnover/)).toBeInTheDocument();
   });
 
-  it("caps GSTR-3B late fee at 10000", () => {
+  it("caps GSTR-3B late fee at ₹2,000 for turnover up to ₹1.5 crore", () => {
     renderPage();
     const dates = document.querySelectorAll('input[type="date"]');
     fireEvent.change(dates[0], { target: { value: "2025-01-20" } });
     fireEvent.change(dates[1], { target: { value: "2026-01-20" } });
     expect(screen.getByText("Late Fee Calculation")).toBeInTheDocument();
+    expect(screen.getByText("₹2,000.00")).toBeInTheDocument();
+    expect(screen.getByText(/Turnover up to ₹1.5 Cr — max ₹2,000/)).toBeInTheDocument();
+  });
+
+  it("caps at ₹10,000 above ₹5 crore turnover", () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/Aggregate Turnover/), { target: { value: String(10 * 10000000) } });
+    const dates = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(dates[0], { target: { value: "2025-01-20" } });
+    fireEvent.change(dates[1], { target: { value: "2026-01-20" } });
+    expect(screen.getByText("₹10,000.00")).toBeInTheDocument();
+  });
+
+  it("applies the 0.04% GSTR-9 cap for turnover up to ₹5 crore", () => {
+    renderPage();
+    fireEvent.change(screen.getByDisplayValue("GSTR-3B"), { target: { value: "gstr9" } });
+    fireEvent.change(screen.getByPlaceholderText("e.g. 5000000"), { target: { value: "25000000" } });
+    const dates = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(dates[0], { target: { value: "2025-12-31" } });
+    fireEvent.change(dates[1], { target: { value: "2026-10-31" } });
+    // 304 days × ₹50 = ₹15,200, capped at 0.04% of ₹2.5 Cr = ₹10,000
+    expect(screen.getByText("₹10,000.00")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Nil return/)).not.toBeInTheDocument();
   });
 });
