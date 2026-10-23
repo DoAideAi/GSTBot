@@ -169,6 +169,11 @@ const ARTICLES = [
     description: "How IMS works on the GST portal — what accept, reject and pending do to your GSTR-2B and ITC, credit note rules, and a month-end IMS workflow.",
   },
   {
+    slug: "gst-filing-mistakes-to-avoid",
+    title: "GST Filing Mistakes to Avoid in 2026: 15 Errors That Trigger Notices",
+    description: "GSTR-1 vs 3B gaps, ITC beyond GSTR-2B, missed RCM, the 30 November ITC deadline, the three-year filing bar and the other errors behind most GST notices — with the fix for each.",
+  },
+  {
     slug: "gst-on-rental-income",
     title: "GST on Rental Income in India 2026: Rates, Exemptions & RCM",
     description: "When rent attracts GST — 18% on commercial property, the residential exemption, reverse charge on renting to registered businesses, and how to report rent in returns.",

@@ -134,6 +134,7 @@ const Gstr9AnnualReturnGuide = lazy(() => import("./pages/blog/Gstr9AnnualReturn
 const GstImsGuide = lazy(() => import("./pages/blog/GstImsGuide"));
 const GstOnGoldPage = lazy(() => import("./pages/GstOnGoldPage"));
 const GstOnRealEstatePage = lazy(() => import("./pages/GstOnRealEstatePage"));
+const GstFilingMistakesToAvoid = lazy(() => import("./pages/blog/GstFilingMistakesToAvoid"));
 const GstOnRentalIncome = lazy(() => import("./pages/blog/GstOnRentalIncome"));
 const GstRatesIndia2026List = lazy(() => import("./pages/blog/GstRatesIndia2026List"));
 
@@ -250,6 +251,7 @@ export default function App() {
           <Route path="gstr-1-vs-gstr-3b-mismatch-how-to-fix" element={<Lazy><Gstr1Gstr3bMismatchFix /></Lazy>} />
           <Route path="gstr-9-annual-return-fy-2025-26-guide" element={<Lazy><Gstr9AnnualReturnGuide /></Lazy>} />
           <Route path="gst-invoice-management-system-ims-guide" element={<Lazy><GstImsGuide /></Lazy>} />
+          <Route path="gst-filing-mistakes-to-avoid" element={<Lazy><GstFilingMistakesToAvoid /></Lazy>} />
           <Route path="gst-on-rental-income" element={<Lazy><GstOnRentalIncome /></Lazy>} />
           <Route path="gst-rates-india-2026-complete-list" element={<Lazy><GstRatesIndia2026List /></Lazy>} />
         </Route>
