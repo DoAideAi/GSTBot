@@ -149,6 +149,10 @@ describe("productSlug", () => {
     }
   });
 
+  it("still matches a name typed with spaces", () => {
+    expect(findProductRate("Mobile Phone").product).toBe("mobile phone");
+  });
+
   it("keeps a hyphen that belongs to the name", () => {
     expect(findProductRate("t-shirts").product).toBe("t-shirts");
   });

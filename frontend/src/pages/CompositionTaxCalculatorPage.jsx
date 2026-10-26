@@ -34,8 +34,8 @@ const FAQ_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
-    { "@type": "Question", name: "How is composition tax calculated?", acceptedAnswer: { "@type": "Answer", text: "Manufacturers pay 1% and restaurants 5% of their total turnover in the state, exempt supplies included. Traders pay 1% only on taxable supplies, and service providers under Section 10(2A) pay 6% on taxable supplies. The amount is split equally into CGST and SGST." } },
-    { "@type": "Question", name: "Do composition dealers pay reverse charge?", acceptedAnswer: { "@type": "Answer", text: "Yes. Tax on reverse-charge inward supplies — such as goods transport, legal services or purchases notified under Section 9(4) — is paid at the normal GST rate in CMP-08, in addition to the composition tax. No ITC can be claimed against it." } },
+    { "@type": "Question", name: "How is composition tax calculated?", acceptedAnswer: { "@type": "Answer", text: "Manufacturers pay 1% and restaurants 5% of total turnover in the state. Traders pay 1% of taxable supplies, and service providers under Section 10(2A) pay 6%. The tax is split equally into CGST and SGST." } },
+    { "@type": "Question", name: "Do composition dealers pay reverse charge?", acceptedAnswer: { "@type": "Answer", text: "Yes. Reverse-charge purchases, such as goods transport or legal services, are taxed at the normal GST rate in CMP-08 on top of the composition tax, and no ITC can be claimed on them." } },
     { "@type": "Question", name: "When is CMP-08 due?", acceptedAnswer: { "@type": "Answer", text: "By the 18th of the month after each quarter: 18 July, 18 October, 18 January and 18 April. Late payment carries 18% interest. The annual GSTR-4 return is due by 30 April after the financial year." } },
     { "@type": "Question", name: "What happens if I cross the composition turnover limit mid-year?", acceptedAnswer: { "@type": "Answer", text: "You leave the scheme from the day turnover crosses ₹1.5 crore (₹75 lakh in some special category states, ₹50 lakh for service providers). File CMP-04 within 7 days and charge regular GST from that day." } },
   ],

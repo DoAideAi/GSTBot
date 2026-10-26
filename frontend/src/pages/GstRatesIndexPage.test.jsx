@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { allProducts } from "../lib/hsnData";
-import GstRatesIndexPage, { FAQS, groupBySlab } from "./GstRatesIndexPage";
+import GstRatesIndexPage, { FAQS, groupBySlab, slabTitle } from "./GstRatesIndexPage";
 
 vi.mock("../hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
 vi.mock("../lib/track", () => ({ track: () => {} }));
@@ -29,6 +29,13 @@ describe("groupBySlab", () => {
     ]);
     expect(groups.map((g) => g.rate)).toEqual([0, 5, 18]);
     expect(groups[1].items.map((p) => p.product)).toEqual(["coffee", "tea"]);
+  });
+});
+
+describe("slabTitle", () => {
+  it("adds the slab's note when there is one", () => {
+    expect(slabTitle(18)).toBe("18% GST — Standard rate — most goods and services");
+    expect(slabTitle(12)).toBe("12% GST");
   });
 });
 
@@ -58,6 +65,10 @@ describe("GstRatesIndexPage", () => {
     await user.type(box, "8471");
     expect(screen.getByRole("link", { name: "GST on Laptop" })).toBeInTheDocument();
     expect(screen.getByText(/matching product/)).toBeInTheDocument();
+
+    await user.clear(box);
+    await user.type(box, "laptop");
+    expect(screen.getByText("1 matching product")).toBeInTheDocument();
   });
 
   it("points to the HSN finder when nothing matches", async () => {

@@ -54,11 +54,11 @@ const BREADCRUMBS = [
 const FAQS = [
   {
     q: "What is the interest rate on late GST payment?",
-    a: "Under Section 50(1) of the CGST Act, interest is 18% per annum on tax paid after the due date, counted from the day after the due date until the day of payment. Where input tax credit is wrongly availed and utilised, Section 50(3) charges 24% per annum on the credit used.",
+    a: "Under Section 50(1), 18% a year on tax paid late, from the day after the due date to the day of payment. Under Section 50(3), wrongly availed ITC that was used attracts 24% a year.",
   },
   {
     q: "Is GST interest charged on the gross or the net tax liability?",
-    a: "On the net tax liability — the portion paid in cash after setting off input tax credit. The proviso to Section 50(1), effective retrospectively from 1 July 2017, applies this to returns filed late, except where the return is filed after proceedings under Section 73 or 74 have started.",
+    a: "On the net liability: the part paid in cash after setting off ITC. This applies retrospectively from 1 July 2017, unless the return is filed after Section 73 or 74 proceedings have begun.",
   },
   {
     q: "How is GST interest calculated?",
@@ -66,7 +66,7 @@ const FAQS = [
   },
   {
     q: "How do I pay GST interest?",
-    a: "Interest is paid in cash from the electronic cash ledger — it cannot be paid with input tax credit. It is usually declared in the interest and late fee table of GSTR-3B for the period, or paid separately through Form DRC-03.",
+    a: "In cash from the electronic cash ledger; ITC cannot be used. It is usually declared in the interest and late fee table of GSTR-3B, or paid separately through Form DRC-03.",
   },
 ];
 

@@ -59,11 +59,11 @@ const FAQS = [
   },
   {
     q: "What is the GST rate on most services?",
-    a: "Most services are taxed at the 18% standard rate. Some have a lower 5% rate, such as restaurant service and economy-class air travel, usually without input tax credit. Healthcare, education and individual life and health insurance are exempt.",
+    a: "Most services are taxed at 18%. A few, such as restaurant service and economy air travel, are at 5%, usually without ITC. Healthcare, education and individual life and health insurance are exempt.",
   },
   {
     q: "Can one invoice carry both HSN and SAC codes?",
-    a: "Yes. When an invoice covers both goods and services — for example a machine and its installation — each line carries its own HSN or SAC code and rate, unless the supply is a composite supply taxed at the rate of its principal supply.",
+    a: "Yes. When an invoice covers goods and services, such as a machine and its installation, each line carries its own code and rate, unless it is a composite supply taxed at the principal supply's rate.",
   },
 ];
 

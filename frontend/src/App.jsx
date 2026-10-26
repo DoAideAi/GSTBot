@@ -99,6 +99,7 @@ const ReturnDueDateCalendarPage = lazy(() => import("./pages/ReturnDueDateCalend
 const InterestCalculatorPage = lazy(() => import("./pages/InterestCalculatorPage"));
 const HsnSacFinderPage = lazy(() => import("./pages/HsnSacFinderPage"));
 const GstinValidatorPage = lazy(() => import("./pages/GstinValidatorPage"));
+const GstStateCodesPage = lazy(() => import("./pages/GstStateCodesPage"));
 const SchemeComparisonPage = lazy(() => import("./pages/SchemeComparisonPage"));
 const PaymentChallanPage = lazy(() => import("./pages/PaymentChallanPage"));
 const ItcCalculatorPage = lazy(() => import("./pages/ItcCalculatorPage"));
@@ -124,6 +125,7 @@ const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const Gstr2bReconciliationPage = lazy(() => import("./pages/Gstr2bReconciliationPage"));
 const AdvisorPage = lazy(() => import("./pages/AdvisorPage"));
 const TdsCalculatorPage = lazy(() => import("./pages/TdsCalculatorPage"));
+const EcommerceTcsCalculatorPage = lazy(() => import("./pages/EcommerceTcsCalculatorPage"));
 const PlaceOfSupplyPage = lazy(() => import("./pages/PlaceOfSupplyPage"));
 const RefundCalculatorPage = lazy(() => import("./pages/RefundCalculatorPage"));
 const EInvoiceGeneratorPage = lazy(() => import("./pages/EInvoiceGeneratorPage"));
@@ -288,6 +290,7 @@ export default function App() {
         <Route path="/reverse-charge" element={<Lazy><ReverseChargePage /></Lazy>} />
         <Route path="/itc-mismatch" element={<Lazy><ItcMismatchPage /></Lazy>} />
         <Route path="/gstin-validator" element={<Lazy><GstinValidatorPage /></Lazy>} />
+        <Route path="/gst-state-codes" element={<Lazy><GstStateCodesPage /></Lazy>} />
         <Route path="/turnover-limit" element={<Lazy><TurnoverLimitPage /></Lazy>} />
         <Route path="/hsn/:code" element={<Lazy><HsnCodePage /></Lazy>} />
         <Route path="/registration-checker" element={<Lazy><RegistrationCheckerPage /></Lazy>} />
@@ -321,6 +324,7 @@ export default function App() {
         <Route path="/referrals" element={<Lazy><ReferralPage /></Lazy>} />
         <Route path="/advisor" element={<Lazy><AdvisorPage /></Lazy>} />
         <Route path="/tds-calculator" element={<Lazy><TdsCalculatorPage /></Lazy>} />
+        <Route path="/ecommerce-tcs-calculator" element={<Lazy><EcommerceTcsCalculatorPage /></Lazy>} />
         <Route path="/place-of-supply" element={<Lazy><PlaceOfSupplyPage /></Lazy>} />
         <Route path="/refund-calculator" element={<Lazy><RefundCalculatorPage /></Lazy>} />
         <Route path="/e-invoice-generator" element={<Lazy><EInvoiceGeneratorPage /></Lazy>} />

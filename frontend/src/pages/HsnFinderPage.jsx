@@ -21,7 +21,7 @@ const FAQS = [
   },
   {
     q: "How many digits of HSN code must I show on an invoice?",
-    a: "Since 1 April 2021, businesses with aggregate turnover up to ₹5 crore must show at least a 4-digit HSN code on B2B tax invoices (it is optional on B2C invoices). Above ₹5 crore, a 6-digit code is required on all invoices.",
+    a: "Since 1 April 2021, businesses with turnover up to ₹5 crore must show at least 4 digits on B2B invoices (optional on B2C). Above ₹5 crore, 6 digits are required on all invoices.",
   },
   {
     q: "What is the difference between HSN and SAC codes?",

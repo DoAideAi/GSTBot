@@ -25,7 +25,7 @@ const SLAB_NOTES = {
 const FAQS = [
   {
     q: "What are the GST rate slabs in India in 2026?",
-    a: "Since GST 2.0 took effect on 22 September 2025, the main slabs are 5% (merit rate) and 18% (standard rate), with 40% for luxury and sin goods. Essentials are nil-rated at 0%, and special rates apply to gold and jewellery (3%) and rough diamonds (0.25%). The old 12% and 28% slabs were folded into these.",
+    a: "Since GST 2.0 (22 September 2025): 0% for essentials, 5% merit rate, 18% standard rate and 40% for luxury and sin goods, plus 3% for gold and 0.25% for rough diamonds. The 12% and 28% slabs are gone.",
   },
   {
     q: "How is GST split into CGST, SGST and IGST?",
@@ -37,7 +37,7 @@ const FAQS = [
   },
   {
     q: "Is this GST rate list official?",
-    a: "No. It is a free reference compiled from the GST rate notifications. Rates can depend on the exact description, packaging and use of a product, so confirm the rate for your item with the notification or a tax professional before you invoice.",
+    a: "No. It is a free reference compiled from the rate notifications. A rate can depend on a product's exact description and use, so confirm it with the notification or a tax professional before invoicing.",
   },
 ];
 
@@ -45,6 +45,11 @@ const BREADCRUMBS = [
   { name: "Home", url: BASE_URL },
   { name: "GST Rates List" },
 ];
+
+/** "18% GST — Standard rate …", or just "12% GST" for a slab with no note. */
+export function slabTitle(rate) {
+  return SLAB_NOTES[rate] ? `${rate}% GST — ${SLAB_NOTES[rate]}` : `${rate}% GST`;
+}
 
 function titleCase(str) {
   return str.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -123,9 +128,7 @@ export default function GstRatesIndexPage() {
 
           {groups.map((g) => (
             <section className="tool-info" key={g.rate} aria-labelledby={`slab-${g.rate}`}>
-              <h2 id={`slab-${g.rate}`}>
-                {g.rate}% GST{SLAB_NOTES[g.rate] ? ` — ${SLAB_NOTES[g.rate]}` : ""}
-              </h2>
+              <h2 id={`slab-${g.rate}`}>{slabTitle(g.rate)}</h2>
               <ul className="seo-links">
                 {g.items.map((p) => (
                   <li key={p.product}>

@@ -44,11 +44,11 @@ const FAQS = [
   },
   {
     q: "Which rate applies to a contract signed before 22 September 2025?",
-    a: "The rate depends on the time of supply, not the contract date. Goods or services supplied on or after 22 September 2025 are taxed at the new rate, even under an older contract — which is why price and tax clauses need review.",
+    a: "The rate follows the time of supply, not the contract date. Supplies on or after 22 September 2025 are taxed at the new rate even under an older contract, so price and tax clauses need review.",
   },
   {
     q: "What if the invoice and payment fall on different sides of the change?",
-    a: "Section 14 of the CGST Act sets the time of supply when a rate changes. Broadly, if two of the three events — supply, invoice and payment — happen after the change, the new rate applies; if two happen before, the old rate applies.",
+    a: "Section 14 of the CGST Act decides it: if two of the three events (supply, invoice and payment) happen after the change, the new rate applies; if two happen before it, the old rate applies.",
   },
   {
     q: "Must a supplier pass on a GST rate cut?",

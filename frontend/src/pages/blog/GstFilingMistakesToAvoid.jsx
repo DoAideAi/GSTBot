@@ -7,7 +7,7 @@ const DESCRIPTION =
   "The GST filing mistakes that cost Indian businesses money in 2026 — GSTR-1 vs 3B gaps, ITC beyond GSTR-2B, missed RCM, the 30 November deadline, the three-year filing bar — and how to fix each one.";
 
 const FAQS = [
-  { q: "What is the most common GST filing mistake?", a: "Declaring less tax in GSTR-3B than in GSTR-1 for the same month. The portal compares the two automatically, and a gap above the threshold produces a DRC-01B intimation that must be answered or paid before the next GSTR-1 can be filed." },
+  { q: "What is the most common GST filing mistake?", a: "Declaring less tax in GSTR-3B than in GSTR-1 for the same month. The portal compares them, and a large gap triggers a DRC-01B notice that must be answered or paid before the next GSTR-1." },
   { q: "Can a filed GSTR-3B be revised?", a: "No. Errors are corrected in a later month's GSTR-3B, or through DRC-03 for tax that was short-paid, with 18% interest. Liability errors in GSTR-1 should be fixed through GSTR-1A before GSTR-3B is filed." },
   { q: "Can I claim ITC that does not appear in GSTR-2B?", a: "No. Since January 2022 Rule 36(4) allows credit only for invoices reflected in GSTR-2B; the old provisional margin no longer exists. Claiming beyond GSTR-2B produces a DRC-01C intimation." },
   { q: "Is there a time limit for filing old GST returns?", a: "Yes. From July 2025 the GST portal blocks GSTR-1, GSTR-3B, GSTR-4 and GSTR-9 returns filed more than three years after their due date, so very old non-filed returns can no longer be filed at all." },

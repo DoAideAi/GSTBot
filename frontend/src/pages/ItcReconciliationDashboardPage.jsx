@@ -75,7 +75,7 @@ const FAQ_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
-    { "@type": "Question", name: "What is ITC reconciliation in GST?", acceptedAnswer: { "@type": "Answer", text: "Matching the input tax credit in your purchase books with the credit your suppliers reported (GSTR-2B) and the credit you actually claimed in GSTR-3B. Since Rule 36(4) was tightened, credit can only be claimed if it appears in GSTR-2B." } },
+    { "@type": "Question", name: "What is ITC reconciliation in GST?", acceptedAnswer: { "@type": "Answer", text: "Matching the credit in your purchase books against what suppliers reported (GSTR-2B) and what you claimed in GSTR-3B. Under Rule 36(4), credit can only be claimed if it appears in GSTR-2B." } },
     { "@type": "Question", name: "What happens if I claim more ITC than GSTR-2B shows?", acceptedAnswer: { "@type": "Answer", text: "The excess is liable to be reversed, and if it was used to pay tax it carries 18% interest under Section 50(3). Large gaps trigger DRC-01C intimations and ASMT-10 scrutiny notices." } },
     { "@type": "Question", name: "What is the last date to claim ITC for FY 2025-26?", acceptedAnswer: { "@type": "Answer", text: "30 November 2026, or the date you file the annual return if earlier (Section 16(4)). Credit not claimed by then lapses permanently." } },
     { "@type": "Question", name: "My supplier has not filed GSTR-1. Can I still claim ITC?", acceptedAnswer: { "@type": "Answer", text: "Not until the invoice reflects in your GSTR-2B. Follow up with the supplier to upload it — the dashboard lists suppliers whose GSTR-2B figure trails your books, largest gap first." } },
@@ -138,7 +138,7 @@ export default function ItcReconciliationDashboardPage() {
     <div className="tool-page">
       <SeoHead
         title="ITC Reconciliation Dashboard — Books vs GSTR-2B vs GSTR-3B"
-        description="Free ITC reconciliation dashboard: compare purchase-book credit, GSTR-2B and GSTR-3B claims month by month. Spot excess claims and their 18% interest, unclaimed credit before the 30 November deadline, and suppliers to chase."
+        description="Free ITC reconciliation dashboard: compare purchase-book credit, GSTR-2B and GSTR-3B month by month. Spot excess claims, unclaimed credit before 30 November, and suppliers to chase."
         path={PATH}
         jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
