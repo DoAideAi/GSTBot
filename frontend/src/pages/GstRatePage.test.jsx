@@ -110,7 +110,7 @@ describe("GstRatePage", () => {
   it("shows breadcrumb navigation", () => {
     renderRate("laptop");
 
-    expect(screen.getByText("HSN Code Finder")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "GST Rates List" })).toHaveAttribute("href", "/gst-rates");
     expect(screen.getByLabelText("Breadcrumb")).toBeInTheDocument();
   });
 

@@ -4,6 +4,7 @@ import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
+import FaqSection, { faqSchema } from "../components/FaqSection";
 import RelatedTools from "../components/RelatedTools";
 import SeoHead from "../components/SeoHead";
 import ShareButtons from "../components/ShareButtons";
@@ -12,6 +13,25 @@ import { usePageTitle } from "../hooks/usePageTitle";
 import { categories, byCategory, searchHSN } from "../lib/hsnData";
 import { copyToClipboard } from "../lib/share";
 import { track } from "../lib/track";
+
+const FAQS = [
+  {
+    q: "What is an HSN code?",
+    a: "HSN (Harmonized System of Nomenclature) is an internationally standardised system of codes for classifying goods. Under GST, the HSN code on an invoice decides which tax rate applies to the item.",
+  },
+  {
+    q: "How many digits of HSN code must I show on an invoice?",
+    a: "Since 1 April 2021, businesses with aggregate turnover up to ₹5 crore must show at least a 4-digit HSN code on B2B tax invoices (it is optional on B2C invoices). Above ₹5 crore, a 6-digit code is required on all invoices.",
+  },
+  {
+    q: "What is the difference between HSN and SAC codes?",
+    a: "HSN codes classify goods; SAC (Services Accounting Code) codes classify services. SAC codes are 6 digits and always begin with 99.",
+  },
+  {
+    q: "What happens if I use the wrong HSN code?",
+    a: "A wrong code that leads to a lower rate means short-paid tax, which is recoverable with interest. A general penalty of up to ₹25,000 under Section 125 can also apply for an incorrect invoice.",
+  },
+];
 
 export default function HsnFinderPage() {
   usePageTitle("HSN Code Finder — Search GST Rates by Product Name");
@@ -41,6 +61,7 @@ export default function HsnFinderPage() {
         title="HSN Code Finder — Search GST Rates by Product or Service"
         description="Find the correct HSN or SAC code and GST rate for any product or service. Search by name or code number. Free HSN code lookup — no signup required."
         path="/hsn"
+        jsonLd={faqSchema(FAQS)}
       />
       <ToolsNav />
       <main className="tool-main">
@@ -172,6 +193,8 @@ export default function HsnFinderPage() {
           </section>
 
           <InlineCTA variant="save" />
+          <FaqSection faqs={FAQS} />
+
           <RelatedTools current="/hsn" />
           <CrossProductLinks page="hsn" />
         </div>

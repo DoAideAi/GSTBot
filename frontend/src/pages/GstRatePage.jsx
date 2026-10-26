@@ -88,7 +88,7 @@ export default function GstRatePage() {
 
   const breadcrumbs = [
     { name: "Home", url: BASE_URL },
-    { name: "HSN Code Finder", url: `${BASE_URL}/hsn` },
+    { name: "GST Rates List", url: `${BASE_URL}/gst-rates` },
     { name: `GST on ${display}` },
   ];
 
@@ -106,7 +106,7 @@ export default function GstRatePage() {
         <div className="tool-container">
           <Breadcrumb items={[
             { label: "Home", to: "/" },
-            { label: "HSN Code Finder", to: "/hsn" },
+            { label: "GST Rates List", to: "/gst-rates" },
             { label: `GST on ${display}` },
           ]} />
           <h1 className="tool-title">GST Rate on {display}</h1>
@@ -236,6 +236,10 @@ export default function GstRatePage() {
               </ul>
             </section>
           )}
+
+          <p className="rate-calc-link">
+            <Link to="/gst-rates">Browse the full product-wise GST rates list →</Link>
+          </p>
 
           <RelatedTools current={`/gst-rate/${product}`} />
         </div>

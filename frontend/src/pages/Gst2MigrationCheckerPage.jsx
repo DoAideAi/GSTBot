@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import Breadcrumb from "../components/Breadcrumb";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
+import FaqSection, { faqSchema } from "../components/FaqSection";
 import EmailCapture from "../components/EmailCapture";
 import RelatedTools from "../components/RelatedTools";
 import SeoHead from "../components/SeoHead";
@@ -36,6 +37,25 @@ const BREADCRUMBS = [
   { name: "GST 2.0 Migration Checker" },
 ];
 
+const FAQS = [
+  {
+    q: "When did GST 2.0 rates come into effect?",
+    a: "The rationalised GST rates approved by the 56th GST Council meeting took effect on 22 September 2025. The 12% and 28% slabs were folded into 5% and 18%, with a new 40% rate for luxury and sin goods.",
+  },
+  {
+    q: "Which rate applies to a contract signed before 22 September 2025?",
+    a: "The rate depends on the time of supply, not the contract date. Goods or services supplied on or after 22 September 2025 are taxed at the new rate, even under an older contract — which is why price and tax clauses need review.",
+  },
+  {
+    q: "What if the invoice and payment fall on different sides of the change?",
+    a: "Section 14 of the CGST Act sets the time of supply when a rate changes. Broadly, if two of the three events — supply, invoice and payment — happen after the change, the new rate applies; if two happen before, the old rate applies.",
+  },
+  {
+    q: "Must a supplier pass on a GST rate cut?",
+    a: "Suppliers are expected to pass rate reductions on to buyers through lower prices. Buyers on long-term contracts should check that invoices issued after the change carry the new rate.",
+  },
+];
+
 export default function Gst2MigrationCheckerPage() {
   usePageTitle("GST 2.0 Migration Checker — Contract Rate Update Tool");
 
@@ -68,7 +88,7 @@ export default function Gst2MigrationCheckerPage() {
         title="GST 2.0 Migration Checker — Do Your Contracts Need Rate Updates?"
         description="Check if your existing contracts need GST rate updates under GST 2.0. Calculate the financial impact of rate changes on your agreements and get action recommendations."
         path="/migration-checker"
-        jsonLd={[TOOL_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, faqSchema(FAQS)]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />
@@ -169,6 +189,8 @@ export default function Gst2MigrationCheckerPage() {
             buttonLabel="Send Guide"
             compact
           />
+
+          <FaqSection faqs={FAQS} />
 
           <RelatedTools current="/migration-checker" />
           <CrossProductLinks page="migration-checker" />

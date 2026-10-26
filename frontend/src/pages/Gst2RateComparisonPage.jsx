@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import Breadcrumb from "../components/Breadcrumb";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
+import FaqSection, { faqSchema } from "../components/FaqSection";
 import EmailCapture from "../components/EmailCapture";
 import RelatedTools from "../components/RelatedTools";
 import SeoHead from "../components/SeoHead";
@@ -34,6 +35,25 @@ const BREADCRUMBS = [
   { name: "GST 2.0 Rate Comparison" },
 ];
 
+const FAQS = [
+  {
+    q: "What changed in GST 2.0?",
+    a: "From 22 September 2025, most goods moved to two main slabs — 5% and 18% — replacing the earlier 5%, 12%, 18% and 28% structure. A 40% rate applies to luxury and sin goods, and many essentials became nil-rated.",
+  },
+  {
+    q: "Did items in the 12% slab go up or down?",
+    a: "Most items that were at 12% moved down to 5%, including many processed foods and everyday goods. A smaller number moved to 18%. Check the specific product, since the move depends on its HSN code.",
+  },
+  {
+    q: "What happened to the 28% slab?",
+    a: "Most 28% items, such as cement, air conditioners, televisions and small cars, moved to 18%. Luxury and sin goods such as tobacco products, aerated sugary drinks and large cars moved to 40%.",
+  },
+  {
+    q: "Is health and life insurance free of GST now?",
+    a: "Yes. Individual life and health insurance policies became exempt from GST under GST 2.0, down from 18%.",
+  },
+];
+
 export default function Gst2RateComparisonPage() {
   usePageTitle("GST 2.0 Rate Comparison — Old vs New GST Rates");
   const [query, setQuery] = useState("");
@@ -54,7 +74,7 @@ export default function Gst2RateComparisonPage() {
         title="GST 2.0 Rate Comparison — Old vs New GST Rates for Any Item"
         description="Compare old and new GST rates under GST 2.0 for any product or service. See how the abolished 12% and 28% slabs have been reorganized into the new 3-slab structure."
         path="/rate-comparison"
-        jsonLd={[TOOL_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, faqSchema(FAQS)]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />
@@ -164,6 +184,8 @@ export default function Gst2RateComparisonPage() {
             buttonLabel="Notify Me"
             compact
           />
+
+          <FaqSection faqs={FAQS} />
 
           <RelatedTools current="/rate-comparison" />
           <CrossProductLinks page="rate-comparison" />

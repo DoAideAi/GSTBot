@@ -3,6 +3,7 @@ import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
+import FaqSection, { faqSchema } from "../components/FaqSection";
 import EmailCapture from "../components/EmailCapture";
 import PrintButton from "../components/PrintButton";
 import RelatedTools from "../components/RelatedTools";
@@ -48,6 +49,25 @@ const HOWTO_SCHEMA = {
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "Interest Calculator" },
+];
+
+const FAQS = [
+  {
+    q: "What is the interest rate on late GST payment?",
+    a: "Under Section 50(1) of the CGST Act, interest is 18% per annum on tax paid after the due date, counted from the day after the due date until the day of payment. Where input tax credit is wrongly availed and utilised, Section 50(3) charges 24% per annum on the credit used.",
+  },
+  {
+    q: "Is GST interest charged on the gross or the net tax liability?",
+    a: "On the net tax liability — the portion paid in cash after setting off input tax credit. The proviso to Section 50(1), effective retrospectively from 1 July 2017, applies this to returns filed late, except where the return is filed after proceedings under Section 73 or 74 have started.",
+  },
+  {
+    q: "How is GST interest calculated?",
+    a: "Interest = tax paid late × 18% × days of delay ÷ 365. For example, ₹1,00,000 paid 30 days late carries interest of about ₹1,479.",
+  },
+  {
+    q: "How do I pay GST interest?",
+    a: "Interest is paid in cash from the electronic cash ledger — it cannot be paid with input tax credit. It is usually declared in the interest and late fee table of GSTR-3B for the period, or paid separately through Form DRC-03.",
+  },
 ];
 
 export default function InterestCalculatorPage() {
@@ -103,7 +123,7 @@ export default function InterestCalculatorPage() {
         title="GST Interest Calculator — Late Payment Interest under Section 50"
         description="Calculate interest on late GST payment under Section 50. 18% p.a. on late tax and on wrongly utilised ITC (the old 24% ended in July 2022). Free, no login required."
         path="/interest-calculator"
-        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, faqSchema(FAQS)]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />
@@ -251,6 +271,8 @@ export default function InterestCalculatorPage() {
           </section>
 
           <InlineCTA variant="save" />
+          <FaqSection faqs={FAQS} />
+
           <RelatedTools current="/interest-calculator" />
           <CrossProductLinks page="interest-calculator" />
         </div>

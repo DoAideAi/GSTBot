@@ -28,6 +28,7 @@ const WidgetPage = lazy(() => import("./pages/WidgetPage"));
 const FilingPage = lazy(() => import("./pages/FilingPage"));
 const GstinPage = lazy(() => import("./pages/GstinPage"));
 const GstRatePage = lazy(() => import("./pages/GstRatePage"));
+const GstRatesIndexPage = lazy(() => import("./pages/GstRatesIndexPage"));
 const HsnFinderPage = lazy(() => import("./pages/HsnFinderPage"));
 const InvoiceDetailPage = lazy(() => import("./pages/InvoiceDetailPage"));
 const InvoicesPage = lazy(() => import("./pages/InvoicesPage"));
@@ -263,6 +264,7 @@ export default function App() {
         <Route path="/lookup" element={<Lazy><LookupPage /></Lazy>} />
         <Route path="/hsn" element={<Lazy><HsnFinderPage /></Lazy>} />
         <Route path="/gstin/:gstin" element={<Lazy><GstinPage /></Lazy>} />
+        <Route path="/gst-rates" element={<Lazy><GstRatesIndexPage /></Lazy>} />
         <Route path="/gst-rate/:product" element={<Lazy><GstRatePage /></Lazy>} />
         <Route path="/due-dates" element={<Lazy><DueDatesPage /></Lazy>} />
         <Route path="/resources" element={<Lazy><ResourcesPage /></Lazy>} />

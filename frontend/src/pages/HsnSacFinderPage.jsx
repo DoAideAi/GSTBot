@@ -4,6 +4,7 @@ import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
+import FaqSection, { faqSchema } from "../components/FaqSection";
 import EmailCapture from "../components/EmailCapture";
 import PrintButton from "../components/PrintButton";
 import RelatedTools from "../components/RelatedTools";
@@ -47,6 +48,25 @@ function RateBadge({ rate }) {
   );
 }
 
+const FAQS = [
+  {
+    q: "What is a SAC code under GST?",
+    a: "A Services Accounting Code (SAC) is a 6-digit code that classifies a service for GST. Every SAC code begins with 99 — for example 998231 for accounting and auditing services.",
+  },
+  {
+    q: "Is SAC code mandatory on a service invoice?",
+    a: "Yes, on the same terms as HSN codes for goods: at least 4 digits on B2B invoices for businesses with turnover up to ₹5 crore, and 6 digits on all invoices above ₹5 crore.",
+  },
+  {
+    q: "What is the GST rate on most services?",
+    a: "Most services are taxed at the 18% standard rate. Some have a lower 5% rate, such as restaurant service and economy-class air travel, usually without input tax credit. Healthcare, education and individual life and health insurance are exempt.",
+  },
+  {
+    q: "Can one invoice carry both HSN and SAC codes?",
+    a: "Yes. When an invoice covers both goods and services — for example a machine and its installation — each line carries its own HSN or SAC code and rate, unless the supply is a composite supply taxed at the rate of its principal supply.",
+  },
+];
+
 export default function HsnSacFinderPage() {
   usePageTitle("GST HSN/SAC Code Finder — Search by Product or Service");
 
@@ -72,7 +92,7 @@ export default function HsnSacFinderPage() {
         title="GST HSN/SAC Code Finder — Search by Product or Service"
         description="Find the correct HSN or SAC code for any product or service. Search by name, code number, or browse by category. Includes GST rate for every code. Free, no login."
         path="/hsn-sac-finder"
-        jsonLd={TOOL_SCHEMA}
+        jsonLd={[TOOL_SCHEMA, faqSchema(FAQS)]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />
@@ -219,6 +239,8 @@ export default function HsnSacFinderPage() {
           </section>
 
           <InlineCTA variant="save" />
+          <FaqSection faqs={FAQS} />
+
           <RelatedTools current="/hsn-sac-finder" />
           <CrossProductLinks page="hsn-sac-finder" />
         </div>
