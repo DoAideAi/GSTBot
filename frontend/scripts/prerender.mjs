@@ -40,6 +40,8 @@ Object.assign(window, {
   IntersectionObserver: class { observe() {} unobserve() {} disconnect() {} },
   ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
 })
+// jsdom has no layout, so it leaves scrollIntoView out; the advisor calls it on mount.
+window.Element.prototype.scrollIntoView = noop
 for (const key of ['window', 'document', 'navigator', 'localStorage', 'sessionStorage', 'location', 'history',
   'HTMLElement', 'Element', 'Node', 'Event', 'CustomEvent', 'KeyboardEvent', 'MouseEvent', 'getComputedStyle',
   'matchMedia', 'IntersectionObserver', 'ResizeObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'scrollTo']) {
@@ -52,7 +54,13 @@ const shell = new JSDOM(template)
 appShellHead(shell.window.document)
 await writeFile(join(DIST, 'app-shell.html'), shell.serialize())
 
-const { renderRoute } = await import(pathToFileURL(join(SSR_OUT, 'prerenderEntry.js')).href)
+const { renderRoute, programmaticRoutes } = await import(pathToFileURL(join(SSR_OUT, 'prerenderEntry.js')).href)
+
+// The HSN and GST-rate pages come from the data module rather than the hand-kept
+// sitemap: ~1,000 URLs that would otherwise fall back to the noindex shell. They
+// are appended to the built sitemap so the two lists cannot drift apart.
+const extraRoutes = programmaticRoutes().filter(r => !routes.includes(r))
+routes.push(...extraRoutes)
 const { document } = window
 const templateHead = document.head.innerHTML
 
@@ -88,6 +96,11 @@ for (const route of routes) {
     await writeFile(outFile, page.serialize())
   }
 }
+
+const generatedUrls = extraRoutes
+  .map(r => `  <url>\n    <loc>${SITE_URL}${r}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`)
+  .join('\n')
+await writeFile(join(DIST, 'sitemap.xml'), sitemap.replace('</urlset>', `${generatedUrls}\n</urlset>`))
 
 await rm(SSR_OUT, { recursive: true, force: true })
 console.log(`prerendered ${rendered.length}/${routes.length} routes`)

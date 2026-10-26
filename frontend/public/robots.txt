@@ -1,10 +1,12 @@
 User-agent: *
+# Disallow matches by prefix: /itc and /filing are anchored with $ so they do
+# not also hide /itc-calculator, /itc-mismatch or /filing-checklist.
 Allow: /
 Disallow: /invoices
 Disallow: /upload
 Disallow: /reconcile
-Disallow: /itc
-Disallow: /filing
+Disallow: /itc$
+Disallow: /filing$
 Disallow: /suppliers
 Disallow: /alerts
 Disallow: /usage

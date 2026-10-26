@@ -247,8 +247,8 @@ Disallow: /api/
 Disallow: /invoices
 Disallow: /upload
 Disallow: /reconcile
-Disallow: /itc
-Disallow: /filing
+Disallow: /itc$
+Disallow: /filing$
 Disallow: /suppliers
 Disallow: /alerts
 Disallow: /usage

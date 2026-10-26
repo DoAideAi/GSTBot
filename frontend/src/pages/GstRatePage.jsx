@@ -6,14 +6,10 @@ import SeoHead, { BASE_URL } from "../components/SeoHead";
 import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { findProductRate, getByCode, relatedProducts, searchHSN } from "../lib/hsnData";
+import { findProductRate, getByCode, productSlug, relatedProducts, searchHSN } from "../lib/hsnData";
 
 function capitalize(str) {
   return str.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function slugify(str) {
-  return str.toLowerCase().replace(/\s+/g, "-");
 }
 
 function exampleAmount(rate) {
@@ -58,10 +54,10 @@ function buildFaqSchema(display, match) {
 
 export default function GstRatePage() {
   const { product } = useParams();
-  const display = capitalize((product || "").replace(/-/g, " "));
+  const match = findProductRate(product);
+  const display = capitalize(match ? match.product : (product || "").replace(/-/g, " "));
   usePageTitle(`GST Rate on ${display} — HSN Code & Tax Breakdown`);
 
-  const match = findProductRate(product);
   const related = match ? searchHSN(match.product, { limit: 5 }) : searchHSN(display, { limit: 5 });
   const linked = relatedProducts(product, { limit: 5 });
   const hsnEntry = match ? getByCode(match.hsn) : null;
@@ -232,7 +228,7 @@ export default function GstRatePage() {
               <ul className="seo-links">
                 {linked.map((p) => (
                   <li key={p.product}>
-                    <Link to={`/gst-rate/${slugify(p.product)}`}>
+                    <Link to={`/gst-rate/${productSlug(p.product)}`}>
                       GST on {capitalize(p.product)} — {p.rate}%
                     </Link>
                   </li>

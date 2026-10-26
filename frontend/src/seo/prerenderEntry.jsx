@@ -10,6 +10,8 @@ import { PageTitleProvider } from "../hooks/usePageTitle";
 import { StateCodesProvider } from "../hooks/useStateCodes";
 import { ThemeProvider } from "../hooks/useTheme";
 
+export { programmaticRoutes } from "../lib/hsnData";
+
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 export async function renderRoute(pathname, container) {

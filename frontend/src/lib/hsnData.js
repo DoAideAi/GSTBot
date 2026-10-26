@@ -1073,8 +1073,17 @@ const PRODUCT_RATES = [
   { product: "training", hsn: "9992", rate: 18 },
 ];
 
+// The /gst-rate/:product URL segment. Hyphens inside a name ("t-shirts")
+// survive, so a slug is matched before it is turned back into words.
+export function productSlug(product) {
+  return product.toLowerCase().replace(/\s+/g, "-");
+}
+
 export function findProductRate(product) {
-  const q = (product || "").trim().toLowerCase().replace(/-/g, " ");
+  const slug = (product || "").trim().toLowerCase();
+  const bySlug = PRODUCT_RATES.find((p) => productSlug(p.product) === slug);
+  if (bySlug) return bySlug;
+  const q = slug.replace(/-/g, " ");
   if (!q) return null;
   const exact = PRODUCT_RATES.find((p) => p.product === q);
   if (exact) return exact;
@@ -1106,6 +1115,15 @@ export function relatedProducts(product, { limit = 5 } = {}) {
     if (results.length >= limit * 2) break;
   }
   return results.slice(0, limit);
+}
+
+// Every programmatic page worth indexing: one per HSN/SAC code and one per
+// product rate listing. The prerender step renders these and adds them to the
+// built sitemap; anything outside this list falls back to the noindex shell.
+export function programmaticRoutes() {
+  const hsn = [...new Set(HSN_DATA.map((h) => h.code))].map((c) => `/hsn/${c}`);
+  const rates = [...new Set(PRODUCT_RATES.map((p) => productSlug(p.product)))].map((s) => `/gst-rate/${s}`);
+  return [...hsn, ...rates];
 }
 
 export { HSN_DATA };

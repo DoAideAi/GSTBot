@@ -6,6 +6,8 @@ import {
   categories,
   findProductRate,
   getByCode,
+  productSlug,
+  programmaticRoutes,
   searchHSN,
 } from "./hsnData";
 
@@ -132,6 +134,39 @@ describe("allProducts", () => {
       expect(p).toHaveProperty("product");
       expect(p).toHaveProperty("hsn");
       expect(p).toHaveProperty("rate");
+    }
+  });
+});
+
+describe("productSlug", () => {
+  it("lowercases and hyphenates spaces", () => {
+    expect(productSlug("Mobile Phone")).toBe("mobile-phone");
+  });
+
+  it("round-trips through findProductRate for every listed product", () => {
+    for (const p of allProducts()) {
+      expect(findProductRate(productSlug(p.product))).toBe(p);
+    }
+  });
+
+  it("keeps a hyphen that belongs to the name", () => {
+    expect(findProductRate("t-shirts").product).toBe("t-shirts");
+  });
+});
+
+describe("programmaticRoutes", () => {
+  const routes = programmaticRoutes();
+
+  it("has one page per HSN code and per product slug, without duplicates", () => {
+    expect(new Set(routes).size).toBe(routes.length);
+    expect(routes).toContain("/hsn/8471");
+    expect(routes).toContain("/gst-rate/mobile-phone");
+    expect(routes.filter((r) => r.startsWith("/hsn/")).length).toBe(new Set(HSN_DATA.map((h) => h.code)).size);
+  });
+
+  it("only lists rate pages that resolve to a listing", () => {
+    for (const r of routes.filter((x) => x.startsWith("/gst-rate/"))) {
+      expect(findProductRate(r.slice("/gst-rate/".length))).not.toBeNull();
     }
   });
 });
