@@ -154,7 +154,9 @@ export default function HowToClaimItc() {
         <p>
           ITC must also be reversed if payment is not made to the supplier within 180 days of the
           invoice date (Section 16(2)(d)). The reversed credit is added back to output liability with
-          interest.
+          interest. The <Link to="/itc-180-day-rule">180-day ITC reversal calculator</Link> and{" "}
+          <Link to="/itc-reversal-rule-42">Rule 42 calculator</Link> work out both amounts, and{" "}
+          <Link to="/blog/itc-reversal-rules-37-42-43">this guide</Link> explains each rule with examples.
         </p>
       </section>
 

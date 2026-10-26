@@ -188,6 +188,16 @@ const ARTICLES = [
     title: "GST Invoice Format Guide 2026: Mandatory Fields, Rules & Free Template",
     description: "All 16 mandatory fields under Rule 46, tax invoice vs bill of supply, numbering rules, copies, time limits, e-invoicing applicability and the mistakes that cost buyers their ITC.",
   },
+  {
+    slug: "last-date-to-claim-itc-fy-2025-26",
+    title: "Last Date to Claim ITC for FY 2025-26: 30 November 2026 Deadline Explained",
+    description: "The Section 16(4) time limit, how an early GSTR-9 closes it, and a four-week checklist to recover missed input tax credit before 30 November 2026.",
+  },
+  {
+    slug: "itc-reversal-rules-37-42-43",
+    title: "ITC Reversal Under GST: Rule 37, 42 and 43 Explained With Examples",
+    description: "Unpaid suppliers past 180 days, common inputs for exempt supplies, and shared capital goods — worked examples, GSTR-3B tables and when interest applies.",
+  },
 ];
 
 export { ARTICLES };

@@ -126,6 +126,9 @@ const Gstr2bReconciliationPage = lazy(() => import("./pages/Gstr2bReconciliation
 const AdvisorPage = lazy(() => import("./pages/AdvisorPage"));
 const TdsCalculatorPage = lazy(() => import("./pages/TdsCalculatorPage"));
 const EcommerceTcsCalculatorPage = lazy(() => import("./pages/EcommerceTcsCalculatorPage"));
+const Rule42ReversalPage = lazy(() => import("./pages/Rule42ReversalPage"));
+const Itc180DayRulePage = lazy(() => import("./pages/Itc180DayRulePage"));
+const ItcTimeLimitPage = lazy(() => import("./pages/ItcTimeLimitPage"));
 const PlaceOfSupplyPage = lazy(() => import("./pages/PlaceOfSupplyPage"));
 const RefundCalculatorPage = lazy(() => import("./pages/RefundCalculatorPage"));
 const EInvoiceGeneratorPage = lazy(() => import("./pages/EInvoiceGeneratorPage"));
@@ -143,6 +146,8 @@ const GstRatesIndia2026List = lazy(() => import("./pages/blog/GstRatesIndia2026L
 const FilingChecklistPage = lazy(() => import("./pages/FilingChecklistPage"));
 const Gstr3bReconciliationPage = lazy(() => import("./pages/Gstr3bReconciliationPage"));
 const GstInvoiceFormatGuide2026 = lazy(() => import("./pages/blog/GstInvoiceFormatGuide2026"));
+const LastDateToClaimItc = lazy(() => import("./pages/blog/LastDateToClaimItc"));
+const ItcReversalRules = lazy(() => import("./pages/blog/ItcReversalRules"));
 
 function LazyFallback() {
   return (
@@ -261,6 +266,8 @@ export default function App() {
           <Route path="gst-on-rental-income" element={<Lazy><GstOnRentalIncome /></Lazy>} />
           <Route path="gst-rates-india-2026-complete-list" element={<Lazy><GstRatesIndia2026List /></Lazy>} />
           <Route path="gst-invoice-format-guide-2026" element={<Lazy><GstInvoiceFormatGuide2026 /></Lazy>} />
+          <Route path="last-date-to-claim-itc-fy-2025-26" element={<Lazy><LastDateToClaimItc /></Lazy>} />
+          <Route path="itc-reversal-rules-37-42-43" element={<Lazy><ItcReversalRules /></Lazy>} />
         </Route>
         <Route path="/calculator" element={<Lazy><CalculatorPage /></Lazy>} />
         <Route path="/lookup" element={<Lazy><LookupPage /></Lazy>} />
@@ -325,6 +332,9 @@ export default function App() {
         <Route path="/advisor" element={<Lazy><AdvisorPage /></Lazy>} />
         <Route path="/tds-calculator" element={<Lazy><TdsCalculatorPage /></Lazy>} />
         <Route path="/ecommerce-tcs-calculator" element={<Lazy><EcommerceTcsCalculatorPage /></Lazy>} />
+        <Route path="/itc-reversal-rule-42" element={<Lazy><Rule42ReversalPage /></Lazy>} />
+        <Route path="/itc-180-day-rule" element={<Lazy><Itc180DayRulePage /></Lazy>} />
+        <Route path="/itc-time-limit" element={<Lazy><ItcTimeLimitPage /></Lazy>} />
         <Route path="/place-of-supply" element={<Lazy><PlaceOfSupplyPage /></Lazy>} />
         <Route path="/refund-calculator" element={<Lazy><RefundCalculatorPage /></Lazy>} />
         <Route path="/e-invoice-generator" element={<Lazy><EInvoiceGeneratorPage /></Lazy>} />

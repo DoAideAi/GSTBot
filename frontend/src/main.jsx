@@ -9,6 +9,14 @@ import { StateCodesProvider } from "./hooks/useStateCodes";
 import { ThemeProvider } from "./hooks/useTheme";
 import "./index.css";
 
+const fontCss = document.getElementById("font-css");
+if (fontCss) {
+  const sheet = document.createElement("link");
+  sheet.rel = "stylesheet";
+  sheet.href = fontCss.href;
+  document.head.appendChild(sheet);
+}
+
 // Two boundaries, deliberately. This outer one is the last resort — it catches
 // a crash in the Shell or the auth provider itself, where the inner per-page
 // boundary has already been unmounted. Inside the router, because it resets on

@@ -45,8 +45,9 @@ export default defineConfig({
       exclude: [
         "src/**/*.test.{js,jsx}",
         "src/test/**",
-        // The entry point is three lines of createRoot with nothing to assert
-        // that rendering the app in a test does not already assert.
+        // The entry point mounts the app and applies the preloaded font
+        // stylesheet; neither has anything to assert that rendering the app in
+        // a test does not, and jsdom loads no stylesheets to check.
         "src/main.jsx",
       ],
       // A ratchet against tests being deleted or a component landing with

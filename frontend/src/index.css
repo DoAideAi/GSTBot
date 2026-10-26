@@ -2903,6 +2903,11 @@ a:focus-visible {
   font-size: 0.9rem;
 }
 .calc-errors li { margin: 0.25rem 0; }
+.calc-error {
+  margin: 0.75rem 0 0;
+  color: var(--bad);
+  font-size: 0.9rem;
+}
 .challan-heading {
   font-size: 1rem;
   font-weight: 600;

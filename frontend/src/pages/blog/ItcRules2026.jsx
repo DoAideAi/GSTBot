@@ -184,10 +184,12 @@ export default function ItcRules2026() {
           </li>
           <li>
             <strong>Example:</strong> For purchases made in FY 2025-26, ITC must be claimed by November 30,
-            2026 (GSTR-3B for September 2026) or the date you file GSTR-9 for FY 2025-26, whichever comes first
+            2026 (in a GSTR-3B filed by then, in practice the October 2026 return) or the date you file GSTR-9
+            for FY 2025-26, whichever comes first. Check any invoice with the{" "}
+            <Link to="/itc-time-limit">ITC time limit checker</Link>
           </li>
           <li>
-            <strong>Section 16(4) amendment:</strong> The 2023 amendment allows ITC to be claimed until
+            <strong>Section 16(4) amendment:</strong> The Finance Act 2022 amendment allows ITC to be claimed until
             November 30th of the year following the financial year, giving businesses additional time
           </li>
         </ul>
@@ -264,8 +266,8 @@ export default function ItcRules2026() {
         <h2>Situations Where ITC Must Be Reversed</h2>
         <p>ITC already claimed must be reversed (paid back) in these situations:</p>
         <ol>
-          <li><strong>Non-payment to supplier within 180 days:</strong> If you do not pay the supplier (including GST) within 180 days of the invoice date, the ITC must be reversed. It can be re-claimed when payment is made</li>
-          <li><strong>Goods used for exempt supplies:</strong> Proportionate reversal under Rule 42</li>
+          <li><strong>Non-payment to supplier within 180 days:</strong> If you do not pay the supplier (including GST) within 180 days of the invoice date, the ITC must be reversed. It can be re-claimed when payment is made. Use the <Link to="/itc-180-day-rule">180-day ITC reversal calculator</Link></li>
+          <li><strong>Goods used for exempt supplies:</strong> Proportionate reversal under Rule 42, worked out by the <Link to="/itc-reversal-rule-42">Rule 42 calculator</Link></li>
           <li><strong>Goods lost, stolen, destroyed, or written off:</strong> Full ITC reversal required</li>
           <li><strong>Goods given as free samples or gifts:</strong> ITC must be reversed</li>
           <li><strong>Capital goods sold:</strong> Reversal based on remaining useful life (Rule 43)</li>

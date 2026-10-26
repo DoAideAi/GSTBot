@@ -258,6 +258,56 @@ const TOOLS = [
     ),
   },
   {
+    to: "/itc-time-limit",
+    title: "ITC Time Limit Checker",
+    desc: "Last date to claim input tax credit on any invoice or debit note under Section 16(4). FY 2025-26 closes on 30 November 2026.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+    ),
+  },
+  {
+    to: "/itc-180-day-rule",
+    title: "180-Day ITC Reversal Calculator",
+    desc: "Rule 37 reversal when a supplier is not paid within 180 days: the amount, the GSTR-3B period, and 18% interest.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+    ),
+  },
+  {
+    to: "/itc-reversal-rule-42",
+    title: "Rule 42 ITC Reversal Calculator",
+    desc: "Apportion common input tax credit between taxable and exempt supplies — C1, C2, D1, D2 and C3 worked out for you.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+    ),
+  },
+  {
+    to: "/ecommerce-tcs-calculator",
+    title: "E-commerce TCS Calculator",
+    desc: "0.5% GST TCS under Section 52 and 0.1% Section 194-O TDS that Amazon, Flipkart and Meesho deduct from seller payouts.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+    ),
+  },
+  {
+    to: "/gst-state-codes",
+    title: "GST State Codes",
+    desc: "Every GST state and UT code, with a finder that reads the state from any GSTIN.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+    ),
+  },
+  {
     to: "/itc-reconciliation-dashboard",
     title: "ITC Reconciliation Dashboard",
     desc: "Books vs GSTR-2B vs GSTR-3B for the whole year. Excess claims with interest exposure, unclaimed credit, the Section 16(4) countdown and suppliers to chase.",

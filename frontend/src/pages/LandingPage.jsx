@@ -234,6 +234,9 @@ const TOOL_CATEGORIES = [
       { to: "/interest-calculator", title: "Interest Calculator", desc: "Interest on delayed GST payment" },
       { to: "/itc-calculator", title: "ITC Calculator", desc: "Calculate eligible Input Tax Credit" },
       { to: "/rcm-calculator", title: "RCM Calculator", desc: "Reverse charge mechanism with ITC" },
+      { to: "/itc-time-limit", title: "ITC Time Limit", desc: "Last date to claim ITC under 16(4)" },
+      { to: "/itc-180-day-rule", title: "180-Day ITC Reversal", desc: "Rule 37 reversal for unpaid suppliers" },
+      { to: "/itc-reversal-rule-42", title: "Rule 42 ITC Reversal", desc: "Common credit on exempt supplies" },
     ],
   },
   {

@@ -47,6 +47,9 @@ const ALL_TOOLS = [
   { path: "/gstr9-helper", label: "GSTR-9 Helper", desc: "Annual return summary calculator" },
   { path: "/gstr9-summary", label: "GSTR-9 Summary", desc: "GSTR-1 vs 3B for the year, DRC-03 amount" },
   { path: "/itc-reconciliation-dashboard", label: "ITC Dashboard", desc: "Books vs GSTR-2B vs 3B, month by month" },
+  { path: "/itc-reversal-rule-42", label: "Rule 42 ITC Reversal", desc: "Common credit on exempt supplies" },
+  { path: "/itc-180-day-rule", label: "180-Day ITC Reversal", desc: "Rule 37 reversal for unpaid suppliers" },
+  { path: "/itc-time-limit", label: "ITC Time Limit", desc: "Last date to claim ITC under 16(4)" },
 ];
 
 // Contextual cross-links: which tools are most relevant to which page.
@@ -62,7 +65,7 @@ const RECOMMENDED = {
   "/due-dates": ["/return-calendar", "/penalty-calculator", "/late-fee-calculator", "/interest-calculator"],
   "/penalty-calculator": ["/late-fee-calculator", "/interest-calculator", "/due-dates", "/return-calendar"],
   "/eway-bill": ["/invoice-generator", "/hsn", "/reverse-charge", "/calculator"],
-  "/input-tax-credit": ["/itc-calculator", "/itc-mismatch", "/reverse-charge", "/rcm-calculator"],
+  "/input-tax-credit": ["/itc-calculator", "/itc-time-limit", "/itc-180-day-rule", "/itc-reversal-rule-42"],
   "/composition-scheme": ["/composition-tax-calculator", "/scheme-comparison", "/registration-checker", "/turnover-limit"],
   "/invoice-generator": ["/calculator", "/hsn", "/payment-challan", "/eway-bill"],
   "/reverse-charge": ["/rcm-calculator", "/itc-calculator", "/input-tax-credit", "/calculator"],
@@ -77,7 +80,7 @@ const RECOMMENDED = {
   "/scheme-comparison": ["/composition-tax-calculator", "/composition-scheme", "/turnover-limit", "/registration-checker"],
   "/composition-tax-calculator": ["/scheme-comparison", "/composition-scheme", "/interest-calculator", "/rcm-calculator"],
   "/payment-challan": ["/calculator", "/interest-calculator", "/penalty-calculator", "/invoice-generator"],
-  "/itc-calculator": ["/input-tax-credit", "/itc-mismatch", "/reverse-charge", "/calculator"],
+  "/itc-calculator": ["/input-tax-credit", "/itc-reversal-rule-42", "/itc-180-day-rule", "/itc-mismatch"],
   "/registration-type-advisor": ["/registration-checker", "/turnover-limit", "/composition-scheme", "/lookup"],
   "/rcm-calculator": ["/reverse-charge", "/itc-calculator", "/input-tax-credit", "/calculator"],
   "/audit-checklist": ["/gstr9-checklist", "/itc-mismatch", "/itc-calculator", "/due-dates"],
@@ -86,13 +89,16 @@ const RECOMMENDED = {
   "/gstr9-checklist": ["/gstr9-summary", "/audit-checklist", "/due-dates", "/itc-reconciliation-dashboard"],
   "/gstr2b-reconciliation": ["/itc-reconciliation-dashboard", "/itc-mismatch", "/itc-calculator", "/input-tax-credit"],
   "/tds-calculator": ["/ecommerce-tcs-calculator", "/calculator", "/reverse-charge", "/payment-challan"],
+  "/itc-reversal-rule-42": ["/itc-180-day-rule", "/input-tax-credit", "/itc-calculator", "/gstr9-summary"],
+  "/itc-180-day-rule": ["/itc-reversal-rule-42", "/itc-time-limit", "/interest-calculator", "/input-tax-credit"],
+  "/itc-time-limit": ["/itc-reconciliation-dashboard", "/gstr2b-reconciliation", "/itc-180-day-rule", "/gstr9-helper"],
   "/ecommerce-tcs-calculator": ["/tds-calculator", "/payment-challan", "/invoice-generator", "/calculator"],
   "/place-of-supply": ["/gst-state-codes", "/calculator", "/invoice-generator", "/e-invoice-generator"],
   "/refund-calculator": ["/itc-calculator", "/input-tax-credit", "/calculator", "/e-invoice-generator"],
   "/e-invoice-generator": ["/invoice-generator", "/hsn-sac-finder", "/place-of-supply", "/calculator"],
   "/gstr9-helper": ["/gstr9-summary", "/gstr9-checklist", "/audit-checklist", "/itc-reconciliation-dashboard"],
   "/gstr9-summary": ["/gstr9-checklist", "/itc-reconciliation-dashboard", "/gst-late-fee-interest-calculator", "/audit-checklist"],
-  "/itc-reconciliation-dashboard": ["/gstr2b-reconciliation", "/itc-mismatch", "/gstr9-summary", "/itc-calculator"],
+  "/itc-reconciliation-dashboard": ["/itc-time-limit", "/gstr2b-reconciliation", "/itc-180-day-rule", "/gstr9-summary"],
 };
 
 export default function RelatedTools({ current }) {
