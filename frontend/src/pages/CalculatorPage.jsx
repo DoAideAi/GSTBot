@@ -87,6 +87,18 @@ export default function CalculatorPage() {
               { "@type": "Question", name: "What are the GST rate slabs in India?", acceptedAnswer: { "@type": "Answer", text: "Under GST 2.0, India has 3 slabs plus Nil: 0% (essentials, insurance), 5% (necessities), 18% (most goods and services), and 40% (tobacco, luxury). The old 12% and 28% slabs are abolished." } },
             ],
           },
+          {
+            "@context": "https://schema.org",
+            "@type": "HowTo",
+            name: "How to calculate GST on any amount",
+            description: "Get the CGST, SGST or IGST breakdown for any amount and rate, inclusive or exclusive of tax.",
+            step: [
+              { "@type": "HowToStep", name: "Pick the mode", text: "Choose GST Exclusive to add tax on top of a base price, or GST Inclusive to extract the tax already inside a total." },
+              { "@type": "HowToStep", name: "Enter the amount", text: "Type the price in rupees." },
+              { "@type": "HowToStep", name: "Pick the GST rate", text: "Select the slab — 0%, 5%, 18% or 40% under GST 2.0." },
+              { "@type": "HowToStep", name: "Read the breakdown", text: "The calculator shows taxable value, CGST+SGST (same state) or IGST (inter-state), and the final total." },
+            ],
+          },
         ]}
       />
       <ToolsNav />

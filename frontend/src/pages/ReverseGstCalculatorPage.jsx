@@ -36,6 +36,18 @@ const FAQ_SCHEMA = {
   ],
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to remove GST from an inclusive price",
+  description: "Extract the base price and the tax from a GST-inclusive total.",
+  step: [
+    { "@type": "HowToStep", name: "Enter the inclusive amount", text: "The final price that already contains GST." },
+    { "@type": "HowToStep", name: "Pick the GST rate", text: "The slab the item was billed at — 5%, 18% or 40%." },
+    { "@type": "HowToStep", name: "Read the split", text: "The calculator divides the total by (1 + rate/100) to get the base price, and the rest is the GST paid." },
+  ],
+};
+
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "Reverse GST Calculator" },
@@ -66,7 +78,7 @@ export default function ReverseGstCalculatorPage() {
         title="Reverse GST Calculator — Remove GST from Any Amount"
         description="Remove GST from a GST-inclusive price instantly. Enter the total, get the base amount and GST split (CGST/SGST or IGST) for 5%, 18%, 40% and all slabs. Free, no login."
         path="/reverse-gst-calculator"
-        jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />

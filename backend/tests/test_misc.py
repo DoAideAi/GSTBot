@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC
 
 import pytest
 
@@ -316,6 +317,9 @@ class TestRecentLookups:
             def ltrim(self, key, start, end):
                 recorded.append(("ltrim", key, start, end))
 
+            def incr(self, key):
+                recorded.append(("incr", key))
+
             def execute(self):
                 pass
 
@@ -330,6 +334,9 @@ class TestRecentLookups:
         monkeypatch.setattr(misc, "get_redis", lambda: FakeRedis())
         client.get(f"/api/v1/meta/gstin/{BUSINESS_GSTIN}")
         assert any(op[0] == "lpush" for op in recorded)
+        # The same pipeline feeds the /meta/stats counter: a lookup that is
+        # worth listing is a lookup that is worth counting.
+        assert ("incr", misc._LOOKUP_COUNT_KEY) in recorded
 
         response = client.get("/api/v1/meta/recent-lookups")
         assert response.status_code == 200
@@ -353,6 +360,9 @@ class TestRecentLookups:
             def ltrim(self, key, start, end):
                 recorded.append(("ltrim", key, start, end))
 
+            def incr(self, key):
+                recorded.append(("incr", key))
+
             def execute(self):
                 pass
 
@@ -364,6 +374,107 @@ class TestRecentLookups:
         monkeypatch.setattr(misc, "get_redis", lambda: None)
         response = client.get("/api/v1/meta/recent-lookups")
         assert response.status_code == 200
+
+
+class TestUsageStats:
+    """Aggregate usage counts for public social proof — real rows, never invented."""
+
+    @pytest.fixture(autouse=True)
+    def fresh_cache(self):
+        # The endpoint remembers its answer per process, so a figure computed
+        # under one test must not become the next test's assertion.
+        misc._stats_cache = None
+        yield
+        misc._stats_cache = None
+
+    def test_an_empty_database_without_redis_reports_zeroes(self, client, monkeypatch):
+        monkeypatch.setattr(misc, "get_redis", lambda: None)
+        response = client.get("/api/v1/meta/stats")
+        assert response.status_code == 200
+        assert response.json() == {"businesses": 0, "invoices": 0, "gstin_lookups": 0}
+
+    def test_live_businesses_and_invoices_are_counted(
+        self, client, db_session, business, monkeypatch
+    ):
+        from datetime import date
+        from decimal import Decimal
+
+        from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
+
+        monkeypatch.setattr(misc, "get_redis", lambda: None)
+        for n in (1, 2):
+            db_session.add(Invoice(
+                business_id=business.id,
+                invoice_type=InvoiceType.PURCHASE,
+                status=InvoiceStatus.PARSED,
+                counterparty_gstin="29AABCU9603R1ZM",
+                invoice_number=f"ST-{n}",
+                invoice_date=date(2026, 9, n),
+                period="2026-09",
+                taxable_value=Decimal("100.00"),
+                cgst=Decimal("9.00"),
+                sgst=Decimal("9.00"),
+                igst=Decimal("0.00"),
+                cess=Decimal("0.00"),
+                total_value=Decimal("118.00"),
+            ))
+        db_session.commit()
+
+        body = client.get("/api/v1/meta/stats").json()
+        assert body["businesses"] == 1
+        assert body["invoices"] == 2
+
+    def test_soft_deleted_rows_are_not_usage(self, client, db_session, business, monkeypatch):
+        from datetime import datetime
+
+        monkeypatch.setattr(misc, "get_redis", lambda: None)
+        business.deleted_at = datetime.now(UTC)
+        db_session.commit()
+
+        body = client.get("/api/v1/meta/stats").json()
+        assert body["businesses"] == 0
+
+    def test_the_lookup_counter_is_read_from_redis(self, client, monkeypatch):
+        class FakeRedis:
+            def get(self, key):
+                assert key == misc._LOOKUP_COUNT_KEY
+                return b"1234"
+
+        monkeypatch.setattr(misc, "get_redis", lambda: FakeRedis())
+        assert client.get("/api/v1/meta/stats").json()["gstin_lookups"] == 1234
+
+    def test_a_failing_redis_degrades_to_zero_lookups(self, client, monkeypatch):
+        class FakeRedis:
+            def get(self, key):
+                raise ConnectionError("down")
+
+        monkeypatch.setattr(misc, "get_redis", lambda: FakeRedis())
+        response = client.get("/api/v1/meta/stats")
+        assert response.status_code == 200
+        assert response.json()["gstin_lookups"] == 0
+
+    def test_the_answer_is_cached_until_the_ttl_lapses(
+        self, client, db_session, business, monkeypatch
+    ):
+        monkeypatch.setattr(misc, "get_redis", lambda: None)
+        assert client.get("/api/v1/meta/stats").json()["businesses"] == 1
+
+        from datetime import datetime
+
+        business.deleted_at = datetime.now(UTC)
+        db_session.commit()
+
+        # Within the TTL the stale figure is the answer — that staleness is
+        # the point of the cache, and a minute of it is invisible on counts
+        # that only ever grow.
+        assert client.get("/api/v1/meta/stats").json()["businesses"] == 1
+
+        monkeypatch.setattr(misc, "_STATS_TTL_SECONDS", 0.0)
+        assert client.get("/api/v1/meta/stats").json()["businesses"] == 0
+
+    def test_no_auth_required(self, client, monkeypatch):
+        monkeypatch.setattr(misc, "get_redis", lambda: None)
+        assert client.get("/api/v1/meta/stats").status_code == 200
 
 
 class TestReminderSubscribe:

@@ -139,6 +139,7 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/meta/recent-lookups",
             "/api/v1/meta/reminder-subscribe",
             "/api/v1/meta/states",
+            "/api/v1/meta/stats",
             "/api/v1/referrals/leaderboard",
             "/api/v1/referrals/track",
             "/api/v1/seo/og-image",

@@ -40,6 +40,8 @@ STATIC_PAGES = [
     "/reverse-charge",
     "/reverse-gst-calculator",
     "/itc-mismatch",
+    "/filing-checklist",
+    "/gstr3b-reconciliation",
     "/whatsapp",
     "/blog",
     "/blog/gst-filing-guide-india-2026",
@@ -47,6 +49,7 @@ STATIC_PAGES = [
     "/blog/gst-compliance-checklist-small-business",
     "/blog/gstr-9-annual-return-fy-2025-26-guide",
     "/blog/gst-invoice-management-system-ims-guide",
+    "/blog/gst-invoice-format-guide-2026",
 ]
 
 HSN_CODES = [

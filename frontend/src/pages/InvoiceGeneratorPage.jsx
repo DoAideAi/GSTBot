@@ -124,6 +124,19 @@ const FAQ_SCHEMA = {
   ],
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to create a GST invoice",
+  description: "Build a Rule 46-compliant tax invoice and download it as a PDF, free.",
+  step: [
+    { "@type": "HowToStep", name: "Fill in seller and buyer", text: "Names, addresses and GSTINs — the two state codes decide whether the invoice carries CGST+SGST or IGST." },
+    { "@type": "HowToStep", name: "Add the line items", text: "Description, HSN code, quantity, rate and GST slab per line." },
+    { "@type": "HowToStep", name: "Preview the invoice", text: "Totals, tax split and amount in words are computed for you." },
+    { "@type": "HowToStep", name: "Download the PDF", text: "The print dialog saves an A4 PDF ready to send." },
+  ],
+};
+
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "Invoice Generator" },
@@ -263,7 +276,7 @@ ${invoiceRef.current.innerHTML}
         title="Free GST Invoice Generator — Create & Download PDF"
         description="Generate GST-compliant invoices for free. Fill in seller, buyer, and item details to create professional tax invoices with CGST, SGST, IGST breakdown. Download as PDF instantly."
         path="/invoice-generator"
-        jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />

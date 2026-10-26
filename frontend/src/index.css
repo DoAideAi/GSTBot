@@ -2846,6 +2846,30 @@ a:focus-visible {
   }
 }
 
+/* Phones: the card is the page, so stop paying twice for gutters — once on
+ * .tool-main and again inside the card — or a 360px screen is left with a
+ * ~280px input column. One 16px gutter, and the title scales instead of
+ * wrapping to three lines above the fold. */
+@media (max-width: 480px) {
+  .tool-main {
+    padding: 1rem 1rem 3rem;
+  }
+  .calc-card {
+    padding: 1rem;
+  }
+  .tool-title {
+    font-size: 1.45rem;
+  }
+  .tool-subtitle {
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+  }
+  .calc-result-actions .btn,
+  .calc-result-actions button {
+    flex: 1 1 100%;
+  }
+}
+
 .calc-section-heading {
   font-size: 0.95rem;
   font-weight: 600;

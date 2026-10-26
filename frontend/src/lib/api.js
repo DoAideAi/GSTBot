@@ -418,6 +418,8 @@ export const api = {
     request("/subscribers", { method: "POST", body: { email, source }, auth: false }),
   recentLookups: () =>
     request("/meta/recent-lookups", { auth: false }),
+  stats: () =>
+    request("/meta/stats", { auth: false }),
 
   // ---- Invoices ----
   uploadInvoice(file, invoiceType = "purchase") {

@@ -137,6 +137,9 @@ const GstOnRealEstatePage = lazy(() => import("./pages/GstOnRealEstatePage"));
 const GstFilingMistakesToAvoid = lazy(() => import("./pages/blog/GstFilingMistakesToAvoid"));
 const GstOnRentalIncome = lazy(() => import("./pages/blog/GstOnRentalIncome"));
 const GstRatesIndia2026List = lazy(() => import("./pages/blog/GstRatesIndia2026List"));
+const FilingChecklistPage = lazy(() => import("./pages/FilingChecklistPage"));
+const Gstr3bReconciliationPage = lazy(() => import("./pages/Gstr3bReconciliationPage"));
+const GstInvoiceFormatGuide2026 = lazy(() => import("./pages/blog/GstInvoiceFormatGuide2026"));
 
 function LazyFallback() {
   return (
@@ -254,6 +257,7 @@ export default function App() {
           <Route path="gst-filing-mistakes-to-avoid" element={<Lazy><GstFilingMistakesToAvoid /></Lazy>} />
           <Route path="gst-on-rental-income" element={<Lazy><GstOnRentalIncome /></Lazy>} />
           <Route path="gst-rates-india-2026-complete-list" element={<Lazy><GstRatesIndia2026List /></Lazy>} />
+          <Route path="gst-invoice-format-guide-2026" element={<Lazy><GstInvoiceFormatGuide2026 /></Lazy>} />
         </Route>
         <Route path="/calculator" element={<Lazy><CalculatorPage /></Lazy>} />
         <Route path="/lookup" element={<Lazy><LookupPage /></Lazy>} />
@@ -302,6 +306,8 @@ export default function App() {
         <Route path="/gst-late-fee-interest-calculator" element={<Lazy><LateFeeInterestCalculatorPage /></Lazy>} />
         <Route path="/gstr9-checklist" element={<Lazy><Gstr9ChecklistPage /></Lazy>} />
         <Route path="/gstr2b-reconciliation" element={<Lazy><Gstr2bReconciliationPage /></Lazy>} />
+        <Route path="/gstr3b-reconciliation" element={<Lazy><Gstr3bReconciliationPage /></Lazy>} />
+        <Route path="/filing-checklist" element={<Lazy><FilingChecklistPage /></Lazy>} />
         <Route path="/guides/gst-registration-process" element={<Lazy><GstRegistrationProcessGuide /></Lazy>} />
         <Route path="/guides/gst-return-calendar-2026-27" element={<Lazy><GstReturnCalendarGuide /></Lazy>} />
         <Route path="/guides/gst-rates-list-2026" element={<Lazy><GstRatesListGuide /></Lazy>} />

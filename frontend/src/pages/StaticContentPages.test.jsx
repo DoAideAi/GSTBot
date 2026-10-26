@@ -13,6 +13,7 @@ import GstRatesServices2026 from "./blog/GstRatesServices2026";
 import GstRegistrationGuide2026 from "./blog/GstRegistrationGuide2026";
 import GstRegistrationProcess2026 from "./blog/GstRegistrationProcess2026";
 import GstReturnFilingOnline from "./blog/GstReturnFilingOnline";
+import GstInvoiceFormatGuide2026 from "./blog/GstInvoiceFormatGuide2026";
 import Gstr3bCommonMistakes from "./blog/Gstr3bCommonMistakes";
 import HsnCodeList2026 from "./blog/HsnCodeList2026";
 import ItcRules2026 from "./blog/ItcRules2026";
@@ -43,6 +44,7 @@ const PAGES = [
   ["blog/GstRegistrationGuide2026", GstRegistrationGuide2026],
   ["blog/GstRegistrationProcess2026", GstRegistrationProcess2026],
   ["blog/GstReturnFilingOnline", GstReturnFilingOnline],
+  ["blog/GstInvoiceFormatGuide2026", GstInvoiceFormatGuide2026],
   ["blog/Gstr3bCommonMistakes", Gstr3bCommonMistakes],
   ["blog/HsnCodeList2026", HsnCodeList2026],
   ["blog/ItcRules2026", ItcRules2026],

@@ -59,6 +59,18 @@ const FAQ_SCHEMA = {
   ],
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to calculate GST on gold jewellery",
+  description: "Work out the 3% GST on gold value and 5% GST on making charges that make up a jeweller's bill.",
+  step: [
+    { "@type": "HowToStep", name: "Enter the gold value", text: "The price of the metal itself, before making charges." },
+    { "@type": "HowToStep", name: "Enter the making charges", text: "As a percentage of the gold value or as a rupee amount." },
+    { "@type": "HowToStep", name: "Read the final bill", text: "3% GST applies to the gold value, 5% to the making charges; the calculator totals both into the final price." },
+  ],
+};
+
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "GST on Gold Calculator" },
@@ -82,7 +94,7 @@ export default function GstOnGoldPage() {
         title="GST on Gold Calculator — 3% Gold + 5% Making Charges"
         description="Calculate GST on gold jewellery, coins and digital gold: 3% on gold value plus 5% on making charges. Enter the gold price and making charges to get the final bill. Free, no login."
         path="/gst-on-gold"
-        jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />

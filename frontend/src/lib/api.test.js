@@ -579,6 +579,20 @@ describe("api", () => {
     expect(global.fetch.mock.calls[0][0]).toBe("/api/v1/reconciliation?period=2026-04");
   });
 
+  it("asks for the public usage stats without a token", async () => {
+    setToken("a-token-that-must-not-leak");
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ businesses: 3, invoices: 7, gstin_lookups: 42 }),
+    );
+
+    const stats = await api.stats();
+
+    expect(stats).toEqual({ businesses: 3, invoices: 7, gstin_lookups: 42 });
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe("/api/v1/meta/stats");
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+
   // What the user reads when the answer did not come from the application.
   // Both of these are invisible to a test that mocks an HTTP/1.1-shaped
   // response, and both are what production actually serves.

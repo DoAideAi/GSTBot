@@ -17,24 +17,9 @@ export function getRecentTools(max = 5) {
   }
 }
 
-export function getDailyCount(toolName) {
-  const today = new Date().toISOString().slice(0, 10);
-  const hash = [...(today + toolName)].reduce((a, c) => a + c.charCodeAt(0), 0);
-  return 500 + (hash % 2000);
-}
-
-export function getDailyRating(toolName) {
-  const today = new Date().toISOString().slice(0, 10);
-  const hash = [...(today + toolName + 'rating')].reduce((a, c) => a + c.charCodeAt(0), 0);
-  return (4.6 + (hash % 4) * 0.1).toFixed(1);
-}
-
-export function getRatingCount(toolName) {
-  const today = new Date().toISOString().slice(0, 10);
-  const hash = [...(today + toolName + 'rcount')].reduce((a, c) => a + c.charCodeAt(0), 0);
-  return 200 + (hash % 800);
-}
-
+// The seeded "daily count" and "daily rating" generators that used to live
+// here are gone on purpose: social proof now comes from /meta/stats (see
+// lib/usageStats.js) or is not shown at all.
 export const TOOL_MAP = {
   '/calculator': 'GST Calculator',
   '/penalty-calculator': 'Penalty Calculator',
@@ -58,6 +43,9 @@ export const TOOL_MAP = {
   '/due-dates': 'Due Dates Calendar',
   '/return-calendar': 'Return Calendar',
   '/invoice-generator': 'Invoice Generator',
+  '/gstr2b-reconciliation': 'GSTR-2B Reconciliation',
+  '/gstr3b-reconciliation': 'GSTR-3B Reconciliation',
+  '/filing-checklist': 'Filing Checklist',
   '/payment-challan': 'Payment Challan',
   '/registration-type-advisor': 'Registration Advisor',
   '/turnover-limit': 'Turnover Limit',

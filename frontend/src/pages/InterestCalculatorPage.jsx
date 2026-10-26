@@ -33,6 +33,18 @@ const TOOL_SCHEMA = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to calculate interest on late GST payment",
+  description: "Work out the Section 50 interest on tax paid after the due date.",
+  step: [
+    { "@type": "HowToStep", name: "Enter the tax amount", text: "The tax that was paid late in cash — what is set off against credit carries no interest." },
+    { "@type": "HowToStep", name: "Enter the days of delay", text: "From the due date until the payment date." },
+    { "@type": "HowToStep", name: "Read the interest", text: "18% per annum, computed day-wise: tax × 18% × days ÷ 365." },
+  ],
+};
+
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "Interest Calculator" },
@@ -91,7 +103,7 @@ export default function InterestCalculatorPage() {
         title="GST Interest Calculator — Late Payment Interest under Section 50"
         description="Calculate interest on late GST payment under Section 50. 18% p.a. on late tax and on wrongly utilised ITC (the old 24% ended in July 2022). Free, no login required."
         path="/interest-calculator"
-        jsonLd={TOOL_SCHEMA}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />

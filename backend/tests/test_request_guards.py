@@ -105,6 +105,9 @@ class TestSetOffNeedsAToken:
             "/api/v1/subscribers/unsubscribe",
             # Recent GSTIN lookups for social proof on the lookup page.
             "/api/v1/meta/recent-lookups",
+            # Aggregate usage counts for social proof on the public pages —
+            # totals only, no tenant's data, and rendered before sign-in.
+            "/api/v1/meta/stats",
             # Sitemap, robots.txt, and OG images for search engines / social.
             "/api/v1/seo/sitemap.xml",
             "/api/v1/seo/robots.txt",

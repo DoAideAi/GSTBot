@@ -183,6 +183,11 @@ const ARTICLES = [
     title: "GST Rates in India 2026: Complete List of All Slabs",
     description: "Every GST slab in force in 2026 — 0%, 5%, 18% and 40%, special rates for gold and diamonds, and where the old 12% and 28% goods moved.",
   },
+  {
+    slug: "gst-invoice-format-guide-2026",
+    title: "GST Invoice Format Guide 2026: Mandatory Fields, Rules & Free Template",
+    description: "All 16 mandatory fields under Rule 46, tax invoice vs bill of supply, numbering rules, copies, time limits, e-invoicing applicability and the mistakes that cost buyers their ITC.",
+  },
 ];
 
 export { ARTICLES };

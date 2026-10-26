@@ -35,6 +35,8 @@ const ALL_TOOLS = [
   { path: "/gst-late-fee-interest-calculator", label: "Late Fee + Interest", desc: "Total cost of a late return, with turnover caps" },
   { path: "/gstr9-checklist", label: "GSTR-9 Checklist", desc: "Annual return filing checklist" },
   { path: "/gstr2b-reconciliation", label: "GSTR-2B Reconciliation", desc: "Match purchase register with GSTR-2B" },
+  { path: "/gstr3b-reconciliation", label: "GSTR-3B Reconciliation", desc: "Catch DRC-01B/01C risks before filing" },
+  { path: "/filing-checklist", label: "Filing Checklist", desc: "Documents & steps tracker for GST returns" },
   { path: "/tds-calculator", label: "TDS Calculator", desc: "Calculate TDS under GST Section 51" },
   { path: "/place-of-supply", label: "Place of Supply", desc: "Determine inter/intra-state supply" },
   { path: "/refund-calculator", label: "Refund Calculator", desc: "Export & inverted duty refund" },

@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { getDailyCount, getDailyRating, getRatingCount, TOOL_MAP } from "../lib/doaideViral";
+import { TOOL_MAP } from "../lib/doaideViral";
+import { formatStat, getUsageStats } from "../lib/usageStats";
 
 const bar = {
   display: "flex",
@@ -13,33 +14,44 @@ const bar = {
   flexWrap: "wrap",
 };
 
-const stars = {
-  color: "#F0B429",
-  letterSpacing: "1px",
-};
-
+// Real aggregates from /meta/stats, or nothing. This bar used to show a
+// seeded pseudo-random "N people used this today" with an invented star
+// rating; a visitor who reloads and watches the rating drift is lost for
+// good, and fabricated review counts are the kind of structured lie
+// crawlers eventually penalise too.
 export default function SocialProofBar() {
   const { pathname } = useLocation();
-  const toolName = TOOL_MAP[pathname];
+  const onToolPage = Boolean(TOOL_MAP[pathname]);
+  const [stats, setStats] = useState(null);
 
-  const data = useMemo(() => {
-    if (!toolName) return null;
-    return {
-      count: getDailyCount(toolName),
-      rating: getDailyRating(toolName),
-      ratingCount: getRatingCount(toolName),
+  useEffect(() => {
+    if (!onToolPage) return undefined;
+    let mounted = true;
+    getUsageStats().then((s) => {
+      if (mounted) setStats(s);
+    });
+    return () => {
+      mounted = false;
     };
-  }, [toolName]);
+  }, [onToolPage]);
 
-  if (!data) return null;
+  if (!onToolPage || !stats) return null;
 
-  const fullStars = Math.floor(Number(data.rating));
-  const starStr = "★".repeat(fullStars) + (Number(data.rating) % 1 >= 0.5 ? "½" : "");
+  const lines = [
+    [formatStat(stats.gstin_lookups), "GSTIN lookups served"],
+    [formatStat(stats.invoices), "invoices processed"],
+  ].filter(([figure]) => figure !== null);
+
+  if (lines.length === 0) return null;
 
   return (
     <div style={bar}>
-      <span>{data.count.toLocaleString()} people used this today</span>
-      <span style={stars}>{starStr} {data.rating}/5 from {data.ratingCount.toLocaleString()} users</span>
+      {lines.map(([figure, label]) => (
+        <span key={label}>
+          <strong>{figure}</strong> {label}
+        </span>
+      ))}
+      <span>Free &bull; No login required</span>
     </div>
   );
 }

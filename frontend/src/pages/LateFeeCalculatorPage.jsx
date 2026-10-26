@@ -75,6 +75,19 @@ const FAQ_SCHEMA = {
   ],
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to calculate GST late filing fees",
+  description: "Work out the late fee for a delayed GSTR-1, GSTR-3B, GSTR-9 or GSTR-4, with the CGST/SGST split and statutory caps.",
+  step: [
+    { "@type": "HowToStep", name: "Pick the return", text: "Each return has its own daily fee and cap." },
+    { "@type": "HowToStep", name: "Enter the days late", text: "From the due date to the day you will actually file." },
+    { "@type": "HowToStep", name: "Mark a nil return", text: "Nil returns carry a lower daily fee." },
+    { "@type": "HowToStep", name: "Read the fee", text: "Daily fee times days, capped by turnover rules, split equally into CGST and SGST." },
+  ],
+};
+
 export default function LateFeeCalculatorPage() {
   usePageTitle("GST Late Fee Calculator — Free Online | DoAide GST");
 
@@ -103,7 +116,7 @@ export default function LateFeeCalculatorPage() {
         title="GST Late Fee Calculator — Free Online | DoAide GST"
         description="Calculate GST late filing fees for GSTR-1, GSTR-3B, GSTR-9 and GSTR-4. Get CGST & SGST breakup with daily penalty, caps, and nil return rates."
         path="/late-fee-calculator"
-        schemas={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, FAQ_SCHEMA]}
       />
       <ToolsNav />
       <Breadcrumb

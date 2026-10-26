@@ -27,13 +27,17 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Response, status
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import check_database, get_db, pool_status
 from app.core.rate_limit import RateLimit
-from app.core.redis_client import get_redis, mark_unavailable, ping as redis_ping
+from app.core.redis_client import get_redis, mark_unavailable
+from app.core.redis_client import ping as redis_ping
 from app.core.storage import check_upload_dir
+from app.models.business import Business
+from app.models.invoice import Invoice
 from app.models.subscriber import Subscriber
 from app.schemas.misc import FeedbackRequest, ReminderSubscribeRequest, SubscriberRequest
 from app.services import gstin as gstin_service
@@ -319,6 +323,7 @@ def validate_gstin(
 
 _RECENT_LOOKUPS_KEY = "gstbot:recent_lookups"
 _RECENT_LOOKUPS_MAX = 20
+_LOOKUP_COUNT_KEY = "gstbot:lookup_count"
 
 
 def _record_lookup(result: dict[str, Any]) -> None:
@@ -340,6 +345,10 @@ def _record_lookup(result: dict[str, Any]) -> None:
         pipe.lrem(_RECENT_LOOKUPS_KEY, 1, entry)
         pipe.lpush(_RECENT_LOOKUPS_KEY, entry)
         pipe.ltrim(_RECENT_LOOKUPS_KEY, 0, _RECENT_LOOKUPS_MAX - 1)
+        # The all-time counter behind /meta/stats. A re-lookup of the same
+        # GSTIN counts again on purpose: the figure is "lookups served", the
+        # work this API did, not "distinct GSTINs seen".
+        pipe.incr(_LOOKUP_COUNT_KEY)
         pipe.execute()
     except Exception:  # noqa: BLE001
         mark_unavailable("recent lookup record failed")
@@ -366,6 +375,62 @@ def recent_lookups() -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         mark_unavailable("recent lookups read failed")
         return {"lookups": []}
+
+
+# The landing page shows these numbers to anonymous visitors, so they must be
+# real — the trust bar they feed refuses to invent a figure. Counting rows on
+# every call would hand an unauthenticated route two COUNT(*) scans per hit,
+# which is more pool time than /health's SELECT 1; a short in-process cache
+# keeps the cost at one scan a minute per worker while staying fresh enough
+# for numbers that only ever grow.
+_STATS_TTL_SECONDS = 60.0
+_stats_cache: tuple[float, dict[str, int]] | None = None
+
+
+@router.get(
+    "/meta/stats",
+    summary="Aggregate usage statistics",
+    description=(
+        "Anonymous aggregate counts for social proof on the public pages: "
+        "live businesses, invoices processed, and GSTIN lookups served.\n\n"
+        "Public — rendered before any account exists, and none of it is any "
+        "tenant's data. The lookup counter lives in Redis and reports 0 while "
+        "Redis is unreachable; callers hide a figure rather than show a "
+        "wrong one."
+    ),
+    response_model=dict[str, int],
+    dependencies=[Depends(_meta_limit)],
+)
+def usage_stats(db: Session = Depends(get_db)) -> dict[str, int]:
+    global _stats_cache
+    now = time.monotonic()
+    if _stats_cache is not None and now - _stats_cache[0] < _STATS_TTL_SECONDS:
+        return _stats_cache[1]
+
+    businesses = (
+        db.query(sa_func.count(Business.id))
+        .filter(Business.deleted_at.is_(None))
+        .scalar()
+        or 0
+    )
+    invoices = (
+        db.query(sa_func.count(Invoice.id))
+        .filter(Invoice.deleted_at.is_(None))
+        .scalar()
+        or 0
+    )
+
+    lookups = 0
+    client = get_redis()
+    if client is not None:
+        try:
+            lookups = int(client.get(_LOOKUP_COUNT_KEY) or 0)
+        except Exception:  # noqa: BLE001
+            mark_unavailable("lookup count read failed")
+
+    stats = {"businesses": businesses, "invoices": invoices, "gstin_lookups": lookups}
+    _stats_cache = (now, stats)
+    return stats
 
 
 _reminder_limit = RateLimit("reminder_subscribe", "10/minute", by="ip")

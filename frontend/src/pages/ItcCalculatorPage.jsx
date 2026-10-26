@@ -86,6 +86,18 @@ const FAQ_SCHEMA = {
   ],
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to calculate eligible Input Tax Credit",
+  description: "Work out how much of the GST paid on purchases can be claimed as ITC.",
+  step: [
+    { "@type": "HowToStep", name: "Enter the GST paid on purchases", text: "Total input tax for the period, split across IGST, CGST and SGST as billed." },
+    { "@type": "HowToStep", name: "Mark the ineligible portions", text: "Blocked credits under Section 17(5) and purchases used for exempt supplies cannot be claimed." },
+    { "@type": "HowToStep", name: "Read the eligible credit", text: "The calculator totals what can go into GSTR-3B Table 4A — cross-check it against GSTR-2B before filing." },
+  ],
+};
+
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "ITC Calculator" },
@@ -143,7 +155,7 @@ export default function ItcCalculatorPage() {
         title="Free ITC Calculator — Input Tax Credit with Blocked Credits"
         description="Calculate your net Input Tax Credit after applying blocked credit rules under Section 17(5). Category-wise breakdown with proportional reversal for exempt supplies. Free."
         path="/itc-calculator"
-        jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />

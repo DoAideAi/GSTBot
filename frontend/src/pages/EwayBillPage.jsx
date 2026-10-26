@@ -82,6 +82,19 @@ const FAQ_SCHEMA = {
   ],
 };
 
+const HOWTO_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to check if an e-way bill is needed",
+  description: "Decide from consignment value, supply type and distance whether an e-way bill is required and how long it stays valid.",
+  step: [
+    { "@type": "HowToStep", name: "Enter the consignment value", text: "The invoice value including GST — the ₹50,000 threshold is checked against it." },
+    { "@type": "HowToStep", name: "Pick the supply type", text: "Ordinary goods, handicraft, or job work — the latter two can need a bill regardless of value." },
+    { "@type": "HowToStep", name: "Enter the distance", text: "Kilometres to the destination; validity runs 1 day per 200 km (100 km for over-dimensional cargo)." },
+    { "@type": "HowToStep", name: "Read the verdict", text: "Whether a bill is required and, if so, how many days it stays valid from generation." },
+  ],
+};
+
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
   { name: "E-Way Bill Checker" },
@@ -139,7 +152,7 @@ export default function EwayBillPage() {
         title="E-Way Bill Requirement Checker — Check if E-Way Bill is Needed"
         description="Check if your shipment needs an e-way bill under GST. Enter consignment value and distance to get instant results. Free tool, no login required."
         path="/eway-bill"
-        jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, HOWTO_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />

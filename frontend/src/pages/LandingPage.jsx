@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AnimatedCounter from "../components/AnimatedCounter";
 import BusinessCounter from "../components/BusinessCounter";
@@ -10,6 +10,7 @@ import StickyToolsBanner from "../components/StickyToolsBanner";
 import TrendingTools from "../components/TrendingTools";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { track } from "../lib/track";
+import { formatStat, getUsageStats } from "../lib/usageStats";
 
 const DOAIDE_PRODUCTS = [
   { name: "Docs", url: "https://docs.doaide.com" },
@@ -287,6 +288,36 @@ const TOOL_CATEGORIES = [
 function InstantLookup() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  // Real aggregates from /meta/stats. The trust bar used to assert hardcoded
+  // five-figure counts; now a figure appears only once the backend can back
+  // it, and the always-true claims hold the line until then.
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getUsageStats().then((s) => {
+      if (mounted) setStats(s);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const trustItems = [];
+  if (stats && formatStat(stats.businesses)) {
+    trustItems.push({
+      figure: <AnimatedCounter end={stats.businesses} suffix="+" />,
+      label: "Businesses on DoAide GST",
+    });
+  }
+  if (stats && formatStat(stats.invoices)) {
+    trustItems.push({
+      figure: <AnimatedCounter end={stats.invoices} suffix="+" />,
+      label: "Invoices processed",
+    });
+  }
+  trustItems.push({ figure: "25+", label: "Free GST tools" });
+  trustItems.push({ figure: "100%", label: "Free to start" });
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -318,20 +349,15 @@ function InstantLookup() {
         </button>
       </form>
       <div className="landing-trust-bar">
-        <div className="landing-trust-item">
-          <strong><AnimatedCounter end={12000} suffix="+" /></strong>
-          <span>Businesses trust DoAide</span>
-        </div>
-        <div className="landing-trust-sep" aria-hidden="true" />
-        <div className="landing-trust-item">
-          <strong><AnimatedCounter end={50000} suffix="+" /></strong>
-          <span>Invoices processed</span>
-        </div>
-        <div className="landing-trust-sep" aria-hidden="true" />
-        <div className="landing-trust-item">
-          <strong>100%</strong>
-          <span>Free to start</span>
-        </div>
+        {trustItems.map((item, i) => (
+          <div key={item.label} style={{ display: "contents" }}>
+            {i > 0 && <div className="landing-trust-sep" aria-hidden="true" />}
+            <div className="landing-trust-item">
+              <strong>{item.figure}</strong>
+              <span>{item.label}</span>
+            </div>
+          </div>
+        ))}
       </div>
       <div className="landing-compliance-badges">
         <div className="landing-badge">

@@ -279,6 +279,29 @@ const TOOLS = [
     ),
   },
   {
+    to: "/gstr3b-reconciliation",
+    title: "GSTR-3B Reconciliation",
+    desc: "Check GSTR-3B against GSTR-1 liability and GSTR-2B credit before filing — catch DRC-01B and DRC-01C notice risks in seconds.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="1 4 1 10 7 10" />
+        <polyline points="23 20 23 14 17 14" />
+        <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
+      </svg>
+    ),
+  },
+  {
+    to: "/filing-checklist",
+    title: "Filing Checklist",
+    desc: "Every document, pre-filing check and step for GSTR-1, GSTR-3B, GSTR-9 and CMP-08 — progress tracked in your browser.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+      </svg>
+    ),
+  },
+  {
     to: "/composition-tax-calculator",
     title: "Composition Tax Calculator",
     desc: "Quarter-by-quarter CMP-08 tax on the right base for your category, reverse charge on top, late-payment interest, and a running check against the composition limit.",

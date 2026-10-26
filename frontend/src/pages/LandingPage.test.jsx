@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -6,6 +6,12 @@ import LandingPage from "./LandingPage";
 
 vi.mock("../hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
 vi.mock("../lib/track", () => ({ track: vi.fn() }));
+vi.mock("../lib/usageStats", async () => {
+  const actual = await vi.importActual("../lib/usageStats");
+  return { ...actual, getUsageStats: vi.fn().mockResolvedValue(null) };
+});
+
+const { getUsageStats } = await import("../lib/usageStats");
 
 function renderLanding() {
   return render(
@@ -200,14 +206,38 @@ describe("LandingPage", () => {
       ).toBeInTheDocument();
     });
 
-    it("shows the trust bar with animated counters", () => {
+    it("shows only the always-true trust claims while stats are unavailable", () => {
       renderLanding();
 
-      // AnimatedCounter gracefully degrades to formatted values in test env
-      expect(screen.getByText("Businesses trust DoAide")).toBeInTheDocument();
-      expect(screen.getByText("Invoices processed")).toBeInTheDocument();
+      expect(screen.getByText("25+")).toBeInTheDocument();
+      expect(screen.getByText("Free GST tools")).toBeInTheDocument();
       expect(screen.getByText("100%")).toBeInTheDocument();
       expect(screen.getByText("Free to start")).toBeInTheDocument();
+      expect(screen.queryByText("Invoices processed")).not.toBeInTheDocument();
+    });
+
+    it("shows the real counters once the stats clear the floor", async () => {
+      getUsageStats.mockResolvedValueOnce({
+        businesses: 450,
+        invoices: 9800,
+        gstin_lookups: 0,
+      });
+      renderLanding();
+
+      expect(await screen.findByText("Businesses on DoAide GST")).toBeInTheDocument();
+      expect(screen.getByText("Invoices processed")).toBeInTheDocument();
+    });
+
+    it("keeps a below-floor figure off the trust bar", async () => {
+      getUsageStats.mockResolvedValueOnce({
+        businesses: 450,
+        invoices: 7,
+        gstin_lookups: 0,
+      });
+      renderLanding();
+
+      expect(await screen.findByText("Businesses on DoAide GST")).toBeInTheDocument();
+      expect(screen.queryByText("Invoices processed")).not.toBeInTheDocument();
     });
 
     it("shows compliance trust badges", () => {
@@ -336,11 +366,9 @@ describe("LandingPage", () => {
 
   describe("Business Counter section", () => {
     it("renders the business counter", () => {
-      vi.useFakeTimers();
       renderLanding();
-      act(() => { vi.advanceTimersByTime(2000); });
-      expect(screen.getByText(/businesses this month/)).toBeInTheDocument();
-      vi.useRealTimers();
+      expect(screen.getByRole("status", { name: "Business usage count" })).toBeInTheDocument();
+      expect(screen.getByText("Built for Indian businesses")).toBeInTheDocument();
     });
   });
 

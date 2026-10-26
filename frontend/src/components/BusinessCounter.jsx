@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
+import { formatStat, getUsageStats } from "../lib/usageStats";
 
-function getMonthlyCount() {
-  const now = new Date();
-  const seed = now.getFullYear() * 100 + (now.getMonth() + 1);
-  const hash = String(seed).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  return 1247 + (hash % 800) + now.getDate() * 3;
-}
-
+// The figure is the real business count from /meta/stats — this used to be a
+// date-seeded invention that drifted by the day. Until the count clears the
+// floor in lib/usageStats the line stays non-numeric: honest and vague beats
+// precise and false.
 export default function BusinessCounter() {
-  const target = getMonthlyCount();
-  const [count, setCount] = useState(0);
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    if (count >= target) return;
-    const step = Math.max(1, Math.floor((target - count) / 20));
-    const id = setTimeout(() => setCount((c) => Math.min(c + step, target)), 40);
-    return () => clearTimeout(id);
-  }, [count, target]);
+    let mounted = true;
+    getUsageStats().then((s) => {
+      if (mounted) setStats(s);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const figure = stats ? formatStat(stats.businesses) : null;
 
   return (
     <div className="business-counter" role="status" aria-label="Business usage count">
@@ -28,12 +30,14 @@ export default function BusinessCounter() {
           <path d="M16 3.13a4 4 0 010 7.75" />
         </svg>
         <span className="business-counter-text">
-          Used by <strong>{count.toLocaleString("en-IN")}+</strong> businesses this month
+          {figure ? (
+            <>Used by <strong>{figure}+</strong> Indian businesses</>
+          ) : (
+            <>Built for Indian businesses</>
+          )}
         </span>
         <span className="business-counter-badge">Free &bull; No signup</span>
       </div>
     </div>
   );
 }
-
-export { getMonthlyCount };
