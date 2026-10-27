@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
@@ -269,8 +270,9 @@ export default function PenaltyCalculatorPage() {
             <h3>How is GST penalty different from late fee?</h3>
             <p>
               Late fee is for delayed filing. Penalty (Sections 122-125) is for offences like
-              tax evasion or incorrect invoicing. Interest is for late payment of tax. All
-              three are separate charges.
+              tax evasion or incorrect invoicing — work it out with the{" "}
+              <Link to="/gst-offence-penalty-calculator">offence penalty calculator</Link>.
+              Interest is for late payment of tax. All three are separate charges.
             </p>
 
             <h3>Can GST late fee be waived?</h3>

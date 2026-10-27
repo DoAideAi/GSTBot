@@ -298,6 +298,16 @@ const TOOLS = [
     ),
   },
   {
+    to: "/gst-offence-penalty-calculator",
+    title: "GST Offence Penalty Calculator",
+    desc: "Penalties for tax evasion, fake invoices, no registration and fraudulent refunds under Sections 122, 123 and 125, split by Act.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+      </svg>
+    ),
+  },
+  {
     to: "/gst-state-codes",
     title: "GST State Codes",
     desc: "Every GST state and UT code, with a finder that reads the state from any GSTIN.",

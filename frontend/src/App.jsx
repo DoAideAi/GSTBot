@@ -126,6 +126,7 @@ const Gstr2bReconciliationPage = lazy(() => import("./pages/Gstr2bReconciliation
 const AdvisorPage = lazy(() => import("./pages/AdvisorPage"));
 const TdsCalculatorPage = lazy(() => import("./pages/TdsCalculatorPage"));
 const EcommerceTcsCalculatorPage = lazy(() => import("./pages/EcommerceTcsCalculatorPage"));
+const GstOffencePenaltyCalculatorPage = lazy(() => import("./pages/GstOffencePenaltyCalculatorPage"));
 const Rule42ReversalPage = lazy(() => import("./pages/Rule42ReversalPage"));
 const Itc180DayRulePage = lazy(() => import("./pages/Itc180DayRulePage"));
 const ItcTimeLimitPage = lazy(() => import("./pages/ItcTimeLimitPage"));
@@ -332,6 +333,7 @@ export default function App() {
         <Route path="/advisor" element={<Lazy><AdvisorPage /></Lazy>} />
         <Route path="/tds-calculator" element={<Lazy><TdsCalculatorPage /></Lazy>} />
         <Route path="/ecommerce-tcs-calculator" element={<Lazy><EcommerceTcsCalculatorPage /></Lazy>} />
+        <Route path="/gst-offence-penalty-calculator" element={<Lazy><GstOffencePenaltyCalculatorPage /></Lazy>} />
         <Route path="/itc-reversal-rule-42" element={<Lazy><Rule42ReversalPage /></Lazy>} />
         <Route path="/itc-180-day-rule" element={<Lazy><Itc180DayRulePage /></Lazy>} />
         <Route path="/itc-time-limit" element={<Lazy><ItcTimeLimitPage /></Lazy>} />
