@@ -178,6 +178,19 @@ describe("checkEligibility", () => {
     expect(ineligible.eligible).toBe(false);
   });
 
+  it("a Himachal Pradesh trader uses the ₹1.5 crore limit, not ₹75 lakh", () => {
+    const below = checkEligibility({ turnover: "14000000", businessType: "trader", state: "Himachal Pradesh" });
+    expect(below.eligible).toBe(true);
+    expect(below.turnoverLimit).toBe(15000000);
+    const above = checkEligibility({ turnover: "16000000", businessType: "trader", state: "Himachal Pradesh" });
+    expect(above.eligible).toBe(false);
+  });
+
+  it("an Uttarakhand trader uses the ₹75 lakh limit", () => {
+    const r = checkEligibility({ turnover: "8000000", businessType: "trader", state: "Uttarakhand" });
+    expect(r.eligible).toBe(false);
+  });
+
   it("uses 50L limit for service provider even in special state", () => {
     const r = checkEligibility({ turnover: "6000000", businessType: "service_provider", state: "Manipur" });
     expect(r.eligible).toBe(false);

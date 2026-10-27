@@ -10,20 +10,11 @@ import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import WhatsAppFloat from "../components/WhatsAppFloat";
 import { usePageTitle } from "../hooks/usePageTitle";
+// The ₹75 lakh states come from the shared list so this page and the others
+// that ask about state cannot disagree — this one used to add Himachal Pradesh.
+import { LOWER_LIMIT_STATES as SPECIAL_CATEGORY_STATES } from "../lib/compositionTax";
 import { formatINR } from "../lib/gstCalc";
 import { track } from "../lib/track";
-
-const SPECIAL_CATEGORY_STATES = [
-  "Arunachal Pradesh",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Sikkim",
-  "Tripura",
-  "Himachal Pradesh",
-  "Uttarakhand",
-];
 
 const ALL_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -442,9 +433,10 @@ export default function CompositionSchemeCheckerPage() {
             <h3>What is the turnover limit for the GST Composition Scheme?</h3>
             <p>
               The limit is ₹1.5 crore for manufacturers, traders, and restaurants. Service providers
-              under Section 10(2A) have a limit of ₹50 lakh. Special category states (Arunachal Pradesh,
-              Manipur, Meghalaya, Mizoram, Nagaland, Sikkim, Tripura, Himachal Pradesh, and Uttarakhand)
-              have a reduced limit of ₹75 lakh for goods suppliers.
+              under Section 10(2A) have a limit of ₹50 lakh. Arunachal Pradesh, Manipur,
+              Meghalaya, Mizoram, Nagaland, Sikkim, Tripura and Uttarakhand have a reduced limit of
+              ₹75 lakh for goods suppliers. Himachal Pradesh, Assam and Jammu &amp; Kashmir use the
+              full ₹1.5 crore.
             </p>
 
             <h3>What are the tax rates under the Composition Scheme?</h3>
