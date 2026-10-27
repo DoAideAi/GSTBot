@@ -14,7 +14,7 @@ const DOAIDE_TOOLS = [
   {
     icon: "\u{1F4CA}",
     name: "409A Valuations",
-    url: "https://409a.doaide.com",
+    url: "https://409.doaide.com",
     desc: "Independent startup valuations",
   },
   {

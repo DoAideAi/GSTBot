@@ -15,7 +15,7 @@ import { formatStat, getUsageStats } from "../lib/usageStats";
 const DOAIDE_PRODUCTS = [
   { name: "Docs", url: "https://docs.doaide.com" },
   { name: "Resume", url: "https://resume.doaide.com" },
-  { name: "409A", url: "https://409a.doaide.com" },
+  { name: "409A", url: "https://409.doaide.com" },
   { name: "GST", url: "https://gst.doaide.com" },
   { name: "Contracts", url: "https://contracts.doaide.com" },
   { name: "Invoicer", url: "https://invoicer.doaide.com" },

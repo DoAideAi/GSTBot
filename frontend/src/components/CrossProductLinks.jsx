@@ -1,12 +1,12 @@
 const CROSS_LINKS = {
   calculator: [
     {
-      href: "https://invoice.doaide.com",
+      href: "https://invoicer.doaide.com",
       label: "Free Invoice Generator",
       text: "Need to generate a GST invoice? Try our free Invoice Generator",
     },
     {
-      href: "https://fincalc.doaide.com",
+      href: "https://calc.doaide.com",
       label: "Financial Calculators",
       text: "Explore more financial calculators — EMI, SIP, FD & more",
     },
@@ -30,7 +30,7 @@ const CROSS_LINKS = {
       text: "Never miss a deadline — set up automated compliance reminders",
     },
     {
-      href: "https://invoice.doaide.com",
+      href: "https://invoicer.doaide.com",
       label: "Invoice Generator",
       text: "Generate GST-compliant invoices before your filing deadline",
     },
@@ -43,7 +43,7 @@ const CROSS_LINKS = {
       internal: true,
     },
     {
-      href: "https://invoice.doaide.com",
+      href: "https://invoicer.doaide.com",
       label: "Invoice Generator",
       text: "Create invoices with the correct HSN code and GST rate applied",
     },
@@ -75,7 +75,7 @@ const CROSS_LINKS = {
   ],
   "invoice-generator": [
     {
-      href: "https://invoice.doaide.com",
+      href: "https://invoicer.doaide.com",
       label: "Advanced Invoice Generator",
       text: "Need recurring invoices, templates, and client management? Try our full invoicing platform",
     },
