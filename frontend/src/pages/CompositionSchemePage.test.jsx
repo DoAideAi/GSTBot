@@ -61,14 +61,21 @@ describe("CompositionSchemePage", () => {
     expect(result.textContent).toContain("not eligible");
   });
 
-  it("halves the threshold for special category states", async () => {
+  it("a goods business in a ₹75 lakh state is ineligible at ₹1 crore", async () => {
     renderPage();
-    await userEvent.click(screen.getByLabelText(/Special category state/));
+    await userEvent.click(screen.getByLabelText(/₹75 lakh state/));
     await userEvent.type(screen.getByPlaceholderText(/aggregate annual turnover/i), "10000000");
 
     const result = document.querySelector(".calc-result");
     expect(result).not.toBeNull();
     expect(result.textContent).toContain("Not Eligible");
+  });
+
+  it("names Uttarakhand, not Himachal Pradesh, among the ₹75 lakh states", () => {
+    renderPage();
+    const label = screen.getByLabelText(/₹75 lakh state/).closest("label");
+    expect(label.textContent).toContain("Uttarakhand");
+    expect(label.textContent).not.toContain("Himachal");
   });
 
   it("shows tax rate for eligible businesses", async () => {

@@ -51,7 +51,7 @@ const FAQ_SCHEMA = {
       name: "What is the turnover limit for GST Composition Scheme?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "₹1.5 crore for manufacturers and traders, ₹50 lakh for service providers. Special category states (NE states, Himachal Pradesh) have a limit of ₹75 lakh.",
+        text: "₹1.5 crore for manufacturers and traders, ₹50 lakh for service providers. Arunachal Pradesh, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim, Tripura and Uttarakhand have a limit of ₹75 lakh for goods; every other state, Himachal Pradesh included, uses ₹1.5 crore.",
       },
     },
     {
@@ -192,7 +192,7 @@ export default function CompositionSchemePage() {
                 checked={specialState}
                 onChange={(e) => setSpecialState(e.target.checked)}
               />
-              Special category state (NE states, Himachal Pradesh, Uttarakhand)
+              Registered in a ₹75 lakh state (Arunachal, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim, Tripura, Uttarakhand)
             </label>
 
             {result && (
@@ -280,8 +280,9 @@ export default function CompositionSchemePage() {
             <h3>What is the turnover limit for GST Composition Scheme?</h3>
             <p>
               The turnover limit is ₹1.5 crore for manufacturers, traders, and restaurants.
-              For service providers, it is ₹50 lakh. Special category states (NE states
-              and Himachal Pradesh) have a reduced limit of ₹75 lakh for manufacturers/traders.
+              For service providers, it is ₹50 lakh. Arunachal Pradesh, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim,
+              Tripura and Uttarakhand have a reduced limit of ₹75 lakh for manufacturers/traders.
+              Himachal Pradesh, Assam and Jammu &amp; Kashmir use the full ₹1.5 crore.
             </p>
 
             <h3>Can a service provider opt for Composition Scheme?</h3>
