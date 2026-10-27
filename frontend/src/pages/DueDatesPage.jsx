@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
@@ -33,6 +34,8 @@ const RETURN_TYPES = [
   { key: "gstr9c", label: "GSTR-9C", color: "#f87171" },
   { key: "cmp08", label: "CMP-08", color: "#a78bfa" },
   { key: "iff", label: "IFF (QRMP)", color: "#fbbf24" },
+  { key: "pmt06", label: "PMT-06 (QRMP)", color: "#22d3ee" },
+  { key: "gstr4", label: "GSTR-4", color: "#c084fc" },
 ];
 
 function isQuarterEnd(monthIndex) {
@@ -60,11 +63,14 @@ function buildDeadlines(startYear) {
 
     const deadlines = {};
 
-    // GSTR-1: 11th of following month (monthly), 13th (quarterly)
-    deadlines.gstr1 = `${dueMonth + 1 > 9 ? "" : "0"}${dueMonth + 1}-${String(dueYear).slice(2)} · 11th`;
-
-    // GSTR-3B: 20th of following month (monthly); 22nd/24th quarterly
-    deadlines.gstr3b = `${dueMonth + 1 > 9 ? "" : "0"}${dueMonth + 1}-${String(dueYear).slice(2)} · 20th`;
+    // GSTR-1: 11th of following month (monthly), 13th (quarterly).
+    // GSTR-3B: 20th (monthly); 22nd/24th by state category (quarterly).
+    // The quarterly dates ride on the quarter-end row, as /return-calendar
+    // lists them — a QRMP filer reading only "11th" would file early or,
+    // worse, believe the 3B was already late.
+    const due = `${dueMonth + 1 > 9 ? "" : "0"}${dueMonth + 1}-${String(dueYear).slice(2)}`;
+    deadlines.gstr1 = `${due} · 11th${isQuarterEnd(taxMonth) ? " (QRMP 13th)" : ""}`;
+    deadlines.gstr3b = `${due} · 20th${isQuarterEnd(taxMonth) ? " (QRMP 22nd/24th)" : ""}`;
 
     // CMP-08: 18th of month following quarter-end
     if (isQuarterEnd(taxMonth)) {
@@ -73,7 +79,9 @@ function buildDeadlines(startYear) {
 
     // IFF: 13th of following month, only for non-quarter-end months
     if (!isQuarterEnd(taxMonth)) {
-      deadlines.iff = `${dueMonth + 1 > 9 ? "" : "0"}${dueMonth + 1}-${String(dueYear).slice(2)} · 13th`;
+      deadlines.iff = `${due} · 13th`;
+      // PMT-06: QRMP tax for the first two months of a quarter, 25th
+      deadlines.pmt06 = `${due} · 25th`;
     }
 
     rows.push({ taxPeriod: taxLabel, ...deadlines });
@@ -84,6 +92,7 @@ function buildDeadlines(startYear) {
     taxPeriod: `FY ${startYear}-${String(startYear + 1).slice(2)} (Annual)`,
     gstr9: `31st Dec ${startYear + 1}`,
     gstr9c: `31st Dec ${startYear + 1}`,
+    gstr4: `30th Apr ${startYear + 1}`,
   });
 
   return rows;
@@ -160,7 +169,7 @@ export default function DueDatesPage() {
     <div className="tool-page">
       <SeoHead
         title="GST Filing Due Dates 2025-26 & 2026-27 — Complete Calendar"
-        description="Complete GST filing due dates calendar for FY 2025-26 and 2026-27. GSTR-1, GSTR-3B, GSTR-9, CMP-08, IFF deadlines for monthly and quarterly filers."
+        description="Complete GST filing due dates calendar for FY 2025-26 and 2026-27. GSTR-1, GSTR-3B, GSTR-9, CMP-08, IFF, PMT-06, GSTR-4 deadlines for monthly and quarterly filers."
         path="/due-dates"
       />
       <ToolsNav />
@@ -237,8 +246,11 @@ export default function DueDatesPage() {
             <h2>Understanding GST Filing Deadlines</h2>
             <p>
               GST-registered businesses in India must file periodic returns with the government.
-              Missing a deadline attracts a late fee of ₹50 per day (₹20 for nil returns) up to
-              a maximum of ₹10,000, plus 18% annual interest on the outstanding tax.
+              Missing a deadline attracts a late fee of ₹50 per day (₹20 for nil returns), capped
+              at ₹2,000 to ₹10,000 by turnover, plus 18% annual interest on the outstanding tax —
+              see the <Link to="/late-fee-calculator">late fee calculator</Link>. For the dates
+              that apply to you alone, use the{" "}
+              <Link to="/return-calendar">return calendar</Link>.
             </p>
 
             <h3>Monthly vs Quarterly Filing</h3>

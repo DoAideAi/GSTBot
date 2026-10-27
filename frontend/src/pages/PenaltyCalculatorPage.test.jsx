@@ -78,6 +78,46 @@ describe("PenaltyCalculatorPage", () => {
     expect(screen.getByText(/18% p.a/)).toBeInTheDocument();
   });
 
+  const row = (label) => screen.getByText(label).closest(".calc-result-row");
+
+  async function late(user, { type, turnover, due = "2026-01-20", filed }) {
+    if (type) await user.selectOptions(screen.getByLabelText("Return Type"), type);
+    if (turnover) await user.type(screen.getByLabelText(/Aggregate turnover/), turnover);
+    await user.type(screen.getByLabelText("Due Date"), due);
+    await user.type(screen.getByLabelText("Actual Filing Date"), filed);
+  }
+
+  it("caps a GSTR-3B late fee at ₹2,000 for turnover up to ₹1.5 crore", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await late(user, { turnover: "10000000", filed: "2026-05-20" });
+    expect(row("Total Penalty")).toHaveTextContent("₹2,000");
+  });
+
+  it("caps a GSTR-3B late fee at ₹10,000 only above ₹5 crore", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await late(user, { turnover: "60000000", filed: "2026-09-20" });
+    expect(row("Total Penalty")).toHaveTextContent("₹10,000");
+  });
+
+  it("caps GSTR-9 at 0.04% of turnover and charges ₹50 a day up to ₹5 crore", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await late(user, { type: "gstr9", turnover: "20000000", due: "2025-12-31", filed: "2026-12-31" });
+    expect(screen.getByText(/₹50.00\/day, max ₹8,000/)).toBeInTheDocument();
+    expect(row("Total Penalty")).toHaveTextContent("₹8,000");
+  });
+
+  it("charges no interest on a nil return even with a tax figure entered", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByPlaceholderText("Enter tax liability amount"), "100000");
+    await late(user, { type: "gstr3b_nil", filed: "2026-02-20" });
+    expect(row("Interest @ 18% p.a.")).toHaveTextContent("₹0");
+    expect(row("Total Penalty")).toHaveTextContent("₹500");
+  });
+
   it("renders FAQ section", () => {
     renderPage();
     expect(screen.getByText("How GST Late Fees & Interest Work")).toBeInTheDocument();

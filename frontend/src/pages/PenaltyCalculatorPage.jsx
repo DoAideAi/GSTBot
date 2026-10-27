@@ -12,21 +12,18 @@ import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
+import { calculateInterest, calculateLateFee, daysLate, INTEREST_RATE } from "../lib/gstPenalties";
 
+// The fee arithmetic is lib/gstPenalties.js, shared with /late-fee-calculator.
+// This page used to carry its own table, with a flat ₹10,000 cap on GSTR-1/3B
+// and GSTR-9 at ₹200 a day without limit — both superseded in 2021 and 2023.
 const RETURN_TYPES = [
-  { key: "gstr1", label: "GSTR-1", lateFeePerDay: 50, maxLateFee: 10000 },
-  { key: "gstr3b", label: "GSTR-3B", lateFeePerDay: 50, maxLateFee: 10000 },
-  { key: "gstr3b_nil", label: "GSTR-3B (Nil Return)", lateFeePerDay: 20, maxLateFee: 500 },
-  { key: "gstr1_nil", label: "GSTR-1 (Nil Return)", lateFeePerDay: 20, maxLateFee: 500 },
-  { key: "gstr9", label: "GSTR-9 (Annual)", lateFeePerDay: 200, maxLateFee: null },
+  { key: "gstr1", label: "GSTR-1", ret: "gstr1", nil: false },
+  { key: "gstr3b", label: "GSTR-3B", ret: "gstr3b", nil: false },
+  { key: "gstr3b_nil", label: "GSTR-3B (Nil Return)", ret: "gstr3b", nil: true },
+  { key: "gstr1_nil", label: "GSTR-1 (Nil Return)", ret: "gstr1", nil: true },
+  { key: "gstr9", label: "GSTR-9 (Annual)", ret: "gstr9", nil: false },
 ];
-
-const INTEREST_RATE = 18;
-
-function daysBetween(from, to) {
-  const ms = to.getTime() - from.getTime();
-  return Math.max(0, Math.ceil(ms / 86400000));
-}
 
 const TOOL_SCHEMA = {
   "@context": "https://schema.org",
@@ -47,7 +44,7 @@ const FAQ_SCHEMA = {
       name: "What is the late fee for GSTR-3B?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "₹50/day (₹25 CGST + ₹25 SGST) for regular returns, max ₹10,000. For nil returns, ₹20/day (₹10 CGST + ₹10 SGST), max ₹500.",
+        text: "₹50/day (₹25 CGST + ₹25 SGST), capped by last year's turnover: ₹2,000 up to ₹1.5 crore, ₹5,000 up to ₹5 crore, ₹10,000 above. Nil returns: ₹20/day, max ₹500.",
       },
     },
     {
@@ -63,7 +60,7 @@ const FAQ_SCHEMA = {
       name: "Is there a maximum cap on GST late fees?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. GSTR-1/3B: ₹10,000 per return (₹5,000 CGST + ₹5,000 SGST). Nil returns: ₹500. GSTR-9: ₹200/day, no upper cap, subject to 0.5% of state turnover.",
+        text: "Yes. GSTR-1/3B: ₹2,000, ₹5,000 or ₹10,000 by turnover; nil returns ₹500. GSTR-9 from FY 2022-23: ₹50 to ₹200 a day by turnover, capped at 0.04% of state turnover, or 0.5% above ₹20 crore.",
       },
     },
     {
@@ -95,31 +92,25 @@ export default function PenaltyCalculatorPage() {
 
   const [returnType, setReturnType] = useState("gstr3b");
   const [taxLiability, setTaxLiability] = useState("");
+  const [turnover, setTurnover] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [filingDate, setFilingDate] = useState("");
 
   const selectedReturn = RETURN_TYPES.find((r) => r.key === returnType);
 
   const result = useMemo(() => {
-    if (!dueDate || !filingDate || !selectedReturn) return null;
-    const due = new Date(dueDate);
-    const filed = new Date(filingDate);
-    if (isNaN(due) || isNaN(filed)) return null;
-    const days = daysBetween(due, filed);
+    if (!dueDate || !filingDate) return null;
+    const days = daysLate(dueDate, filingDate);
     if (days <= 0) return null;
 
-    const lateFeeRaw = selectedReturn.lateFeePerDay * days;
-    const lateFee = selectedReturn.maxLateFee
-      ? Math.min(lateFeeRaw, selectedReturn.maxLateFee)
-      : lateFeeRaw;
+    // Turnover sets the GSTR-1/3B cap band and, for GSTR-9, the cap itself
+    // (the state turnover, which is the aggregate for a single registration).
+    const t = parseFloat(turnover) || 0;
+    const fee = calculateLateFee(selectedReturn.ret, days, { nil: selectedReturn.nil, aato: t, stateTurnover: t });
+    const interest = selectedReturn.nil ? 0 : calculateInterest(parseFloat(taxLiability) || 0, days);
 
-    const liability = parseFloat(taxLiability) || 0;
-    const interest = liability > 0
-      ? Math.round(liability * (INTEREST_RATE / 100) * (days / 365) * 100) / 100
-      : 0;
-
-    return { days, lateFee, interest, total: lateFee + interest };
-  }, [returnType, taxLiability, dueDate, filingDate, selectedReturn]);
+    return { days, fee, interest, total: fee.fee + interest };
+  }, [taxLiability, turnover, dueDate, filingDate, selectedReturn]);
 
   return (
     <div className="tool-page">
@@ -168,6 +159,19 @@ export default function PenaltyCalculatorPage() {
             </label>
 
             <label className="calc-label">
+              Aggregate turnover in the previous FY (₹) — sets the cap
+              <input
+                type="number"
+                className="calc-input"
+                value={turnover}
+                onChange={(e) => setTurnover(e.target.value)}
+                placeholder="e.g. 12000000"
+                min="0"
+                inputMode="decimal"
+              />
+            </label>
+
+            <label className="calc-label">
               Due Date
               <input
                 type="date"
@@ -194,9 +198,13 @@ export default function PenaltyCalculatorPage() {
                   <strong>{result.days} days</strong>
                 </div>
                 <div className="calc-result-row">
-                  <span>Late Fee ({selectedReturn.lateFeePerDay}/day{selectedReturn.maxLateFee ? `, max ${formatINR(selectedReturn.maxLateFee)}` : ""})</span>
-                  <strong>{formatINR(result.lateFee)}</strong>
+                  <span>Late Fee ({formatINR(result.fee.perDay)}/day{result.fee.cap !== null ? `, max ${formatINR(result.fee.cap)}` : ""})</span>
+                  <strong>{formatINR(result.fee.fee)}</strong>
                 </div>
+                <p className="calc-note">
+                  {result.fee.basis}.
+                  {result.fee.cap === null && " Enter turnover to apply the GSTR-9 cap."}
+                </p>
                 <div className="calc-result-row">
                   <span>Interest @ {INTEREST_RATE}% p.a.</span>
                   <strong>{formatINR(result.interest)}</strong>
@@ -232,9 +240,9 @@ export default function PenaltyCalculatorPage() {
             </p>
             <h3>Late Fee</h3>
             <ul>
-              <li><strong>Regular returns (GSTR-1, GSTR-3B):</strong> ₹50/day (₹25 CGST + ₹25 SGST), maximum ₹10,000 per return</li>
+              <li><strong>Regular returns (GSTR-1, GSTR-3B):</strong> ₹50/day (₹25 CGST + ₹25 SGST), capped at ₹2,000 for turnover up to ₹1.5 crore, ₹5,000 up to ₹5 crore and ₹10,000 above</li>
               <li><strong>Nil returns:</strong> ₹20/day (₹10 CGST + ₹10 SGST), maximum ₹500 per return</li>
-              <li><strong>Annual return (GSTR-9):</strong> ₹200/day (₹100 CGST + ₹100 SGST), no upper cap — capped at 0.5% of turnover in the state</li>
+              <li><strong>Annual return (GSTR-9):</strong> ₹50/day up to ₹5 crore turnover and ₹100/day up to ₹20 crore, capped at 0.04% of state turnover; ₹200/day above ₹20 crore, capped at 0.5%</li>
             </ul>
             <h3>Interest on Late Payment</h3>
             <ul>
@@ -249,9 +257,9 @@ export default function PenaltyCalculatorPage() {
 
             <h3>What is the late fee for GSTR-3B?</h3>
             <p>
-              The late fee for GSTR-3B is ₹50 per day (₹25 CGST + ₹25 SGST) for regular
-              returns, maximum ₹10,000 per return. For nil returns, it is ₹20 per day,
-              maximum ₹500.
+              The late fee for GSTR-3B is ₹50 per day (₹25 CGST + ₹25 SGST), capped by the
+              previous year&apos;s turnover: ₹2,000 up to ₹1.5 crore, ₹5,000 up to ₹5 crore and
+              ₹10,000 above. For nil returns, it is ₹20 per day, maximum ₹500.
             </p>
 
             <h3>What is the interest rate on late GST payment?</h3>
@@ -263,8 +271,10 @@ export default function PenaltyCalculatorPage() {
 
             <h3>Is there a maximum cap on GST late fees?</h3>
             <p>
-              Yes — ₹10,000 for GSTR-1 and GSTR-3B, ₹500 for nil returns. GSTR-9 has no
-              upper cap but is limited to 0.5% of turnover in the state.
+              Yes. GSTR-1 and GSTR-3B are capped at ₹2,000, ₹5,000 or ₹10,000 by turnover, and
+              nil returns at ₹500. GSTR-9 from FY 2022-23 is capped at 0.04% of state turnover, or
+              0.5% above ₹20 crore. The{" "}
+              <Link to="/late-fee-calculator">late fee calculator</Link> has the full table.
             </p>
 
             <h3>How is GST penalty different from late fee?</h3>

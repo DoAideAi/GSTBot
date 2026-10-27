@@ -56,12 +56,12 @@ describe("DueDatesPage", () => {
     expect(screen.getByText("April 2025")).toBeInTheDocument();
   });
 
-  it("displays all six return type columns", () => {
+  it("displays all eight return type columns", () => {
     renderPage();
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader");
-    // Tax Period + 6 return types
-    expect(headers).toHaveLength(7);
+    // Tax Period + 8 return types
+    expect(headers).toHaveLength(9);
     RETURN_TYPES.forEach((rt) => {
       expect(within(table).getByRole("columnheader", { name: rt.label })).toBeInTheDocument();
     });
@@ -185,5 +185,24 @@ describe("buildDeadlines", () => {
     for (let i = 0; i < 12; i++) {
       expect(rows[i].gstr1).toContain("11th");
     }
+  });
+});
+
+describe("the table agrees with /return-calendar", () => {
+  it("gives QRMP filers their quarter-end GSTR-1 and GSTR-3B dates", () => {
+    const june = buildDeadlines(2026)[2];
+    expect(june.gstr1).toContain("QRMP 13th");
+    expect(june.gstr3b).toContain("QRMP 22nd/24th");
+    expect(buildDeadlines(2026)[0].gstr1).not.toContain("QRMP");
+  });
+
+  it("lists PMT-06 on the 25th only in the first two months of a quarter", () => {
+    const rows = buildDeadlines(2026);
+    expect(rows[0].pmt06).toContain("25th");
+    expect(rows[2].pmt06).toBeUndefined();
+  });
+
+  it("puts the composition annual return GSTR-4 on 30th April", () => {
+    expect(buildDeadlines(2026)[12].gstr4).toBe("30th Apr 2027");
   });
 });
