@@ -151,7 +151,7 @@ export default function InvoiceGeneratorPage() {
     name: "", address: "", gstin: "", state: "", phone: "", email: "",
   });
   const [buyer, setBuyer] = useState({
-    name: "", address: "", gstin: "", state: "", phone: "", email: "",
+    name: "", address: "", gstin: "", state: "", phone: "", email: "", unregistered: false,
   });
   const [invoiceNo, setInvoiceNo] = useState(generateInvoiceNo);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
@@ -346,19 +346,27 @@ ${invoiceRef.current.innerHTML}
                 </label>
                 <label className="calc-label">
                   GSTIN
-                  <input className="calc-input" value={buyer.gstin} onChange={(e) => updateBuyer("gstin", e.target.value.toUpperCase())} placeholder="e.g. 29AABCU9603R1ZM" maxLength={15} style={buyer.gstin && gstinShapeError(buyer.gstin) ? { borderColor: "#ef4444" } : undefined} />
+                  {/* An unregistered buyer has no GSTIN to take the state from, so
+                      the state below becomes the place of supply and decides the
+                      tax split on its own. The invoice prints "URP", the term the
+                      GST portal itself uses, rather than leaving the field blank. */}
+                  <input className="calc-input" value={buyer.unregistered ? "URP" : buyer.gstin} disabled={buyer.unregistered} onChange={(e) => updateBuyer("gstin", e.target.value.toUpperCase())} placeholder="e.g. 29AABCU9603R1ZM" maxLength={15} style={buyer.gstin && gstinShapeError(buyer.gstin) ? { borderColor: "#ef4444" } : undefined} />
                   {buyer.gstin && (
                     <div style={gstinShapeError(buyer.gstin) ? fieldError : fieldOk}>
                       {gstinShapeError(buyer.gstin) || "✓ Valid format"}
                     </div>
                   )}
                 </label>
+                <label className="calc-label" style={{ flexDirection: "row", alignItems: "center", gap: "0.4rem", fontWeight: 400 }}>
+                  <input type="checkbox" checked={buyer.unregistered} onChange={(e) => setBuyer((prev) => ({ ...prev, unregistered: e.target.checked, gstin: "" }))} />
+                  Unregistered buyer (URP)
+                </label>
                 <label className="calc-label" style={{ gridColumn: "1 / -1" }}>
                   Address
                   <input className="calc-input" value={buyer.address} onChange={(e) => updateBuyer("address", e.target.value)} placeholder="Full buyer address" />
                 </label>
                 <label className="calc-label">
-                  State Code
+                  {buyer.unregistered ? "Place of Supply (State)" : "State Code"}
                   <select className="calc-select" value={buyer.state} onChange={(e) => updateBuyer("state", e.target.value)}>
                     <option value="">Select state</option>
                     {STATE_CODES.map((s) => <option key={s} value={s.split("-")[0]}>{s}</option>)}
@@ -503,7 +511,9 @@ ${invoiceRef.current.innerHTML}
                     <h3 style={{ fontSize: "12px", textTransform: "uppercase", color: "#6b7280", marginBottom: "6px" }}>To</h3>
                     <strong style={{ fontSize: "15px", display: "block", marginBottom: "2px" }}>{buyer.name}</strong>
                     {buyer.address && <p style={{ fontSize: "13px", lineHeight: 1.5 }}>{buyer.address}</p>}
-                    {buyer.gstin && <p style={{ fontSize: "13px" }}>GSTIN: {buyer.gstin}</p>}
+                    {buyer.unregistered
+                      ? <p style={{ fontSize: "13px" }}>GSTIN: URP (Unregistered){buyer.state && ` · Place of supply: ${STATE_CODES.find((c) => c.startsWith(`${buyer.state}-`)) || buyer.state}`}</p>
+                      : buyer.gstin && <p style={{ fontSize: "13px" }}>GSTIN: {buyer.gstin}</p>}
                     {buyer.phone && <p style={{ fontSize: "13px" }}>{buyer.phone}</p>}
                   </div>
                 </div>

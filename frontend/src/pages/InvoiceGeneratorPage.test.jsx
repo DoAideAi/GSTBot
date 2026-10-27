@@ -88,6 +88,24 @@ describe("InvoiceGeneratorPage", () => {
     expect(screen.getByText(/GSTIN is 15 characters/)).toBeInTheDocument();
   });
 
+  it("an unregistered buyer prints as URP and their chosen state sets IGST", async () => {
+    renderPage();
+    const [sellerName, buyerName] = screen.getAllByPlaceholderText(/business name/i);
+    await userEvent.type(sellerName, "Test Seller");
+    await userEvent.type(buyerName, "Walk-in Buyer");
+    await userEvent.type(screen.getAllByPlaceholderText(/e\.g\./)[0], "27AAPFU0939F1ZV");
+    await userEvent.click(screen.getByLabelText("Unregistered buyer (URP)"));
+    expect(screen.getByDisplayValue("URP")).toBeDisabled();
+
+    await userEvent.selectOptions(screen.getByLabelText(/Place of Supply/), "29");
+    expect(screen.getByText("(Interstate — IGST)")).toBeInTheDocument();
+
+    await userEvent.type(screen.getAllByPlaceholderText("Item description")[0], "Chair");
+    await userEvent.type(screen.getAllByPlaceholderText("0.00")[0], "1000");
+    await userEvent.click(screen.getByText("Preview Invoice"));
+    expect(screen.getByText(/GSTIN: URP \(Unregistered\) · Place of supply: 29-Karnataka/)).toBeInTheDocument();
+  });
+
   it("renders FAQ section", () => {
     renderPage();
     expect(screen.getByText("Frequently Asked Questions")).toBeInTheDocument();
