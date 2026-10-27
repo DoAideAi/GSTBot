@@ -88,6 +88,7 @@ const InputTaxCreditGuide = lazy(() => import("./pages/guides/InputTaxCreditGuid
 const EwayBillGuide = lazy(() => import("./pages/guides/EwayBillGuide"));
 const PenaltyCalculatorPage = lazy(() => import("./pages/PenaltyCalculatorPage"));
 const EwayBillPage = lazy(() => import("./pages/EwayBillPage"));
+const EwayBillGeneratorPage = lazy(() => import("./pages/EwayBillGeneratorPage"));
 const ItcEligibilityPage = lazy(() => import("./pages/ItcEligibilityPage"));
 const HsnCodePage = lazy(() => import("./pages/HsnCodePage"));
 const CompositionSchemePage = lazy(() => import("./pages/CompositionSchemePage"));
@@ -292,6 +293,7 @@ export default function App() {
         <Route path="/guides/eway-bill" element={<Lazy><EwayBillGuide /></Lazy>} />
         <Route path="/penalty-calculator" element={<Lazy><PenaltyCalculatorPage /></Lazy>} />
         <Route path="/eway-bill" element={<Lazy><EwayBillPage /></Lazy>} />
+        <Route path="/eway-bill-generator" element={<Lazy><EwayBillGeneratorPage /></Lazy>} />
         <Route path="/input-tax-credit" element={<Lazy><ItcEligibilityPage /></Lazy>} />
         <Route path="/composition-scheme" element={<Lazy><CompositionSchemePage /></Lazy>} />
         <Route path="/invoice-generator" element={<Lazy><InvoiceGeneratorPage /></Lazy>} />

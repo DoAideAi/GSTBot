@@ -34,6 +34,7 @@ export const TOOL_MAP = {
   '/registration-checker': 'Registration Checker',
   '/input-tax-credit': 'ITC Eligibility',
   '/eway-bill': 'E-Way Bill Checker',
+  '/eway-bill-generator': 'E-Way Bill Generator',
   '/reverse-charge': 'Reverse Charge',
   '/itc-mismatch': 'ITC Mismatch',
   '/audit-checklist': 'Audit Checklist',

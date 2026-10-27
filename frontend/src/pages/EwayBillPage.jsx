@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
@@ -11,6 +12,7 @@ import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
+import { ewayBillRequired, validityDays } from "../lib/ewayBill";
 
 const SUPPLY_TYPES = [
   { key: "goods", label: "Goods (consignment value > ₹50,000)" },
@@ -19,11 +21,9 @@ const SUPPLY_TYPES = [
 ];
 
 const VEHICLE_TYPES = [
-  { key: "regular", label: "Regular vehicle", kmPerDay: 200 },
-  { key: "over_dim", label: "Over-dimensional cargo", kmPerDay: 100 },
+  { key: "regular", label: "Regular vehicle" },
+  { key: "over_dim", label: "Over-dimensional cargo" },
 ];
-
-const THRESHOLD = 50000;
 
 const TOOL_SCHEMA = {
   "@context": "https://schema.org",
@@ -52,7 +52,7 @@ const FAQ_SCHEMA = {
       name: "How long is an e-way bill valid?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Regular vehicles: 1 day per 200 km. Over-dimensional cargo: 1 day per 100 km. Validity starts from the date and time of generation on the e-way bill portal.",
+        text: "Regular vehicles: 1 day per 200 km. Over-dimensional cargo: 1 day per 20 km. Validity starts from the date and time of generation on the e-way bill portal.",
       },
     },
     {
@@ -90,7 +90,7 @@ const HOWTO_SCHEMA = {
   step: [
     { "@type": "HowToStep", name: "Enter the consignment value", text: "The invoice value including GST — the ₹50,000 threshold is checked against it." },
     { "@type": "HowToStep", name: "Pick the supply type", text: "Ordinary goods, handicraft, or job work — the latter two can need a bill regardless of value." },
-    { "@type": "HowToStep", name: "Enter the distance", text: "Kilometres to the destination; validity runs 1 day per 200 km (100 km for over-dimensional cargo)." },
+    { "@type": "HowToStep", name: "Enter the distance", text: "Kilometres to the destination; validity runs 1 day per 200 km (20 km for over-dimensional cargo)." },
     { "@type": "HowToStep", name: "Read the verdict", text: "Whether a bill is required and, if so, how many days it stays valid from generation." },
   ],
 };
@@ -126,12 +126,12 @@ export default function EwayBillPage() {
     } else if (isJobWork) {
       required = true;
       reason = "E-way bill is required for movement of goods to a job worker, regardless of the consignment value.";
-    } else if (value >= THRESHOLD) {
+    } else if (ewayBillRequired(value)) {
       required = true;
       reason = `Consignment value (${formatINR(value)}) exceeds the ₹50,000 threshold. E-way bill is mandatory.`;
     } else {
       required = false;
-      reason = `Consignment value (${formatINR(value)}) is below ₹50,000. E-way bill is generally not required for intrastate movement.`;
+      reason = `Consignment value (${formatINR(value)}) does not exceed ₹50,000. E-way bill is generally not required for intrastate movement.`;
       if (interstate && value > 0) {
         reason += " However, some states have lower thresholds for intrastate movement. Check your state's rules.";
       }
@@ -139,8 +139,7 @@ export default function EwayBillPage() {
 
     let validity = null;
     if (required && Number.isFinite(dist) && dist > 0) {
-      const kmPerDay = VEHICLE_TYPES.find((v) => v.key === vehicleType)?.kmPerDay ?? 200;
-      validity = Math.max(1, Math.ceil(dist / kmPerDay));
+      validity = validityDays(dist, vehicleType === "over_dim");
     }
 
     return { required, reason, validity, distance: dist };
@@ -279,7 +278,7 @@ export default function EwayBillPage() {
             <h3>E-Way Bill Validity</h3>
             <ul>
               <li><strong>Regular vehicles:</strong> 1 day for every 200 km or part thereof</li>
-              <li><strong>Over-dimensional cargo:</strong> 1 day for every 100 km or part thereof</li>
+              <li><strong>Over-dimensional cargo:</strong> 1 day for every 20 km or part thereof</li>
               <li>Validity starts from the date and time of generation</li>
             </ul>
             <h3>Exemptions from E-Way Bill</h3>
@@ -304,7 +303,7 @@ export default function EwayBillPage() {
             <h3>How long is an e-way bill valid?</h3>
             <p>
               For regular vehicles: 1 day per 200 km. For over-dimensional cargo: 1 day per
-              100 km. Validity starts from the date and time of generation on the portal.
+              20 km. Validity starts from the date and time of generation on the portal.
             </p>
 
             <h3>What is the penalty for not generating an e-way bill?</h3>
@@ -326,6 +325,12 @@ export default function EwayBillPage() {
               inward movement. The transporter can generate it if neither party does.
             </p>
           </section>
+
+          <p>
+            Need the bill itself? The{" "}
+            <Link to="/eway-bill-generator">e-way bill generator</Link> prepares Part A and Part B
+            from your invoice and vehicle details.
+          </p>
 
           <InlineCTA variant="save" />
           <RelatedTools current="/eway-bill" />

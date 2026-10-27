@@ -90,4 +90,19 @@ describe("EwayBillPage", () => {
     expect(screen.getByText("E-Way Bill Rules Under GST")).toBeInTheDocument();
     expect(screen.getByText("Frequently Asked Questions")).toBeInTheDocument();
   });
+
+  it("a consignment of exactly ₹50,000 needs no bill", async () => {
+    renderPage();
+    await userEvent.type(screen.getByPlaceholderText("Enter total consignment value"), "50000");
+    expect(screen.getByText("Not Required")).toBeInTheDocument();
+  });
+
+  it("over-dimensional cargo gets a day per 20 km, not 100", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByPlaceholderText("Enter total consignment value"), "100000");
+    await user.type(screen.getByPlaceholderText("Enter distance in km"), "100");
+    await user.selectOptions(screen.getByLabelText("Vehicle Type"), "over_dim");
+    expect(screen.getByText("5 days")).toBeInTheDocument();
+  });
 });

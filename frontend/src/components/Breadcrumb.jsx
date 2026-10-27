@@ -11,6 +11,7 @@ const ROUTE_LABELS = {
   "/blog": "Blog",
   "/penalty-calculator": "Penalty Calculator",
   "/eway-bill": "E-Way Bill Checker",
+  "/eway-bill-generator": "E-Way Bill Generator",
   "/input-tax-credit": "ITC Eligibility",
   "/registration-checker": "Registration Checker",
   "/return-calendar": "Return Due Date Calendar",
