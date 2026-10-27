@@ -139,7 +139,7 @@ const TOOLS = [
   {
     to: "/registration-checker",
     title: "Registration Eligibility Checker",
-    desc: "Answer 7 questions to find out if GST registration is mandatory for your business. Covers all Section 22 & 24 scenarios.",
+    desc: "Whether you must register for GST: the ₹40, ₹20 or ₹10 lakh limit for your state, inter-state and e-commerce rules, and the section that applies.",
     icon: (
       <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
