@@ -151,7 +151,7 @@ const TOOLS = [
   {
     to: "/return-calendar",
     title: "Return Due Date Calendar",
-    desc: "Monthly calendar of GST filing deadlines — GSTR-1, GSTR-3B, GSTR-9, CMP-08, and IFF. With countdown timers.",
+    desc: "Your GST deadlines month by month for monthly, QRMP or composition filing, with the 22nd/24th GSTR-3B date for your state and your next deadline.",
     icon: (
       <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="18" height="18" rx="2" />

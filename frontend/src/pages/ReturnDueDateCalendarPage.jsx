@@ -1,127 +1,40 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
 import EmailCapture from "../components/EmailCapture";
+import FaqSection, { faqSchema } from "../components/FaqSection";
 import PrintButton from "../components/PrintButton";
 import RelatedTools from "../components/RelatedTools";
 import SeoHead from "../components/SeoHead";
 import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { formatINR } from "../lib/gstCalc";
+import {
+  daysBetween, deadlinesInMonth, FILER_TYPES, nextDeadlines, todayInIndia,
+} from "../lib/returnDueDates";
+import { STATE_CODES } from "../lib/stateCodes";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-const RETURN_TYPES = [
-  { key: "all", label: "All Returns" },
-  { key: "gstr1", label: "GSTR-1" },
-  { key: "gstr3b", label: "GSTR-3B" },
-  { key: "gstr9", label: "GSTR-9 (Annual)" },
-  { key: "cmp08", label: "CMP-08 (Composition)" },
-  { key: "iff", label: "IFF (QRMP)" },
-];
+const STATES = STATE_CODES
+  .filter((s) => /^(State|Union territory)$/.test(s.kind))
+  .sort((a, b) => a.name.localeCompare(b.name));
 
-function makeDueDates(year, month) {
-  const m = month + 1;
-  const fy = m >= 4 ? year : year - 1;
-  const dates = [];
-  const prevMonth = m === 1 ? 12 : m - 1;
-  const prevMonthName = MONTHS[prevMonth - 1];
-  const prevYear = m === 1 ? year - 1 : year;
-  const qrmpMonths = [1, 2, 4, 5, 7, 8, 10, 11];
-  const quarterEndMonths = [3, 6, 9, 12];
-
-  dates.push({
-    type: "gstr1",
-    label: `GSTR-1 for ${prevMonthName} ${prevYear}`,
-    date: new Date(year, month, 11),
-    desc: "Monthly outward supply return — due 11th of the following month.",
-  });
-
-  dates.push({
-    type: "gstr3b",
-    label: `GSTR-3B for ${prevMonthName} ${prevYear}`,
-    date: new Date(year, month, 20),
-    desc: "Monthly summary return with tax payment — due 20th of the following month.",
-  });
-
-  if (qrmpMonths.includes(m)) {
-    dates.push({
-      type: "iff",
-      label: `IFF for ${prevMonthName} ${prevYear}`,
-      date: new Date(year, month, 13),
-      desc: "Invoice Furnishing Facility for QRMP taxpayers — due 13th of the following month.",
-    });
-  }
-
-  if (quarterEndMonths.includes(prevMonth)) {
-    dates.push({
-      type: "cmp08",
-      label: `CMP-08 for Q${Math.ceil(prevMonth / 3)} FY ${fy}-${(fy + 1) % 100}`,
-      date: new Date(year, month, 18),
-      desc: "Quarterly composition scheme statement — due 18th of the month following the quarter.",
-    });
-  }
-
-  if (m === 12) {
-    dates.push({
-      type: "gstr9",
-      label: `GSTR-9 for FY ${fy}-${(fy + 1) % 100}`,
-      date: new Date(year + 1, 0, 31),
-      desc: "Annual return — due 31st December of the following financial year.",
-    });
-  }
-
-  dates.sort((a, b) => a.date - b.date);
-  return dates;
+function formatDate(isoDate) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return `${d} ${MONTHS[m - 1].slice(0, 3)} ${y}`;
 }
 
-function formatDate(d) {
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function daysUntil(d) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const target = new Date(d);
-  target.setHours(0, 0, 0, 0);
-  return Math.ceil((target - now) / 86400000);
-}
-
-function calculateLateFee(returnType, daysLate, isNilReturn) {
-  if (daysLate <= 0) return null;
-
-  if (returnType === "gstr1") {
-    const daily = isNilReturn ? 20 : 50;
-    const fee = Math.min(daily * daysLate, 5000);
-    return { daily, fee, max: 5000, interest: null };
-  }
-
-  if (returnType === "gstr3b") {
-    const daily = isNilReturn ? 20 : 50;
-    const fee = Math.min(daily * daysLate, isNilReturn ? 500 : 5000);
-    const interestRate = 18;
-    return { daily, fee, max: isNilReturn ? 500 : 5000, interest: interestRate };
-  }
-
-  if (returnType === "gstr9") {
-    const daily = 200;
-    const fee = Math.min(daily * daysLate, 5000);
-    return { daily, fee, max: 5000, interest: null };
-  }
-
-  if (returnType === "cmp08") {
-    const daily = isNilReturn ? 20 : 50;
-    const fee = Math.min(daily * daysLate, 5000);
-    return { daily, fee, max: 5000, interest: null };
-  }
-
-  return null;
+function countdown(days) {
+  if (days < 0) return `Overdue by ${-days} day${days === -1 ? "" : "s"}`;
+  if (days === 0) return "Due today";
+  return `${days} day${days === 1 ? "" : "s"} remaining`;
 }
 
 const TOOL_SCHEMA = {
@@ -134,27 +47,32 @@ const TOOL_SCHEMA = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
 };
 
-const FAQ_SCHEMA = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What is the late fee for not filing GSTR-3B on time?",
-      acceptedAnswer: { "@type": "Answer", text: "Rs 50/day (Rs 25 CGST + Rs 25 SGST) for regular returns, Rs 20/day for nil returns, capped at Rs 5,000. Interest at 18% p.a. applies on unpaid tax." },
-    },
-    {
-      "@type": "Question",
-      name: "What is the penalty for late filing of GSTR-1?",
-      acceptedAnswer: { "@type": "Answer", text: "Late fee for GSTR-1 is Rs 50 per day (Rs 25 CGST + Rs 25 SGST) up to Rs 5,000. For nil GSTR-1, it is Rs 20 per day up to Rs 5,000." },
-    },
-    {
-      "@type": "Question",
-      name: "What are the due dates for GST return filing?",
-      acceptedAnswer: { "@type": "Answer", text: "GSTR-1: 11th of the following month. GSTR-3B: 20th of the following month. GSTR-9: 31st December of the next financial year. CMP-08: 18th of the month after the quarter." },
-    },
-  ],
-};
+const FAQS = [
+  {
+    q: "What are the GST return due dates for monthly filers?",
+    a: "GSTR-1 by the 11th and GSTR-3B by the 20th of the following month. GSTR-9 for the year is due on 31 December after the financial year ends.",
+  },
+  {
+    q: "What are the due dates under the QRMP scheme?",
+    a: "In the first two months of a quarter: optional IFF by the 13th and PMT-06 tax payment by the 25th. After the quarter: GSTR-1 by the 13th and GSTR-3B by the 22nd or 24th, depending on your state.",
+  },
+  {
+    q: "Which states file quarterly GSTR-3B by the 22nd?",
+    a: "Chhattisgarh, Madhya Pradesh, Gujarat, Maharashtra, Karnataka, Goa, Kerala, Tamil Nadu, Telangana, Andhra Pradesh, and the UTs of Daman and Diu, Dadra and Nagar Haveli, Puducherry, Andaman and Nicobar, and Lakshadweep. All others file by the 24th.",
+  },
+  {
+    q: "Who can file GST returns quarterly?",
+    a: "Taxpayers with aggregate turnover up to ₹5 crore in the previous financial year can opt into QRMP. They still pay tax monthly through PMT-06 but file GSTR-1 and GSTR-3B once a quarter.",
+  },
+  {
+    q: "What are the due dates for composition dealers?",
+    a: "CMP-08 by the 18th of the month after each quarter, and GSTR-4 by 30 April after the financial year ends.",
+  },
+  {
+    q: "What happens if I miss a GST due date?",
+    a: "A late fee of ₹50 a day (₹20 for nil returns), capped by turnover, plus 18% interest on tax paid late. The government sometimes extends a due date by notification; those extensions are not shown here.",
+  },
+];
 
 const BREADCRUMBS = [
   { name: "Home", url: "https://gst.doaide.com" },
@@ -164,45 +82,29 @@ const BREADCRUMBS = [
 export default function ReturnDueDateCalendarPage() {
   usePageTitle("GST Return Due Date Calendar — Filing Deadlines 2026-27");
 
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [filterType, setFilterType] = useState("all");
+  const today = todayInIndia();
+  const [thisYear, thisMonth] = today.split("-").map(Number);
+  const [year, setYear] = useState(thisYear);
+  const [month, setMonth] = useState(thisMonth);
+  const [filer, setFiler] = useState("monthly");
+  const [stateCode, setStateCode] = useState("");
 
-  const dueDates = useMemo(
-    () => makeDueDates(selectedYear, selectedMonth),
-    [selectedYear, selectedMonth],
-  );
+  const dueDates = useMemo(() => deadlinesInMonth(year, month, filer, stateCode), [year, month, filer, stateCode]);
+  const next = useMemo(() => nextDeadlines(today, filer, stateCode), [today, filer, stateCode]);
 
-  const filtered = filterType === "all"
-    ? dueDates
-    : dueDates.filter((d) => d.type === filterType);
-
-  function prevMonth() {
-    if (selectedMonth === 0) {
-      setSelectedMonth(11);
-      setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedMonth(selectedMonth - 1);
-    }
-  }
-
-  function nextMonth() {
-    if (selectedMonth === 11) {
-      setSelectedMonth(0);
-      setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedMonth(selectedMonth + 1);
-    }
+  function shiftMonth(by) {
+    const total = year * 12 + (month - 1) + by;
+    setYear(Math.floor(total / 12));
+    setMonth((total % 12) + 1);
   }
 
   return (
     <div className="tool-page">
       <SeoHead
-        title="GST Return Due Date Calendar — Filing Deadlines 2026-27"
-        description="Free GST return due date calendar with filing deadlines for GSTR-1, GSTR-3B, GSTR-9, CMP-08, and IFF. Filter by return type and month. Never miss a deadline."
+        title="GST Return Due Date Calendar 2026-27 — Monthly & QRMP Deadlines"
+        description="GST return due dates for monthly, quarterly (QRMP) and composition filers: GSTR-1, GSTR-3B, IFF, PMT-06, CMP-08, GSTR-4 and GSTR-9, with the 22nd/24th split by state."
         path="/return-calendar"
-        jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
+        jsonLd={[TOOL_SCHEMA, faqSchema(FAQS)]}
         breadcrumbs={BREADCRUMBS}
       />
       <ToolsNav />
@@ -211,73 +113,77 @@ export default function ReturnDueDateCalendarPage() {
           <Breadcrumb items={[{ label: "Home", to: "/" }, { label: "Return Due Date Calendar" }]} />
           <h1 className="tool-title">GST Return Due Date Calendar</h1>
           <p className="tool-subtitle">
-            All GST filing deadlines in one place. Filter by return type and month. No sign-up required.
+            Your GST filing deadlines by month, for how you file and where you are registered. No
+            sign-up required.
           </p>
 
           <div className="calc-card">
-            <div className="calendar-controls">
-              <button className="quiz-nav-btn" onClick={prevMonth} aria-label="Previous month">←</button>
-              <strong className="calendar-month-label">
-                {MONTHS[selectedMonth]} {selectedYear}
-              </strong>
-              <button className="quiz-nav-btn" onClick={nextMonth} aria-label="Next month">→</button>
+            <label className="calc-label">
+              How you file
+              <select className="calc-input" value={filer} onChange={(e) => setFiler(e.target.value)}>
+                {FILER_TYPES.map((f) => (
+                  <option key={f.key} value={f.key}>{f.label}</option>
+                ))}
+              </select>
+            </label>
+
+            {filer === "quarterly" && (
+              <label className="calc-label">
+                State of registration (sets the GSTR-3B date)
+                <select className="calc-input" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+                  <option value="">Not chosen — show both dates</option>
+                  {STATES.map((s) => (
+                    <option key={s.code} value={s.code}>{s.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {next.length > 0 && (
+              <div className="calc-result" aria-live="polite" data-testid="next-deadline">
+                <div className="calc-result-row calc-total">
+                  <span>Next deadline</span>
+                  <strong>{formatDate(next[0].due)}</strong>
+                </div>
+                {next.map((d) => (
+                  <div className="calc-result-row" key={d.form}>
+                    <span>{d.form} — {d.covers}</span>
+                    <strong>{countdown(daysBetween(today, d.due))}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="calendar-controls" style={{ marginTop: "1rem" }}>
+              <button className="quiz-nav-btn" onClick={() => shiftMonth(-1)} aria-label="Previous month">←</button>
+              <strong className="calendar-month-label">{MONTHS[month - 1]} {year}</strong>
+              <button className="quiz-nav-btn" onClick={() => shiftMonth(1)} aria-label="Next month">→</button>
             </div>
 
-            <div className="calendar-filter">
-              {RETURN_TYPES.map((rt) => (
-                <button
-                  key={rt.key}
-                  className={`calendar-filter-btn${filterType === rt.key ? " active" : ""}`}
-                  onClick={() => setFilterType(rt.key)}
-                >
-                  {rt.label}
-                </button>
-              ))}
-            </div>
-
-            {filtered.length === 0 ? (
+            {dueDates.length === 0 ? (
               <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "1rem 0" }}>
-                No {filterType === "all" ? "" : RETURN_TYPES.find((r) => r.key === filterType)?.label + " "}deadlines in {MONTHS[selectedMonth]} {selectedYear}.
+                Nothing due in {MONTHS[month - 1]} {year}.
               </p>
             ) : (
               <div className="calendar-dates">
-                {filtered.map((d, i) => {
-                  const days = daysUntil(d.date);
-                  const isPast = days < 0;
-                  const isUrgent = days >= 0 && days <= 3;
-                  const isSoon = days > 3 && days <= 7;
+                {dueDates.map((d) => {
+                  const days = daysBetween(today, d.due);
+                  const isNext = next.some((n) => n.form === d.form && n.due === d.due);
                   return (
                     <div
-                      key={i}
-                      className={`calendar-date-card${isPast ? " past" : ""}${isUrgent ? " urgent" : ""}${isSoon ? " soon" : ""}`}
+                      key={`${d.form}-${d.due}`}
+                      className={`calendar-date-card${days < 0 ? " past" : ""}${days >= 0 && days <= 3 ? " urgent" : ""}${days > 3 && days <= 7 ? " soon" : ""}`}
                     >
                       <div className="calendar-date-header">
-                        <span className={`calendar-type-badge ${d.type}`}>{d.type.toUpperCase()}</span>
-                        <strong>{formatDate(d.date)}</strong>
+                        <span className="calendar-type-badge">{d.form}</span>
+                        <strong>{formatDate(d.due)}</strong>
                       </div>
-                      <div className="calendar-date-label">{d.label}</div>
-                      <div className="calendar-date-desc">{d.desc}</div>
+                      <div className="calendar-date-label">{d.what} — {d.covers}</div>
                       <div className="calendar-date-countdown">
-                        {isPast ? (
-                          <span style={{ color: "#f87171" }}>Overdue by {Math.abs(days)} days</span>
-                        ) : days === 0 ? (
-                          <span style={{ color: "#f59e42" }}>Due today!</span>
-                        ) : (
-                          <span>{days} days remaining</span>
-                        )}
+                        {isNext && <strong>Next up · </strong>}
+                        {countdown(days)}
+                        {d.optional && " · optional"}
                       </div>
-                      {isPast && (() => {
-                        const lf = calculateLateFee(d.type, Math.abs(days), false);
-                        return lf ? (
-                          <div className="calendar-late-fee" style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", background: "rgba(248,113,113,0.08)", borderRadius: "0.375rem", fontSize: "0.85rem" }}>
-                            <strong style={{ color: "#f87171" }}>Estimated late fee: {formatINR(lf.fee)}</strong>
-                            <span style={{ color: "var(--text-secondary)", display: "block", fontSize: "0.8rem" }}>
-                              {formatINR(lf.daily)}/day, max {formatINR(lf.max)}
-                              {lf.interest ? ` + ${lf.interest}% p.a. interest on tax due` : ""}
-                            </span>
-                          </div>
-                        ) : null;
-                      })()}
                     </div>
                   );
                 })}
@@ -287,7 +193,7 @@ export default function ReturnDueDateCalendarPage() {
             <div className="calc-result-actions" style={{ marginTop: "1rem" }}>
               <ShareButtons
                 path="/return-calendar"
-                text={`GST filing deadlines for ${MONTHS[selectedMonth]} ${selectedYear} — check free on DoAide GST`}
+                text={`GST filing deadlines for ${MONTHS[month - 1]} ${year} — check free on DoAide GST`}
               />
               <PrintButton label="Print Calendar" />
             </div>
@@ -302,54 +208,34 @@ export default function ReturnDueDateCalendarPage() {
           />
 
           <section className="tool-info">
-            <h2>GST Return Filing Due Dates</h2>
+            <h2>GST return due dates at a glance</h2>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Return</th><th>Who files</th><th>Due</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>GSTR-1</td><td>Monthly filers</td><td>11th of the next month</td></tr>
+                  <tr><td>GSTR-3B</td><td>Monthly filers</td><td>20th of the next month</td></tr>
+                  <tr><td>IFF (optional)</td><td>QRMP, months 1 and 2</td><td>13th of the next month</td></tr>
+                  <tr><td>PMT-06</td><td>QRMP, months 1 and 2</td><td>25th of the next month</td></tr>
+                  <tr><td>GSTR-1</td><td>QRMP, quarterly</td><td>13th after the quarter</td></tr>
+                  <tr><td>GSTR-3B</td><td>QRMP, quarterly</td><td>22nd or 24th after the quarter, by state</td></tr>
+                  <tr><td>CMP-08</td><td>Composition dealers</td><td>18th after the quarter</td></tr>
+                  <tr><td>GSTR-4</td><td>Composition dealers</td><td>30 April after the year</td></tr>
+                  <tr><td>GSTR-9</td><td>Regular taxpayers</td><td>31 December after the year</td></tr>
+                </tbody>
+              </table>
+            </div>
             <p>
-              Every registered GST taxpayer must file returns by the specified due dates.
-              Late filing attracts penalties and interest.
-            </p>
-            <h3>Regular Taxpayer Due Dates</h3>
-            <ul>
-              <li><strong>GSTR-1:</strong> 11th of the following month (outward supplies)</li>
-              <li><strong>GSTR-3B:</strong> 20th of the following month (summary return with payment)</li>
-              <li><strong>GSTR-9:</strong> 31st December of the following financial year (annual return)</li>
-            </ul>
-            <h3>QRMP Scheme Due Dates</h3>
-            <ul>
-              <li><strong>GSTR-1 (Quarterly):</strong> 13th of the month following the quarter</li>
-              <li><strong>IFF:</strong> 13th of each non-quarter month (optional B2B invoice upload)</li>
-              <li><strong>GSTR-3B (Quarterly):</strong> 22nd/24th of the month following the quarter</li>
-            </ul>
-            <h3>Composition Scheme</h3>
-            <ul>
-              <li><strong>CMP-08:</strong> 18th of the month following each quarter</li>
-              <li><strong>GSTR-4:</strong> 30th April of the following financial year (annual)</li>
-            </ul>
-          </section>
-
-          <section className="tool-info">
-            <h2>GST Late Fee and Penalty</h2>
-            <p>Filing returns after the due date attracts a late fee and, for GSTR-3B, interest on the tax amount.</p>
-            <h3>Late Fee Rates</h3>
-            <ul>
-              <li><strong>GSTR-1 / GSTR-3B:</strong> Rs 50/day (Rs 25 CGST + Rs 25 SGST), max Rs 5,000</li>
-              <li><strong>Nil returns:</strong> Rs 20/day, max Rs 500 (GSTR-3B) or Rs 5,000 (GSTR-1)</li>
-              <li><strong>GSTR-9 (Annual):</strong> Rs 200/day (Rs 100 CGST + Rs 100 SGST), max Rs 5,000</li>
-              <li><strong>Interest:</strong> 18% p.a. on the net tax liability from the due date (GSTR-3B only)</li>
-            </ul>
-
-            <h3>What is the late fee for not filing GSTR-3B on time?</h3>
-            <p>
-              Rs 50 per day of delay (Rs 25 CGST + Rs 25 SGST) for regular returns, capped at Rs 5,000
-              per return period. For nil returns, it is Rs 20 per day capped at Rs 500. Additionally,
-              interest at 18% per annum applies on the outstanding tax amount from the due date.
-            </p>
-
-            <h3>What is the penalty for late filing of GSTR-1?</h3>
-            <p>
-              Rs 50 per day of delay, capped at Rs 5,000. For nil GSTR-1, Rs 20 per day up to Rs 5,000.
-              No interest applies on GSTR-1 as it is an information return with no tax payment.
+              Dates are as set by the CGST Rules; notified extensions are not shown. Missed one? Work
+              out the cost with the <Link to="/late-fee-calculator">late fee calculator</Link> and
+              the <Link to="/interest-calculator">interest calculator</Link>. See every year at once
+              on the <Link to="/due-dates">due dates page</Link>.
             </p>
           </section>
+
+          <FaqSection faqs={FAQS} />
 
           <InlineCTA variant="remind" />
           <RelatedTools current="/return-calendar" />
@@ -361,3 +247,5 @@ export default function ReturnDueDateCalendarPage() {
     </div>
   );
 }
+
+export { FAQS };
