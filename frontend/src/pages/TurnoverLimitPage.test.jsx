@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import TurnoverLimitPage, { determineThreshold, SPECIAL_CATEGORY_STATES } from "./TurnoverLimitPage";
+import TurnoverLimitPage, { determineThreshold, LOWER_LIMIT_STATES } from "./TurnoverLimitPage";
 
 vi.mock("../hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
 vi.mock("../lib/share", () => ({
@@ -79,6 +79,24 @@ describe("TurnoverLimitPage", () => {
     expect(screen.getByText("Required")).toBeInTheDocument();
   });
 
+  it("does not require registration at exactly the limit", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.selectOptions(screen.getByLabelText(/State/), "Maharashtra");
+    await user.type(screen.getByLabelText(/Aggregate Annual Turnover/), "4000000");
+    expect(screen.getByText("Not Mandatory")).toBeInTheDocument();
+  });
+
+  it("lets an intra-state marketplace seller below the limit stay unregistered", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.selectOptions(screen.getByLabelText(/State/), "Karnataka");
+    await user.type(screen.getByLabelText(/Aggregate Annual Turnover/), "800000");
+    await user.click(screen.getByLabelText(/e-commerce platform/));
+    expect(screen.getByText("Not Mandatory")).toBeInTheDocument();
+    expect(screen.getByText(/Notification 34\/2023-CT/)).toBeInTheDocument();
+  });
+
   it("renders FAQ section and thresholds table", () => {
     renderPage();
     expect(screen.getByText("GST Registration Thresholds")).toBeInTheDocument();
@@ -102,23 +120,29 @@ describe("determineThreshold", () => {
   it("returns 10 lakh for services in special category states", () => {
     expect(determineThreshold("Mizoram", "services")).toBe(1000000);
   });
+
+  it("returns 20 lakh, not 40, for a business supplying both goods and services", () => {
+    expect(determineThreshold("Maharashtra", "both")).toBe(2000000);
+  });
+
+  it("holds Telangana goods sellers at 20 lakh", () => {
+    expect(determineThreshold("Telangana", "goods")).toBe(2000000);
+  });
 });
 
-describe("SPECIAL_CATEGORY_STATES", () => {
-  it("includes northeastern states", () => {
-    expect(SPECIAL_CATEGORY_STATES).toContain("Assam");
-    expect(SPECIAL_CATEGORY_STATES).toContain("Nagaland");
-    expect(SPECIAL_CATEGORY_STATES).toContain("Manipur");
+describe("LOWER_LIMIT_STATES", () => {
+  it("holds the ten states outside the ₹40 lakh goods limit and no others", () => {
+    expect(LOWER_LIMIT_STATES).toEqual([
+      "Arunachal Pradesh", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+      "Puducherry", "Sikkim", "Telangana", "Tripura", "Uttarakhand",
+    ]);
   });
 
-  it("includes J&K, Ladakh, Uttarakhand, Himachal Pradesh", () => {
-    expect(SPECIAL_CATEGORY_STATES).toContain("Jammu & Kashmir");
-    expect(SPECIAL_CATEGORY_STATES).toContain("Ladakh");
-    expect(SPECIAL_CATEGORY_STATES).toContain("Uttarakhand");
-    expect(SPECIAL_CATEGORY_STATES).toContain("Himachal Pradesh");
-  });
-
-  it("does not include Maharashtra", () => {
-    expect(SPECIAL_CATEGORY_STATES).not.toContain("Maharashtra");
+  it("leaves Assam, Himachal Pradesh, J&K and Ladakh on the normal limits", () => {
+    for (const st of ["Assam", "Himachal Pradesh", "Jammu and Kashmir", "Ladakh"]) {
+      expect(LOWER_LIMIT_STATES).not.toContain(st);
+      expect(determineThreshold(st, "goods")).toBe(4000000);
+      expect(determineThreshold(st, "services")).toBe(2000000);
+    }
   });
 });

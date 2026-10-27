@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
@@ -9,12 +10,13 @@ import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
+import { checkRegistration, NO_40_LAKH_STATES, STATES, TEN_LAKH_STATES, thresholdFor } from "../lib/gstRegistration";
 
-const SPECIAL_CATEGORY_STATES = [
-  "Arunachal Pradesh", "Assam", "Himachal Pradesh", "Jammu & Kashmir",
-  "Ladakh", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
-  "Sikkim", "Tripura", "Uttarakhand",
-];
+// The limits come from lib/gstRegistration.js, which /registration-checker
+// reads too. This page kept its own list once, calling every north-eastern
+// and hill state "special category", and put Assam, Himachal Pradesh, J&K and
+// Ladakh goods sellers at ₹20 lakh when they are at ₹40 lakh.
+const LOWER_LIMIT_STATES = [...new Set([...NO_40_LAKH_STATES, ...TEN_LAKH_STATES])].sort();
 
 const BUSINESS_TYPES = [
   { key: "goods", label: "Supply of goods" },
@@ -23,11 +25,7 @@ const BUSINESS_TYPES = [
 ];
 
 function determineThreshold(state, businessType) {
-  const isSpecial = SPECIAL_CATEGORY_STATES.includes(state);
-  if (businessType === "services") {
-    return isSpecial ? 1000000 : 2000000;
-  }
-  return isSpecial ? 2000000 : 4000000;
+  return thresholdFor(businessType, state).limit;
 }
 
 const TOOL_SCHEMA = {
@@ -49,7 +47,7 @@ const FAQ_SCHEMA = {
       name: "What is the GST registration threshold for goods?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "For suppliers of goods: ₹40 lakh aggregate turnover in normal states, ₹20 lakh in special category states (northeastern states, Himachal Pradesh, Uttarakhand, Jammu & Kashmir, and Ladakh).",
+        text: "₹40 lakh for businesses supplying only goods. Arunachal Pradesh, Meghalaya, Puducherry, Sikkim, Telangana and Uttarakhand use ₹20 lakh, and Manipur, Mizoram, Nagaland and Tripura ₹10 lakh. Assam, Himachal Pradesh, J&K and Ladakh use ₹40 lakh.",
       },
     },
     {
@@ -57,7 +55,7 @@ const FAQ_SCHEMA = {
       name: "What is the GST registration threshold for services?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "For suppliers of services: ₹20 lakh aggregate turnover in normal states, ₹10 lakh in special category states.",
+        text: "₹20 lakh, or ₹10 lakh in Manipur, Mizoram, Nagaland and Tripura. The same limit applies to a business supplying both goods and services.",
       },
     },
     {
@@ -65,7 +63,7 @@ const FAQ_SCHEMA = {
       name: "When is GST registration mandatory regardless of turnover?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Mandatory regardless of turnover: interstate supply, casual/non-resident taxable persons, reverse charge liability, e-commerce operators, suppliers via e-commerce platforms, and TDS/TCS deductors.",
+        text: "Inter-state supply of goods, casual and non-resident taxable persons, reverse charge liability, e-commerce operators, input service distributors, agents and TDS deductors. Marketplace sellers within one state are exempt below the limit.",
       },
     },
     {
@@ -84,17 +82,6 @@ const BREADCRUMBS = [
   { name: "Turnover Limit Checker" },
 ];
 
-const ALL_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu & Kashmir",
-  "Jharkhand", "Karnataka", "Kerala", "Ladakh", "Madhya Pradesh",
-  "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
-  "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
-  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
-  "West Bengal", "Chandigarh", "Dadra & Nagar Haveli & Daman & Diu",
-  "Delhi", "Puducherry", "Andaman & Nicobar",
-];
-
 const MANDATORY_CASES = [
   "Interstate supply of taxable goods (any value)",
   "Interstate supply of taxable services (above threshold only)",
@@ -102,7 +89,7 @@ const MANDATORY_CASES = [
   "Non-resident taxable person",
   "Person liable to pay tax under reverse charge",
   "E-commerce operator (TCS under Section 52)",
-  "Person supplying goods through e-commerce platform",
+  "Person selling goods to other states through an e-commerce platform",
   "Person required to deduct TDS under Section 51",
   "Input service distributor",
   "Agent of a supplier or recipient",
@@ -120,48 +107,16 @@ export default function TurnoverLimitPage() {
 
   const result = useMemo(() => {
     if (!state) return null;
-
     const threshold = determineThreshold(state, businessType);
-    const parsed = parseFloat(turnover);
-    const hasTurnover = Number.isFinite(parsed) && parsed >= 0;
-
-    if (interstate) {
-      return {
-        required: true,
-        reason: "GST registration is mandatory for interstate supply of taxable goods, regardless of turnover.",
-        threshold,
-        turnoverValue: hasTurnover ? parsed : null,
-      };
+    const interstateGoods = interstate && businessType !== "services";
+    // Inter-state goods need registration whatever the turnover, so that
+    // verdict does not wait for a figure; everything else does.
+    if (turnover === "" && !interstateGoods) {
+      return { required: null, threshold, reasons: [], notes: [], prompt: "Enter your aggregate turnover to check." };
     }
-
-    if (ecommerce) {
-      return {
-        required: true,
-        reason: "GST registration is mandatory for persons supplying goods or services through an e-commerce platform, regardless of turnover.",
-        threshold,
-        turnoverValue: hasTurnover ? parsed : null,
-      };
-    }
-
-    if (!hasTurnover) {
-      return { required: null, threshold, turnoverValue: null, reason: "Enter your aggregate turnover to check." };
-    }
-
-    if (parsed >= threshold) {
-      return {
-        required: true,
-        reason: `Your aggregate turnover (${formatINR(parsed)}) exceeds the ${formatINR(threshold)} threshold for ${state}. GST registration is mandatory.`,
-        threshold,
-        turnoverValue: parsed,
-      };
-    }
-
-    return {
-      required: false,
-      reason: `Your aggregate turnover (${formatINR(parsed)}) is below the ${formatINR(threshold)} threshold for ${state}. GST registration is not mandatory, but you may register voluntarily.`,
-      threshold,
-      turnoverValue: parsed,
-    };
+    const check = checkRegistration({ type: businessType, turnover: turnover === "" ? "0" : turnover, state, interState: interstate, ecommerce });
+    if (!check) return { required: null, threshold, reasons: [], notes: [], prompt: "Enter a turnover of zero or more." };
+    return { ...check, threshold };
   }, [state, businessType, turnover, interstate, ecommerce]);
 
   return (
@@ -192,8 +147,8 @@ export default function TurnoverLimitPage() {
                 onChange={(e) => setState(e.target.value)}
               >
                 <option value="">Select your state</option>
-                {ALL_STATES.map((s) => (
-                  <option key={s} value={s}>{s}{SPECIAL_CATEGORY_STATES.includes(s) ? " (Special Category)" : ""}</option>
+                {STATES.map((s) => (
+                  <option key={s} value={s}>{s}{LOWER_LIMIT_STATES.includes(s) ? " (lower limit)" : ""}</option>
                 ))}
               </select>
             </label>
@@ -231,7 +186,7 @@ export default function TurnoverLimitPage() {
                 checked={interstate}
                 onChange={(e) => setInterstate(e.target.checked)}
               />
-              Interstate supply of taxable goods
+              {businessType === "services" ? "Interstate supply of services" : "Interstate supply of taxable goods"}
             </label>
 
             <label className="calc-checkbox-label">
@@ -251,21 +206,27 @@ export default function TurnoverLimitPage() {
                     <strong>{formatINR(result.threshold)}</strong>
                   </div>
                 )}
-                {SPECIAL_CATEGORY_STATES.includes(state) && (
-                  <div className="calc-result-row">
-                    <span>State Category</span>
-                    <strong>Special Category (Lower Threshold)</strong>
-                  </div>
-                )}
                 {result.required !== null && (
                   <div className="calc-result-row calc-total" style={{ color: result.required ? "#f59e42" : "#34d399" }}>
                     <span>GST Registration</span>
                     <strong>{result.required ? "Required" : "Not Mandatory"}</strong>
                   </div>
                 )}
-                <p style={{ margin: "0.5rem 0", fontSize: "0.95rem", lineHeight: 1.5 }}>
-                  {result.reason}
-                </p>
+                {result.prompt && <p style={{ margin: "0.5rem 0", fontSize: "0.95rem", lineHeight: 1.5 }}>{result.prompt}</p>}
+                {result.reasons.map((r) => (
+                  <p key={r.section} style={{ margin: "0.5rem 0", fontSize: "0.95rem", lineHeight: 1.5 }}>
+                    <strong>{r.section}:</strong> {r.text}
+                  </p>
+                ))}
+                {result.required === false && (
+                  <p style={{ margin: "0.5rem 0", fontSize: "0.95rem", lineHeight: 1.5 }}>
+                    Your aggregate turnover is within the {formatINR(result.threshold)} limit for {state}.
+                    GST registration is not mandatory, but you may register voluntarily.
+                  </p>
+                )}
+                {result.notes.map((n) => (
+                  <p key={n} className="calc-note">{n}</p>
+                ))}
                 <div className="calc-result-actions">
                   <ShareButtons
                     path="/turnover-limit"
@@ -289,26 +250,26 @@ export default function TurnoverLimitPage() {
             <table className="due-date-table">
               <thead>
                 <tr>
-                  <th>Supply Type</th>
-                  <th>Normal States</th>
-                  <th>Special Category States</th>
+                  <th>States and UTs</th>
+                  <th>Goods only</th>
+                  <th>Services, or both</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>Goods only</td>
+                  <td>All others, including Assam, Himachal Pradesh, J&amp;K and Ladakh</td>
                   <td>₹40 lakh</td>
                   <td>₹20 lakh</td>
                 </tr>
                 <tr>
-                  <td>Services only</td>
+                  <td>{NO_40_LAKH_STATES.filter((x) => !TEN_LAKH_STATES.includes(x)).join(", ")}</td>
                   <td>₹20 lakh</td>
+                  <td>₹20 lakh</td>
+                </tr>
+                <tr>
+                  <td>{TEN_LAKH_STATES.join(", ")}</td>
                   <td>₹10 lakh</td>
-                </tr>
-                <tr>
-                  <td>Both goods &amp; services</td>
-                  <td>₹40 lakh</td>
-                  <td>₹20 lakh</td>
+                  <td>₹10 lakh</td>
                 </tr>
               </tbody>
             </table>
@@ -318,10 +279,12 @@ export default function TurnoverLimitPage() {
               {MANDATORY_CASES.map((c, i) => <li key={i}>{c}</li>)}
             </ul>
 
-            <h3>Special Category States</h3>
+            <h3>States with a lower limit</h3>
             <p>
-              The following states and UTs have lower GST registration thresholds:
-              {" "}{SPECIAL_CATEGORY_STATES.join(", ")}.
+              Only Manipur, Mizoram, Nagaland and Tripura use ₹10 lakh. The ₹40 lakh limit for
+              goods does not apply in {NO_40_LAKH_STATES.filter((x) => !TEN_LAKH_STATES.includes(x)).join(", ")},
+              which stay at ₹20 lakh. To check a specific business, use the{" "}
+              <Link to="/registration-checker">registration eligibility checker</Link>.
             </p>
           </section>
 
@@ -359,4 +322,4 @@ export default function TurnoverLimitPage() {
   );
 }
 
-export { SPECIAL_CATEGORY_STATES, determineThreshold };
+export { LOWER_LIMIT_STATES, determineThreshold };
