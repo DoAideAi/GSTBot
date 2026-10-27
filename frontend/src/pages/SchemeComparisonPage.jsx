@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import CrossProductLinks from "../components/CrossProductLinks";
 import DoAideFooter from "../components/DoAideFooter";
@@ -9,15 +10,21 @@ import PrintButton from "../components/PrintButton";
 import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
+import { LOWER_LIMIT_STATES, turnoverLimit } from "../lib/compositionTax";
 import { formatINR } from "../lib/gstCalc";
+import { STATE_CODES } from "../lib/stateCodes";
 import WhatsAppFloat from "../components/WhatsAppFloat";
 import { track } from "../lib/track";
 
 const BUSINESS_TYPES = [
-  { key: "manufacturer", label: "Manufacturer / Trader", compRate: 1, limit: 15000000 },
-  { key: "restaurant", label: "Restaurant (not serving alcohol)", compRate: 5, limit: 15000000 },
-  { key: "service", label: "Service Provider", compRate: 6, limit: 5000000 },
+  { key: "manufacturer", label: "Manufacturer / Trader", compRate: 1 },
+  { key: "restaurant", label: "Restaurant (not serving alcohol)", compRate: 5 },
+  { key: "service", label: "Service Provider", compRate: 6 },
 ];
+
+// Codes 25 and 28 survive only on old GSTINs, and 97/99 carry no state tax, so
+// none of them is a place a new composition registration can be taken in.
+const STATES = STATE_CODES.filter((s) => s.tax && s.code !== "25" && s.code !== "28");
 
 const GST_RATES = [5, 12, 18, 28];
 
@@ -27,7 +34,7 @@ const FEATURES = [
   { feature: "E-commerce Supply", regular: "Allowed", composition: "Not allowed" },
   { feature: "Filing Frequency", regular: "Monthly / Quarterly", composition: "Quarterly (CMP-08)" },
   { feature: "Invoicing", regular: "Can charge GST on invoice", composition: "Cannot charge GST" },
-  { feature: "Turnover Limit", regular: "No limit", composition: "₹1.5 Cr / ₹50 L" },
+  { feature: "Turnover Limit", regular: "No limit", composition: "₹1.5 Cr (₹75 L in 8 states) / ₹50 L services" },
   { feature: "Annual Return", regular: "GSTR-9", composition: "GSTR-4" },
 ];
 
@@ -63,6 +70,14 @@ const FAQ_SCHEMA = {
     },
     {
       "@type": "Question",
+      name: "Does the composition turnover limit depend on the state?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, for goods. Arunachal Pradesh, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim, Tripura and Uttarakhand cap it at ₹75 lakh. The ₹50 lakh services limit is the same everywhere.",
+      },
+    },
+    {
+      "@type": "Question",
       name: "Which scheme saves more tax — Regular or Composition?",
       acceptedAnswer: {
         "@type": "Answer",
@@ -92,8 +107,11 @@ export default function SchemeComparisonPage() {
   const [purchases, setPurchases] = useState("");
   const [bizType, setBizType] = useState("manufacturer");
   const [gstRate, setGstRate] = useState(18);
+  const [stateCode, setStateCode] = useState("27");
 
   const selectedBiz = BUSINESS_TYPES.find((b) => b.key === bizType);
+  const selectedState = STATES.find((s) => s.code === stateCode);
+  const limit = turnoverLimit(bizType, LOWER_LIMIT_STATES.includes(selectedState.name));
 
   const result = useMemo(() => {
     const t = parseFloat(turnover);
@@ -106,12 +124,17 @@ export default function SchemeComparisonPage() {
     const regularTax = Math.max(0, Math.round((outputTax - itc) * 100) / 100);
     const compositionTax = Math.round(t * (selectedBiz.compRate / 100) * 100) / 100;
     const savings = Math.round((regularTax - compositionTax) * 100) / 100;
-    const overLimit = t > selectedBiz.limit;
+    const overLimit = t > limit;
 
-    track("scheme_comparison", { turnover: t, bizType });
+    track("scheme_comparison", { turnover: t, bizType, state: stateCode });
 
     return { regularTax, compositionTax, outputTax, itc, savings, overLimit };
-  }, [turnover, purchases, bizType, gstRate, selectedBiz]);
+  }, [turnover, purchases, bizType, gstRate, selectedBiz, limit, stateCode]);
+
+  // Composition tax is intra-state only, so it always splits evenly between
+  // CGST and the state's own levy; regular output tax is shown the same way
+  // because a composition-eligible business sells within its state.
+  const localTax = selectedState.tax;
 
   const maxBar = result ? Math.max(result.regularTax, result.compositionTax, 1) : 1;
 
@@ -119,7 +142,7 @@ export default function SchemeComparisonPage() {
     <div className="tool-page">
       <SeoHead
         title="GST Scheme Comparison Calculator — Regular vs Composition"
-        description="Compare your tax liability under GST Regular vs Composition scheme. Visual side-by-side comparison with ITC impact. Free, no sign-up."
+        description="Compare GST tax under Composition vs Regular scheme by turnover, business type and state — 1%, 5% or 6% flat rate against output tax less ITC. Free, no sign-up."
         path="/scheme-comparison"
         jsonLd={[TOOL_SCHEMA, FAQ_SCHEMA]}
         breadcrumbs={BREADCRUMBS}
@@ -198,6 +221,19 @@ export default function SchemeComparisonPage() {
             </label>
 
             <label className="calc-label">
+              State of Registration
+              <select
+                className="calc-select"
+                value={stateCode}
+                onChange={(e) => setStateCode(e.target.value)}
+              >
+                {STATES.map((s) => (
+                  <option key={s.code} value={s.code}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="calc-label">
               GST Rate on Output (%)
               <select
                 className="calc-select"
@@ -214,7 +250,7 @@ export default function SchemeComparisonPage() {
               <div className="calc-result" aria-live="polite">
                 {result.overLimit && (
                   <div className="calc-result-row calc-warning">
-                    <span>Your turnover exceeds the Composition Scheme limit ({formatINR(selectedBiz.limit)}). You must register under the Regular scheme.</span>
+                    <span>Your turnover exceeds the Composition Scheme limit ({formatINR(limit)} in {selectedState.name}). You must register under the Regular scheme.</span>
                   </div>
                 )}
 
@@ -263,6 +299,43 @@ export default function SchemeComparisonPage() {
                   <span>{result.savings >= 0 ? "Composition saves" : "Regular saves"}</span>
                   <strong>{formatINR(Math.abs(result.savings))}</strong>
                 </div>
+
+                <table className="comparison-table" aria-label="Annual tax under each scheme">
+                  <thead>
+                    <tr>
+                      <th>Annual tax</th>
+                      <th>Regular @ {gstRate}%</th>
+                      <th>Composition @ {selectedBiz.compRate}%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Output tax</td>
+                      <td>{formatINR(result.outputTax)}</td>
+                      <td>{formatINR(result.compositionTax)}</td>
+                    </tr>
+                    <tr>
+                      <td>Less ITC</td>
+                      <td>−{formatINR(result.itc)}</td>
+                      <td>Not available</td>
+                    </tr>
+                    <tr>
+                      <td>CGST</td>
+                      <td>{formatINR(result.regularTax / 2)}</td>
+                      <td>{formatINR(result.compositionTax / 2)}</td>
+                    </tr>
+                    <tr>
+                      <td>{localTax}</td>
+                      <td>{formatINR(result.regularTax / 2)}</td>
+                      <td>{formatINR(result.compositionTax / 2)}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Net payable</strong></td>
+                      <td><strong>{formatINR(result.regularTax)}</strong></td>
+                      <td><strong>{formatINR(result.compositionTax)}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
 
                 <table className="comparison-table">
                   <thead>
@@ -322,8 +395,15 @@ export default function SchemeComparisonPage() {
               <li>You sell only within your state to end consumers</li>
               <li>Your purchases are small relative to turnover</li>
               <li>You want simpler compliance with quarterly filings</li>
-              <li>Your turnover is below the limit (₹1.5 crore / ₹50 lakh for services)</li>
+              <li>Your turnover is below the limit (₹1.5 crore, ₹75 lakh in eight special category states, ₹50 lakh for services)</li>
             </ul>
+            <p>
+              Already on composition? Work out each quarter&apos;s CMP-08 payment in the{" "}
+              <Link to="/composition-tax-calculator">composition tax calculator</Link>, confirm you qualify with the{" "}
+              <Link to="/tools/composition-scheme-checker">eligibility checker</Link>, or check whether you need to register
+              at all with the <Link to="/turnover-limit">turnover limit checker</Link>. Your state&apos;s GST code is on the{" "}
+              <Link to="/gst-state-codes">state code list</Link>.
+            </p>
           </section>
 
           <section className="tool-info">
@@ -342,6 +422,12 @@ export default function SchemeComparisonPage() {
               Businesses with turnover up to ₹1.5 crore (₹50 lakh for services). Excludes
               ice cream, pan masala and tobacco manufacturers, interstate suppliers,
               e-commerce operators, and casual or non-resident taxable persons.
+            </p>
+
+            <h3>Does the composition turnover limit depend on the state?</h3>
+            <p>
+              For goods, yes. Arunachal Pradesh, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim,
+              Tripura and Uttarakhand cap it at ₹75 lakh. The ₹50 lakh services limit is the same everywhere.
             </p>
 
             <h3>Which scheme saves more tax?</h3>
