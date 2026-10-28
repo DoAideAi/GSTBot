@@ -188,3 +188,65 @@ class TestInvisibleTextIsBlank:
         assert "Type a question" in response.text
         model.assert_not_called()
         stream.assert_not_called()
+
+
+# -----------------------------------------------------------------------
+# A phone number at registration is a phone number
+# -----------------------------------------------------------------------
+
+def _register(client, phone, email="phone@example.com"):
+    return client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "Sup3r-Secret!pw", "phone": phone},
+    )
+
+
+class TestRegistrationPhone:
+    """The field was free text bounded only by the column: "abc<>" was stored
+    as a user's phone number.
+    """
+
+    @pytest.mark.parametrize(
+        "phone, stored",
+        [
+            ("+91 98200 12345", "+919820012345"),
+            ("98200-12345", "9820012345"),
+            ("(022) 2345.6789", "02223456789"),
+            ("+1 (415) 555-0100", "+14155550100"),
+        ],
+    )
+    def test_a_number_written_the_usual_ways_is_stored_as_digits(
+        self, client, phone, stored
+    ):
+        response = _register(client, phone)
+        assert response.status_code == 201, response.text
+        assert response.json()["user"]["phone"] == stored
+
+    @pytest.mark.parametrize(
+        "phone",
+        [
+            "abc<>",
+            "call me",
+            "98200 12345 ext 4",
+            "123456",  # six digits: no number anywhere is this short
+            "+" + "9" * 16,  # one past E.164's fifteen
+            "+91+98200",
+            "--",
+        ],
+    )
+    def test_anything_else_is_a_422_that_shows_the_expected_shape(self, client, phone):
+        response = _register(client, phone)
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"][0]
+        assert detail["loc"] == ["body", "phone"]
+        assert "+91 98200 12345" in detail["msg"]
+
+    @pytest.mark.parametrize("phone", [None, "", "   ", "​"])
+    def test_a_blank_phone_is_no_phone(self, client, phone):
+        response = _register(client, phone)
+        assert response.status_code == 201, response.text
+        assert response.json()["user"]["phone"] is None
+
+    def test_the_bounds_are_seven_and_fifteen_digits_inclusive(self, client):
+        assert _register(client, "1234567", email="seven@example.com").status_code == 201
+        assert _register(client, "+" + "9" * 15, email="fifteen@example.com").status_code == 201

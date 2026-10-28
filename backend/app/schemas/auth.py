@@ -1,6 +1,7 @@
 """Request/response models for registration and login."""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -9,6 +10,12 @@ from app.core import sanitize
 from app.models.business import BusinessPlan
 from app.models.user import UserRole
 from app.services import gstin as gstin_service
+
+# How people write a phone number: an optional leading "+", then digits broken
+# up by spaces, hyphens, dots or brackets. Anything else is not a number.
+_PHONE_SHAPE = re.compile(r"\+?[0-9(][0-9 ().-]*")
+# E.164 allows at most fifteen digits; below seven there is no number anywhere.
+_PHONE_DIGITS = (7, 15)
 
 # The handful of passwords that show up at the top of every breach corpus.
 # Not a substitute for a real strength check — just a floor.
@@ -155,6 +162,25 @@ class RegisterRequest(BaseModel):
         # values are rendered in the app, written into a GSTR-1 export and put
         # in a Content-Disposition filename, and none of those want them.
         return sanitize.clean_text(v, max_length=255)
+
+    @field_validator("phone")
+    @classmethod
+    def _a_phone_number(cls, v: str | None) -> str | None:
+        # Runs after ``_clean``, so ``v`` is already trimmed and None if blank.
+        # Free text before this: "abc<>" was stored as a phone number, and the
+        # column's twenty characters were the only limit on what one could be.
+        # Stored as "+" and digits, or digits alone, so one number typed two
+        # ways is one number.
+        if v is None:
+            return None
+        digits = re.sub(r"\D", "", v)
+        low, high = _PHONE_DIGITS
+        if not _PHONE_SHAPE.fullmatch(v) or not low <= len(digits) <= high:
+            raise ValueError(
+                f"{v!r} is not a phone number. Enter {low} to {high} digits, "
+                "optionally starting with + and the country code, e.g. +91 98200 12345."
+            )
+        return ("+" if v.startswith("+") else "") + digits
 
     @field_validator("password")
     @classmethod
