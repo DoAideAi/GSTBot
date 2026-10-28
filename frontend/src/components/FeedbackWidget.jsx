@@ -1,142 +1,184 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 
-const STORAGE_KEY = "gstbot_feedback_pages";
+export const CATEGORIES = [
+  ["bug", "Bug Report"],
+  ["feature", "Feature Request"],
+  ["general", "General Feedback"],
+  ["other", "Other"],
+];
 
-function getSubmittedPages() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+const MAX_MESSAGE = 5000;
 
-function markPageSubmitted(page) {
-  try {
-    const pages = getSubmittedPages();
-    if (!pages.includes(page)) {
-      pages.push(page);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
-    }
-  } catch {
-    // Storage unavailable — widget will show again next visit.
-  }
+// The page the visitor was on, without its query string or fragment. Those
+// can carry a sign-in callback's code or a reset link's token, and a feedback
+// note is no place to keep either.
+function currentPageUrl() {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}`;
 }
 
 export default function FeedbackWidget() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [hover, setHover] = useState(0);
-  const [comment, setComment] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [category, setCategory] = useState("general");
+  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const messageRef = useRef(null);
+  const buttonRef = useRef(null);
+  const ids = useId();
 
-  const page = location.pathname;
+  // A new page is a new context: close anything half-written about the last one.
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
-    setHidden(getSubmittedPages().includes(page));
+    if (open && !sent) messageRef.current?.focus();
+  }, [open, sent]);
+
+  const close = useCallback(() => {
     setOpen(false);
-    setRating(0);
-    setHover(0);
-    setComment("");
-    setSubmitted(false);
-  }, [page]);
-
-  const handleSubmit = useCallback(async () => {
-    if (rating === 0) return;
-    try {
-      await api.feedback({ page, rating, comment });
-    } catch {
-      // Best-effort — don't block the UI on a failed submission.
+    setError("");
+    if (sent) {
+      setSent(false);
+      setMessage("");
+      setEmail("");
+      setCategory("general");
     }
-    markPageSubmitted(page);
-    setSubmitted(true);
-    setTimeout(() => {
-      setOpen(false);
-      setHidden(true);
-      setSubmitted(false);
-    }, 1800);
-  }, [page, rating, comment]);
+    buttonRef.current?.focus();
+  }, [sent]);
 
-  if (hidden) return null;
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, close]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!message.trim() || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      await api.feedback({
+        category,
+        message: message.trim(),
+        email: email.trim() || null,
+        page_url: currentPageUrl(),
+      });
+      setSent(true);
+    } catch (err) {
+      // Said, not swallowed: a visitor told "thanks" for a note that never
+      // arrived has no reason to send it again.
+      setError(err?.message || "Your feedback could not be sent. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <>
-      {!open && (
-        <button
-          type="button"
-          className="feedback-float"
-          onClick={() => setOpen(true)}
-          aria-label="Send feedback"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
-            <path d="M12 10c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-4 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm8 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z" />
-          </svg>
-        </button>
-      )}
+      <button
+        ref={buttonRef}
+        type="button"
+        className="feedback-float"
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-expanded={open}
+        aria-controls={`${ids}-dialog`}
+      >
+        Feedback
+      </button>
 
       {open && (
-        <div className="feedback-modal" role="dialog" aria-label="Send feedback">
-          <div className="feedback-modal-inner">
-            {submitted ? (
-              <p className="feedback-thanks">Thanks for your feedback!</p>
-            ) : (
-              <>
-                <div className="feedback-header">
-                  <span className="feedback-title">Send feedback</span>
-                  <button
-                    type="button"
-                    className="feedback-close"
-                    onClick={() => setOpen(false)}
-                    aria-label="Close feedback"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="feedback-stars" role="radiogroup" aria-label="Rating">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      className={
-                        "feedback-star" +
-                        (star <= (hover || rating) ? " is-active" : "")
-                      }
-                      onClick={() => setRating(star)}
-                      onMouseEnter={() => setHover(star)}
-                      onMouseLeave={() => setHover(0)}
-                      aria-label={`${star} star${star > 1 ? "s" : ""}`}
-                      role="radio"
-                      aria-checked={star === rating}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  className="feedback-comment"
-                  aria-label="Your feedback (optional)"
-                  placeholder="Tell us what you think..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  maxLength={2000}
-                  rows={3}
-                />
-                <button
-                  type="button"
-                  className="feedback-submit"
-                  disabled={rating === 0}
-                  onClick={handleSubmit}
-                >
-                  Submit
-                </button>
-              </>
-            )}
+        <div
+          id={`${ids}-dialog`}
+          className="feedback-modal"
+          role="dialog"
+          aria-labelledby={`${ids}-title`}
+        >
+          <div className="feedback-header">
+            <h2 id={`${ids}-title`} className="feedback-title">
+              Send feedback
+            </h2>
+            <button type="button" className="feedback-close" onClick={close} aria-label="Close feedback">
+              ×
+            </button>
           </div>
+
+          {sent ? (
+            <div className="feedback-thanks" role="status">
+              <p>Thanks — we read every message.</p>
+              {email.trim() && <p className="muted">We&apos;ll reply to {email.trim()} if we need to.</p>}
+              <button type="button" className="feedback-submit" onClick={close}>
+                Close
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={submit} noValidate>
+              <label className="feedback-label" htmlFor={`${ids}-category`}>
+                Category
+              </label>
+              <select
+                id={`${ids}-category`}
+                className="feedback-input"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {CATEGORIES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+
+              <label className="feedback-label" htmlFor={`${ids}-message`}>
+                Your feedback <span aria-hidden="true">*</span>
+              </label>
+              <textarea
+                ref={messageRef}
+                id={`${ids}-message`}
+                className="feedback-input feedback-message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                maxLength={MAX_MESSAGE}
+                rows={4}
+                required
+                placeholder="What worked, what didn't, what's missing?"
+              />
+
+              <label className="feedback-label" htmlFor={`${ids}-email`}>
+                Email <span className="muted">(optional, for a reply)</span>
+              </label>
+              <input
+                id={`${ids}-email`}
+                className="feedback-input"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={320}
+                placeholder="you@company.com"
+              />
+
+              {error && (
+                <p className="feedback-error" role="alert">
+                  {error}
+                </p>
+              )}
+
+              <button type="submit" className="feedback-submit" disabled={!message.trim() || sending}>
+                {sending ? "Sending…" : "Submit"}
+              </button>
+            </form>
+          )}
         </div>
       )}
     </>

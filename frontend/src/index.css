@@ -3060,125 +3060,132 @@ a:focus-visible {
 }
 .whatsapp-float svg { width: 28px; height: 28px; }
 
-/* Floating feedback widget */
+/* Floating feedback widget — DoAide blue, so it reads as "talk to us"
+   rather than another gold call to action. White on #2563eb is 5.2:1.
+   Sits above the WhatsApp button that owns bottom: 20px. */
 .feedback-float {
   position: fixed;
   bottom: 86px;
   right: 20px;
   z-index: 100;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #D4AF37;
-  color: #1A1A1D;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
   border: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  transition: transform 0.2s, box-shadow 0.2s;
+  opacity: 0.88;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.feedback-float:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+.feedback-float:hover,
+.feedback-float[aria-expanded="true"] {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
 }
-.feedback-float svg { width: 24px; height: 24px; }
+.feedback-float:focus-visible,
+.feedback-submit:focus-visible,
+.feedback-close:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
 .feedback-modal {
   position: fixed;
-  bottom: 86px;
+  bottom: 132px;
   right: 20px;
   z-index: 101;
-}
-.feedback-modal-inner {
-  background: #1A1A1D;
-  border: 1px solid #333;
+  width: min(340px, calc(100vw - 40px));
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 16px;
-  width: 280px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  color: #e0e0e0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  color: var(--ink);
 }
 .feedback-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
 .feedback-title {
+  margin: 0;
+  font-size: 15px;
   font-weight: 600;
-  font-size: 0.95rem;
-  color: #D4AF37;
 }
 .feedback-close {
   background: none;
   border: none;
-  color: #888;
-  font-size: 1.3rem;
+  color: var(--ink-muted);
+  font-size: 22px;
+  line-height: 1;
   cursor: pointer;
   padding: 0 4px;
-  line-height: 1;
 }
-.feedback-close:hover { color: #e0e0e0; }
-.feedback-stars {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
+.feedback-close:hover { color: var(--ink); }
+.feedback-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
 }
-.feedback-star {
-  background: none;
-  border: none;
-  font-size: 1.6rem;
-  color: #555;
-  cursor: pointer;
-  padding: 0 2px;
-  transition: color 0.15s;
-  line-height: 1;
-}
-.feedback-star.is-active,
-.feedback-star:hover { color: #D4AF37; }
-.feedback-comment {
+.feedback-input {
   width: 100%;
-  background: #2a2a2d;
-  border: 1px solid #444;
-  border-radius: 8px;
-  color: #e0e0e0;
-  padding: 8px 10px;
-  font-size: 0.85rem;
-  resize: vertical;
-  min-height: 60px;
-  margin-bottom: 12px;
-  font-family: inherit;
   box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
 }
-.feedback-comment::placeholder { color: #777; }
-.feedback-comment:focus {
+.feedback-message { resize: vertical; min-height: 88px; }
+.feedback-input:focus {
   outline: none;
-  border-color: #D4AF37;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+.feedback-error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--bad);
 }
 .feedback-submit {
+  margin-top: 14px;
   width: 100%;
-  padding: 8px;
-  background: #D4AF37;
-  color: #1A1A1D;
+  padding: 9px 12px;
   border: none;
   border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font: inherit;
   font-weight: 600;
-  font-size: 0.85rem;
   cursor: pointer;
-  transition: opacity 0.2s;
 }
-.feedback-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.feedback-submit:not(:disabled):hover { background: #1d4ed8; }
+.feedback-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.feedback-thanks p { margin: 0 0 8px; }
+
+/* Admin feedback inbox */
+.feedback-admin-table td { vertical-align: top; }
+.feedback-admin-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 48ch;
 }
-.feedback-submit:not(:disabled):hover { opacity: 0.9; }
-.feedback-thanks {
-  text-align: center;
-  color: #D4AF37;
-  font-weight: 600;
-  padding: 12px 0;
-  margin: 0;
+.feedback-admin-meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 
 /* Popular tools section on landing */

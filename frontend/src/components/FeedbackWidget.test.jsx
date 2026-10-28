@@ -1,10 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FeedbackWidget from "./FeedbackWidget";
 
-function renderWidget(route = "/calculator") {
+function respond(status, body = {}) {
+  return Promise.resolve({
+    ok: status < 400,
+    status,
+    headers: new Headers({ "content-type": "application/json" }),
+    text: () => Promise.resolve(JSON.stringify(body)),
+  });
+}
+
+function renderWidget(route = "/gst-calculator") {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <FeedbackWidget />
@@ -12,92 +21,122 @@ function renderWidget(route = "/calculator") {
   );
 }
 
+async function openForm() {
+  await userEvent.click(screen.getByRole("button", { name: "Feedback" }));
+  return screen.getByRole("dialog", { name: "Send feedback" });
+}
+
+function sentBody() {
+  const [, init] = global.fetch.mock.calls.at(-1);
+  return JSON.parse(init.body);
+}
+
 describe("FeedbackWidget", () => {
   beforeEach(() => {
-    localStorage.clear();
-    vi.restoreAllMocks();
-    global.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("{}") }),
-    );
+    global.fetch = vi.fn(() => respond(201, { id: 1 }));
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("shows the floating button on a fresh page", () => {
+  it("is a labelled button, always there, that opens the form", async () => {
     renderWidget();
-    expect(screen.getByLabelText("Send feedback")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Feedback" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    await openForm();
+    expect(button).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("opens the modal when the button is clicked", async () => {
+  it("offers the four categories and defaults to general feedback", async () => {
     renderWidget();
-    await userEvent.click(screen.getByLabelText("Send feedback"));
-    expect(screen.getByRole("dialog", { name: "Send feedback" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Tell us what you think...")).toBeInTheDocument();
+    await openForm();
+    const select = screen.getByRole("combobox", { name: "Category" });
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      "Bug Report",
+      "Feature Request",
+      "General Feedback",
+      "Other",
+    ]);
+    expect(select).toHaveValue("general");
   });
 
-  it("names the comment box for a screen reader, not only with a placeholder", async () => {
+  it("will not submit until there is something to say", async () => {
     renderWidget();
-    await userEvent.click(screen.getByLabelText("Send feedback"));
-    expect(screen.getByRole("textbox", { name: "Your feedback (optional)" })).toBeInTheDocument();
+    await openForm();
+    const submit = screen.getByRole("button", { name: "Submit" });
+    expect(submit).toBeDisabled();
+    await userEvent.type(screen.getByRole("textbox", { name: /your feedback/i }), "   ");
+    expect(submit).toBeDisabled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("closes the modal when the close button is clicked", async () => {
+  it("sends the category, message, email and the page without its query", async () => {
+    window.history.replaceState(null, "", "/gst-calculator?token=secret#frag");
     renderWidget();
-    await userEvent.click(screen.getByLabelText("Send feedback"));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText("Close feedback"));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
+    await openForm();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Category" }), "bug");
+    await userEvent.type(screen.getByRole("textbox", { name: /your feedback/i }), "  Rate is wrong  ");
+    await userEvent.type(screen.getByRole("textbox", { name: /email/i }), "me@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-  it("submits feedback and shows a thank-you message", async () => {
-    renderWidget();
-    await userEvent.click(screen.getByLabelText("Send feedback"));
-    await userEvent.click(screen.getByLabelText("4 stars"));
-    await userEvent.type(
-      screen.getByPlaceholderText("Tell us what you think..."),
-      "Great tool!",
-    );
-    await userEvent.click(screen.getByText("Submit"));
-
+    await screen.findByText("Thanks — we read every message.");
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/v1/feedback",
       expect.objectContaining({ method: "POST" }),
     );
-    const body = JSON.parse(global.fetch.mock.calls[0][1].body);
-    expect(body.page).toBe("/calculator");
-    expect(body.rating).toBe(4);
-    expect(body.comment).toBe("Great tool!");
-
-    expect(screen.getByText("Thanks for your feedback!")).toBeInTheDocument();
+    expect(sentBody()).toEqual({
+      category: "bug",
+      message: "Rate is wrong",
+      email: "me@example.com",
+      page_url: `${window.location.origin}/gst-calculator`,
+    });
+    window.history.replaceState(null, "", "/");
   });
 
-  it("hides the button on pages the user already submitted feedback for", () => {
-    localStorage.setItem(
-      "gstbot_feedback_pages",
-      JSON.stringify(["/calculator"]),
-    );
-    renderWidget("/calculator");
-    expect(screen.queryByLabelText("Send feedback")).not.toBeInTheDocument();
-  });
-
-  it("disables submit until a rating is selected", async () => {
+  it("sends no email when the box is left empty", async () => {
     renderWidget();
-    await userEvent.click(screen.getByLabelText("Send feedback"));
-    const submitBtn = screen.getByText("Submit");
-    expect(submitBtn).toBeDisabled();
-    await userEvent.click(screen.getByLabelText("3 stars"));
-    expect(submitBtn).not.toBeDisabled();
+    await openForm();
+    await userEvent.type(screen.getByRole("textbox", { name: /your feedback/i }), "Nice");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await screen.findByRole("status");
+    expect(sentBody().email).toBeNull();
   });
 
-  it("marks the page in localStorage after submission", async () => {
-    renderWidget("/lookup");
-    await userEvent.click(screen.getByLabelText("Send feedback"));
-    await userEvent.click(screen.getByLabelText("5 stars"));
-    await userEvent.click(screen.getByText("Submit"));
+  it("says so when sending fails, and keeps what was typed", async () => {
+    global.fetch = vi.fn(() =>
+      respond(429, { detail: "Too many requests. Please wait a moment and try again." }),
+    );
+    renderWidget();
+    await openForm();
+    const box = screen.getByRole("textbox", { name: /your feedback/i });
+    await userEvent.type(box, "Keep me");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    const stored = JSON.parse(localStorage.getItem("gstbot_feedback_pages"));
-    expect(stored).toContain("/lookup");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/too many requests/i);
+    expect(box).toHaveValue("Keep me");
+    expect(screen.queryByText("Thanks — we read every message.")).not.toBeInTheDocument();
+  });
+
+  it("closes on Escape and on the close button, returning focus to the button", async () => {
+    renderWidget();
+    await openForm();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Feedback" })).toHaveFocus();
+
+    await openForm();
+    await userEvent.click(screen.getByRole("button", { name: "Close feedback" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("starts a fresh form after a sent one is closed", async () => {
+    renderWidget();
+    await openForm();
+    await userEvent.type(screen.getByRole("textbox", { name: /your feedback/i }), "First");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Close" }));
+    await openForm();
+    expect(screen.getByRole("textbox", { name: /your feedback/i })).toHaveValue("");
   });
 });

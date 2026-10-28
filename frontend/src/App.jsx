@@ -18,6 +18,7 @@ const FeedbackWidget = lazy(() => import("./components/FeedbackWidget"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const AdminFeedbackPage = lazy(() => import("./pages/AdminFeedbackPage"));
 const BlogLayout = lazy(() => import("./pages/BlogLayout"));
 const BlogIndex = lazy(() => import("./pages/BlogLayout").then(m => ({ default: m.BlogIndex })));
 const CalculatorPage = lazy(() => import("./pages/CalculatorPage"));
@@ -411,6 +412,14 @@ export default function App() {
           element={
             <Protected>
               <AlertsPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/admin/feedback"
+          element={
+            <Protected>
+              <AdminFeedbackPage />
             </Protected>
           }
         />

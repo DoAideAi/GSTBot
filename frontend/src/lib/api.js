@@ -445,6 +445,9 @@ export const api = {
 
   feedback: (payload) =>
     request("/feedback", { method: "POST", body: payload }),
+  // Admin-only on the server (ADMIN_EMAILS); anyone else gets a 403.
+  listFeedback: (params = {}, { signal } = {}) =>
+    request(`/feedback${query(params)}`, { signal }),
 
   // ---- Invoices ----
   uploadInvoice(file, invoiceType = "purchase") {

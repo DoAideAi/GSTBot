@@ -256,6 +256,7 @@ Disallow: /suppliers
 Disallow: /alerts
 Disallow: /usage
 Disallow: /status
+Disallow: /admin
 
 Sitemap: {SITE}/api/v1/seo/sitemap.xml
 """
