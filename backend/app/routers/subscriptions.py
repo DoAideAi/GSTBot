@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -264,6 +264,7 @@ def verify_payment(
             detail="This payment has already been applied to another account.",
         )
 
+    _serialise_billing(db, business.id)
     sub = usage_service.get_subscription(db, business.id)
     applied = _applied_payment(db, payload.razorpay_payment_id)
     if applied is not None or (
@@ -358,6 +359,31 @@ def verify_payment(
         },
     )
     return SubscriptionOut.model_validate(sub)
+
+
+# The second key of the per-business billing lock. Uploads hold (business, 0)
+# and reconciliation (business, YYYYMM); no period is 1.
+_BILLING_LOCK_KEY = 1
+
+
+def _serialise_billing(db: Session, business_id: int) -> None:
+    """Apply one payment per business at a time, until its commit.
+
+    Everything verify-payment decides is read off the business's subscription
+    before it writes: whether there is one to renew, and where the period it
+    buys starts. Two payments verified at once — two tabs, or the owner and
+    their CA each completing a checkout — both read the same answer. With no
+    subscription yet both inserted one, the unique ``business_id`` refused the
+    second, and that payment was told it belonged "to another account" and
+    recorded nowhere. With one, both extended from the same period end and the
+    later commit overwrote the earlier: two periods paid for, one granted.
+
+    Taken after the order is fetched from Razorpay, so the lock is never held
+    across a network call. SQLite has no concurrent writers to keep apart.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.execute(select(func.pg_advisory_xact_lock(business_id, _BILLING_LOCK_KEY)))
 
 
 def _applied_payment(db: Session, payment_id: str) -> SubscriptionPayment | None:

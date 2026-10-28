@@ -1529,3 +1529,99 @@ class TestAWebhookRacingARenewal:
 
         db_session.expire_all()
         assert db_session.get(Subscription, sub.id).status is SubscriptionStatus.CANCELLED
+
+
+class TestTwoPaymentsVerifiedAtOnce:
+    """Everything verify-payment decides is read off the subscription before
+    it writes, so two verifications for one business must not interleave."""
+
+    def _verify(self, auth_client, business, payment_id):
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
+        ):
+            return auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_test",
+                    "razorpay_payment_id": payment_id,
+                    "razorpay_signature": "valid_sig",
+                    "tier": "pro",
+                },
+            )
+
+    def test_the_billing_lock_is_taken_before_the_subscription_is_read(
+        self, monkeypatch, auth_client, business
+    ):
+        from app.routers import subscriptions as router
+
+        order = []
+        monkeypatch.setattr(
+            router, "_serialise_billing", lambda db, bid: order.append(("lock", bid))
+        )
+        real_get = usage_service.get_subscription
+        monkeypatch.setattr(
+            usage_service, "get_subscription",
+            lambda *a, **kw: (order.append("read"), real_get(*a, **kw))[1],
+        )
+
+        assert self._verify(auth_client, business, "pay_lock").status_code == 200
+
+        assert order[:2] == [("lock", business.id), "read"]
+
+    def test_a_refused_signature_takes_no_lock(self, monkeypatch, auth_client, business):
+        from app.routers import subscriptions as router
+
+        taken = []
+        monkeypatch.setattr(router, "_serialise_billing", lambda *a: taken.append(a))
+        with patch.object(razorpay_client, "verify_payment_signature", return_value=False):
+            response = auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_test",
+                    "razorpay_payment_id": "pay_x",
+                    "razorpay_signature": "bad",
+                    "tier": "pro",
+                },
+            )
+
+        assert response.status_code == 400
+        assert taken == []
+
+    def test_on_postgres_it_is_the_transaction_scoped_advisory_lock(self):
+        from types import SimpleNamespace
+
+        from app.routers import subscriptions as router
+
+        executed = []
+        fake = SimpleNamespace(
+            get_bind=lambda: SimpleNamespace(dialect=SimpleNamespace(name="postgresql")),
+            execute=executed.append,
+        )
+
+        router._serialise_billing(fake, 7)
+
+        [statement] = executed
+        sql = str(statement.compile(compile_kwargs={"literal_binds": True}))
+        assert "pg_advisory_xact_lock(7, 1)" in sql
+
+    def test_its_key_is_distinct_from_the_upload_lock(self):
+        from app.routers import subscriptions as router
+        from app.services import invoice_service
+
+        assert router._BILLING_LOCK_KEY != invoice_service._UPLOAD_LOCK_KEY
+
+    def test_serialised_renewals_both_extend_the_period(
+        self, auth_client, db_session, business
+    ):
+        # What the lock buys, shown in the order it now forces: the second
+        # payment reads the period the first one granted, not the same start.
+        first = self._verify(auth_client, business, "pay_one").json()
+        second = self._verify(auth_client, business, "pay_two").json()
+
+        from datetime import datetime
+
+        one = datetime.fromisoformat(first["current_period_end"])
+        two = datetime.fromisoformat(second["current_period_end"])
+        assert (two - one).days >= 28
