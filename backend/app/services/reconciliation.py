@@ -39,8 +39,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select, update
+from sqlalchemy.orm import Session, object_session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
 from app.models.invoice import (
@@ -72,6 +73,12 @@ DEFAULT_TOLERANCE = Decimal("1.00")
 # The money fields compared field by field. ``total_value`` is included so an
 # invoice whose tax happens to agree but whose value does not is still caught.
 COMPARED_FIELDS = ("taxable_value", "cgst", "sgst", "igst", "cess", "total_value")
+
+# Everything a verdict was reached from: the two fields the row is found by,
+# the two that decide which period's run judges it, and the money compared.
+_JUDGED_FIELDS = (
+    "counterparty_gstin", "invoice_number", "invoice_date", "period", *COMPARED_FIELDS
+)
 
 # Runs of letters and runs of digits, with every separator falling away.
 _TOKENS = re.compile(r"[A-Z]+|[0-9]+")
@@ -833,9 +840,39 @@ def _apply_statuses(result: ReconciliationResult) -> None:
     for finding in result.findings:
         if finding.invoice is None or finding.carried:
             continue
+        invoice = finding.invoice
         new_status = status_for.get(finding.category)
-        if new_status is not None:
-            finding.invoice.status = new_status
+        if new_status is None or invoice.status is new_status:
+            continue
+        db = object_session(invoice)
+        if db is None:
+            invoice.status = new_status
+            continue
+        # A verdict is about the figures this run read, and it is written as
+        # one: only onto a row that still holds them. The run loads the books,
+        # compares, and commits seconds later, and nothing stops a reviewer's
+        # correction or a reparse landing in between. Assigning the attribute
+        # wrote the status unconditionally over whatever had been committed —
+        # a corrected taxable value went back to reading ``matched``, the
+        # badge the PATCH had just withdrawn because no run had seen the new
+        # figure, and a row a reparse had claimed came out of ``processing``
+        # as a verdict mid-extraction. Under READ COMMITTED Postgres re-reads
+        # the row this UPDATE waits on, so the predicate is checked against
+        # the committed version and a row that moved is simply skipped: it
+        # keeps what its own writer gave it, and the next run judges it.
+        written = db.execute(
+            update(Invoice)
+            .where(
+                Invoice.id == invoice.id,
+                Invoice.deleted_at.is_(None),
+                Invoice.status == invoice.status,
+                *(getattr(Invoice, name) == getattr(invoice, name) for name in _JUDGED_FIELDS),
+            )
+            .values(status=new_status)
+            .execution_options(synchronize_session=False)
+        ).rowcount
+        if written:
+            set_committed_value(invoice, "status", new_status)
 
 
 def latest_gstr2b(db: Session, business_id: int, period: str) -> GSTRReturn | None:

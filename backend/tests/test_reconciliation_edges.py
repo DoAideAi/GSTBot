@@ -1263,3 +1263,91 @@ class TestConcurrentReconciliationGuard:
 
         run = reconciliation.run_reconciliation(db_session, business.id, PERIOD)
         assert run.status is ReconciliationStatus.COMPLETED
+
+
+# ---------------------------------------------------------------------------
+# A verdict only lands on the figures it was reached from
+# ---------------------------------------------------------------------------
+
+class TestAVerdictIsNotWrittenOverAConcurrentChange:
+    """The run reads the books, compares, then writes — and another request can
+    commit to an invoice in between. Simulated here by writing the row behind
+    the session's back once matching has finished, which is what a committed
+    correction looks like to the run: its loaded copy is stale, the table is
+    not.
+    """
+
+    @staticmethod
+    def _commit_behind_the_run(monkeypatch, invoice_id, **values):
+        from sqlalchemy import update
+        from sqlalchemy.orm import object_session
+
+        from app.models.invoice import Invoice
+
+        real_match = reconciliation.match
+
+        def match_then_someone_else_writes(*args, **kwargs):
+            result = real_match(*args, **kwargs)
+            db = object_session(args[0][0])
+            db.execute(
+                update(Invoice)
+                .where(Invoice.id == invoice_id)
+                .values(**values)
+                .execution_options(synchronize_session=False)
+            )
+            return result
+
+        monkeypatch.setattr(reconciliation, "match", match_then_someone_else_writes)
+
+    @staticmethod
+    def _stored(db, invoice_id):
+        from app.models.invoice import Invoice
+
+        db.expire_all()
+        return db.get(Invoice, invoice_id)
+
+    def test_a_corrected_figure_is_not_stamped_matched(self, monkeypatch, db_session, business):
+        invoice = save(db_session, business.id)
+        import_2b(db_session, business.id, [portal()])
+        self._commit_behind_the_run(
+            monkeypatch, invoice.id, taxable_value=Decimal("400000.00")
+        )
+
+        run = reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        assert run.status is ReconciliationStatus.COMPLETED
+        stored = self._stored(db_session, invoice.id)
+        assert stored.taxable_value == Decimal("400000.00")
+        assert stored.status is InvoiceStatus.PARSED
+
+    def test_a_row_claimed_for_reparse_stays_processing(self, monkeypatch, db_session, business):
+        invoice = save(db_session, business.id)
+        import_2b(db_session, business.id, [portal()])
+        self._commit_behind_the_run(monkeypatch, invoice.id, status=InvoiceStatus.PROCESSING)
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        assert self._stored(db_session, invoice.id).status is InvoiceStatus.PROCESSING
+
+    def test_a_row_deleted_mid_run_is_not_given_a_verdict(self, monkeypatch, db_session, business):
+        from datetime import UTC, datetime
+
+        invoice = save(db_session, business.id)
+        import_2b(db_session, business.id, [portal()])
+        self._commit_behind_the_run(monkeypatch, invoice.id, deleted_at=datetime.now(UTC))
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        assert self._stored(db_session, invoice.id).status is InvoiceStatus.PARSED
+
+    def test_an_untouched_row_still_gets_its_verdict(self, monkeypatch, db_session, business):
+        invoice = save(db_session, business.id, invoice_number=None)
+        import_2b(db_session, business.id, [portal()])
+        # A write to an unrelated column: nothing the verdict was reached from.
+        self._commit_behind_the_run(monkeypatch, invoice.id, hsn_code="9983")
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        # No number, so nothing in the statement can be it — and a null in a
+        # judged field must still compare equal to itself.
+        assert self._stored(db_session, invoice.id).status is InvoiceStatus.MISSING_IN_2B
