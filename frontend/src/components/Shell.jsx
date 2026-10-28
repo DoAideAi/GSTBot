@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
 import BusinessSwitcher from "./BusinessSwitcher";
+import ExportAccountButton from "./ExportAccountButton";
 import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
@@ -159,6 +160,7 @@ export default function Shell({ children }) {
           )}
           <BusinessSwitcher />
           <ThemeToggle />
+          <ExportAccountButton />
           <button type="button" className="btn btn-ghost" onClick={handleLogout}>
             Sign out
           </button>

@@ -672,6 +672,9 @@ export const api = {
     request("/reconciliation/report/verify", { method: "POST", body: payload }),
   downloadReport: (runId) => fetchFile(`${BASE}/reconciliation/${runId}/report.pdf`),
 
+  /** Everything held about the business on screen, as one JSON file. Owner only. */
+  exportAccount: () => fetchFile(`${BASE}/businesses/mine/export`),
+
   // ---- Alerts ----
   //
   // The daily sweep in the backend raises these, the dashboard counts them, and

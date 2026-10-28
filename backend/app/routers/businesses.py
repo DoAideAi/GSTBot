@@ -16,28 +16,35 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_business, get_current_user, require_owner
 from app.core.params import RowId
 from app.core.rate_limit import RateLimit, apply_headers, charge, client_ip, forget, peek
 from app.core.ratespec import parse_rate
+from app.core.sanitize import content_disposition
 from app.core.security import verify_password
 from app.models.business import Business
 from app.models.business_membership import BusinessMembership, MembershipRole
 from app.models.user import User
 from app.schemas.business import LinkBusinessIn, MyBusinessesOut, MyBusinessOut
+from app.services import data_export
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 
 _read_limit = RateLimit("businesses_read", "120/minute")
+# A whole account read in one request: cheap to allow a few, expensive to allow
+# a loop. Nobody needs their full export more than a handful of times an hour.
+_export_limit = RateLimit("business_export", "5/hour")
 # Verifies a password, so it earns the same tight budget login itself has —
 # see app.routers.auth._login_limit.
 _link_limit = RateLimit("businesses_link", "20/minute", by="ip")
@@ -278,3 +285,47 @@ def unlink_business(
         )
     membership.soft_delete()
     db.commit()
+
+
+@router.get(
+    "/mine/export",
+    summary="Download everything held about this business, as one JSON file",
+    description=(
+        "Every row this product holds for the business acting on the request — "
+        "invoices with their extracted text, suppliers and their scores, "
+        "reconciliation runs with their findings, filed returns, alerts, report "
+        "purchases, the subscription and its payments, usage, and the logins "
+        "with access — including soft-deleted rows, which are still held and "
+        "say so in `deleted_at`. Money is a string, dates are ISO 8601.\n\n"
+        "`withheld` lists the columns left out: a password hash, an OAuth "
+        "provider's subject id and the server's own file paths, none of which "
+        "is the business's data.\n\n"
+        "Owner only. It contains every login's email and the whole of the "
+        "books, which is the owner's to hand over."
+    ),
+    response_class=JSONResponse,
+    responses={200: {"description": "The export, as an attachment."}},
+    dependencies=[Depends(_export_limit), Depends(require_owner)],
+)
+def export_account(
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+) -> JSONResponse:
+    now = datetime.now(UTC)
+    document = data_export.export_business(db, business, exported_at=now)
+    logger.info(
+        "Account exported",
+        extra={
+            "business_id": business.id,
+            "rows": {name: len(rows) for name, rows in document["tables"].items()},
+        },
+    )
+    who = business.gstin or f"business-{business.id}"
+    return JSONResponse(
+        document,
+        headers={
+            "Content-Disposition": content_disposition(
+                f"doaide-gst-export-{who}-{now.date().isoformat()}.json"
+            )
+        },
+    )

@@ -877,6 +877,23 @@ describe("api", () => {
     });
   });
 
+  it("downloads the whole account with the bearer token", async () => {
+    setToken("tok-1");
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(["{}"]),
+      headers: { get: () => 'attachment; filename="doaide-gst-export-x.json"' },
+    });
+
+    const { filename } = await api.exportAccount();
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe("/api/v1/businesses/mine/export");
+    expect(options.headers.Authorization).toBe("Bearer tok-1");
+    expect(filename).toBe("doaide-gst-export-x.json");
+  });
+
   describe("downloadExport", () => {
     function fileResponse(body, { status = 200, disposition = null } = {}) {
       return {
