@@ -262,7 +262,10 @@ class TestChatCompletionRequest:
         assert body["temperature"] == 0.7
         assert body["max_tokens"] == 42
 
-    def test_the_configured_timeout_is_applied(self, configured, transport):
+    def test_the_configured_timeout_is_applied(self, configured, transport, monkeypatch):
+        # When the call's budget has room for it — see TestTheCallBudget for
+        # the attempt that is given only what is left.
+        monkeypatch.setattr(settings, "openrouter_call_budget_seconds", 600.0)
         chat_completion(MESSAGES)
         assert transport["calls"][0]["timeout"] == settings.openrouter_timeout_seconds
 
@@ -798,6 +801,66 @@ class TestTheWaitingBudget:
 # --------------------------------------------------------------------------
 # what a call that worked leaves behind
 # --------------------------------------------------------------------------
+
+class TestTheCallBudget:
+    """The whole call — attempts as well as waits — fits a wall-clock budget.
+
+    Three 90s timeouts and their backoff were five minutes, and a parse can
+    make two calls. Celery's soft limit cut the task at 180s by raising inside
+    the call, which is not an ``OpenRouterError``, so the heuristic fallback was
+    skipped and a slow provider turned invoices into failures.
+    """
+
+    @pytest.fixture()
+    def clock(self, monkeypatch):
+        now = {"t": 1000.0}
+        fake_time = type("T", (), {"perf_counter": staticmethod(lambda: now["t"])})
+        monkeypatch.setattr(openrouter_client, "time", fake_time)
+        return now
+
+    @pytest.fixture()
+    def slow_provider(self, monkeypatch, clock):
+        """Every request hangs for its whole timeout and then fails to read."""
+        calls: list[dict] = []
+
+        def fake_post(url, **kwargs):
+            calls.append(kwargs)
+            clock["t"] += kwargs["timeout"]
+            raise httpx.ReadTimeout("read timed out")
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        return calls
+
+    def test_a_slow_provider_is_given_up_on_within_the_budget(
+        self, configured, slow_provider, clock, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "openrouter_call_budget_seconds", 80.0)
+        started = clock["t"]
+        with pytest.raises(OpenRouterError, match="timed out"):
+            chat_completion(MESSAGES)
+        assert clock["t"] - started <= 80.0
+        assert len(slow_provider) == 1, "retried into a budget that was already spent"
+
+    def test_each_attempt_is_given_only_what_is_left(
+        self, configured, slow_provider, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "openrouter_timeout_seconds", 30.0)
+        monkeypatch.setattr(settings, "openrouter_call_budget_seconds", 80.0)
+        with pytest.raises(OpenRouterError):
+            chat_completion(MESSAGES)
+        timeouts = [c["timeout"] for c in slow_provider]
+        assert timeouts[0] == 30.0
+        assert sum(timeouts) <= 80.0
+
+    def test_two_calls_fit_inside_the_parse_task_soft_limit(self):
+        # A scanned invoice is a vision call, then OCR, then a text call. Both
+        # must end as an ``OpenRouterError`` the parser falls back from, before
+        # Celery raises its own exception inside the second one.
+        from app.celery_app import celery_app
+
+        soft_limit = celery_app.conf.task_soft_time_limit
+        assert 2 * settings.openrouter_call_budget_seconds < soft_limit
+
 
 class TestASuccessfulCallIsMeasured:
     """The only place the provider's latency is measured.

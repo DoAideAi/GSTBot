@@ -167,6 +167,15 @@ class Settings(BaseSettings):
     # latency a user is sitting through. A retry that would cross it is not
     # taken: falling back to heuristics now beats the same failure 30s later.
     openrouter_retry_max_wait_seconds: float = Field(default=30.0, ge=0, le=300)
+    # Ceiling on the whole call — every attempt *and* every wait — measured on
+    # the wall clock. The two settings above bound each request and the sleeps
+    # between them, but not their sum: three 90s timeouts and 30s of backoff is
+    # five minutes, and a parse can make two calls (vision, then text after
+    # OCR). The parse task is cut by Celery's soft limit at 180s, which raises
+    # inside the call rather than as an ``OpenRouterError`` — so a slow provider
+    # skipped the heuristic fallback and the invoice was marked failed. Two of
+    # these must fit inside that limit; ``test_openrouter_client`` holds it.
+    openrouter_call_budget_seconds: float = Field(default=80.0, gt=0, le=600)
 
     # ---- AI (TypeSafe Jev — structured classification) ----
     # Empty key = Jev is never called and every caller keeps its non-Jev path.

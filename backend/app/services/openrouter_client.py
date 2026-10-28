@@ -214,11 +214,18 @@ def chat_completion(
     # No exit arc to cover: ``attempts`` is at least 1 and the last iteration
     # always leaves through ``break`` on ``attempt == attempts``, so the raise
     # below is reached that way and never by exhausting the range.
+    deadline = started + settings.openrouter_call_budget_seconds
     for attempt in range(1, attempts + 1):  # pragma: no branch
         retry_after: float | None = None
+        # Each attempt gets what is left of the call's budget, not a fresh
+        # full timeout — see ``openrouter_call_budget_seconds``.
+        remaining = deadline - time.perf_counter()
         try:
             response = httpx.post(
-                url, headers=_headers(), json=payload, timeout=request_timeout
+                url,
+                headers=_headers(),
+                json=payload,
+                timeout=max(1.0, min(request_timeout, remaining)),
             )
         except httpx.TransportError as exc:
             # Connect, read, write and timeout errors — the network, not the
@@ -269,7 +276,7 @@ def chat_completion(
         delay = retry_after if retry_after is not None else (
             _BACKOFF_BASE_SECONDS * 2 ** (attempt - 1) + _jitter()
         )
-        if waited + delay > budget:
+        if waited + delay > budget or time.perf_counter() + delay >= deadline - 1.0:
             # Sleeping the rest of the budget and retrying into a window that
             # is still closed helps nobody: the caller gets the same failure,
             # later. Falling back to heuristics now is the better answer.
