@@ -266,3 +266,76 @@ class TestAdvisorLatency:
             assert advisor._clients == {}
 
         asyncio.run(run())
+
+
+class TestAdvisorLeavesARecord:
+    """Every outcome of a question is a log line: the user only ever sees a
+    polite sentence, so the log is the only place the cause is written down."""
+
+    def _ok(self):
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+    def test_an_answer_records_the_model_and_how_long_it_took(self, client, caplog):
+        import logging
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=self._ok()),
+            caplog.at_level(logging.INFO, logger="app.routers.advisor"),
+        ):
+            client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+        [line] = [r for r in caplog.records if r.getMessage() == "Advisor answered"]
+        assert line.model == "gemini-3.8-flash"
+        assert line.attempt == 1
+        assert line.duration_ms >= 0
+
+    def test_a_timeout_is_logged_with_the_model(self, client, caplog):
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch(
+                "httpx.AsyncClient.post",
+                new_callable=AsyncMock,
+                side_effect=httpx.ReadTimeout("slow"),
+            ),
+        ):
+            reply = client.post("/api/v1/advisor/ask", json={"message": "Hi"}).json()["reply"]
+        assert "timed out" in reply
+        [line] = [r for r in caplog.records if "timed out" in r.getMessage()]
+        assert line.levelname == "WARNING"
+        assert line.model == "gemini-3.8-flash"
+
+    def test_running_out_of_models_is_an_error(self, client, caplog):
+        overloaded = httpx.Response(503, text="overloaded")
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=overloaded),
+        ):
+            client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+        [line] = [r for r in caplog.records if "no Gemini model accepted" in r.getMessage()]
+        assert line.levelname == "ERROR"
+        assert line.last_status == 503
+
+    def test_a_missing_key_is_reported_once_not_per_question(self, client, caplog):
+        from app.routers import advisor
+
+        advisor._reported_missing_key = False
+        with patch("app.routers.advisor._get_api_key", return_value=None):
+            for _ in range(3):
+                client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+        lines = [r for r in caplog.records if "no Gemini API key" in r.getMessage()]
+        assert len(lines) == 1
+        assert lines[0].levelname == "ERROR"
+
+    def test_an_unreadable_key_file_is_an_error_and_an_absent_one_is_not(self, caplog, tmp_path):
+        from app.routers import advisor
+
+        with patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
+            with patch.object(advisor, "_KEY_FILE", tmp_path / "absent"):
+                assert advisor._get_api_key() is None
+            assert not [r for r in caplog.records if "could not be read" in r.getMessage()]
+
+            # A directory where the file should be: exists, cannot be read as text.
+            with patch.object(advisor, "_KEY_FILE", tmp_path):
+                assert advisor._get_api_key() is None
+        [line] = [r for r in caplog.records if "could not be read" in r.getMessage()]
+        assert line.levelname == "ERROR"

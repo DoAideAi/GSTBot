@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -57,9 +58,22 @@ def _get_api_key() -> str | None:
         key = _KEY_FILE.read_text().strip()
         if key:
             return key
-    except OSError:
-        pass
+    except FileNotFoundError:
+        pass  # the ordinary state of a machine configured through the environment
+    except OSError as exc:
+        # A key file that is there and cannot be read (permissions, a directory
+        # where the file should be) is a deployment fault, not an absent key —
+        # and the user only ever sees "temporarily unavailable".
+        logger.error(
+            "Advisor key file could not be read",
+            extra={"path": str(_KEY_FILE), "error": str(exc)},
+        )
     return None
+
+
+#: Whether the "no key" error has been logged by this process. Once is the
+#: signal; on every question it would be the noise that hides other lines.
+_reported_missing_key = False
 
 
 #: How many earlier messages are forwarded with a question. The widget sends
@@ -134,8 +148,16 @@ def _build_contents(history: list[HistoryMessage], message: str) -> list[dict]:
     dependencies=[Depends(_advisor_limit)],
 )
 async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
+    global _reported_missing_key
     api_key = _get_api_key()
     if not api_key:
+        if not _reported_missing_key:
+            _reported_missing_key = True
+            logger.error(
+                "Advisor has no Gemini API key: every question is answered "
+                "'temporarily unavailable' (set GEMINI_API_KEY or the key file)",
+                extra={"key_file": str(_KEY_FILE)},
+            )
         return {"reply": "The AI advisor is temporarily unavailable. Please try again later."}
 
     contents = _build_contents(body.history, body.message)
@@ -144,15 +166,26 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
         "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.7},
     }
 
+    started = time.monotonic()
+    model = _GEMINI_MODELS[0]
     try:
         client = _client()
-        for model in _GEMINI_MODELS:
+        for attempt, model in enumerate(_GEMINI_MODELS, start=1):
             response = await client.post(
                 _GEMINI_URL.format(model=model),
                 headers={"x-goog-api-key": api_key},
                 json=payload,
             )
             if response.status_code == 200:
+                logger.info(
+                    "Advisor answered",
+                    extra={
+                        "model": model,
+                        "attempt": attempt,
+                        "duration_ms": int((time.monotonic() - started) * 1000),
+                        "history_turns": len(body.history),
+                    },
+                )
                 return {"reply": _reply_text(response.json())}
             logger.warning(
                 "Gemini %s returned %d: %s",
@@ -162,9 +195,21 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
             )
             if response.status_code not in _RETRYABLE:
                 break
+        logger.error(
+            "Advisor gave no answer: no Gemini model accepted the request",
+            extra={
+                "last_model": model,
+                "last_status": response.status_code,
+                "duration_ms": int((time.monotonic() - started) * 1000),
+            },
+        )
         return {"reply": _NO_REPLY}
 
     except httpx.TimeoutException:
+        logger.warning(
+            "Advisor request to Gemini timed out",
+            extra={"model": model, "duration_ms": int((time.monotonic() - started) * 1000)},
+        )
         return {"reply": "The request timed out. Please try again."}
     except Exception:
         logger.exception("Advisor proxy error")
