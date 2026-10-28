@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { setToken } from "../lib/api";
+import { track } from "../lib/track";
 
 /**
  * Where the OAuth providers' callback lands the browser.
@@ -16,7 +17,8 @@ export default function AuthCallbackPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = new URLSearchParams(hash.replace(/^#/, "")).get("token");
+    const fragment = new URLSearchParams(hash.replace(/^#/, ""));
+    const token = fragment.get("token");
     const error = new URLSearchParams(search).get("error");
 
     if (error) {
@@ -26,6 +28,10 @@ export default function AuthCallbackPage() {
 
     if (token) {
       setToken(token);
+      // The backend marks the sign-in that created the account, which is the
+      // only place a new OAuth account and a returning one can be told apart.
+      const method = fragment.get("provider") || "oauth";
+      track(fragment.get("new") === "1" ? "signup_complete" : "login", { method });
       // A full load so the auth provider starts from the stored token, and
       // `replace` so the URL carrying it does not stay in the back history.
       window.location.replace("/");

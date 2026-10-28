@@ -203,6 +203,10 @@ def _find_or_create_oauth_user(
             "business_id": business.id,
         },
     )
+    # Not a column: read once, by the redirect below, to tell the frontend that
+    # this sign-in was a sign-up. The funnel has to count those, and from the
+    # callback page a new account and a returning one look the same.
+    user.oauth_created = True
     return user
 
 
@@ -214,8 +218,16 @@ def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
         extra={"user_id": user.id, "business_id": user.business_id, "provider": provider},
     )
     access_token = create_access_token(user.id)
-    # Fragment (not query param) so the token never reaches server logs or Referer headers.
-    return RedirectResponse(f"{FRONTEND_URL}/auth/callback#token={access_token}")
+    # Fragment (not query param) so the token never reaches server logs or
+    # Referer headers. ``new`` and ``provider`` ride along for the same reason
+    # and are what the callback page reports to analytics.
+    fragment = f"token={access_token}&provider={provider}"
+    # Popped, not read: the session's identity map hands this same object back
+    # to the next lookup of this user, which would otherwise report a
+    # returning sign-in as a second sign-up.
+    if vars(user).pop("oauth_created", False):
+        fragment += "&new=1"
+    return RedirectResponse(f"{FRONTEND_URL}/auth/callback#{fragment}")
 
 
 # ── Google ────────────────────────────────────────────────
@@ -346,7 +358,10 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
 @router.get(
     "/microsoft",
     summary="Initiate Microsoft OAuth login",
-    description="Redirects to Microsoft's consent screen. The browser returns to `/microsoft/callback`.",
+    description=(
+        "Redirects to Microsoft's consent screen. The browser returns to "
+        "`/microsoft/callback`."
+    ),
     dependencies=[Depends(_oauth_initiate_limit)],
     **_LOGIN_REDIRECT,
 )

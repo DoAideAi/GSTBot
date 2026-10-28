@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { track } from "../lib/track";
 import {
   api,
   getActiveBusinessId,
@@ -75,13 +76,17 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // Counted after the server has accepted them, so the funnel's sign-ups are
+  // accounts that exist rather than forms that were submitted.
   const login = useCallback(async (email, password) => {
     await api.login(email, password);
+    track("login", { method: "password" });
     setUser(await api.me());
   }, []);
 
   const register = useCallback(async (payload) => {
     await api.register(payload);
+    track("signup_complete", { method: "password" });
     setUser(await api.me());
   }, []);
 

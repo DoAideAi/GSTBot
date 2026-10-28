@@ -9,7 +9,10 @@ import {
   setActiveBusinessId,
   setToken,
 } from "../lib/api";
+import { track } from "../lib/track";
 import { AuthProvider, useAuth } from "./useAuth";
+
+vi.mock("../lib/track", () => ({ track: vi.fn() }));
 
 const USER = {
   id: 1,
@@ -100,6 +103,7 @@ function renderWithProvider() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  track.mockClear();
 });
 
 describe("AuthProvider", () => {
@@ -156,6 +160,7 @@ describe("AuthProvider", () => {
       await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
       expect(getToken()).toBe("fresh-token");
       expect(calls.map((c) => c.path)).toEqual(["/api/v1/auth/login", "/api/v1/auth/me"]);
+      expect(track).toHaveBeenCalledWith("login", { method: "password" });
     });
 
     it("leaves the session anonymous when the credentials are wrong", async () => {
@@ -172,6 +177,8 @@ describe("AuthProvider", () => {
       );
       expect(screen.getByTestId("user")).toHaveTextContent("anonymous");
       expect(getToken()).toBeNull();
+      // A refused sign-in is not a sign-in; the funnel counts accepted ones.
+      expect(track).not.toHaveBeenCalledWith("login", expect.anything());
     });
   });
 
@@ -185,6 +192,7 @@ describe("AuthProvider", () => {
 
       await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
       expect(calls.map((c) => c.path)).toEqual(["/api/v1/auth/register", "/api/v1/auth/me"]);
+      expect(track).toHaveBeenCalledWith("signup_complete", { method: "password" });
     });
   });
 

@@ -520,3 +520,26 @@ def test_a_github_profile_without_an_id_is_refused(client, caplog):
     assert "error=github_auth_failed" in response.headers["location"]
     # Refused at the id check, not by an earlier step of the callback.
     assert any(r.getMessage() == "OAuth sign-in refused: no account id" for r in caplog.records)
+
+
+def _fragment(response) -> dict[str, str]:
+    from urllib.parse import parse_qsl, urlsplit
+
+    return dict(parse_qsl(urlsplit(response.headers["location"]).fragment))
+
+
+def test_a_first_oauth_sign_in_is_reported_to_the_callback_as_a_sign_up(db_session):
+    """From the callback page a new account and a returning one look the same,
+    and the funnel has to count the first as a sign-up."""
+    created = _find_or_create_oauth_user(
+        db_session, provider="github", oauth_id="new-gh", email="new@example.com", name="New"
+    )
+    fragment = _fragment(_complete_oauth_login(created, "github"))
+    assert fragment["new"] == "1"
+    assert fragment["provider"] == "github"
+    assert fragment["token"]
+
+    again = _find_or_create_oauth_user(
+        db_session, provider="github", oauth_id="new-gh", email="new@example.com", name="New"
+    )
+    assert "new" not in _fragment(_complete_oauth_login(again, "github"))
