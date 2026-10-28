@@ -621,6 +621,12 @@ export default function FilingPage() {
           </TableScroll>
         </section>
       )}
+
+      <nav className="next-steps" aria-label="Next steps">
+        <Link to="/itc" className="btn btn-ghost">ITC summary</Link>
+        <Link to="/alerts" className="btn btn-ghost">Deadline alerts</Link>
+        <Link to="/" className="btn btn-ghost">Dashboard</Link>
+      </nav>
     </div>
   );
 }
