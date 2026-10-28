@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
+import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 
 const SUGGESTED_QUESTIONS = [
@@ -152,7 +153,11 @@ export default function GstAdvisor() {
             )}
             {messages.map((m, i) => (
               <div key={i} className={`advisor-msg advisor-msg-${m.role}`}>
-                <div className="advisor-msg-text">{m.text}</div>
+                {m.role === "assistant" ? (
+                  <div className="advisor-msg-text" dangerouslySetInnerHTML={{ __html: formatMarkdown(m.text) }} />
+                ) : (
+                  <div className="advisor-msg-text">{m.text}</div>
+                )}
               </div>
             ))}
             {loading && (

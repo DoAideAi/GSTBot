@@ -337,7 +337,7 @@ function InstantLookup() {
     <section className="landing-instant">
       <h1 className="landing-hero-title">Free GST Tools for Indian Businesses</h1>
       <p className="landing-hero-subtitle">25+ free tools — no login required. Calculate GST, verify GSTIN, search HSN codes, and more.</p>
-      <form onSubmit={handleSubmit} className="landing-search-box">
+      <form onSubmit={handleSubmit} className="landing-search-box" role="search" aria-label="GSTIN verification">
         <input
           type="text"
           value={query}
@@ -346,6 +346,7 @@ function InstantLookup() {
           className="landing-search-input"
           spellCheck={false}
           autoComplete="off"
+          aria-label="GSTIN or search term"
         />
         <button type="submit" className="btn btn-primary landing-search-btn">
           Verify

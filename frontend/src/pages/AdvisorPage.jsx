@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import SeoHead from "../components/SeoHead";
 import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
+import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
 
@@ -38,16 +39,6 @@ function MessageBubble({ role, text }) {
   );
 }
 
-function formatMarkdown(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\n/g, "<br />");
-}
 
 export default function AdvisorPage() {
   usePageTitle("Free GST AI Advisor");
