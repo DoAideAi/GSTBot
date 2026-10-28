@@ -75,7 +75,7 @@ const REG_TYPES = {
 };
 
 function advise(answers) {
-  const { entityType, supplyScope, turnover, interstate, isResident, occasionalSupply, ecommerce } = answers;
+  const { supplyScope, turnover, interstate, isResident, occasionalSupply, ecommerce } = answers;
   const results = [];
   const reasons = [];
 
