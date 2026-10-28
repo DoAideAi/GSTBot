@@ -11,6 +11,7 @@ Authenticated endpoints:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -23,9 +24,10 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.rate_limit import RateLimit
+from app.core.rate_limit import RateLimit, client_ip
 from app.models.referral import Referral
 from app.models.user import User
 
@@ -39,7 +41,16 @@ _my_limit = RateLimit("referral_my", "60/minute", by="identity")
 
 
 def _hash_ip(ip: str) -> str:
-    return hashlib.sha256(ip.encode()).hexdigest()[:16]
+    """A stable, unreversible key for one visitor's address.
+
+    Keyed with a server secret. A bare SHA-256 of an IPv4 address is reversed by
+    hashing all four billion of them — an afternoon on a laptop — so every
+    stored "hash" was the visitor's address in all but name, kept indefinitely
+    for a statistic. The prefix separates this use of the secret from signing
+    tokens with it.
+    """
+    key = settings.jwt_secret.encode()
+    return hmac.new(key, b"referral-visitor:" + ip.encode(), hashlib.sha256).hexdigest()[:32]
 
 
 # How long after a visit a sign-up from the same visitor still counts as the
@@ -48,8 +59,13 @@ CONVERSION_WINDOW = timedelta(days=30)
 
 
 def visitor_ip(request: Request) -> str:
-    """The address a referral visit is keyed on — the same one ``/track`` uses."""
-    return request.client.host if request.client else "unknown"
+    """The address a referral visit is keyed on — the same one ``/track`` uses.
+
+    Through :func:`client_ip`, like the rate limiter: reading ``request.client``
+    here meant the two disagreed about who the caller was whenever
+    ``TRUST_PROXY_HEADERS`` is the thing supplying the real address.
+    """
+    return client_ip(request)
 
 
 def record_conversion(db: Session, ip: str) -> bool:

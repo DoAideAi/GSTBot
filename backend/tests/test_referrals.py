@@ -229,3 +229,42 @@ class TestASignupConvertsTheVisit:
         assert referrals.record_conversion(db_session, "testclient") is False
         db_session.expire_all()
         assert db_session.query(Referral).filter_by(converted=True).count() == 1
+
+
+class TestTheVisitorKeyIsNotTheAddress:
+    """P17 M16: the stored key was a bare SHA-256 of the visitor's IP, which is
+    reversed by hashing every IPv4 address. It is now keyed with a server
+    secret, and read through the same ``client_ip`` the rate limiter uses."""
+
+    def test_the_stored_key_is_not_a_plain_hash_of_the_address(self, auth_client, db_session):
+        import hashlib
+
+        from app.models.referral import Referral
+
+        code = auth_client.get("/api/v1/referrals/my-code").json()["referral_code"]
+        auth_client.headers.pop("Authorization")
+        auth_client.post("/api/v1/referrals/track", json={"referral_code": code})
+        stored = db_session.query(Referral).one().visitor_ip_hash
+
+        plain = hashlib.sha256(b"testclient").hexdigest()
+        assert not plain.startswith(stored) and stored not in plain
+
+    def test_the_key_depends_on_the_server_secret(self, monkeypatch):
+        from app.core.config import settings
+        from app.routers.referrals import _hash_ip
+
+        first = _hash_ip("203.0.113.7")
+        monkeypatch.setattr(settings, "jwt_secret", "another-long-secret-value-for-this-test-x")
+        assert _hash_ip("203.0.113.7") != first
+
+    def test_a_trusted_proxy_s_address_is_the_one_tracked(self, client, auth_client, monkeypatch):
+        from app.core.config import settings
+        from app.routers.referrals import visitor_ip
+
+        monkeypatch.setattr(settings, "trust_proxy_headers", True)
+
+        class _Req:
+            headers = {"x-real-ip": "198.51.100.9"}
+            client = type("C", (), {"host": "172.18.0.13"})()
+
+        assert visitor_ip(_Req()) == "198.51.100.9"
