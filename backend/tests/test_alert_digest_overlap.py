@@ -13,16 +13,32 @@ from __future__ import annotations
 from contextlib import contextmanager
 from types import SimpleNamespace
 
+import pytest
+
+from app.core.config import settings
 from app.models.alert import AlertStatus
+from app.models.business import Business
 from app.services import alert_delivery
 from app.services.alert_delivery import send_pending_alerts
-from tests.test_alert_delivery import (  # noqa: F401 - fixtures
-    _email_enabled,
-    business,
-    make_alert,
-    make_user,
-    sent,
-)
+from tests.test_alert_delivery import make_alert, make_business, make_user
+
+
+@pytest.fixture(autouse=True)
+def _email_enabled(monkeypatch):
+    monkeypatch.setattr(settings, "alerts_email_enabled", True)
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+
+
+@pytest.fixture()
+def sent(monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr(alert_delivery, "send_email", lambda **kw: calls.append(kw))
+    return calls
+
+
+@pytest.fixture()
+def business(db_session) -> Business:
+    return make_business(db_session)
 
 
 def _lock_held_elsewhere(monkeypatch):
