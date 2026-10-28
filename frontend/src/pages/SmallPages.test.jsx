@@ -55,9 +55,9 @@ describe("AuthCallbackPage", () => {
 
   beforeEach(() => {
     setToken.mockClear();
-    // jsdom refuses real navigation; the page only assigns href, so a plain
+    // jsdom refuses real navigation; the page only calls replace, so a plain
     // object is enough to observe the hand-off.
-    Object.defineProperty(window, "location", { value: { href: "" }, writable: true });
+    Object.defineProperty(window, "location", { value: { replace: vi.fn() }, writable: true });
   });
 
   it("bounces a provider error back to the sign-in page with the reason", () => {
@@ -66,10 +66,18 @@ describe("AuthCallbackPage", () => {
     expect(setToken).not.toHaveBeenCalled();
   });
 
-  it("stores the token and hands the browser to the dashboard", () => {
-    renderAt("?token=tok123");
+  it("reads the token from the fragment the backend puts it in", () => {
+    // oauth.py redirects to /auth/callback#token=… — never a query string,
+    // so the token stays out of server logs and Referer headers.
+    renderAt("#token=tok123");
     expect(setToken).toHaveBeenCalledWith("tok123");
-    expect(window.location.href).toBe("/");
+    expect(window.location.replace).toHaveBeenCalledWith("/");
+  });
+
+  it("does not take a token from the query string", () => {
+    renderAt("?token=tok123");
+    expect(setToken).not.toHaveBeenCalled();
+    expect(screen.getByText("Login probe")).toBeInTheDocument();
   });
 
   it("sends a callback with neither token nor error back to sign-in", () => {
