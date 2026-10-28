@@ -52,6 +52,11 @@ _webhook_limit = RateLimit("razorpay_webhook", "30/minute", by="ip")
     "/pricing",
     response_model=PricingResponse,
     summary="Available subscription tiers and pricing",
+    description=(
+        "Public — no sign-in required. Returns every tier's name, monthly and "
+        "annual price in paise, invoice limit, and feature flags, plus the "
+        "Razorpay key id the frontend needs to open the checkout modal."
+    ),
     dependencies=[Depends(_pricing_limit)],
 )
 def pricing() -> PricingResponse:
@@ -69,6 +74,13 @@ def pricing() -> PricingResponse:
     "/current",
     response_model=SubscriptionOut | None,
     summary="The current business's subscription",
+    description=(
+        "Returns the active subscription for the business the request acts for, "
+        "or null when the business is on the free tier and has never subscribed. "
+        "The response synthesises an `effective_status` of `expired` when the row "
+        "says active but the period has lapsed, so the frontend never has to "
+        "compare dates."
+    ),
     dependencies=[Depends(_usage_limit)],
 )
 def current_subscription(
@@ -85,6 +97,13 @@ def current_subscription(
     "/create-order",
     response_model=CreateOrderResponse,
     summary="Create a Razorpay order for a tier upgrade",
+    description=(
+        "Owners only. Creates a Razorpay order for the requested tier and billing "
+        "cycle (monthly or annual). The order id and the Razorpay key id go "
+        "straight into the Razorpay checkout modal on the frontend; the "
+        "receipt ties the order to this business and tier so `verify-payment` "
+        "can refuse a tampered request."
+    ),
     responses={
         400: {"description": "The free tier was requested; there is nothing to pay for."},
         502: {"description": "Razorpay did not create the order. Safe to retry."},
@@ -158,6 +177,14 @@ def create_order(
     "/verify-payment",
     response_model=SubscriptionOut,
     summary="Verify Razorpay payment and activate subscription",
+    description=(
+        "Owners only. Called by the frontend after the Razorpay checkout "
+        "modal closes with a payment. Verifies the HMAC signature, confirms "
+        "the order was created for this business and tier at the tier's price, "
+        "and activates (or renews) the subscription. Idempotent: re-submitting "
+        "the same payment id returns the existing subscription without extending "
+        "it, so a network retry cannot buy a free period."
+    ),
     responses={
         400: {
             "description": (
@@ -430,6 +457,13 @@ def _require_order_matches(payload: VerifyPaymentRequest, business: Business) ->
     "/cancel",
     response_model=SubscriptionOut,
     summary="Cancel the current subscription (reverts to free)",
+    description=(
+        "Owners only. Marks the subscription as cancelled and reverts the "
+        "tier to free. If the subscription id is a Razorpay-managed one "
+        "(`sub_…`), the cancellation is also forwarded to Razorpay; a "
+        "one-time checkout (`pay_…`) has nothing to cancel at the provider. "
+        "The remaining paid period is forfeit — there is no proration."
+    ),
     responses={
         400: {"description": "There is no paid subscription to cancel."},
         409: {"description": "The subscription is already cancelled or expired."},
@@ -503,6 +537,11 @@ def cancel_subscription(
     "/usage",
     response_model=UsageSummaryResponse,
     summary="API usage for the current month",
+    description=(
+        "Invoice uploads, API calls, and advisor queries consumed this period, "
+        "with each item's limit under the current tier. `period` defaults to the "
+        "current calendar month (`MMYYYY`); pass an earlier one to review history."
+    ),
     dependencies=[Depends(_usage_limit)],
 )
 def usage_summary(
