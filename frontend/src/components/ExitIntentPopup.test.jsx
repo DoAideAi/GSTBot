@@ -45,6 +45,6 @@ describe("ExitIntentPopup", () => {
     renderPopup();
     fireEvent.mouseOut(document, { clientY: -1 });
     const link = screen.getByText("Get Free Filing Reminders");
-    expect(link.closest("a")).toHaveAttribute("href", "/?register=1&reminders=1");
+    expect(link.closest("a")).toHaveAttribute("href", "/due-dates");
   });
 });

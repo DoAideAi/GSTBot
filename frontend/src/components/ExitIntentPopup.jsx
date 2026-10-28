@@ -59,7 +59,7 @@ export default function ExitIntentPopup() {
           No account required — just your email.
         </p>
         <Link
-          to="/?register=1&reminders=1"
+          to="/due-dates"
           className="btn btn-primary exit-popup-btn"
           onClick={() => { track("exit_intent_signup"); dismiss(); }}
         >
