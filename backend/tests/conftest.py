@@ -276,6 +276,31 @@ def business(db_session, auth_client) -> Business:
 
 
 @pytest.fixture()
+def paid_business(db_session, business) -> Business:
+    """``business`` on an active PRO plan.
+
+    For tests about something other than the paywall — roles, input bounds —
+    that walk routes ``require_paid_tier`` guards. Without it their answer is
+    the 403 the free tier gets, and they test the subscription instead.
+    """
+    make_paid(db_session, business.id)
+    return business
+
+
+def make_paid(db_session, business_id: int) -> None:
+    """Put a business on an active PRO plan — ``paid_business`` for any tenant."""
+    from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
+
+    sub = db_session.query(Subscription).filter_by(business_id=business_id).one_or_none()
+    if sub is None:
+        sub = Subscription(business_id=business_id)
+        db_session.add(sub)
+    sub.tier = SubscriptionTier.PRO
+    sub.status = SubscriptionStatus.ACTIVE
+    db_session.commit()
+
+
+@pytest.fixture()
 def other_tenant(client):
     """A second registered business, for cross-tenant isolation tests.
 

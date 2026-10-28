@@ -357,7 +357,7 @@ class TestAnUnpairedSurrogateIsRefusedNotCrashedOn:
         assert "\ufffd" in response.text or "\\ufffd" in response.text
         assert response.json()["error"]["code"] == "validation_error"
 
-    def test_an_authenticated_route_refuses_it_too(self, raw_client, auth_client):
+    def test_an_authenticated_route_refuses_it_too(self, raw_client, auth_client, paid_business):
         response = raw_client.post(
             "/api/v1/reconciliation/run",
             content=b'{"period": "\\ud800"}',
@@ -725,7 +725,7 @@ class TestAnHTTPExceptionDetailIsBoundedToo:
         assert "truncated" not in response.text
         assert "V" * 600 in response.text
 
-    def test_the_real_route_that_reflected_a_file_no_longer_does(self, auth_client):
+    def test_the_real_route_that_reflected_a_file_no_longer_does(self, auth_client, paid_business):
         """The upload that found this, end to end.
 
         A single cell past ``MONEY_MAX`` is clamped on the way in, so the

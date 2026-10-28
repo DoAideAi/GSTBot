@@ -253,7 +253,8 @@ class TestAViewerCanStillRead:
             "/api/v1/auth/me",
         ],
     )
-    def test_the_read_surface_is_untouched(self, viewer, path):
+    def test_the_read_surface_is_untouched(self, viewer, paid_business, path):
+        # Paid, so a tier-gated read (``/itc``) answers for the role alone.
         assert viewer.get(path).status_code == 200, path
 
     def test_a_viewer_may_read_one_invoice(self, viewer, seeded_invoice):
@@ -684,7 +685,9 @@ class TestEveryGatedRouteRefusesARealViewer:
         )
 
     @pytest.mark.parametrize(("method", "path"), GATED_CALLS, ids=GATED_IDS)
-    def test_the_same_request_as_an_owner_is_not_a_403(self, auth_client, method, path):
+    def test_the_same_request_as_an_owner_is_not_a_403(
+        self, auth_client, paid_business, method, path
+    ):
         """What stops this file proving nothing.
 
         Every assertion above is "the viewer got a 403", and a route that 403s
@@ -692,7 +695,8 @@ class TestEveryGatedRouteRefusesARealViewer:
         membership — would satisfy all of them while testing no role at all.
         The owner sends the same empty request, so the answer is a 404 or a
         422 rather than a 200; what matters is only that it is not the refusal
-        the viewer got.
+        the viewer got. The business is paid, so a route the subscription
+        gates (``reconciliation/run``) cannot 403 the owner for the tier.
         """
         response = auth_client.request(method, _fill(path))
         assert response.status_code != 403, (

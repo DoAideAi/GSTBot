@@ -36,7 +36,7 @@ from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.reconciliation_run import ReconciliationRun, ReconciliationStatus
 from app.models.supplier import Supplier
 from app.services.gstin import compute_check_digit
-from tests.conftest import BUSINESS_GSTIN
+from tests.conftest import BUSINESS_GSTIN, make_paid
 from tests.test_businesses import SECOND_GSTIN, link, register_second_business
 from tests.test_route_contracts import API_ROUTES
 from tests.test_tenancy_contract import FACTORIES, ROW_ID_ROUTES
@@ -304,6 +304,16 @@ class TestTheSweepCoversEveryBusinessScopedRoute:
             ("POST", "/api/v1/subscriptions/cancel"),
             ("POST", "/api/v1/subscriptions/create-order"),
             ("POST", "/api/v1/subscriptions/verify-payment"),
+            # Writes nothing: it is here because the tier gate resolves the
+            # active business to read its plan. Whose plan answers while
+            # switched is TestThePlanThatCountsIsTheActiveBusinesss, below.
+            ("POST", "/api/v1/meta/gstin/bulk"),
+            # The paid PDF report (832f551). Its order receipt names the
+            # business and run, and test_reconciliation_report proves another
+            # tenant's run is not found. The switched-header case is not yet
+            # written here.
+            ("POST", "/api/v1/reconciliation/report/purchase"),
+            ("POST", "/api/v1/reconciliation/report/verify"),
         }
 
 
@@ -441,6 +451,9 @@ class TestAWriteMadeWhileSwitchedLandsOnTheOtherBusiness:
     def test_a_reconciliation_run_started_while_switched_is_the_other_businesss(
         self, auth_client, db_session, business, home, switched
     ):
+        # Paid, or the tier gate answers 403 before the business is ever looked
+        # in and this asserts nothing about which one it was.
+        make_paid(db_session, switched)
         response = auth_client.post(
             "/api/v1/reconciliation/run",
             json={"period": PERIOD},
@@ -456,3 +469,36 @@ class TestAWriteMadeWhileSwitchedLandsOnTheOtherBusiness:
             "a run started while switched to another business touched the "
             "caller's own reconciliation history"
         )
+
+
+class TestThePlanThatCountsIsTheActiveBusinesss:
+    """A subscription belongs to a business, not to the login.
+
+    A CA who is paid on their own practice and switches into a client's free
+    books must meet the client's plan — otherwise one subscription unlocks the
+    paid tier for every business the login can reach.
+    """
+
+    BODY = {"gstins": [BUSINESS_GSTIN]}
+
+    def test_the_home_plan_does_not_carry_into_a_free_business(
+        self, auth_client, db_session, business, switched
+    ):
+        make_paid(db_session, business.id)
+        assert auth_client.post("/api/v1/meta/gstin/bulk", json=self.BODY).status_code == 200
+
+        response = auth_client.post(
+            "/api/v1/meta/gstin/bulk", json=self.BODY, headers={"X-Business-Id": str(switched)}
+        )
+        assert response.status_code == 403, response.text
+
+    def test_a_paid_business_is_paid_whoever_switches_into_it(
+        self, auth_client, db_session, switched
+    ):
+        make_paid(db_session, switched)
+        assert auth_client.post("/api/v1/meta/gstin/bulk", json=self.BODY).status_code == 403
+
+        response = auth_client.post(
+            "/api/v1/meta/gstin/bulk", json=self.BODY, headers={"X-Business-Id": str(switched)}
+        )
+        assert response.status_code == 200, response.text

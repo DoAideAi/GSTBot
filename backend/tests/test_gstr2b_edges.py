@@ -28,6 +28,10 @@ from tests.conftest import (
 from tests.test_gstr2b import portal_json
 from tests.test_reconciliation import PERIOD, upload_2b
 
+# GSTR-2B import, reconciliation and the ITC reads are paid features; this file
+# is about what they do, so the business it drives is on a paid plan.
+pytestmark = pytest.mark.usefixtures("paid_business")
+
 # --------------------------------------------------------------------------
 # The portal's flags and periods
 # --------------------------------------------------------------------------

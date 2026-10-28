@@ -321,7 +321,7 @@ class TestEveryPeriodParameterNamesARealMonth:
         ],
     )
     def test_an_impossible_month_is_refused_not_answered(
-        self, auth_client, url, period
+        self, auth_client, paid_business, url, period
     ):
         response = auth_client.get(url, params={"period": period})
         assert response.status_code == 422, (
@@ -330,7 +330,7 @@ class TestEveryPeriodParameterNamesARealMonth:
 
     @pytest.mark.parametrize("period", ["2026-00", "2026-13"])
     def test_a_reconciliation_cannot_be_run_for_a_month_that_does_not_exist(
-        self, auth_client, period
+        self, auth_client, paid_business, period
     ):
         assert (
             auth_client.post(
@@ -719,7 +719,7 @@ class TestEveryDecimalInAQueryStringIsBounded:
     @pytest.mark.parametrize("path, name", DECIMAL_QUERIES)
     @pytest.mark.parametrize("value", ["nan", "sNaN", "inf", "-inf", "1E+999999999", "-1"])
     def test_a_value_no_money_column_could_hold_is_refused(
-        self, auth_client, path, name, value
+        self, auth_client, paid_business, path, name, value
     ):
         response = auth_client.get(path, params={name: value, "is_nil": "false"})
         assert response.status_code == 422, (
@@ -727,7 +727,7 @@ class TestEveryDecimalInAQueryStringIsBounded:
         )
 
     @pytest.mark.parametrize("path, name", DECIMAL_QUERIES)
-    def test_an_ordinary_amount_is_still_accepted(self, auth_client, path, name):
+    def test_an_ordinary_amount_is_still_accepted(self, auth_client, paid_business, path, name):
         # The guard against over-correcting into refusing real money.
         response = auth_client.get(path, params={name: "150000", "is_nil": "false"})
         assert response.status_code == 200, response.text

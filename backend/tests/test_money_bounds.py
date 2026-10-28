@@ -62,6 +62,10 @@ READ_PATHS = (
     f"/api/v1/invoices?period={PERIOD}",
 )
 
+# GSTR-2B import, reconciliation and the ITC reads are paid features; this file
+# is about what they do, so the business it drives is on a paid plan.
+pytestmark = pytest.mark.usefixtures("paid_business")
+
 
 @pytest.fixture()
 def invoice(db_session, business) -> Invoice:

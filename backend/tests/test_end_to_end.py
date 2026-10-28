@@ -39,6 +39,7 @@ from tests.conftest import (
     SUPPLIER_GSTIN_SAME_STATE,
     TEST_EMAIL,
     TEST_PASSWORD,
+    make_paid,
 )
 
 PERIOD = "2026-04"
@@ -233,6 +234,18 @@ def reconcile(client, period: str) -> dict:
     return response.json()
 
 
+def takes_the_pro_plan(db_session, gstin: str = BUSINESS_GSTIN) -> None:
+    """The step a journey through a paid feature takes after signing up.
+
+    Reconciliation and the ITC screens are on the paid tier, so a business that
+    reaches them has paid. Stands in for the Razorpay round trip, which
+    ``test_subscriptions`` drives on its own.
+    """
+    from app.models.business import Business
+
+    make_paid(db_session, db_session.query(Business).filter_by(gstin=gstin).one().id)
+
+
 def money(value) -> Decimal:
     return Decimal(str(value))
 
@@ -253,7 +266,7 @@ def signed_in(client):
 # ---------------------------------------------------------------------------
 
 class TestABusinessSignsUpAndFilesItsFirstReturn:
-    def test_the_whole_journey(self, client, stub_openrouter):
+    def test_the_whole_journey(self, client, db_session, stub_openrouter):
         # --- Before there is an account -----------------------------------
         assert client.get("/api/v1/health/live").json()["status"] == "alive"
         assert client.get("/api/v1/health/ready").status_code == 200
@@ -273,6 +286,7 @@ class TestABusinessSignsUpAndFilesItsFirstReturn:
         # --- Sign up ------------------------------------------------------
         token = register(client)
         client.headers.update({"Authorization": f"Bearer {token}"})
+        takes_the_pro_plan(db_session)
 
         me = client.get("/api/v1/auth/me")
         assert me.status_code == 200
@@ -427,8 +441,9 @@ class TestASupplierWhoDidNotFile:
     that discovered it.
     """
 
-    def test_the_risk_reaches_every_screen(self, client, stub_openrouter):
+    def test_the_risk_reaches_every_screen(self, client, db_session, stub_openrouter):
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         purchase = upload(
             client,
             stub_openrouter,
@@ -466,7 +481,9 @@ class TestASupplierWhoDidNotFile:
         assert supplier["risk_level"] in {"medium", "high"}
         assert supplier["compliance_score"] < 100
 
-    def test_the_credit_appears_when_the_supplier_files_late(self, client, stub_openrouter):
+    def test_the_credit_appears_when_the_supplier_files_late(
+        self, client, db_session, stub_openrouter
+    ):
         """Re-importing a corrected 2B must move the credit, not double it.
 
         Runs accumulate rather than overwrite, so this is the case where a
@@ -474,6 +491,7 @@ class TestASupplierWhoDidNotFile:
         conclusion while leaving its record intact.
         """
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         upload(
             client,
             stub_openrouter,
@@ -668,9 +686,10 @@ Grand Total:    354000.00
 
 
 class TestOneTenantsJourneyIsInvisibleToAnother:
-    def test_no_read_endpoint_leaks_across_the_boundary(self, client, stub_openrouter):
+    def test_no_read_endpoint_leaks_across_the_boundary(self, client, db_session, stub_openrouter):
         # Tenant A does the whole journey.
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         purchase = upload(
             client,
             stub_openrouter,
@@ -694,6 +713,9 @@ class TestOneTenantsJourneyIsInvisibleToAnother:
             },
         )
         assert other.status_code == 201, other.text
+        # B pays too, so an empty answer on a paid screen is the boundary
+        # holding rather than B being refused the screen.
+        takes_the_pro_plan(db_session, SUPPLIER_GSTIN_SAME_STATE)
         client.headers.update(
             {"Authorization": f"Bearer {other.json()['access_token']}"}
         )
@@ -736,8 +758,9 @@ class TestOneTenantsJourneyIsInvisibleToAnother:
 
 class TestTheExportsAUserActuallyOpens:
     @pytest.fixture()
-    def filed(self, client, stub_openrouter):
+    def filed(self, client, db_session, stub_openrouter):
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         upload(
             client,
             stub_openrouter,
@@ -824,9 +847,10 @@ class TestCreditNobodyGotRoundToClaiming:
     THE_DAY_AFTER = "2027-12-01"
 
     @pytest.fixture()
-    def bought(self, client, stub_openrouter):
+    def bought(self, client, db_session, stub_openrouter):
         """One purchase, ₹81,000 of IGST on it, and no return recorded."""
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         invoice = upload(
             client,
             stub_openrouter,
@@ -990,10 +1014,11 @@ class TestAClientGivesTheirAccountantReadOnlyAccess:
     }
 
     @pytest.fixture()
-    def clients_books(self, client, stub_openrouter) -> dict:
+    def clients_books(self, client, db_session, stub_openrouter) -> dict:
         """A month, prepared by the owner of the business it belongs to."""
         token = register(client)
         client.headers.update({"Authorization": f"Bearer {token}"})
+        takes_the_pro_plan(db_session)
 
         purchase = upload(
             client, stub_openrouter,
@@ -1161,7 +1186,7 @@ class TestAClientGivesTheirAccountantReadOnlyAccess:
         for name in self.READS:
             assert after[name] == before[name], f"{name} changed under a refused write"
 
-    def test_their_own_books_are_still_theirs_in_the_same_session(self, accountant):
+    def test_their_own_books_are_still_theirs_in_the_same_session(self, accountant, db_session):
         """The other half, and the one a login-level role check gets wrong.
 
         Dropping the header is the whole difference: the same token, the same
@@ -1176,7 +1201,11 @@ class TestAClientGivesTheirAccountantReadOnlyAccess:
         assert me["active_role"] == "owner"
         assert me["business"]["gstin"] != BUSINESS_GSTIN
 
-        # A write that was 403 one line ago, on the books this login owns.
+        # A write that was 403 one line ago, on the books this login owns. The
+        # practice is on a paid plan, so a 403 here could only be the role.
+        from tests.test_businesses import SECOND_GSTIN
+
+        takes_the_pro_plan(db_session, SECOND_GSTIN)
         response = accountant.post(
             "/api/v1/reconciliation/run", json={"period": PERIOD}
         )
@@ -1227,7 +1256,7 @@ class TestTheHundredAndEightyDayClockAndWhatItReverses:
     IGST_ON_THE_PURCHASE = Decimal("81000.00")
 
     @pytest.fixture()
-    def unpaid(self, client, stub_openrouter):
+    def unpaid(self, client, db_session, stub_openrouter):
         """One purchase never paid for, and one sale in the same month.
 
         The sale is what gives April a liability for the credit to be set off
@@ -1236,6 +1265,7 @@ class TestTheHundredAndEightyDayClockAndWhatItReverses:
         zeroes.
         """
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         purchase = upload(
             client,
             stub_openrouter,
@@ -1422,9 +1452,10 @@ class TestASupplierWhoCreditedPartOfWhatTheyBilled:
     NOTE_IGST = 9000.00
 
     @pytest.fixture()
-    def credited(self, client, stub_openrouter):
+    def credited(self, client, db_session, stub_openrouter):
         """The purchase booked, the 2B imported with the note, reconciled."""
         client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
         upload(
             client,
             stub_openrouter,

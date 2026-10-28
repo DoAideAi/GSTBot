@@ -44,6 +44,7 @@ from tests.conftest import (
     SUPPLIER_GSTIN_SAME_STATE,
     TEST_EMAIL,
     TEST_PASSWORD,
+    make_paid,
 )
 
 # The ARN shape the portal issues: 15 characters of letters and digits.
@@ -537,7 +538,9 @@ class TestTheStatementDecidesWhatTheReturnMayClaim:
     """
 
     @pytest.fixture()
-    def period(self, signed_in, stub_openrouter):
+    def period(self, signed_in, db_session, stub_openrouter):
+        # Reconciliation is a paid feature; this business has taken the plan.
+        make_paid(db_session, db_session.query(Business).filter_by(gstin=BUSINESS_GSTIN).one().id)
         period = oldest_tracked_period(signed_in)
         upload(signed_in, stub_openrouter, purchase_in(period), invoice_type="purchase")
         upload(signed_in, stub_openrouter, sale_in(period), invoice_type="sales")

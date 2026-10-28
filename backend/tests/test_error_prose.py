@@ -441,7 +441,7 @@ class TestTheRefusalsARealSessionMeets:
             assert_reads_as_prose(message, "DELETE /businesses/mine/{id}")
             assert len(message) >= 20, f"too terse — {message}"
 
-    def test_a_malformed_gstr2b_upload_gives_guidance(self, auth_client):
+    def test_a_malformed_gstr2b_upload_gives_guidance(self, auth_client, paid_business):
         """A message a user meets when the file has the wrong structure.
 
         "GSTR-2B JSON must be an object" was jargon three times over — JSON,
