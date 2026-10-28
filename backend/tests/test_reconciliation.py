@@ -6,10 +6,12 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 
 from app.models.gstr_return import ReturnType
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.reconciliation_run import MatchCategory, ReconciliationStatus
+from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
 from app.models.supplier import RiskLevel, Supplier
 from app.services import reconciliation
 from app.services.gstr2b import GSTR2BRecord
@@ -878,6 +880,23 @@ def test_a_reliable_supplier_scores_low_risk(db_session, business):
 # HTTP
 # ---------------------------------------------------------------------------
 
+def _activate_pro(db_session, business_id: int) -> None:
+    sub = db_session.scalar(
+        select(Subscription).where(Subscription.business_id == business_id)
+    )
+    if sub is None:
+        sub = Subscription(
+            business_id=business_id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.ACTIVE,
+        )
+        db_session.add(sub)
+    else:
+        sub.tier = SubscriptionTier.PRO
+        sub.status = SubscriptionStatus.ACTIVE
+    db_session.commit()
+
+
 def portal_file_json() -> bytes:
     return json.dumps(
         {
@@ -926,7 +945,20 @@ def test_import_endpoint_requires_authentication(client):
     assert client.post("/api/v1/reconciliation/gstr2b/import").status_code == 401
 
 
-def test_import_reads_the_period_from_the_file(auth_client):
+def test_a_free_user_cannot_import_a_2b(auth_client):
+    response = upload_2b(auth_client)
+    assert response.status_code == 403
+    assert "paid subscription" in response.json()["detail"].lower()
+
+
+def test_a_free_user_cannot_run_reconciliation(auth_client):
+    response = auth_client.post("/api/v1/reconciliation/run", json={"period": PERIOD})
+    assert response.status_code == 403
+    assert "paid subscription" in response.json()["detail"].lower()
+
+
+def test_import_reads_the_period_from_the_file(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     response = upload_2b(auth_client)
 
     assert response.status_code == 201, response.text
@@ -938,24 +970,28 @@ def test_import_reads_the_period_from_the_file(auth_client):
     assert body["replaced_previous"] is False
 
 
-def test_import_rejects_a_file_that_is_not_a_2b(auth_client):
+def test_import_rejects_a_file_that_is_not_a_2b(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     response = upload_2b(auth_client, content=b'{"hello": "world"}')
 
     assert response.status_code == 422
     assert "b2b" in response.json()["detail"]
 
 
-def test_import_rejects_an_empty_file(auth_client):
+def test_import_rejects_an_empty_file(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     response = upload_2b(auth_client, content=b"")
     assert response.status_code == 400
 
 
-def test_import_rejects_an_unsupported_extension(auth_client):
+def test_import_rejects_an_unsupported_extension(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     response = upload_2b(auth_client, filename="gstr2b.pdf")
     assert response.status_code == 415
 
 
-def test_reimport_reports_that_it_replaced(auth_client):
+def test_reimport_reports_that_it_replaced(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     upload_2b(auth_client)
     body = upload_2b(auth_client).json()
 
@@ -963,8 +999,9 @@ def test_reimport_reports_that_it_replaced(auth_client):
     assert "replacing the previous import" in body["message"]
 
 
-def test_import_flags_late_filings_from_other_periods(auth_client):
+def test_import_flags_late_filings_from_other_periods(auth_client, db_session, business):
     """Not an error: they reconcile against the month they belong to."""
+    _activate_pro(db_session, business.id)
     payload = json.loads(portal_file_json())
     payload["data"]["docdata"]["b2b"][0]["inv"].append(
         {
@@ -980,7 +1017,8 @@ def test_import_flags_late_filings_from_other_periods(auth_client):
     assert body["other_periods"] == ["2026-03"]
 
 
-def test_run_endpoint_conflicts_without_an_import(auth_client):
+def test_run_endpoint_conflicts_without_an_import(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     response = auth_client.post("/api/v1/reconciliation/run", json={"period": PERIOD})
 
     assert response.status_code == 409
@@ -988,6 +1026,7 @@ def test_run_endpoint_conflicts_without_an_import(auth_client):
 
 
 def test_run_endpoint_returns_the_report(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="INV-2026-0042")
     upload_2b(auth_client)
 
@@ -1001,6 +1040,7 @@ def test_run_endpoint_returns_the_report(auth_client, db_session, business):
 
 
 def test_run_endpoint_honours_a_custom_tolerance(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="INV-2026-0042",
          igst=Decimal("81000.50"))
     upload_2b(auth_client)
@@ -1016,12 +1056,14 @@ def test_run_endpoint_honours_a_custom_tolerance(auth_client, db_session, busine
     assert strict["mismatched_count"] == 1
 
 
-def test_run_endpoint_validates_the_period(auth_client):
+def test_run_endpoint_validates_the_period(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     response = auth_client.post("/api/v1/reconciliation/run", json={"period": "April"})
     assert response.status_code == 422
 
 
 def test_listing_and_fetching_runs(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="INV-2026-0042")
     upload_2b(auth_client)
     created = auth_client.post(
@@ -1044,12 +1086,14 @@ def test_latest_is_404_before_any_run(auth_client):
     assert response.status_code == 404
 
 
-def test_imported_periods_are_listed(auth_client):
+def test_imported_periods_are_listed(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     upload_2b(auth_client)
     assert auth_client.get("/api/v1/reconciliation/gstr2b/periods").json() == {"items": [PERIOD]}
 
 
-def test_imported_2b_can_be_fetched_by_period(auth_client):
+def test_imported_2b_can_be_fetched_by_period(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     upload_2b(auth_client)
     body = auth_client.get(f"/api/v1/reconciliation/gstr2b/{PERIOD}").json()
 
@@ -1062,6 +1106,7 @@ def test_fetching_a_2b_that_was_never_imported_is_404(auth_client):
 
 def test_one_tenant_cannot_read_another_s_run(auth_client, client, db_session, business,
                                               other_tenant):
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="INV-2026-0042")
     upload_2b(auth_client)
     created = auth_client.post(
@@ -1076,7 +1121,10 @@ def test_one_tenant_cannot_read_another_s_run(auth_client, client, db_session, b
     assert client.get("/api/v1/reconciliation").json()["total"] == 0
 
 
-def test_a_tenant_s_2b_is_not_visible_to_another(auth_client, client, other_tenant):
+def test_a_tenant_s_2b_is_not_visible_to_another(
+    auth_client, client, db_session, business, other_tenant,
+):
+    _activate_pro(db_session, business.id)
     upload_2b(auth_client)
 
     client.headers.update({"Authorization": f"Bearer {other_tenant}"})
@@ -1086,6 +1134,7 @@ def test_a_tenant_s_2b_is_not_visible_to_another(auth_client, client, other_tena
 
 def test_reconciliation_feeds_the_dashboard(auth_client, db_session, business):
     """The dashboard's itc_at_risk comes from the latest run for the period."""
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="GHOST-1")
     upload_2b(auth_client)
     auth_client.post("/api/v1/reconciliation/run", json={"period": PERIOD})
@@ -1248,6 +1297,7 @@ class TestACreditNoteTakesCreditBack:
         self, auth_client, db_session, business
     ):
         """What the user is shown the moment the file lands."""
+        _activate_pro(db_session, business.id)
         payload = {
             "data": {
                 "rtnprd": "042026",
