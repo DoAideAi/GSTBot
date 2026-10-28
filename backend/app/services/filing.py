@@ -491,6 +491,7 @@ def validate_period(
     *,
     invoice_type: InvoiceType = InvoiceType.SALES,
     invoices: list[Invoice] | None = None,
+    unreadable: list[Invoice] | None = None,
 ) -> ValidationReport:
     """Validate every invoice of one direction in a period.
 
@@ -515,15 +516,20 @@ def validate_period(
     fetched again — see the note there. It must be exactly what
     :func:`_invoices` would return for the same arguments; nothing outside this
     module should be supplying it.
+
+    *unreadable* is the complementary set — rows in UNCOUNTABLE_STATUSES —
+    passed through by :func:`preview` to avoid a separate query for them.
     """
     if invoices is None:
         invoices = _invoices(db, business.id, period, invoice_type)
+    if unreadable is None:
+        unreadable = _unreadable_invoices(db, business.id, period, invoice_type)
     report = ValidationReport(period=period, invoice_count=len(invoices))
     for invoice in invoices:
         report.issues.extend(
             validate_invoice(invoice, business_state=business.state_code, period=period)
         )
-    for invoice in _unreadable_invoices(db, business.id, period, invoice_type):
+    for invoice in unreadable:
         report.issues.append(_unreadable_issue(invoice))
     return report
 
@@ -1494,6 +1500,7 @@ def preview(
     unreadable or malformed sales rows that would stop the GSTR-1.
     """
     invoices = _invoices(db, business.id, period, InvoiceType.SALES)
+    unreadable = _unreadable_invoices(db, business.id, period, InvoiceType.SALES)
     document = (
         build_gstr3b(db, business, period, as_of=as_of, invoices=invoices)
         if return_type is ReturnType.GSTR3B
@@ -1503,7 +1510,9 @@ def preview(
         period=period,
         return_type=return_type.value,
         document=document,
-        validation=validate_period(db, business, period, invoices=invoices),
+        validation=validate_period(
+            db, business, period, invoices=invoices, unreadable=unreadable,
+        ),
     )
 
 

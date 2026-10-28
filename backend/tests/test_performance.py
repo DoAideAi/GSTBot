@@ -140,22 +140,37 @@ class TestFilingPreviewReadsInvoicesOnce:
     """
 
     def test_preview_passes_invoices_through(self, db_session, business):
-        """The three consumers (build, validate, unreadable) should not each
-        fetch independently.  We verify structurally: preview() passes its
+        """The consumers (build, validate) should not each fetch
+        independently.  We verify structurally: preview() passes its
         single _invoices() read to both build_gstr1 and validate_period.
         """
         from app.services import filing
-        calls = []
-        original_invoices = filing._invoices
+        calls = {"_invoices": 0, "_unreadable_invoices": 0}
+        orig_inv = filing._invoices
+        orig_unread = filing._unreadable_invoices
 
-        def tracking_invoices(*args, **kwargs):
-            calls.append(1)
-            return original_invoices(*args, **kwargs)
+        def track_invoices(*args, **kwargs):
+            calls["_invoices"] += 1
+            return orig_inv(*args, **kwargs)
 
-        with patch.object(filing, "_invoices", side_effect=tracking_invoices):
-            filing.preview(db_session, business, "2026-01", filing.ReturnType.GSTR1)
+        def track_unreadable(*args, **kwargs):
+            calls["_unreadable_invoices"] += 1
+            return orig_unread(*args, **kwargs)
 
-        assert len(calls) == 1, (
-            f"_invoices was called {len(calls)} times; "
-            "preview() should read once and pass the list through"
+        with (
+            patch.object(filing, "_invoices", side_effect=track_invoices),
+            patch.object(
+                filing, "_unreadable_invoices", side_effect=track_unreadable,
+            ),
+        ):
+            filing.preview(
+                db_session, business, "2026-01", filing.ReturnType.GSTR1,
+            )
+
+        assert calls["_invoices"] == 1, (
+            f"_invoices called {calls['_invoices']} times; should be 1"
+        )
+        assert calls["_unreadable_invoices"] == 1, (
+            f"_unreadable_invoices called "
+            f"{calls['_unreadable_invoices']} times; should be 1"
         )

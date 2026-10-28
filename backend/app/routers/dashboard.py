@@ -208,7 +208,9 @@ def get_dashboard(
         or 0
     )
 
-    limit = invoice_service.plan_limit(business)
+    plan = invoice_service.effective_plan(business)
+    from app.core.config import settings as _settings
+    limit = _settings.plan_limits.get(plan, 0)
     used = invoice_service.monthly_usage(db, business.id)
 
     # Only worth pricing once the return is actually overdue: on every other
@@ -238,7 +240,7 @@ def get_dashboard(
         input_tax_credit=credit.total_tax,
         itc_at_risk=last_run.itc_at_risk if last_run else Decimal("0.00"),
         plan_usage=PlanUsage(
-            plan=invoice_service.effective_plan(business),
+            plan=plan,
             invoices_this_month=used,
             monthly_limit=limit,
             remaining=max(0, limit - used) if limit else None,
