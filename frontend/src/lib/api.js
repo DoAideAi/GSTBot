@@ -1,3 +1,5 @@
+import { track } from "./track";
+
 // API client for the DoAide GST backend.
 // Stores the JWT in localStorage and attaches it as a Bearer token.
 
@@ -164,10 +166,27 @@ async function request(
   const { data, readable } = readBody(text);
 
   if (!res.ok) {
-    throw refusal(readable ? errorMessage(data, statusMessage(res)) : statusMessage(res), res);
+    const err = refusal(
+      readable ? errorMessage(data, statusMessage(res)) : statusMessage(res),
+      res,
+      readable ? data : null,
+    );
+    // The top of the free-to-paid funnel: someone reached for a paid feature.
+    // Counted here, once, because every gated route refuses the same way, so
+    // no screen has to remember to report it. The route rather than the URL —
+    // ids and query strings identify a business's rows, not a feature.
+    if (err.code === "paid_plan_required") {
+      track("paywall_hit", { feature: featurePath(path) });
+    }
+    throw err;
   }
   if (!readable) throw new Error(unreadableMessage(res));
   return data;
+}
+
+/** `/reconciliation/12/report.pdf?x=1` -> `/reconciliation/:id/report.pdf`. */
+export function featurePath(path) {
+  return path.split("?")[0].replace(/\/\d+(?=\/|$)/g, "/:id");
 }
 
 /**
@@ -183,9 +202,12 @@ async function request(
  * them, which turns a backend outage into a page that says there is nothing
  * here yet.
  */
-function refusal(message, res) {
+function refusal(message, res, data = null) {
   const err = new Error(message);
   err.status = res.status;
+  // `error.code` is what the API's catalog says to branch on; the message is
+  // prose. Null when the body was not the API's own (an edge error page).
+  err.code = data?.error?.code ?? null;
   return err;
 }
 
@@ -769,7 +791,11 @@ async function fetchFile(url) {
     // not surface as a JSON parse error, and `statusText` is empty over
     // HTTP/2 so it cannot be the fallback on its own.
     const { data, readable } = readBody(await res.text());
-    throw refusal(readable ? errorMessage(data, statusMessage(res)) : statusMessage(res), res);
+    throw refusal(
+      readable ? errorMessage(data, statusMessage(res)) : statusMessage(res),
+      res,
+      readable ? data : null,
+    );
   }
   return {
     blob: await res.blob(),

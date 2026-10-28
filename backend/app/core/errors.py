@@ -42,6 +42,12 @@ Branch on ``error.code``, not on ``detail`` (which is prose and may change).
     the role held and who to ask for elevation. A viewer hitting a write route
     always sees this; owners and accountants never do.
 
+``paid_plan_required`` (403)
+    The feature needs an active paid subscription and this business has none,
+    or its paid period has run out. Distinct from ``forbidden``, which is about
+    the caller's role: here the caller's role is fine and the *plan* is not, so
+    the action is to upgrade (see ``/pricing``), not to ask an owner.
+
 ``not_found`` (404)
     The resource does not exist **or belongs to another tenant**. Cross-tenant
     reads deliberately answer 404, not 403, to avoid confirming that the id
@@ -205,6 +211,18 @@ def _bounded(value: Any) -> Any:
     return value
 
 
+class CodedHTTPException(HTTPException):
+    """An ``HTTPException`` whose ``error.code`` is not the status's default.
+
+    For the one case where two refusals share a status and a client must be
+    able to tell them apart without reading the prose — see the catalog above.
+    """
+
+    def __init__(self, status_code: int, detail: Any, *, code: str) -> None:
+        super().__init__(status_code=status_code, detail=detail)
+        self.code = code
+
+
 # How long a whole ``HTTPException`` detail may be.
 #
 # The ceiling above bounds what pydantic quotes; this bounds what a *route*
@@ -347,7 +365,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=exc.status_code,
-            content=error_body(exc.status_code, _bounded_detail(exc.detail)),
+            content=error_body(
+                exc.status_code, _bounded_detail(exc.detail), code=getattr(exc, "code", None)
+            ),
             headers=getattr(exc, "headers", None),
         )
 
@@ -440,4 +460,10 @@ def _opaque_message() -> str:
     )
 
 
-__all__ = ["HTTPException", "error_body", "error_code", "register_exception_handlers"]
+__all__ = [
+    "CodedHTTPException",
+    "HTTPException",
+    "error_body",
+    "error_code",
+    "register_exception_handlers",
+]

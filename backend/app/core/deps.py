@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.errors import CodedHTTPException
 from app.core.params import MAX_ID, MIN_ID
 from app.core.security import decode_access_token
 from app.models.business import Business
@@ -240,12 +241,10 @@ def require_paid_tier(
     # `is_paid` rather than the tier and status alone: a paid period that has
     # run out is not paid for, whatever the row's status still says.
     if sub is None or not sub.is_paid():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "This feature requires a paid subscription. "
-                "Visit /pricing to upgrade."
-            ),
+        raise CodedHTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This feature requires a paid subscription. Visit /pricing to upgrade.",
+            code="paid_plan_required",
         )
     return sub
 

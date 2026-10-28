@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   api,
   errorMessage,
+  featurePath,
   getActiveBusinessId,
   getToken,
   isAbortError,
@@ -1290,5 +1291,66 @@ describe("a browser that will not store anything", () => {
     setToken("tok-stored");
     expect(localStorage.getItem("gstbot_token")).toBe("tok-stored");
     expect(getToken()).toBe("tok-stored");
+  });
+});
+
+describe("a refusal the API gave its own code", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn();
+    window.umami = { track: vi.fn() };
+  });
+
+  afterEach(() => {
+    delete window.umami;
+  });
+
+  const paywall = {
+    detail: "This feature requires a paid subscription. Visit /pricing to upgrade.",
+    error: { code: "paid_plan_required", status: 403, message: "..." },
+  };
+
+  it("carries error.code, which is what the catalog says to branch on", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse(paywall, { status: 403 }));
+    const err = await api.itc("2026-04").catch((e) => e);
+    expect(err.status).toBe(403);
+    expect(err.code).toBe("paid_plan_required");
+  });
+
+  it("counts a paywall hit against the feature, not the business's rows", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse(paywall, { status: 403 }));
+    await api.itc("2026-04").catch(() => {});
+    expect(window.umami.track).toHaveBeenCalledWith("paywall_hit", { feature: "/itc" });
+  });
+
+  it("does not count a role refusal as a paywall hit", async () => {
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ detail: "Viewers cannot write", error: { code: "forbidden" } }, { status: 403 }),
+    );
+    const err = await api.rescoreSuppliers().catch((e) => e);
+    expect(err.code).toBe("forbidden");
+    expect(window.umami.track).not.toHaveBeenCalled();
+  });
+
+  it("has no code when the body was not the API's own", async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      statusText: "",
+      text: async () => "<html>Bad Gateway</html>",
+    });
+    const err = await api.me().catch((e) => e);
+    expect(err.code).toBeNull();
+  });
+});
+
+describe("featurePath", () => {
+  it.each([
+    ["/itc?period=2026-04", "/itc"],
+    ["/reconciliation/12/report.pdf", "/reconciliation/:id/report.pdf"],
+    ["/invoices/7", "/invoices/:id"],
+    ["/filing/gstr1", "/filing/gstr1"],
+  ])("%s -> %s", (path, feature) => {
+    expect(featurePath(path)).toBe(feature);
   });
 });
