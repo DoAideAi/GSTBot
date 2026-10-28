@@ -23,6 +23,7 @@ correlation id is what lets support find the real error without publishing it.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -177,8 +178,33 @@ def _bounded_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
     """
     bounded: list[dict[str, Any]] = []
     for error in exc.errors():
-        bounded.append({key: _bounded(value) for key, value in error.items()})
+        entry = {key: _bounded(value) for key, value in error.items()}
+        if "input" in entry:
+            if _is_secret(error.get("loc", ())):
+                entry["input"] = _REDACTED
+            elif isinstance(entry["input"], dict):
+                # A "missing" error quotes the whole body it looked in, so a
+                # register call without its email still carried the password.
+                entry["input"] = {
+                    key: _REDACTED if _is_secret((key,)) else value
+                    for key, value in entry["input"].items()
+                }
+        bounded.append(entry)
     return bounded
+
+
+# Fields whose value is never quoted back, however short. The echo above is
+# what makes a 422 actionable for a GSTIN or a period; for a password it put
+# the one the user just typed — "hunter2", seven characters, one short — into
+# the response body, where browser error trackers and proxy logs keep it. The
+# caller knows what they typed; ``msg`` says what was wrong with it. Matched
+# on any part of ``loc`` so a nested ``credentials.api_key`` counts too.
+_SECRET_FIELD = re.compile(r"password|secret|token|otp|api_?key", re.IGNORECASE)
+_REDACTED = "[redacted]"
+
+
+def _is_secret(loc: Any) -> bool:
+    return any(isinstance(part, str) and _SECRET_FIELD.search(part) for part in loc)
 
 
 def _field_errors(exc: RequestValidationError) -> list[dict[str, Any]]:

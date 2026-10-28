@@ -781,3 +781,30 @@ class TestOAuthNotConfiguredReturns501:
     def test_microsoft_returns_501(self, client):
         r = client.get("/api/v1/auth/microsoft", follow_redirects=False)
         assert r.status_code == 501
+
+
+class TestSecretsAreNotEchoed:
+    """A rejected password is named in a 422, never quoted back in it."""
+
+    def test_a_short_password_is_redacted(self, client):
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "a@b.com", "password": "hunter2"}
+        )
+        assert response.status_code == 422
+        assert "hunter2" not in response.text
+        (error,) = response.json()["detail"]
+        assert error["loc"] == ["body", "password"]
+        assert error["input"] == "[redacted]"
+
+    def test_a_body_quoted_by_a_missing_field_keeps_its_password_out(self, client):
+        response = client.post("/api/v1/auth/register", json={"password": "hunter22long"})
+        assert response.status_code == 422
+        assert "hunter22long" not in response.text
+        echoed = response.json()["detail"][0]["input"]
+        assert echoed == {"password": "[redacted]"}
+
+    def test_an_ordinary_field_is_still_quoted(self, client):
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "nope", "password": "longenough1"}
+        )
+        assert response.json()["detail"][0]["input"] == "nope"
