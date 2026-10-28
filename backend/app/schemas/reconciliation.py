@@ -122,8 +122,11 @@ class ReportVerifyRequest(BaseModel):
     """What Razorpay Checkout hands the browser after a successful payment."""
 
     run_id: int = Field(ge=1)
-    razorpay_order_id: str = Field(max_length=64)
-    razorpay_payment_id: str = Field(max_length=64)
+    # Shaped like Razorpay's ids. The order id is put into the path of a
+    # request made with this server's credentials (``fetch_order``), so a
+    # "/" or "." in it could aim that request at another Razorpay endpoint.
+    razorpay_order_id: str = Field(max_length=64, pattern=r"^order_[A-Za-z0-9_]+$")
+    razorpay_payment_id: str = Field(max_length=64, pattern=r"^pay_[A-Za-z0-9_]+$")
     razorpay_signature: str = Field(max_length=512)
 
 

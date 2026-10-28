@@ -209,7 +209,11 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                         "history_turns": len(body.history),
                     },
                 )
-                reply = _reply_text(response.json())
+                try:
+                    parsed = response.json()
+                except ValueError:  # a 200 that is not JSON — a proxy's page
+                    parsed = None
+                reply = _reply_text(parsed)
                 if reply is None:
                     raise HTTPException(
                         status_code=status.HTTP_502_BAD_GATEWAY,
@@ -281,10 +285,24 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
         ) from None
 
 
-def _reply_text(data: dict) -> str | None:
-    # A 200 is not always an answer: a candidate stopped by a safety filter, or
-    # one that spent its whole budget thinking, arrives with no parts at all.
-    candidates = data.get("candidates") or [{}]
-    parts = (candidates[0].get("content") or {}).get("parts") or []
-    text = "".join(p.get("text", "") for p in parts).strip()
+def _reply_text(data: object) -> str | None:
+    """The answer's text, or ``None`` when the 200 carries none.
+
+    A 200 is not always an answer: a candidate stopped by a safety filter, or
+    one that spent its whole budget thinking, arrives with no parts at all.
+    Nor is it always the documented shape — a ``null`` candidate, a string
+    where an object belongs, a non-string ``text`` — and each of those raised
+    out of here into the catch-all, which told the user "a problem on our side"
+    and logged a traceback for what is simply an unusable reply. Every shape
+    that is not text now reads as no answer.
+    """
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    first = candidates[0] if isinstance(candidates, list) and candidates else None
+    content = first.get("content") if isinstance(first, dict) else None
+    parts = content.get("parts") if isinstance(content, dict) else None
+    if not isinstance(parts, list):
+        return None
+    text = "".join(
+        p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)
+    ).strip()
     return text or None

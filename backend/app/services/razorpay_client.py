@@ -41,6 +41,25 @@ def _exc_context(exc: Exception, operation: str, **fields: Any) -> dict[str, Any
     return {"operation": operation, "status_code": status, **fields}
 
 
+def _object(resp: httpx.Response, *required: str) -> dict[str, Any]:
+    """The response body, if it is a JSON object carrying *required*.
+
+    A 2xx is not a promise about the body. A proxy or a degraded upstream can
+    answer 200 with a list, a bare string or an error object, and returning
+    that as the order sent the routes into ``order["id"]`` / ``order.get`` on
+    something that is not an order — a 500 where a refusal to trust the
+    response belongs. Raised here so the caller's ``except`` turns it into the
+    ``None`` every route already answers with a retryable 502.
+    """
+    body = resp.json()
+    if not isinstance(body, dict):
+        raise ValueError(f"expected a JSON object, got {type(body).__name__}")
+    missing = [key for key in required if key not in body]
+    if missing:
+        raise ValueError(f"response is missing {', '.join(missing)}")
+    return body
+
+
 def create_order(
     amount_paise: int,
     currency: str = "INR",
@@ -63,7 +82,7 @@ def create_order(
             timeout=15,
         )
         resp.raise_for_status()
-        return resp.json()
+        return _object(resp, "id", "amount", "currency")
     except Exception as exc:
         logger.exception(
             "Razorpay create_order failed",
@@ -165,7 +184,7 @@ def fetch_order(order_id: str) -> dict[str, Any] | None:
     try:
         resp = httpx.get(f"{_BASE_URL}/orders/{order_id}", auth=_auth(), timeout=15)
         resp.raise_for_status()
-        return resp.json()
+        return _object(resp, "id")
     except Exception as exc:
         logger.exception(
             "Razorpay fetch_order failed",
