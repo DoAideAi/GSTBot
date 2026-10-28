@@ -175,7 +175,7 @@ describe("Shell", () => {
     renderShell();
 
     await screen.findByText("5");
-    expect(screen.getByRole("link", { name: "Alerts" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Alerts.*5 open/ })).toBeInTheDocument();
   });
 
   it("hides the badge when there are no open alerts", async () => {

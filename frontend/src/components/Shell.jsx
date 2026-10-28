@@ -123,9 +123,14 @@ export default function Shell({ children }) {
             >
               {link.label}
               {link.badge && alertCount > 0 && (
-                <span className="nav-badge" aria-hidden="true">
-                  {alertCount > 99 ? "99+" : alertCount}
-                </span>
+                <>
+                  <span className="nav-badge" aria-hidden="true">
+                    {alertCount > 99 ? "99+" : alertCount}
+                  </span>
+                  <span className="visually-hidden">
+                    {` (${alertCount} open)`}
+                  </span>
+                </>
               )}
             </NavLink>
           ))}
