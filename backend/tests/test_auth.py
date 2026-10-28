@@ -315,7 +315,9 @@ def test_me_rejects_a_token_whose_subject_is_not_a_user_id(client):
     forged = create_access_token("admin")
     response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {forged}"})
     assert response.status_code == 401
-    assert response.json()["detail"] == "Could not validate credentials"
+    assert response.json()["detail"] == (
+        "Your sign-in has expired or is not valid. Sign in again to continue."
+    )
 
 
 def test_login_still_finds_a_row_stored_with_mixed_case(client, db_session):

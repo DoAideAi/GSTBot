@@ -451,7 +451,10 @@ def export(
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Purchases can only be exported as CSV",
+            detail=(
+                "Purchases can only be exported as CSV. Download the purchase "
+                "register as .csv instead."
+            ),
         )
 
     return Response(

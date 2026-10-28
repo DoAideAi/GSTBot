@@ -34,6 +34,7 @@ from app.core.rate_limit import (
     client_ip,
     forget,
     peek,
+    wait_phrase,
 )
 from app.core.ratespec import Rate, parse_rate
 from app.core.security import create_access_token, hash_password, verify_password
@@ -124,7 +125,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Registe
     email = payload.email.lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Sign in with it instead.",
         )
 
     legal_name = (payload.legal_name or payload.full_name or email.split("@")[0]).strip()
@@ -242,8 +244,9 @@ def login(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    "Too many failed sign-in attempts. "
-                    f"Try again in {budget.retry_after}s."
+                    "Too many failed sign-in attempts for this account. "
+                    f"Try again in {wait_phrase(budget.retry_after)}, and check the email "
+                    "and password carefully before you do."
                 ),
                 headers=headers,
             )

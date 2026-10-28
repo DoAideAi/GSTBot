@@ -95,7 +95,7 @@ def _owned_alert(db: Session, business: Business, alert_id: int) -> Alert:
     if alert is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Alert {alert_id} not found",
+            detail=f"Alert {alert_id} not found. Refresh the alerts list and try again.",
         )
     return alert
 

@@ -126,7 +126,10 @@ def _owned_invoice(db: Session, business: Business, invoice_id: int) -> Invoice:
     if invoice is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Invoice {invoice_id} not found",
+            detail=(
+                f"Invoice {invoice_id} not found. It may have been deleted; "
+                "refresh the invoice list."
+            ),
         )
     return invoice
 
@@ -356,7 +359,10 @@ async def upload_invoices_bulk(
     if len(files) > MAX_BULK_FILES:
         raise HTTPException(
             status_code=413,
-            detail=f"A batch is limited to {MAX_BULK_FILES} files; this one has {len(files)}.",
+            detail=(
+                f"A batch is limited to {MAX_BULK_FILES} files; this one has "
+                f"{len(files)}. Upload them in batches of {MAX_BULK_FILES} or fewer."
+            ),
         )
 
     # Read once, before the loop, and held as plain data. Every file in the

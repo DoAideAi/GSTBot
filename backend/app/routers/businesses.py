@@ -27,7 +27,15 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_business, get_current_user, require_owner
 from app.core.params import RowId
-from app.core.rate_limit import RateLimit, apply_headers, charge, client_ip, forget, peek
+from app.core.rate_limit import (
+    RateLimit,
+    apply_headers,
+    charge,
+    client_ip,
+    forget,
+    peek,
+    wait_phrase,
+)
 from app.core.ratespec import parse_rate
 from app.core.sanitize import content_disposition
 from app.core.security import verify_password
@@ -180,7 +188,7 @@ def link_business(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
                     "Too many failed attempts for this account. "
-                    f"Try again in {budget.retry_after}s."
+                    f"Try again in {wait_phrase(budget.retry_after)}."
                 ),
                 headers=headers,
             )

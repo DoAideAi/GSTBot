@@ -108,7 +108,10 @@ def _configured_client(provider: str) -> Any:
     if not getattr(settings, f"{provider}_client_id"):
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=f"{_PROVIDER_LABELS[provider]} OAuth not configured",
+            detail=(
+                f"Sign-in with {_PROVIDER_LABELS[provider]} is not available on "
+                "this site. Sign in with your email and password instead."
+            ),
         )
     return oauth.create_client(provider)
 

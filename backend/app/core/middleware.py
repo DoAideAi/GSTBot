@@ -27,7 +27,7 @@ from app.core.logging import (
     sanitize_correlation_id,
     set_correlation_id,
 )
-from app.core.rate_limit import check_global, client_ip
+from app.core.rate_limit import check_global, client_ip, wait_phrase
 
 logger = logging.getLogger("app.access")
 
@@ -282,7 +282,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=429,
                 content=error_body(
                     429,
-                    f"Too many requests. Try again in {decision.retry_after}s.",
+                    f"Too many requests. Try again in {wait_phrase(decision.retry_after)}.",
                     code="rate_limited",
                 ),
                 headers={

@@ -971,3 +971,29 @@ class TestRedisBackedCounters:
         monkeypatch.setattr(redis_client, "get_redis", lambda: Broken())
 
         rate_limit.reset()  # Must not raise.
+
+
+class TestTheWaitIsSaidInTheUnitAPersonWouldUse:
+    """'Try again in 3600s' was the hourly export limit's whole advice."""
+
+    @pytest.mark.parametrize(
+        ("seconds", "phrase"),
+        [
+            (1, "1 second"),
+            (45, "45 seconds"),
+            (89, "89 seconds"),
+            (90, "2 minutes"),
+            (900, "15 minutes"),
+            # Rounded up: 61 seconds left is not "1 minute", it is a refusal
+            # for whoever comes back after one.
+            (121, "3 minutes"),
+            (3600, "60 minutes"),
+            (5400, "2 hours"),
+            (86400, "24 hours"),
+            (0, "1 second"),
+        ],
+    )
+    def test_wait_phrase(self, seconds, phrase):
+        from app.core.rate_limit import wait_phrase
+
+        assert wait_phrase(seconds) == phrase

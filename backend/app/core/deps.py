@@ -23,7 +23,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/lo
 
 _credentials_exc = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Could not validate credentials",
+    detail="Your sign-in has expired or is not valid. Sign in again to continue.",
     headers={"WWW-Authenticate": "Bearer"},
 )
 
@@ -129,7 +129,10 @@ def get_active_tenant(
         if member is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have access to that business",
+                detail=(
+                    "Your login has no access to that business. Choose one of "
+                    "your own businesses from the switcher."
+                ),
             )
         business_id = x_business_id
         # MembershipRole and UserRole carry the same three values on purpose

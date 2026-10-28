@@ -119,7 +119,10 @@ def create_order(
     if payload.tier == SubscriptionTier.FREE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot create an order for the free tier.",
+            detail=(
+                "The Free plan costs nothing, so there is nothing to pay for. "
+                "Choose SMB or CA to upgrade."
+            ),
         )
     if not razorpay_client.is_configured():
         # A customer trying to pay and being turned away: the one 503 here
@@ -131,7 +134,10 @@ def create_order(
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payment processing is not configured.",
+            detail=(
+                "Payments are not available right now, so the plan cannot be "
+                "changed. Try again later, or contact support."
+            ),
         )
 
     pricing = razorpay_client.TIER_PRICING[payload.tier]
@@ -480,12 +486,18 @@ def cancel_subscription(
     if sub is None or sub.tier == SubscriptionTier.FREE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active paid subscription to cancel.",
+            detail=(
+                "No active paid subscription to cancel: this business is "
+                "already on the Free plan."
+            ),
         )
     if sub.status in (SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Subscription is already {sub.status.value}.",
+            detail=(
+                f"This subscription is already {sub.status.value}, so there is "
+                "nothing left to cancel."
+            ),
         )
     # A paid period that has run out is not a paid subscription. The DB still
     # says ACTIVE/PRO because nothing wrote EXPIRED (one-time orders produce no
@@ -499,7 +511,10 @@ def cancel_subscription(
     if sub.status == SubscriptionStatus.ACTIVE and sub.lapsed():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active paid subscription to cancel.",
+            detail=(
+                "No active paid subscription to cancel: this business is "
+                "already on the Free plan."
+            ),
         )
     old_tier = sub.tier
     # Only a Razorpay *subscription* has anything to cancel at the provider.

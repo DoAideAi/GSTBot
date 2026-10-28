@@ -169,7 +169,9 @@ async def import_gstr2b(
             # report to them.
             detail=(
                 f"{filename} is {len(content) / (1024 * 1024):.1f} MB, over the "
-                f"{settings.max_upload_mb} MB limit."
+                f"{settings.max_upload_mb} MB limit. A GSTR-2B is rarely this "
+                "large, so check it is the right file; if it is, send this "
+                "message to support."
             ),
         )
 
@@ -418,7 +420,10 @@ def latest_run(
     if found is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No reconciliation has been run for {period}",
+            detail=(
+                f"No reconciliation has been run for {period} yet. Import its "
+                "GSTR-2B and run one."
+            ),
         )
     return ReconciliationDetailOut.model_validate(found)
 
@@ -454,7 +459,10 @@ def get_run(
     if found is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Reconciliation run {run_id} not found",
+            detail=(
+                f"Reconciliation run {run_id} not found. Pick a run from this "
+                "period's history instead."
+            ),
         )
     return ReconciliationDetailOut.model_validate(found)
 
@@ -487,7 +495,10 @@ def get_imported_2b(
     if found is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No GSTR-2B imported for {period}",
+            detail=(
+                f"No GSTR-2B imported for {period}. Download it from the GST "
+                "portal and import it here."
+            ),
         )
     return GSTR2BImportOut.model_validate(found)
 
@@ -513,7 +524,10 @@ def _reportable_run(db: Session, business: Business, run_id: int) -> Reconciliat
     if run is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Reconciliation run {run_id} not found",
+            detail=(
+                f"Reconciliation run {run_id} not found. Pick a run from this "
+                "period's history instead."
+            ),
         )
     if run.status is not ReconciliationStatus.COMPLETED:
         raise HTTPException(
@@ -574,7 +588,10 @@ def purchase_report(
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payment processing is not configured.",
+            detail=(
+                "Reports cannot be bought right now because payments are not "
+                "available. Try again later, or contact support."
+            ),
         )
     order = razorpay_client.create_order(
         amount_paise=razorpay_client.REPORT_PRICE_PAISE,

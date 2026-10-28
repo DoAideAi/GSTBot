@@ -255,6 +255,24 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def wait_phrase(seconds: int) -> str:
+    """How long to wait, in the unit a person would say it in.
+
+    Every limit here reports its wait in seconds, which reads fine for 45 and
+    badly for 3600 — the hourly export limit answered "Try again in 3600s".
+    Rounded up, so the advice never sends someone back early into a second
+    refusal.
+    """
+    seconds = max(1, int(seconds))
+    if seconds < 90:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    if seconds < 90 * 60:
+        minutes = -(-seconds // 60)
+        return f"{minutes} minutes"
+    hours = -(-seconds // 3600)
+    return f"{hours} hour{'s' if hours != 1 else ''}"
+
+
 def identity(request: Request) -> str:
     """Who to charge this request to: ``user:<id>`` or ``ip:<addr>``.
 
@@ -328,7 +346,8 @@ class RateLimit:
             )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=self.detail or f"Too many requests. Try again in {decision.retry_after}s.",
+                detail=self.detail
+                or f"Too many requests. Try again in {wait_phrase(decision.retry_after)}.",
                 headers={
                     "Retry-After": str(decision.retry_after),
                     "X-RateLimit-Limit": str(decision.limit),
