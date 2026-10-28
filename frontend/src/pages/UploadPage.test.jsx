@@ -288,6 +288,7 @@ describe("UploadPage", () => {
 
   it("uploads the good files in a batch and reports the rejected one", async () => {
     const user = userEvent.setup();
+    window.umami = { track: vi.fn() };
     global.fetch.mockResolvedValue(jsonResponse(oneAccepted()));
 
     renderPage();
@@ -302,6 +303,14 @@ describe("UploadPage", () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     // The oversized one is refused here and never reaches the request.
     expect(global.fetch.mock.calls[0][1].body.getAll("files")).toHaveLength(2);
+    // Usage is counted by files, never by their names.
+    expect(window.umami.track).toHaveBeenCalledWith("invoice_upload", {
+      invoice_type: "purchase",
+      files: 2,
+      accepted: 1,
+    });
+    expect(JSON.stringify(window.umami.track.mock.calls)).not.toContain("good.txt");
+    delete window.umami;
   });
 
   it("says how far through the drop it is", async () => {

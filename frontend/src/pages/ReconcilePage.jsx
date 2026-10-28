@@ -10,6 +10,7 @@ import ValidationIssues from "../components/ValidationIssues";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api, isAbortError } from "../lib/api";
+import { track } from "../lib/track";
 import { currentPeriod, dateLabel, periodLabel, rupees } from "../lib/format";
 import { GSTR2B_EXTENSIONS, fileError } from "../lib/validate";
 
@@ -398,6 +399,7 @@ export default function ReconcilePage() {
     setNotice("");
     try {
       const result = await api.importGstr2b(file, period);
+      track("gstr2b_import", { format: (file.name.split(".").pop() || "").toLowerCase() });
       setNotice(result.message);
       // The server decides the period from the file, which may not be the one
       // on screen. Follow it rather than showing a stale month — and follow it
@@ -425,6 +427,10 @@ export default function ReconcilePage() {
     setNotice("");
     try {
       const result = await api.reconcile(target);
+      track("reconcile_run", {
+        invoices: result.total_invoices ?? 0,
+        matched: result.matched_count ?? 0,
+      });
       // Reconciling is the slowest thing this page does — it walks the whole
       // purchase register against the statement — so it is the request most
       // likely to still be running when someone moves on to another month.

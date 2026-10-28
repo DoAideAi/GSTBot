@@ -9,6 +9,7 @@ import ValidationIssues from "../components/ValidationIssues";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api, isAbortError } from "../lib/api";
+import { track } from "../lib/track";
 import { currentPeriod, dateLabel, periodLabel, previousPeriod, rupees } from "../lib/format";
 import { arnError, normalizeArn } from "../lib/validate";
 
@@ -230,6 +231,7 @@ export default function FilingPage() {
         target.period,
       );
       saveBlob(blob, filename);
+      track("filing_export", { return_type: target.returnType, format: extension });
       // Needs nothing added to it. The server names the file for the return
       // type, the GSTIN and the period precisely so it does not arrive as
       // `download (3)`, so the confirmation already says which return landed
@@ -275,6 +277,7 @@ export default function FilingPage() {
         // not an ARN at all.
         ...(cleaned ? { arn: cleaned } : {}),
       });
+      track("return_recorded_filed", { return_type: target.returnType, with_arn: Boolean(cleaned) });
       setArn("");
       setNotice(
         `Recorded ${RETURNS[target.returnType].label} for ${periodLabel(target.period)} as filed.`,

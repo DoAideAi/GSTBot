@@ -496,6 +496,7 @@ describe("FilingPage", () => {
 
   it("downloads an export under the name the server gave it", async () => {
     const user = userEvent.setup();
+    window.umami = { track: vi.fn() };
     mockApi();
     renderPage();
 
@@ -509,6 +510,11 @@ describe("FilingPage", () => {
     expect(URL.createObjectURL).toHaveBeenCalled();
     // The object URL is released rather than leaked once the click is done.
     expect(URL.revokeObjectURL).toHaveBeenCalled();
+    expect(window.umami.track).toHaveBeenCalledWith("filing_export", {
+      return_type: "gstr1",
+      format: "json",
+    });
+    delete window.umami;
   });
 
   it("says so when the export cannot be produced", async () => {
@@ -627,6 +633,7 @@ describe("FilingPage", () => {
 
     it("sends an ARN when one is typed, upper-cased and without spaces", async () => {
       const user = userEvent.setup();
+      window.umami = { track: vi.fn() };
       const onRecordFiled = vi.fn();
       mockApi({ onRecordFiled });
       renderPage();
@@ -640,6 +647,14 @@ describe("FilingPage", () => {
 
       await waitFor(() => expect(onRecordFiled).toHaveBeenCalled());
       expect(onRecordFiled.mock.calls[0][0].body.arn).toBe("AA270426000000X");
+      // Whether an ARN was given, not the ARN: it identifies the filing.
+      await waitFor(() =>
+        expect(window.umami.track).toHaveBeenCalledWith("return_recorded_filed", {
+          return_type: "gstr1",
+          with_arn: true,
+        }),
+      );
+      delete window.umami;
     });
 
     it("omits the ARN entirely rather than sending an empty one", async () => {

@@ -6,6 +6,7 @@ import { Spinner } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api } from "../lib/api";
+import { track } from "../lib/track";
 import { dateLabel, rupees } from "../lib/format";
 import { INVOICE_EXTENSIONS, MAX_UPLOAD_MB, partitionFiles } from "../lib/validate";
 
@@ -187,10 +188,17 @@ export default function UploadPage() {
       setProgress({ done, total: accepted.length, count: group.length });
       try {
         const response = await api.bulkUploadInvoices(group, invoiceType);
+        // Counts, never filenames: a file is named for the supplier on it.
+        track("invoice_upload", {
+          invoice_type: invoiceType,
+          files: group.length,
+          accepted: (response.items ?? []).filter((item) => item.accepted).length,
+        });
         // Reversed on the way in, because the list reads newest-first and the
         // server answers in the order the files were sent.
         setResults((prev) => [...toRows(response.items ?? []).reverse(), ...prev]);
       } catch (err) {
+        track("invoice_upload_failed", { files: group.length, status: err.status ?? 0 });
         // The whole request failed, so no file in it has an outcome of its own.
         setResults((prev) => [
           ...group

@@ -451,6 +451,7 @@ describe("ReconcilePage", () => {
 
   it("runs a reconciliation and shows the result", async () => {
     const user = userEvent.setup();
+    window.umami = { track: vi.fn() };
     mockApi({
       imported2b: imported(),
       onPost: async () => run(),
@@ -464,6 +465,8 @@ describe("ReconcilePage", () => {
     // The period is whichever month the picker defaults to, so this asserts
     // the confirmation shape rather than pinning the suite to a clock.
     expect(screen.getByText(/^Reconciled \w+ \d{4}$/)).toBeInTheDocument();
+    expect(window.umami.track).toHaveBeenCalledWith("reconcile_run", { invoices: 3, matched: 1 });
+    delete window.umami;
   });
 
   it("surfaces a failed run as the server explained it", async () => {
@@ -534,6 +537,7 @@ describe("ReconcilePage", () => {
 
   it("uploads a 2B and reports what the server made of it", async () => {
     const user = userEvent.setup();
+    window.umami = { track: vi.fn() };
     let posted = null;
     mockApi({
       onPost: async (url, options) => {
@@ -553,6 +557,8 @@ describe("ReconcilePage", () => {
     expect(posted.url).toContain("/reconciliation/gstr2b/import");
     expect(posted.body).toBeInstanceOf(FormData);
     expect(posted.body.get("file").name).toBe("gstr2b.json");
+    expect(window.umami.track).toHaveBeenCalledWith("gstr2b_import", { format: "json" });
+    delete window.umami;
   });
 
   it("follows the period the server read out of the file", async () => {

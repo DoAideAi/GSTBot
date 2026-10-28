@@ -70,6 +70,7 @@ describe("BulkGstinPage", () => {
 
   it("shows each result, the totals, and why an invalid one failed", async () => {
     mockBulk.mockResolvedValue(RESPONSE);
+    window.umami = { track: vi.fn() };
     renderPage();
     await userEvent.type(box(), "27AAPFU0939F1ZV 29AAACB1234C1Z9");
     await userEvent.click(screen.getByRole("button", { name: /validate/i }));
@@ -78,6 +79,8 @@ describe("BulkGstinPage", () => {
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("Maharashtra (27)");
     expect(rows[1]).toHaveTextContent("Check digit does not match.");
+    expect(window.umami.track).toHaveBeenCalledWith("bulk_gstin_check", { count: 2 });
+    delete window.umami;
   });
 
   it("filters to the invalid ones and downloads all of them", async () => {

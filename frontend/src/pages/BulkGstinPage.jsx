@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import TableScroll from "../components/TableScroll";
 import { api } from "../lib/api";
+import { track } from "../lib/track";
 import { saveBlob } from "../lib/download";
 
 export const MAX_GSTINS = 100;
@@ -65,6 +66,7 @@ export default function BulkGstinPage() {
     setResponse(null);
     try {
       setResponse(await api.validateGstinBulk(gstins));
+      track("bulk_gstin_check", { count: gstins.length });
       setFilter("all");
     } catch (err) {
       if (err?.status === 403) setNeedsPlan(true);
