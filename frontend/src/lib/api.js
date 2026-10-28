@@ -473,7 +473,10 @@ export const api = {
     return request("/reconciliation/gstr2b/import", { method: "POST", form });
   },
 
-  importedPeriods: () => request("/reconciliation/gstr2b/periods"),
+  // An { items } envelope like every other list. Unwrapped here so the page
+  // keeps its array; the signal is passed through (it was accepted and dropped).
+  importedPeriods: ({ signal } = {}) =>
+    request("/reconciliation/gstr2b/periods", { signal }).then((data) => data?.items ?? []),
   getImported2b: (period, { signal } = {}) =>
     request(`/reconciliation/gstr2b/${encodeURIComponent(period)}`, { signal }),
 

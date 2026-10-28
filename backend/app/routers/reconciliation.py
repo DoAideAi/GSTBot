@@ -28,6 +28,7 @@ from app.models.gstr_return import GSTRReturn, ReturnType
 from app.models.reconciliation_run import ReconciliationRun
 from app.schemas.reconciliation import (
     GSTR2BImportOut,
+    ImportedPeriodsOut,
     ReconcileRequest,
     ReconciliationDetailOut,
     ReconciliationListOut,
@@ -247,7 +248,7 @@ async def import_gstr2b(
 
 @router.get(
     "/gstr2b/periods",
-    response_model=list[str],
+    response_model=ImportedPeriodsOut,
     summary="Periods with a GSTR-2B on file",
     description="Newest first. What the period picker on the reconcile screen offers.",
     dependencies=[Depends(_read_limit)],
@@ -255,9 +256,9 @@ async def import_gstr2b(
 def list_imported_periods(
     db: Session = Depends(get_db),
     business: Business = Depends(get_current_business),
-) -> list[str]:
+) -> ImportedPeriodsOut:
     """Periods with a GSTR-2B on file, newest first."""
-    return reconciliation.periods_with_2b(db, business.id)
+    return ImportedPeriodsOut(items=reconciliation.periods_with_2b(db, business.id))
 
 
 @router.post(

@@ -598,7 +598,7 @@ function route(state, method, path, params, init) {
 
   // ---- Reconciliation ---------------------------------------------------
   if (path === "/reconciliation/gstr2b/periods") {
-    return { body: Object.keys(state.statements) };
+    return { body: { items: Object.keys(state.statements) } };
   }
   if (path === "/reconciliation/gstr2b/import" && method === "POST") {
     if (state.role === "viewer") refuseViewer();

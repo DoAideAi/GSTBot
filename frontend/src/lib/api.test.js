@@ -121,6 +121,19 @@ describe("api", () => {
     vi.restoreAllMocks();
   });
 
+  describe("imported GSTR-2B periods", () => {
+    it("unwraps the items envelope and passes the abort signal through", async () => {
+      global.fetch.mockResolvedValueOnce(jsonResponse({ items: ["2026-05", "2026-04"] }));
+      const controller = new AbortController();
+
+      await expect(api.importedPeriods({ signal: controller.signal })).resolves.toEqual([
+        "2026-05",
+        "2026-04",
+      ]);
+      expect(global.fetch.mock.calls[0][1].signal).toBe(controller.signal);
+    });
+  });
+
   describe("the status a refusal carries", () => {
     // Some refusals are a normal state of the product — a period with nothing
     // imported answers 404 — and some are a failure. A caller that wants to

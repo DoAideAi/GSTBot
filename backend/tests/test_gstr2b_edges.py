@@ -420,7 +420,7 @@ class TestWhoseStatementThisIs:
     def test_the_refusal_stores_nothing(self, auth_client):
         upload_2b(auth_client, content=self._addressed_to(SUPPLIER_GSTIN_SAME_STATE))
 
-        assert auth_client.get("/api/v1/reconciliation/gstr2b/periods").json() == []
+        assert auth_client.get("/api/v1/reconciliation/gstr2b/periods").json() == {"items": []}
 
     def test_the_tenants_own_statement_goes_through(self, auth_client):
         response = upload_2b(auth_client, content=self._addressed_to(BUSINESS_GSTIN))

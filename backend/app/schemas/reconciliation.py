@@ -65,6 +65,17 @@ class ReconciliationDetailOut(ReconciliationRunOut):
     report: dict | None = None
 
 
+class ImportedPeriodsOut(BaseModel):
+    """Periods with a GSTR-2B on file, newest first.
+
+    An envelope like every other list in the API. It was the one bare JSON
+    array, which can never gain a field — a count, a cursor — without breaking
+    every client that reads it.
+    """
+
+    items: list[str]
+
+
 class ReconciliationListOut(BaseModel):
     items: list[ReconciliationRunOut]
     total: int

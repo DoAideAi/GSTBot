@@ -143,7 +143,7 @@ function mockApi({
     // Answered empty by default: which months have a statement marks the
     // picker, and every test that is not about the picker would otherwise have
     // to describe one.
-    if (url.includes("/gstr2b/periods")) return ok(periods ?? []);
+    if (url.includes("/gstr2b/periods")) return ok({ items: periods ?? [] });
     if (url.includes("/gstr2b/")) return imported2b ? ok(imported2b) : notFound();
     if (url.includes("/latest")) return latest ? ok(latest) : notFound();
     // The list of past runs. Answered empty by default so that the tests about
@@ -197,7 +197,7 @@ function deferredFetch() {
             ok: true,
             status: 200,
             statusText: "OK",
-            text: async () => JSON.stringify([]),
+            text: async () => JSON.stringify({ items: [] }),
           });
           return;
         }
@@ -479,7 +479,7 @@ describe("ReconcilePage", () => {
         };
       }
       if (url.includes("/gstr2b/periods")) {
-        return { ok: true, status: 200, statusText: "OK", text: async () => "[]" };
+        return { ok: true, status: 200, statusText: "OK", text: async () => '{"items":[]}' };
       }
       if (url.includes("/gstr2b/")) {
         return {
@@ -1304,7 +1304,7 @@ describe("the runs a period accumulates", () => {
         }
         return body({ items: [LATEST, EARLIER], total: 2 });
       }
-      if (path.includes("/gstr2b/periods")) return body([]);
+      if (path.includes("/gstr2b/periods")) return body({ items: [] });
       if (path.includes("/gstr2b/")) return body(imported());
       if (path.includes("/latest")) return body(run());
       return body({ detail: "Not found" }, 404);
@@ -1398,7 +1398,7 @@ describe("the runs a period accumulates", () => {
       if (/\/reconciliation\?/.test(path)) {
         return body({ items: [LATEST, EARLIER], total: 2 });
       }
-      if (path.includes("/gstr2b/periods")) return body([]);
+      if (path.includes("/gstr2b/periods")) return body({ items: [] });
       if (path.includes("/gstr2b/")) return body(imported());
       if (path.includes("/latest")) return body(run({ id: 9, itc_at_risk: "0.00" }));
       return body({ detail: "Not found" }, 404);
@@ -1602,7 +1602,7 @@ describe("the purchase register check", () => {
         return body(report({ period: currentPeriod(), issues: [MISSING_GSTIN] }));
       }
       if (/\/reconciliation\?/.test(path)) return body({ items: [], total: 0 });
-      if (path.includes("/gstr2b/periods")) return body([]);
+      if (path.includes("/gstr2b/periods")) return body({ items: [] });
       if (path.includes("/gstr2b/")) return body(imported());
       return body({ detail: "Not found" }, 404);
     });

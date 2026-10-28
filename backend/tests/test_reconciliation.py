@@ -1046,7 +1046,7 @@ def test_latest_is_404_before_any_run(auth_client):
 
 def test_imported_periods_are_listed(auth_client):
     upload_2b(auth_client)
-    assert auth_client.get("/api/v1/reconciliation/gstr2b/periods").json() == [PERIOD]
+    assert auth_client.get("/api/v1/reconciliation/gstr2b/periods").json() == {"items": [PERIOD]}
 
 
 def test_imported_2b_can_be_fetched_by_period(auth_client):
@@ -1080,7 +1080,7 @@ def test_a_tenant_s_2b_is_not_visible_to_another(auth_client, client, other_tena
     upload_2b(auth_client)
 
     client.headers.update({"Authorization": f"Bearer {other_tenant}"})
-    assert client.get("/api/v1/reconciliation/gstr2b/periods").json() == []
+    assert client.get("/api/v1/reconciliation/gstr2b/periods").json() == {"items": []}
     assert client.get(f"/api/v1/reconciliation/gstr2b/{PERIOD}").status_code == 404
 
 

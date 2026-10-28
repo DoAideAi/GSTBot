@@ -723,7 +723,7 @@ class TestOneTenantsJourneyIsInvisibleToAnother:
         assert client.delete(f"/api/v1/invoices/{purchase['id']}").status_code == 404
 
         # B's own 2B import for the same period does not see A's statement.
-        assert client.get("/api/v1/reconciliation/gstr2b/periods").json() == []
+        assert client.get("/api/v1/reconciliation/gstr2b/periods").json() == {"items": []}
         assert (
             client.post("/api/v1/reconciliation/run", json={"period": PERIOD}).status_code
             == 409
