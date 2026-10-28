@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 
 export default function RecentLookups() {
@@ -31,12 +30,11 @@ export default function RecentLookups() {
         Recently Verified Businesses
       </h2>
       <div className="recent-lookups-list">
-        {lookups.map((l) => (
-          <Link
-            key={l.gstin}
-            to={`/gstin/${l.gstin}`}
-            className="recent-lookup-item"
-          >
+        {/* Not links: the API masks the PAN inside each GSTIN so the feed does
+            not publish who was looked up, and a masked GSTIN has no page. Keyed
+            by position because two masked GSTINs can read the same. */}
+        {lookups.map((l, i) => (
+          <div key={i} className="recent-lookup-item">
             <div className="recent-lookup-gstin">
               <code>{l.gstin}</code>
               <span className={`recent-lookup-status ${l.valid ? "lookup-valid" : "lookup-invalid"}`}>
@@ -46,7 +44,7 @@ export default function RecentLookups() {
             <div className="recent-lookup-details">
               {l.state_name && <span>{l.state_name}</span>}
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </section>

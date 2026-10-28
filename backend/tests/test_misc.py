@@ -342,7 +342,55 @@ class TestRecentLookups:
         assert response.status_code == 200
         lookups = response.json()["lookups"]
         assert len(lookups) == 1
-        assert lookups[0]["gstin"] == BUSINESS_GSTIN
+        assert lookups[0]["gstin"] == misc._masked_gstin(BUSINESS_GSTIN)
+
+    def test_the_public_feed_never_shows_whose_gstin_was_looked_up(
+        self, client, monkeypatch
+    ):
+        """Neither what is stored nor what is served — including an entry
+        stored before masking — carries the PAN inside the GSTIN."""
+        import json
+
+        stored = []
+
+        class FakeRedis:
+            def pipeline(self, **_kw):
+                return self
+
+            def lrem(self, key, count, value):
+                pass
+
+            def lpush(self, key, value):
+                stored.append(value)
+
+            def ltrim(self, key, start, end):
+                pass
+
+            def incr(self, key):
+                pass
+
+            def execute(self):
+                pass
+
+            def lrange(self, key, start, end):
+                legacy = json.dumps(
+                    {"gstin": BUSINESS_GSTIN, "state_name": "Maharashtra", "valid": True}
+                )
+                return [*stored, legacy]
+
+        monkeypatch.setattr(misc, "get_redis", lambda: FakeRedis())
+        client.get(f"/api/v1/meta/gstin/{BUSINESS_GSTIN}")
+        pan = BUSINESS_GSTIN[2:12]
+        assert stored and all(pan not in entry for entry in stored)
+
+        lookups = client.get("/api/v1/meta/recent-lookups").json()["lookups"]
+        assert len(lookups) == 2
+        for lookup in lookups:
+            assert pan not in lookup["gstin"]
+            assert lookup["gstin"] == BUSINESS_GSTIN[:2] + "•" * 10 + BUSINESS_GSTIN[12:]
+
+    def test_a_malformed_stored_gstin_is_hidden_whole(self):
+        assert misc._masked_gstin("27AAPFU") == "•" * 7
 
     def test_invalid_gstin_is_not_recorded(self, client, monkeypatch):
         recorded = []

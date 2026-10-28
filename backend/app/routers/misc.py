@@ -327,6 +327,20 @@ _RECENT_LOOKUPS_MAX = 20
 _LOOKUP_COUNT_KEY = "gstbot:lookup_count"
 
 
+def _masked_gstin(gstin: str) -> str:
+    """The GSTIN with its PAN — characters 3 to 12 — hidden.
+
+    The recent-lookups feed is public, and a full GSTIN in it said which
+    business someone had just checked: a tenant vetting a supplier, or a
+    competitor, published to every visitor. For a proprietorship the PAN inside
+    it is the owner's personal one. The state code and the last three characters
+    are enough for the feed to read as real activity and identify nobody.
+    """
+    if len(gstin) != 15:
+        return "•" * len(gstin)
+    return f"{gstin[:2]}{'•' * 10}{gstin[12:]}"
+
+
 def _record_lookup(result: dict[str, Any]) -> None:
     """Best-effort: push a valid lookup into the recent list in Redis."""
     if not result.get("valid"):
@@ -337,7 +351,7 @@ def _record_lookup(result: dict[str, Any]) -> None:
     import json
 
     entry = json.dumps({
-        "gstin": result["gstin"],
+        "gstin": _masked_gstin(result["gstin"]),
         "state_name": result.get("state_name", ""),
         "valid": True,
     })
@@ -359,7 +373,9 @@ def _record_lookup(result: dict[str, Any]) -> None:
     "/meta/recent-lookups",
     summary="Recently verified GSTINs",
     description=(
-        "The last 20 valid GSTIN lookups, anonymised (no IP, no timestamp). "
+        "The last 20 valid GSTIN lookups, anonymised: no IP, no timestamp, and "
+        "the PAN inside each GSTIN masked, so the state code and check digits "
+        "are all that is shown. "
         "Public — shown on the lookup page for social proof."
     ),
     dependencies=[Depends(_meta_limit)],
@@ -372,7 +388,12 @@ def recent_lookups() -> dict[str, Any]:
 
     try:
         raw = client.lrange(_RECENT_LOOKUPS_KEY, 0, _RECENT_LOOKUPS_MAX - 1)
-        return {"lookups": [json.loads(item) for item in raw]}
+        lookups = [json.loads(item) for item in raw]
+        # Masked again on the way out: entries written before masking on the
+        # way in still carry the full GSTIN until the list rotates them out.
+        for lookup in lookups:
+            lookup["gstin"] = _masked_gstin(str(lookup.get("gstin", "")))
+        return {"lookups": lookups}
     except Exception:  # noqa: BLE001
         mark_unavailable("recent lookups read failed")
         return {"lookups": []}

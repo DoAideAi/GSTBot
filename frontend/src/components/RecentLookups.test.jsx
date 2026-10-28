@@ -24,8 +24,8 @@ describe("RecentLookups", () => {
   it("renders lookup items when API returns data", async () => {
     mockRecentLookups.mockResolvedValue({
       lookups: [
-        { gstin: "27AAPFU0939F1ZV", state_name: "Maharashtra", valid: true },
-        { gstin: "29AABCU9603R1ZM", state_name: "Karnataka", valid: true },
+        { gstin: "27••••••••••1ZV", state_name: "Maharashtra", valid: true },
+        { gstin: "29••••••••••1ZM", state_name: "Karnataka", valid: true },
       ],
     });
     render(
@@ -34,25 +34,25 @@ describe("RecentLookups", () => {
     await waitFor(() => {
       expect(screen.getByText("Recently Verified Businesses")).toBeInTheDocument();
     });
-    expect(screen.getByText("27AAPFU0939F1ZV")).toBeInTheDocument();
+    expect(screen.getByText("27••••••••••1ZV")).toBeInTheDocument();
     expect(screen.getByText("Maharashtra")).toBeInTheDocument();
-    expect(screen.getByText("29AABCU9603R1ZM")).toBeInTheDocument();
+    expect(screen.getByText("29••••••••••1ZM")).toBeInTheDocument();
   });
 
-  it("renders each item as a link to the GSTIN detail page", async () => {
+  it("does not link a masked GSTIN anywhere, since it has no page", async () => {
     mockRecentLookups.mockResolvedValue({
       lookups: [
-        { gstin: "27AAPFU0939F1ZV", state_name: "Maharashtra", valid: true },
+        { gstin: "27••••••••••1ZV", state_name: "Maharashtra", valid: true },
+        { gstin: "27••••••••••1ZV", state_name: "Maharashtra", valid: true },
       ],
     });
     render(
       <MemoryRouter><RecentLookups /></MemoryRouter>,
     );
     await waitFor(() => {
-      expect(screen.getByText("27AAPFU0939F1ZV")).toBeInTheDocument();
+      expect(screen.getAllByText("27••••••••••1ZV")).toHaveLength(2);
     });
-    const link = screen.getByText("27AAPFU0939F1ZV").closest("a");
-    expect(link).toHaveAttribute("href", "/gstin/27AAPFU0939F1ZV");
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("renders nothing when API fails", async () => {
@@ -67,7 +67,7 @@ describe("RecentLookups", () => {
   it("shows Active badge for valid GSTINs", async () => {
     mockRecentLookups.mockResolvedValue({
       lookups: [
-        { gstin: "27AAPFU0939F1ZV", state_name: "Maharashtra", valid: true },
+        { gstin: "27••••••••••1ZV", state_name: "Maharashtra", valid: true },
       ],
     });
     render(
