@@ -255,6 +255,58 @@ def test_a_refused_file_type_is_told_what_would_have_worked(auth_client):
     assert "PDF" in detail and "HEIC" in detail and "XLSX" in detail
 
 
+class TestTheClientsContentTypeIsNotStoredAsSent:
+    """P16 M5: ``invoices.content_type`` is ``VARCHAR(100)``. The part's
+    Content-Type header was stored verbatim, so parameters or a long value
+    overflowed it on Postgres — a 500 the SQLite suite could not see, because
+    SQLite does not enforce the length. Asserted on what is stored."""
+
+    COLUMN = Invoice.__table__.c.content_type.type.length
+
+    @pytest.mark.parametrize(
+        ("sent", "stored"),
+        [
+            ('text/plain; charset=utf-8; name="' + "x" * 200 + '"', "text/plain"),
+            ("TEXT/PLAIN", "text/plain"),
+            ("application/" + "x" * 150, None),
+            ("not a media type at all", None),
+        ],
+    )
+    def test_only_the_bare_media_type_is_kept(
+        self, auth_client, db_session, sample_invoice_text, sent, stored
+    ):
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("bill.txt", sample_invoice_text.encode(), sent)},
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code == 201, response.text
+        invoice = db_session.get(Invoice, response.json()["invoice"]["id"])
+        assert invoice.content_type == stored
+        assert invoice.content_type is None or len(invoice.content_type) <= self.COLUMN
+
+    def test_the_bulk_path_stores_the_same(self, auth_client, db_session, sample_invoice_text):
+        response = auth_client.post(
+            "/api/v1/invoices/bulk",
+            files=[
+                ("files", ("bill.txt", sample_invoice_text.encode(), "text/plain; " + "p" * 200))
+            ],
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code in (200, 201, 207), response.text
+        (invoice,) = db_session.query(Invoice).all()
+        assert invoice.content_type == "text/plain"
+
+    def test_a_typed_pdf_with_parameters_is_still_a_pdf(self, auth_client):
+        # Parameters no longer hide an allowed type: no extension to fall back on.
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("scan", b"%PDF-1.4 not really", "application/pdf; name=scan")},
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code != 415, response.text
+
+
 def test_an_oversized_file_is_rejected(auth_client):
     from app.core.config import settings
 

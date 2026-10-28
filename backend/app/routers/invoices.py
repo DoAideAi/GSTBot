@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -136,6 +137,26 @@ def _owned_invoice(db: Session, business: Business, invoice_id: int) -> Invoice:
             ),
         )
     return invoice
+
+
+_MEDIA_TYPE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$")
+
+
+def _media_type(raw: str | None) -> str | None:
+    """The bare ``type/subtype`` of a part's Content-Type, or ``None``.
+
+    The header is the client's to write. Stored as sent, a perfectly ordinary
+    ``application/pdf; name="..."`` — or anything longer than the 100
+    characters ``invoices.content_type`` holds — overflowed the column on
+    Postgres and the upload answered 500 (SQLite does not enforce the length,
+    so the suite never saw it). Parameters also kept a real PDF out of
+    ``ALLOWED_CONTENT_TYPES``, leaving the extension to vouch for it.
+    """
+    if not raw:
+        return None
+    media = raw.split(";", 1)[0].strip().lower()
+    fits = len(media) <= Invoice.__table__.c.content_type.type.length
+    return media if fits and _MEDIA_TYPE.match(media) else None
 
 
 def _check_file_shape(filename: str, content_type: str | None, content: bytes) -> None:
@@ -315,8 +336,9 @@ async def upload_invoice(
     # The name reaches a filesystem path, a Content-Disposition header and the
     # UI, so it is reduced to something safe before any of that.
     filename = safe_filename(file.filename, fallback="invoice")
+    content_type = _media_type(file.content_type)
     content = await file.read()
-    _check_file_shape(filename, file.content_type, content)
+    _check_file_shape(filename, content_type, content)
 
     # Off the event loop. These handlers are ``async`` only to await the file
     # read; everything after it is blocking — the database, the file write,
@@ -333,7 +355,7 @@ async def upload_invoice(
         invoice_service.TenantSnapshot.of(business),
         content=content,
         filename=filename,
-        content_type=file.content_type,
+        content_type=content_type,
         invoice_type=invoice_type,
     )
 
@@ -403,9 +425,10 @@ async def upload_invoices_bulk(
     items: list[InvoiceBulkUploadItemOut] = []
     for upload in files:
         filename = safe_filename(upload.filename, fallback="invoice")
+        content_type = _media_type(upload.content_type)
         try:
             content = await upload.read()
-            _check_file_shape(filename, upload.content_type, content)
+            _check_file_shape(filename, content_type, content)
             # Off the loop for the reason ``upload_invoice`` gives.
             invoice, queued = await run_in_threadpool(
                 _store_and_extract,
@@ -413,7 +436,7 @@ async def upload_invoices_bulk(
                 tenant,
                 content=content,
                 filename=filename,
-                content_type=upload.content_type,
+                content_type=content_type,
                 invoice_type=invoice_type,
             )
         except HTTPException as exc:
