@@ -8,6 +8,12 @@ fills, or that a node remounts read-only, fails every upload with a 500 while
 ``/health`` goes on answering ``ok``: the startup check had passed, and no
 later check existed.
 
+It is also state the API and the Celery worker share *by path*: the API
+writes the file, and the worker opens ``storage_path`` to parse it. Both must
+mount the same ``UPLOAD_DIR``. That holds on the single box this deploys to;
+a worker on another host needs the volume shared, or the bytes moved into
+object storage, before it can take a single parse.
+
 Shaped like :func:`app.core.database.check_database` on purpose — ``(ok,
 error_type)`` — so the health route treats the two the same way.
 """
