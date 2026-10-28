@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Date,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -244,7 +245,10 @@ class Invoice(Base, BusinessScopedMixin, TimestampMixin, SoftDeleteMixin):
     parsed_with: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # 0-1 self-reported by the extractor. Drives which invoices are queued for
     # human review rather than trusted straight into a return.
-    extraction_confidence: Mapped[float | None] = mapped_column(nullable=True)
+    # Typed explicitly: a bare ``float`` maps to Float on SQLAlchemy 2.0 and to
+    # Double on 2.1, so the autogenerate drift check failed on any install
+    # that resolved requirements.txt past the lock. 0001 created it as Float.
+    extraction_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     parse_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     business: Mapped[Business] = relationship(back_populates="invoices")
