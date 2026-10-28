@@ -174,3 +174,18 @@ describe("programmaticRoutes", () => {
     }
   });
 });
+
+describe("GST 2.0 rates (Notification 9/2025, from 22 Sep 2025)", () => {
+  // The table was built on the 2017 schedule and its 12%/28% rows were folded
+  // into 18% wholesale, so goods the reform cut to 5% or nil were quoted at 18%.
+  const cut = { "1704": 5, "1806": 5, "1904": 5, "1905": 5, "2105": 5, "2106": 5,
+    "2201": 5, "3305": 5, "3306": 5, "3401": 5, "6601": 5, "7323": 5, "9615": 5,
+    "4820": 0, "9609": 0 };
+  it.each(Object.entries(cut))("heading %s is at %s%%", (code, rate) => {
+    expect(HSN_DATA.find((h) => h.code === code).rate).toBe(rate);
+  });
+  it.each([["shampoo", 5], ["biscuits", 5], ["namkeen", 5], ["notebook", 0], ["bread", 0]])(
+    "%s resolves to %s%%", (product, rate) => {
+      expect(findProductRate(product).rate).toBe(rate);
+    });
+});

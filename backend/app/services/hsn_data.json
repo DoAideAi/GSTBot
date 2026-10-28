@@ -850,7 +850,7 @@
   {
    "code": "1704",
    "description": "Sugar confectionery (not containing cocoa)",
-   "rate": 18,
+   "rate": 5,
    "category": "Food",
    "sac": false
   },
@@ -885,7 +885,7 @@
   {
    "code": "1806",
    "description": "Chocolate and other food preparations containing cocoa",
-   "rate": 18,
+   "rate": 5,
    "category": "Food",
    "sac": false
   },
@@ -913,14 +913,14 @@
   {
    "code": "1904",
    "description": "Prepared cereal-based foods (cornflakes, muesli, puffed rice)",
-   "rate": 18,
+   "rate": 5,
    "category": "Cereal Preparations",
    "sac": false
   },
   {
    "code": "1905",
    "description": "Bread, biscuits, cakes, pastry",
-   "rate": 18,
+   "rate": 5,
    "category": "Food",
    "sac": false
   },
@@ -1018,21 +1018,21 @@
   {
    "code": "2105",
    "description": "Ice cream and other edible ice",
-   "rate": 18,
+   "rate": 5,
    "category": "Prepared Foods",
    "sac": false
   },
   {
    "code": "2106",
    "description": "Food preparations not elsewhere specified (namkeen, papad)",
-   "rate": 18,
+   "rate": 5,
    "category": "Food",
    "sac": false
   },
   {
    "code": "2201",
    "description": "Waters, including mineral and aerated waters",
-   "rate": 18,
+   "rate": 5,
    "category": "Beverages",
    "sac": false
   },
@@ -1571,14 +1571,14 @@
   {
    "code": "3305",
    "description": "Hair care preparations (shampoo, conditioner)",
-   "rate": 18,
+   "rate": 5,
    "category": "Cosmetics",
    "sac": false
   },
   {
    "code": "3306",
    "description": "Oral or dental hygiene preparations (toothpaste)",
-   "rate": 18,
+   "rate": 5,
    "category": "Cosmetics",
    "sac": false
   },
@@ -1591,8 +1591,8 @@
   },
   {
    "code": "3401",
-   "description": "Soap, washing preparations, detergent",
-   "rate": 18,
+   "description": "Toilet soap bars and cakes (industrial and liquid soap: 18%)",
+   "rate": 5,
    "category": "Household",
    "sac": false
   },
@@ -2123,8 +2123,8 @@
   },
   {
    "code": "4820",
-   "description": "Registers, notebooks, diaries",
-   "rate": 5,
+   "description": "Exercise books and notebooks (registers, diaries: 18%)",
+   "rate": 0,
    "category": "Paper",
    "sac": false
   },
@@ -2649,7 +2649,7 @@
   {
    "code": "6601",
    "description": "Umbrellas and sun umbrellas",
-   "rate": 18,
+   "rate": 5,
    "category": "Umbrellas",
    "sac": false
   },
@@ -3181,7 +3181,7 @@
   {
    "code": "7323",
    "description": "Table, kitchen articles of iron or steel",
-   "rate": 18,
+   "rate": 5,
    "category": "Household",
    "sac": false
   },
@@ -4504,7 +4504,7 @@
   {
    "code": "9609",
    "description": "Pencils, crayons, chalk",
-   "rate": 5,
+   "rate": 0,
    "category": "Stationery",
    "sac": false
   },
@@ -4525,7 +4525,7 @@
   {
    "code": "9615",
    "description": "Combs, hair-slides, hairpins, curling pins",
-   "rate": 18,
+   "rate": 5,
    "category": "Miscellaneous",
    "sac": false
   },
@@ -4871,17 +4871,17 @@
   {
    "product": "biscuits",
    "hsn": "1905",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "bread",
    "hsn": "1905",
-   "rate": 18
+   "rate": 0
   },
   {
    "product": "chocolate",
    "hsn": "1806",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "soft drinks",
@@ -4901,12 +4901,12 @@
   {
    "product": "bottled water",
    "hsn": "2201",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "mineral water",
    "hsn": "2201",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "cement",
@@ -4931,17 +4931,17 @@
   {
    "product": "toothpaste",
    "hsn": "3306",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "shampoo",
    "hsn": "3305",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "soap",
    "hsn": "3401",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "detergent",
@@ -5266,7 +5266,7 @@
   {
    "product": "pencil",
    "hsn": "9609",
-   "rate": 5
+   "rate": 0
   },
   {
    "product": "diapers",
@@ -5581,7 +5581,7 @@
   {
    "product": "namkeen",
    "hsn": "2106",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "papad",
@@ -5611,7 +5611,7 @@
   {
    "product": "ice cream",
    "hsn": "2105",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "juice",
@@ -5696,12 +5696,12 @@
   {
    "product": "hair oil",
    "hsn": "3305",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "conditioner",
    "hsn": "3305",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "hand wash",
@@ -5781,12 +5781,12 @@
   {
    "product": "notebook",
    "hsn": "4820",
-   "rate": 5
+   "rate": 0
   },
   {
    "product": "diary",
    "hsn": "4820",
-   "rate": 5
+   "rate": 18
   },
   {
    "product": "cardboard box",
@@ -5876,7 +5876,7 @@
   {
    "product": "umbrella",
    "hsn": "6601",
-   "rate": 18
+   "rate": 5
   },
   {
    "product": "bricks",

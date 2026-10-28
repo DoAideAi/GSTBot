@@ -685,3 +685,46 @@ def test_the_hsn_json_round_trips_through_the_exporter_shape():
     assert set(raw["hsn"][0]) == {"code", "description", "rate", "category", "sac"}
     assert set(raw["products"][0]) == {"product", "hsn", "rate"}
 
+
+
+# Rates moved by Notification 9/2025-Central Tax (Rate), effective
+# 22 September 2025 (GST 2.0). The table was built with the 2017 schedule and
+# its 12% and 28% rows were later folded into 18% wholesale, so everyday goods
+# that the reform cut to 5% (or nil) were quoted at 18% — by the HSN finder,
+# the GPT lookup and Jev's advisory classification alike. M2.
+GST_2_0_RATES = {
+    "1704": 5,   # sugar confectionery
+    "1806": 5,   # chocolate
+    "1904": 5,   # cornflakes, cereal preparations
+    "1905": 5,   # biscuits, cakes, pastry
+    "2105": 5,   # ice cream
+    "2106": 5,   # namkeen
+    "2201": 5,   # packaged and mineral water
+    "3305": 5,   # shampoo, hair oil
+    "3306": 5,   # toothpaste
+    "3401": 5,   # toilet soap
+    "6601": 5,   # umbrellas
+    "7323": 5,   # steel kitchenware, utensils
+    "9615": 5,   # combs
+    "4820": 0,   # exercise books, notebooks
+    "9609": 0,   # pencils, crayons
+}
+
+
+@pytest.mark.parametrize(("code", "rate"), sorted(GST_2_0_RATES.items()))
+def test_an_hsn_heading_carries_its_gst_2_0_rate(code, rate):
+    entry = hsn.by_code(code)
+    assert entry is not None
+    assert entry.rate == Decimal(rate)
+
+
+@pytest.mark.parametrize(
+    ("product", "rate"),
+    [("shampoo", 5), ("soap", 5), ("biscuits", 5), ("namkeen", 5), ("mineral water", 5),
+     ("chocolate", 5), ("ice cream", 5), ("umbrella", 5), ("notebook", 0), ("pencil", 0),
+     ("bread", 0)],
+)
+def test_a_common_product_resolves_to_its_gst_2_0_rate(product, rate):
+    alias = hsn.find_product(product)
+    assert alias is not None
+    assert alias.rate == Decimal(rate)
