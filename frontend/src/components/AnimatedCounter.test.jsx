@@ -9,10 +9,10 @@ describe("AnimatedCounter", () => {
   beforeEach(() => {
     mockObserve = vi.fn();
     mockDisconnect = vi.fn();
-    window.IntersectionObserver = vi.fn(() => ({
-      observe: mockObserve,
-      disconnect: mockDisconnect,
-    }));
+    window.IntersectionObserver = vi.fn(function () {
+      this.observe = mockObserve;
+      this.disconnect = mockDisconnect;
+    });
   });
 
   afterEach(() => {

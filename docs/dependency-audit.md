@@ -1,6 +1,6 @@
 # Dependency audit
 
-Last run: 2026-10-28 (C101 Pass 12, M20). Re-run with:
+Last run: 2026-10-28 (C102 Pass 13, M14). Re-run with:
 
 ```bash
 # Backend: audits the hashed lock, not whatever happens to be installed.
@@ -30,37 +30,43 @@ Backend result after the pass: **no known vulnerabilities** in `requirements.loc
 `services/openrouter_client.py`, Gemini in `routers/advisor.py`). The LangChain
 0.3.x advisories do not apply.
 
-## Accepted, with mitigation (frontend dev tooling only)
+## C102 Pass 13, M14 — the dev-tooling advisories, fixed
 
-Five npm advisories remain, all in the dev/test toolchain. None of these
-packages is in the production bundle: production serves the built `dist/`
-through Caddy, and Vite is never run there.
+The five npm advisories Pass 12 accepted are gone. Pass 12 recorded them as
+needing Vite 8 and Vitest 5; the advisories have since been backported, so the
+fixes landed within reach:
 
-| Package | Severity | Issue | Fix requires |
+| Package | Severity | From | To |
 |---|---|---|---|
-| vite 5.4 | high | path traversal in optimized-deps `.map` handling; launch-editor NTLM hash disclosure | vite 8 (three majors) |
-| esbuild ≤0.24 | moderate | dev server answers cross-origin requests | vite 8 |
-| vitest 3.2, @vitest/mocker, @vitest/coverage-v8 | moderate | path traversal / code injection via the mocker's redirect mock | vitest 5 (needs vite ≥ 6) |
+| vite | high (path traversal in optimized-deps `.map`; launch-editor NTLM hash disclosure) | 5.4.21 | 6.4.5 |
+| esbuild (via vite) | moderate (dev server answers cross-origin requests) | 0.21 | 0.25.12 |
+| vitest, @vitest/mocker, @vitest/coverage-v8 | moderate (path traversal / code injection via redirect mock) | 3.2.7 | 4.1.12 |
 
-Mitigations in place:
+The `tinypool` override is removed: Vitest 4 no longer depends on tinypool,
+so the override pinned nothing.
 
-- The dev server binds to localhost only (`vite.config.js` sets no `server.host`).
-- These advisories need either the dev server running or an attacker-controlled
-  test file. CI and production builds never start a dev server.
-- Only run `npm run dev` while working on the frontend, and stop it afterwards.
-  The esbuild issue is a malicious *web page* reaching your local dev server.
+One test changed with it. Vitest 4 calls a `vi.fn()` used as a constructor
+with `new`, so `AnimatedCounter.test.jsx`'s `IntersectionObserver` stub is now
+a `function` that sets `this.observe` / `this.disconnect` instead of an arrow
+returning an object.
 
-Why not upgrade now: Vite 8 replaces Rollup with Rolldown. That puts the custom
-1,134-route prerender step and the pinned `@rollup/rollup-linux-arm64-gnu`
-server dependency at risk, and Vitest 5 cannot land without it. Treat it as a
-planned migration with a full test and build run, not as a patch.
+Verified on the upgraded toolchain against a worktree of the previous commit:
+
+- `npm audit --package-lock-only`: 5 vulnerabilities (1 high, 4 moderate) → 0.
+- `npx vitest run`: 4,206 passed, 10 failed — the same 10 tests in the same
+  three files fail on Vitest 3.2.7 at the previous commit (`errorProse.test.js`
+  ×8, `App.rbac.test.jsx`, `DashboardPage.test.jsx`). Not caused by this change.
+- `npm run lint`: 36 problems, identical before and after.
+- `npm run build`: builds and prerenders all 1,134 routes. Vite 6 still bundles
+  with Rollup 4, so the pinned `@rollup/rollup-linux-arm64-gnu` is unaffected.
+
+Backend: `pip-audit -r requirements.lock` reports no known vulnerabilities.
 
 ## Deprecated (dev-only transitives)
 
-- `glob@10.5.0`, via the coverage tooling.
-- `whatwg-encoding@3.1.1`, via jsdom 25.
+- `whatwg-encoding@3.1.1`, via jsdom 25. Goes away with a jsdom upgrade.
 
-Both go away with the Vitest/jsdom upgrades above.
+(`glob@10.5.0` went with the Vitest 4 upgrade.)
 
 ## Outdated, no security impact (not changed)
 
@@ -70,8 +76,8 @@ pydantic-settings 2.14.2 → 2.16.1, redis 6.4.0 → 8.1.0, sqlalchemy 2.0.51 �
 2.1.6, uvicorn 0.52.1 → 0.54.0. SQLAlchemy 2.1 and redis 8 are larger jumps,
 and FastAPI minors can break; each wants its own change with the full suite.
 
-Frontend: React 19, ESLint 10, jsdom 30, `@vitejs/plugin-react` 6 and others
-are a major behind. All are tooling or framework migrations rather than fixes.
+Frontend: React 19, ESLint 10, jsdom 30, Vite 8, `@vitejs/plugin-react` 6 and
+others are a major behind. All are tooling or framework migrations rather than fixes.
 
 ## Notes
 
@@ -83,3 +89,8 @@ are a major behind. All are tooling or framework migrations rather than fixes.
   on their own line, never after a requirement.
 - PyJWT warns on HMAC keys under 32 bytes. Production already refuses a
   `JWT_SECRET` shorter than 32 characters; only the suite's test secret trips it.
+- `backend/.venv` drifts from the lock. On 2026-10-28 it still held pypdf
+  6.19.0, authlib and pillow below their floors, and python-jose with its
+  orphaned ecdsa — every one fixed in the lock a pass earlier. `pip-audit -r
+  requirements.lock` cannot see that; `pip-audit --path <venv site-packages>`
+  can. Resync with `.venv/bin/python -m pip install -r requirements.lock`.
