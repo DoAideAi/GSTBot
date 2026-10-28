@@ -288,6 +288,18 @@ def login(
         forget(account_key, account_rate)
 
     if not user.is_active:
+        # The right password for an account somebody switched off: an
+        # off-boarded login still in use, which is worth an alert. The other
+        # two outcomes of this route leave a line; this one left none, and the
+        # access line cannot name the user, because no token was resolved.
+        logger.warning(
+            "Login refused: account deactivated",
+            extra={
+                "user_id": user.id,
+                "business_id": user.business_id,
+                "client_ip": client_ip(request),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been deactivated. Contact support to reactivate it.",

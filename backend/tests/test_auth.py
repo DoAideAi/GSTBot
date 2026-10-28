@@ -197,6 +197,27 @@ def test_inactive_user_cannot_log_in(client, auth_client, db_session):
     assert response.status_code == 403
 
 
+def test_a_deactivated_login_leaves_a_warning_naming_the_account(
+    client, auth_client, db_session, caplog
+):
+    user = db_session.query(User).filter_by(email=TEST_EMAIL).one()
+    user.is_active = False
+    db_session.commit()
+
+    with caplog.at_level("WARNING", logger="app.routers.auth"):
+        response = client.post(
+            "/api/v1/auth/login", data={"username": TEST_EMAIL, "password": TEST_PASSWORD}
+        )
+
+    assert response.status_code == 403
+    [line] = [r for r in caplog.records if r.getMessage() == "Login refused: account deactivated"]
+    assert line.levelname == "WARNING"
+    assert line.user_id == user.id
+    assert line.business_id == user.business_id
+    # The id identifies the account; the address is personal data.
+    assert TEST_EMAIL not in str(vars(line))
+
+
 def test_me_returns_the_user_and_their_business(auth_client):
     response = auth_client.get("/api/v1/auth/me")
     assert response.status_code == 200
