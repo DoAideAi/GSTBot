@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
-from jose import jwt
 
 from app.core.config import settings
 from app.core.security import (
@@ -339,8 +339,8 @@ class TestAccessTokens:
         own header asks for is the classic JWT hole — `alg: none` most of all.
         """
         if algorithm == "none":
-            # python-jose refuses to *sign* with none, so the token is built by
-            # hand the way an attacker would.
+            # Built by hand the way an attacker would, rather than through the
+            # library under test.
             import base64
             import json
 
@@ -359,6 +359,31 @@ class TestAccessTokens:
             )
 
         assert decode_access_token(token) is None
+
+    def test_a_token_from_before_the_pyjwt_switch_still_decodes(self):
+        """Sessions issued under python-jose must survive the move to PyJWT.
+
+        Built to the JWS spec by hand — base64url header and claims, HMAC-SHA256
+        over them with the secret — so it stands for any HS256 token, whichever
+        library minted it.
+        """
+        import base64
+        import hashlib
+        import hmac
+        import json
+
+        def segment(raw: bytes) -> str:
+            return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+        exp = int((datetime.now(UTC) + timedelta(minutes=30)).timestamp())
+        header = segment(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        claims = segment(json.dumps({"sub": "42", "exp": exp, "type": "access"}).encode())
+        signing_input = f"{header}.{claims}".encode()
+        signature = segment(
+            hmac.new(settings.jwt_secret.encode(), signing_input, hashlib.sha256).digest()
+        )
+
+        assert decode_access_token(f"{header}.{claims}.{signature}") == "42"
 
     def test_the_expiry_honours_an_explicit_override(self):
         token = create_access_token(1, expires_minutes=90)

@@ -8,7 +8,11 @@ psycopg[binary]>=3.1
 alembic>=1.18.5
 pydantic>=2.7
 pydantic-settings>=2.3
-python-jose[cryptography]>=3.3
+# PyJWT, not python-jose: jose has an advisory with no fixed release
+# (GHSA-3qf3-8w2g-rqmx) and pulls in ecdsa, whose CVE-2024-23342 upstream will
+# not fix. Tokens are HS256-only (config.jwt_algorithm), so the wire format is
+# identical and sessions issued before the switch stay valid.
+PyJWT>=2.10
 bcrypt>=4.1
 python-multipart>=0.0.32
 email-validator>=2.1
