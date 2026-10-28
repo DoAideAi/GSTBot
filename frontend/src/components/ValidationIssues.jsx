@@ -62,7 +62,7 @@ export default function ValidationIssues({ issues, label }) {
           </tr>
         </thead>
         <tbody>
-          {issues.map((issue, index) => (
+          {(issues ?? []).map((issue, index) => (
             <IssueRow
               key={`${issue.invoice_id ?? "x"}-${issue.field}-${index}`}
               issue={issue}
