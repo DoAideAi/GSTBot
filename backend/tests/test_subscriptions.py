@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from unittest.mock import patch
 
 import pytest
@@ -940,6 +941,72 @@ class TestVerifyPaymentTransitionGuards:
         assert response.status_code == 409
         db_session.refresh(sub)
         assert sub.status == SubscriptionStatus.EXPIRED
+
+    def test_cancelled_business_can_pay_again_with_a_fresh_order(
+        self, auth_client, db_session, business
+    ):
+        # The refusal is for stale payments. A business that cancelled and then
+        # bought again — an order Razorpay created after the cancellation — was
+        # refused too, and told to create a new order, which met the same 409.
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.FREE,
+            status=SubscriptionStatus.CANCELLED,
+            razorpay_subscription_id="pay_original",
+        )
+        db_session.add(sub)
+        db_session.commit()
+        db_session.refresh(sub)
+        ended = sub.updated_at.replace(tzinfo=UTC) if sub.updated_at.tzinfo is None else sub.updated_at
+        fresh = {**_paid_order(business.id, "pro"), "created_at": int(ended.timestamp()) + 60}
+
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(razorpay_client, "fetch_order", return_value=fresh):
+            response = auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_new",
+                    "razorpay_payment_id": "pay_new",
+                    "razorpay_signature": "valid_sig",
+                    "tier": "pro",
+                },
+            )
+        assert response.status_code == 200, response.text
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.ACTIVE
+        assert sub.tier == SubscriptionTier.PRO
+        assert sub.razorpay_subscription_id == "pay_new"
+
+    def test_order_older_than_the_cancellation_is_still_refused(
+        self, auth_client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.FREE,
+            status=SubscriptionStatus.CANCELLED,
+        )
+        db_session.add(sub)
+        db_session.commit()
+        db_session.refresh(sub)
+        ended = sub.updated_at.replace(tzinfo=UTC) if sub.updated_at.tzinfo is None else sub.updated_at
+        stale = {**_paid_order(business.id, "pro"), "created_at": int(ended.timestamp()) - 3600}
+
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(razorpay_client, "fetch_order", return_value=stale):
+            response = auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_old",
+                    "razorpay_payment_id": "pay_old",
+                    "razorpay_signature": "valid_sig",
+                    "tier": "pro",
+                },
+            )
+        assert response.status_code == 409
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.CANCELLED
 
     def test_past_due_subscription_can_be_reactivated(
         self, auth_client, db_session, business

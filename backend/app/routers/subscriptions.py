@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
@@ -165,7 +166,7 @@ def verify_payment(
     # submit another business's paid order, and either became an active
     # subscription. The order says what was bought and for whom — its receipt
     # was written by create_order — so it is what decides.
-    _require_order_matches(payload, business)
+    order = _require_order_matches(payload, business)
     holder = db.scalar(
         select(Subscription).where(
             Subscription.razorpay_subscription_id == payload.razorpay_payment_id,
@@ -196,7 +197,9 @@ def verify_payment(
         )
         db.add(sub)
     else:
-        if sub.status in (SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED):
+        if sub.status in (
+            SubscriptionStatus.CANCELLED, SubscriptionStatus.EXPIRED
+        ) and not _order_postdates(order, sub, payload.razorpay_payment_id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
@@ -221,9 +224,32 @@ def verify_payment(
     return SubscriptionOut.model_validate(sub)
 
 
-def _require_order_matches(payload: VerifyPaymentRequest, business: Business) -> None:
+def _order_postdates(order: dict, sub: Subscription, payment_id: str) -> bool:
+    """Whether a paid order is a fresh purchase rather than one the ended
+    subscription already consumed.
+
+    The refusal for cancelled/expired rows exists to stop a stale payment
+    reviving a subscription the business ended — but it refused every payment,
+    so a business that cancelled could never pay again, and the 409 told it to
+    create a new order, which was refused the same way. A row's ``updated_at``
+    is when it was cancelled or expired; an order Razorpay created after that,
+    paid by a payment other than the one already on the row, is a new purchase.
+    An order without ``created_at`` cannot show that, and stays refused.
+    """
+    if payment_id == sub.razorpay_subscription_id:
+        return False
+    created = order.get("created_at")
+    if not isinstance(created, int | float) or sub.updated_at is None:
+        return False
+    ended = sub.updated_at
+    if ended.tzinfo is None:  # SQLite hands back naive UTC
+        ended = ended.replace(tzinfo=UTC)
+    return datetime.fromtimestamp(created, tz=UTC) > ended
+
+
+def _require_order_matches(payload: VerifyPaymentRequest, business: Business) -> dict:
     """Refuse unless the order was created for this business and tier, at the
-    tier's price, and has been paid in full."""
+    tier's price, and has been paid in full. Returns the order."""
     order = razorpay_client.fetch_order(payload.razorpay_order_id)
     if order is None:
         raise HTTPException(
@@ -260,6 +286,7 @@ def _require_order_matches(payload: VerifyPaymentRequest, business: Business) ->
                 "Contact support if you were charged."
             ),
         )
+    return order
 
 
 @router.post(
