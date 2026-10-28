@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installSessionTracker } from "../lib/sessionTracker";
 import FeedbackWidget from "./FeedbackWidget";
 
 function respond(status, body = {}) {
@@ -32,11 +33,15 @@ function sentBody() {
 }
 
 describe("FeedbackWidget", () => {
+  let uninstall;
+
   beforeEach(() => {
     global.fetch = vi.fn(() => respond(201, { id: 1 }));
+    uninstall = installSessionTracker(window);
   });
 
   afterEach(() => {
+    uninstall();
     vi.restoreAllMocks();
   });
 
@@ -85,12 +90,21 @@ describe("FeedbackWidget", () => {
       "/api/v1/feedback",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(sentBody()).toEqual({
+    const { metadata, ...rest } = sentBody();
+    expect(rest).toEqual({
       category: "bug",
       message: "Rate is wrong",
       email: "me@example.com",
       page_url: `${window.location.origin}/gst-calculator`,
     });
+    // The visit rides along; the widget's own clicks and typing are not in it.
+    expect(metadata).toMatchObject({
+      feature_area: "Calculators",
+      click_count: 0,
+      rage_clicks: 0,
+      form_abandoned: false,
+    });
+    expect(metadata.pages).toContain("/gst-calculator");
     window.history.replaceState(null, "", "/");
   });
 
@@ -138,5 +152,11 @@ describe("FeedbackWidget", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Close" }));
     await openForm();
     expect(screen.getByRole("textbox", { name: /your feedback/i })).toHaveValue("");
+  });
+
+  it("tells the visitor what is sent with their note", async () => {
+    renderWidget();
+    await openForm();
+    expect(screen.getByText(/never what you typed or read/i)).toBeInTheDocument();
   });
 });

@@ -22,6 +22,16 @@ const ROWS = [
     page_url: "https://gst.doaide.com/hsn",
     user_agent: "UA",
     ip_address: "10.0.0.1",
+    metadata: {
+      feature_area: "GSTIN Lookup",
+      time_on_page_ms: 192000,
+      scroll_depth_pct: 80,
+      click_count: 9,
+      rage_clicks: 5,
+      js_errors: 1,
+      js_error_messages: ["TypeError: x"],
+      pages: ["/", "/gstin-validator"],
+    },
     created_at: "2026-10-20T10:00:00Z",
   },
   {
@@ -32,6 +42,7 @@ const ROWS = [
     page_url: null,
     user_agent: null,
     ip_address: null,
+    metadata: null,
     created_at: "2026-10-01T10:00:00Z",
   },
 ];
@@ -91,5 +102,21 @@ describe("AdminFeedbackPage", () => {
     global.fetch = vi.fn(() => respond(200, { items: [], total: 0 }));
     renderPage();
     expect(await screen.findByText("No feedback matches these filters.")).toBeInTheDocument();
+  });
+
+  it("reads the visit back as what the visitor went through", async () => {
+    renderPage();
+    const table = await screen.findByRole("table");
+    const [first, second] = within(table).getAllByRole("row").slice(1);
+    expect(first).toHaveTextContent(
+      "Was on GSTIN Lookup for 3m 12s, scrolled 80%, 9 clicks, 5 rage clicks, 1 JS error, 2 pages this session.",
+    );
+    const flags = within(first).getByRole("list", { name: "Struggle signals" });
+    expect(within(flags).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Rage clicks",
+      "JS error: TypeError: x",
+    ]);
+    expect(first).toHaveTextContent("Path: / → /gstin-validator");
+    expect(within(second).queryByRole("list", { name: "Struggle signals" })).toBeNull();
   });
 });

@@ -7,10 +7,16 @@ import { AuthProvider } from "./hooks/useAuth";
 import { PageTitleProvider } from "./hooks/usePageTitle";
 import { StateCodesProvider } from "./hooks/useStateCodes";
 import { ThemeProvider } from "./hooks/useTheme";
+import { installErrorReporter } from "./lib/errorReporter";
+import { installSessionTracker } from "./lib/sessionTracker";
 import { installStaleChunkReload } from "./lib/staleChunk";
 import "./index.css";
 
 installStaleChunkReload();
+// Before the first render, so an error thrown while mounting is caught and the
+// first page of the visit is on the trail.
+installSessionTracker();
+installErrorReporter();
 
 const fontCss = document.getElementById("font-css");
 if (fontCss) {

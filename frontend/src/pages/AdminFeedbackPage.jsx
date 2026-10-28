@@ -4,12 +4,35 @@ import { SkeletonPanel } from "../components/Skeleton";
 import TableScroll from "../components/TableScroll";
 import { CATEGORIES } from "../components/FeedbackWidget";
 import { api } from "../lib/api";
+import { summarize } from "../lib/feedbackInsights";
 
 const PAGE_SIZE = 50;
 const LABELS = Object.fromEntries(CATEGORIES);
 
 function when(iso) {
   return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function Insights({ meta }) {
+  const { sentence, flags } = summarize(meta);
+  if (!sentence && flags.length === 0) return null;
+  return (
+    <div className="feedback-insights">
+      {sentence && <p className="feedback-insight-line">{sentence}</p>}
+      {flags.length > 0 && (
+        <ul className="feedback-flags" aria-label="Struggle signals">
+          {flags.map((flag) => (
+            <li key={flag.kind} className={`feedback-flag feedback-flag-${flag.kind}`}>
+              {flag.label}
+            </li>
+          ))}
+        </ul>
+      )}
+      {meta?.pages?.length > 1 && (
+        <p className="feedback-admin-meta">Path: {meta.pages.join(" → ")}</p>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -119,7 +142,10 @@ export default function AdminFeedbackPage() {
                         <tr key={f.id}>
                           <td>{when(f.created_at)}</td>
                           <td>{LABELS[f.category] ?? f.category}</td>
-                          <td className="feedback-admin-message">{f.message}</td>
+                          <td>
+                            <div className="feedback-admin-message">{f.message}</div>
+                            <Insights meta={f.metadata} />
+                          </td>
                           <td className="feedback-admin-meta">
                             {f.email ? <a href={`mailto:${f.email}`}>{f.email}</a> : "No email"}
                             {f.page_url && <div>{f.page_url}</div>}

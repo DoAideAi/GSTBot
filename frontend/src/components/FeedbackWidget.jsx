@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
+import { routeChanged, snapshot } from "../lib/sessionTracker";
 
 export const CATEGORIES = [
   ["bug", "Bug Report"],
@@ -32,9 +33,11 @@ export default function FeedbackWidget() {
   const buttonRef = useRef(null);
   const ids = useId();
 
-  // A new page is a new context: close anything half-written about the last one.
+  // A new page is a new context: close anything half-written about the last
+  // one, and start the page's time, scroll and clicks from zero.
   useEffect(() => {
     setOpen(false);
+    routeChanged(location.pathname);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -73,6 +76,7 @@ export default function FeedbackWidget() {
         message: message.trim(),
         email: email.trim() || null,
         page_url: currentPageUrl(),
+        metadata: snapshot(),
       });
       setSent(true);
     } catch (err) {
@@ -90,6 +94,7 @@ export default function FeedbackWidget() {
         ref={buttonRef}
         type="button"
         className="feedback-float"
+        data-feedback-widget
         onClick={() => (open ? close() : setOpen(true))}
         aria-expanded={open}
         aria-controls={`${ids}-dialog`}
@@ -101,6 +106,7 @@ export default function FeedbackWidget() {
         <div
           id={`${ids}-dialog`}
           className="feedback-modal"
+          data-feedback-widget
           role="dialog"
           aria-labelledby={`${ids}-title`}
         >
@@ -167,6 +173,11 @@ export default function FeedbackWidget() {
                 maxLength={320}
                 placeholder="you@company.com"
               />
+
+              <p className="feedback-note muted">
+                Sent with it: the pages you visited this session, time on this page, scroll and
+                clicks, and any errors it showed — never what you typed or read.
+              </p>
 
               {error && (
                 <p className="feedback-error" role="alert">

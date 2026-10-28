@@ -1,5 +1,6 @@
 import { Component } from "react";
 import { useLocation } from "react-router-dom";
+import { reportRenderError } from "../lib/errorReporter";
 
 /**
  * Catches render-time crashes so one bad field does not blank the whole app.
@@ -28,9 +29,12 @@ class ErrorBoundaryInner extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Kept: the browser console is the only reporting channel this app has,
-    // and componentDidCatch swallows the default React logging.
+    // Kept: componentDidCatch swallows the default React logging.
     console.error("Render error:", error, info?.componentStack);
+    // A render crash caught here never reaches window.onerror in production,
+    // so the error reporter would otherwise never hear of the one kind of
+    // failure that leaves the visitor with nothing on screen.
+    reportRenderError(error);
   }
 
   componentDidUpdate(prevProps) {

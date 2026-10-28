@@ -3154,6 +3154,11 @@ a:focus-visible {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
+.feedback-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
 .feedback-error {
   margin: 10px 0 0;
   font-size: 13px;
@@ -3182,6 +3187,29 @@ a:focus-visible {
   overflow-wrap: anywhere;
   max-width: 48ch;
 }
+.feedback-insights { margin-top: 8px; }
+.feedback-insight-line {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.feedback-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.feedback-flag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--warn-bg);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.feedback-flag-error { background: var(--bad-bg); }
 .feedback-admin-meta {
   font-size: 12px;
   color: var(--ink-muted);
