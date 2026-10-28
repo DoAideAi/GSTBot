@@ -29,6 +29,7 @@ export default function UsagePage() {
   if (!data) return null;
 
   const ENDPOINT_LABELS = {
+    invoice_uploads: "Invoices processed",
     gst_lookup: "GST Lookups",
     hsn_search: "HSN/SAC Search",
     bulk_operation: "Bulk Operations",
@@ -44,7 +45,7 @@ export default function UsagePage() {
   return (
     <div className="usage-page">
       <div className="usage-header">
-        <h1>API Usage</h1>
+        <h1>Usage</h1>
         <p className="usage-tier">
           Current plan: <strong>{TIER_LABELS[data.tier] || data.tier}</strong>
         </p>

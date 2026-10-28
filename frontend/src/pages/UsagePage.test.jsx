@@ -117,6 +117,17 @@ describe("UsagePage", () => {
     expect(await screen.findByText("API Calls")).toBeInTheDocument();
   });
 
+  it("labels the invoice allowance", async () => {
+    mockFetch({
+      tier: "free",
+      period: "2026-10",
+      usage: [{ endpoint: "invoice_uploads", call_count: 12, limit: 50, period: "2026-10" }],
+    });
+    renderPage();
+    expect(await screen.findByText("Invoices processed")).toBeInTheDocument();
+    expect(screen.getByText("/ 50", { exact: false })).toBeInTheDocument();
+  });
+
   it("falls back to raw endpoint name for unknown endpoints", async () => {
     mockFetch({
       tier: "pro",

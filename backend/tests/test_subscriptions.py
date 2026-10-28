@@ -375,11 +375,14 @@ class TestCancelSubscription:
 # --------------------------------------------------------------------------
 
 class TestUsageSummary:
-    def test_empty_usage_returns_empty_list(self, auth_client):
+    def test_with_nothing_recorded_only_the_invoice_allowance_is_listed(self, auth_client):
+        """The invoice allowance is counted from the invoices themselves, so it
+        is always there; recorded counters follow it (C103 M9)."""
         response = auth_client.get("/api/v1/subscriptions/usage")
         assert response.status_code == 200
         data = response.json()
-        assert data["usage"] == []
+        assert [row["endpoint"] for row in data["usage"]] == ["invoice_uploads"]
+        assert data["usage"][0]["call_count"] == 0
         assert data["tier"] == "free"
 
     def test_records_show_in_summary(self, auth_client, db_session, business):
@@ -389,9 +392,8 @@ class TestUsageSummary:
         response = auth_client.get("/api/v1/subscriptions/usage")
         assert response.status_code == 200
         data = response.json()
-        assert len(data["usage"]) == 1
-        assert data["usage"][0]["endpoint"] == "gst_lookup"
-        assert data["usage"][0]["call_count"] == 3
+        assert [row["endpoint"] for row in data["usage"]] == ["invoice_uploads", "gst_lookup"]
+        assert data["usage"][1]["call_count"] == 3
 
     def test_requires_authentication(self, client):
         response = client.get("/api/v1/subscriptions/usage")

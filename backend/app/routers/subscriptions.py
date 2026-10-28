@@ -33,7 +33,7 @@ from app.schemas.subscription import (
     UsageSummaryResponse,
     VerifyPaymentRequest,
 )
-from app.services import gst_calendar, razorpay_client
+from app.services import gst_calendar, invoice_service, razorpay_client
 from app.services import usage as usage_service
 
 logger = logging.getLogger(__name__)
@@ -485,10 +485,20 @@ def usage_summary(
     tier = usage_service.get_tier(db, business.id)
     actual_period = period or usage_service.current_period()
     rows = usage_service.get_usage_summary(db, business.id, actual_period)
+    # The one allowance that is enforced (check_plan_limit refuses an upload
+    # past it), counted the way the dashboard counts it. Nothing wrote a usage
+    # row for it, so this page — linked from the nav — said "No API calls
+    # recorded this month" to a business that had uploaded all month.
+    invoices = UsageItem(
+        endpoint="invoice_uploads",
+        call_count=invoice_service.monthly_usage(db, business.id, actual_period),
+        limit=invoice_service.plan_limit(business),
+        period=actual_period,
+    )
     return UsageSummaryResponse(
         tier=tier,
         period=actual_period,
-        usage=[UsageItem(**r) for r in rows],
+        usage=[invoices, *(UsageItem(**r) for r in rows)],
     )
 
 

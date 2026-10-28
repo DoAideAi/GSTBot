@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import check_database, get_db, pool_status
-from app.core.deps import require_paid_tier
+from app.core.deps import get_current_business, require_paid_tier
 from app.core.rate_limit import RateLimit
 from app.core.redis_client import get_redis, mark_unavailable
 from app.core.redis_client import ping as redis_ping
@@ -50,6 +50,7 @@ from app.schemas.misc import (
 )
 from app.services import gstin as gstin_service
 from app.services import job_health
+from app.services import usage as usage_service
 from app.services.openrouter_client import is_configured
 
 logger = logging.getLogger(__name__)
@@ -347,6 +348,8 @@ _bulk_gstin_limit = RateLimit("bulk_gstin", "30/minute")
 )
 def validate_gstins_bulk(
     body: BulkGstinRequest,
+    business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
 ) -> BulkGstinResponse:
     results = []
     valid_count = 0
@@ -367,6 +370,14 @@ def validate_gstins_bulk(
                 "valid": False,
                 "error": str(exc),
             })
+    # Counted on the Usage page as one bulk operation. Bookkeeping: a failure
+    # to record it must not take back an answer that has already been worked out.
+    try:
+        usage_service.record_usage(db, business.id, "bulk_operation")
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Bulk GSTIN usage not recorded", extra={"business_id": business.id})
     return BulkGstinResponse(
         results=results,
         total=len(results),

@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.subscription import Subscription, SubscriptionTier
 from app.models.usage import UsageRecord
+from app.services.invoice_service import month_of
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,13 @@ TIER_LIMITS: dict[SubscriptionTier, dict[str, int]] = {
 
 
 def current_period() -> str:
-    """``YYYY-MM`` for the current UTC month."""
-    return datetime.now(UTC).strftime("%Y-%m")
+    """``YYYY-MM`` for the current month in India.
+
+    It was the UTC month, while the invoice allowance this page now shows
+    beside these counters is counted by the Indian one (``month_of``): from
+    00:00 to 05:30 IST on the 1st the two named different months.
+    """
+    return month_of()
 
 
 def get_subscription(db: Session, business_id: int) -> Subscription | None:
@@ -58,27 +64,36 @@ def get_tier(db: Session, business_id: int) -> SubscriptionTier:
 def record_usage(
     db: Session, business_id: int, endpoint: str, count: int = 1
 ) -> UsageRecord:
-    """Increment the usage counter for a (business, period, endpoint) triple."""
+    """Increment the usage counter for a (business, period, endpoint) triple.
+
+    An increment in the database, not read-modify-write: two requests in the
+    same month would otherwise both read the count and one increment would be
+    lost, and two *first* requests would both insert and the second would hit
+    the unique key. The insert runs in a savepoint so losing that race costs
+    only the savepoint, and the loser increments the row the winner made.
+    """
     period = current_period()
-    row = db.scalar(
-        select(UsageRecord).where(
-            UsageRecord.business_id == business_id,
-            UsageRecord.period == period,
-            UsageRecord.endpoint == endpoint,
-        )
+    where = (
+        UsageRecord.business_id == business_id,
+        UsageRecord.period == period,
+        UsageRecord.endpoint == endpoint,
     )
-    if row is None:
-        row = UsageRecord(
-            business_id=business_id,
-            period=period,
-            endpoint=endpoint,
-            call_count=count,
-        )
-        db.add(row)
-    else:
-        row.call_count += count
+    bump = update(UsageRecord).where(*where).values(call_count=UsageRecord.call_count + count)
+    if db.execute(bump).rowcount == 0:
+        try:
+            with db.begin_nested():
+                db.add(
+                    UsageRecord(
+                        business_id=business_id,
+                        period=period,
+                        endpoint=endpoint,
+                        call_count=count,
+                    )
+                )
+        except IntegrityError:
+            db.execute(bump)
     db.flush()
-    return row
+    return db.scalar(select(UsageRecord).where(*where))
 
 
 def check_limit(
