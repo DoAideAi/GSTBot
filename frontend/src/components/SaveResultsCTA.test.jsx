@@ -46,6 +46,6 @@ describe("SaveResultsCTA", () => {
   it("links save button to registration", () => {
     renderCTA();
     const link = screen.getByText(/Save Results/).closest("a");
-    expect(link).toHaveAttribute("href", "/?register=1");
+    expect(link).toHaveAttribute("href", "/login");
   });
 });

@@ -17,7 +17,7 @@ export default function SaveResultsCTA({ resultSummary }) {
       <div className="save-results-cta-content">
         <div className="save-results-cta-actions">
           <Link
-            to="/?register=1"
+            to="/login"
             className="btn btn-primary btn-sm"
             onClick={() => track("cta_save_results")}
           >

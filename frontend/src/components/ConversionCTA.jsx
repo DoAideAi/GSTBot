@@ -47,7 +47,7 @@ export function InlineCTA({ variant = "save" }) {
       title: "Save your calculations",
       desc: "Create a free account to keep your calculation history and access it from any device.",
       cta: "Create Free Account",
-      link: "/?register=1",
+      link: "/login",
       trackEvent: "cta_inline_save",
     },
     remind: {
@@ -60,7 +60,7 @@ export function InlineCTA({ variant = "save" }) {
       title: "Never miss a GST deadline",
       desc: "Get email reminders before GSTR-1 and GSTR-3B due dates — free, no account needed.",
       cta: "Get Filing Reminders",
-      link: "/?register=1&reminders=1",
+      link: "/due-dates",
       trackEvent: "cta_inline_remind",
     },
     invoice: {
@@ -75,7 +75,7 @@ export function InlineCTA({ variant = "save" }) {
       title: "Automate your GST filing",
       desc: "Upload invoices, auto-reconcile GSTR-2B, and prepare returns in minutes. Free for 50 invoices/month.",
       cta: "Start Free",
-      link: "/?register=1",
+      link: "/login",
       trackEvent: "cta_inline_invoice",
     },
   };
@@ -135,7 +135,7 @@ export function StickyMobileCTA() {
   return (
     <div className="sticky-mobile-cta" role="complementary" aria-label="Sign up">
       <Link
-        to="/?register=1"
+        to="/login"
         className="btn btn-primary sticky-mobile-cta-btn"
         onClick={() => track("cta_sticky_mobile")}
       >
