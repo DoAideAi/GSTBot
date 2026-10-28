@@ -367,3 +367,28 @@ class TestTheTaskRegistration:
         registered = invoice_tasks.celery_app.tasks["invoices.parse"]
         assert registered.max_retries == 3
         assert registered.default_retry_delay == 60
+
+
+def test_a_row_moved_out_of_uploaded_after_the_check_is_not_reparsed(
+    db_session, business, task, sessions, monkeypatch
+):
+    # The task read UPLOADED, then the user's correction (or a redelivered
+    # copy of this task) landed before the claim. Written beneath the session
+    # so the instance the task holds still says UPLOADED, as it would.
+    invoice = _store_invoice(db_session, business)
+    db_session.connection().execute(
+        Invoice.__table__.update()
+        .where(Invoice.__table__.c.id == invoice.id)
+        .values(status=InvoiceStatus.PARSED)
+    )
+    parsed = []
+    monkeypatch.setattr(
+        invoice_service, "process_invoice", lambda db, inv, **kw: parsed.append(inv)
+    )
+
+    result = parse_invoice_task(invoice.id)
+
+    assert parsed == []
+    assert result["skipped"] is True
+    db_session.refresh(invoice)
+    assert invoice.status is InvoiceStatus.PARSED

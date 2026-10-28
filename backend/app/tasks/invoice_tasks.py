@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import update
+
 from app.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.invoice import Invoice, InvoiceStatus
@@ -46,6 +48,27 @@ def parse_invoice_task(self, invoice_id: int) -> dict:
                 "status": invoice.status.value,
                 "skipped": True,
             }
+
+        # The check above is a read; this is the claim. Celery redelivers a task
+        # whose worker died, and the user can correct the row by hand, so
+        # either can move it out of UPLOADED between that read and here — and
+        # an unconditional write to PROCESSING then re-extracted over the
+        # correction, or parsed one document twice. Only the writer that
+        # actually moves the row out of UPLOADED goes on to parse it.
+        claimed = db.execute(
+            update(Invoice)
+            .where(
+                Invoice.id == invoice_id,
+                Invoice.status == InvoiceStatus.UPLOADED,
+                Invoice.deleted_at.is_(None),
+            )
+            .values(status=InvoiceStatus.PROCESSING)
+            .execution_options(synchronize_session=False)
+        ).rowcount
+        db.commit()
+        if not claimed:
+            logger.info("Invoice %s was claimed elsewhere; skipping auto-parse", invoice_id)
+            return {"invoice_id": invoice_id, "status": invoice.status.value, "skipped": True}
 
         invoice = invoice_service.process_invoice(db, invoice)
         return {
