@@ -523,6 +523,10 @@ UNGATED_MUTATIONS = {
     # paid user can validate GSTINs regardless of whether they are a viewer
     # or an owner; the gate is the subscription, not the authority.
     "/api/v1/meta/gstin/bulk",
+    # Site-admin housekeeping (ADMIN_EMAILS), not a business's data: no
+    # business role reaches these, the owner's included.
+    "/api/v1/feedback/{feedback_id}",
+    "/api/v1/feedback/errors/{error_id}",
 }
 
 

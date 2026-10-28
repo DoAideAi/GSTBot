@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ErrorBanner from "../components/ErrorBanner";
 import { SkeletonPanel } from "../components/Skeleton";
 import TableScroll from "../components/TableScroll";
@@ -35,6 +35,100 @@ function Insights({ meta }) {
   );
 }
 
+/** Uncaught browser errors, one per page and message, with how often each happened. */
+function ErrorLog({ onForbidden }) {
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .listClientErrors({ limit: PAGE_SIZE }, { signal: controller.signal })
+      .then((body) => {
+        setItems(body.items);
+        setTotal(body.total);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        if (err?.status === 403) onForbidden();
+        else setError(err?.message || "The error log could not be loaded.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [onForbidden]);
+
+  const markFixed = async (row) => {
+    if (!window.confirm(`Clear "${row.message.slice(0, 80)}"? If it happens again it is logged afresh.`)) return;
+    try {
+      await api.deleteClientError(row.id);
+      setItems((all) => all.filter((r) => r.id !== row.id));
+      setTotal((t) => t - 1);
+    } catch (err) {
+      setError(err?.message || "That error could not be cleared.");
+    }
+  };
+
+  return (
+    <section className="panel">
+      <ErrorBanner message={error} onDismiss={() => setError("")} />
+      {loading ? (
+        <SkeletonPanel lines={4} label="Loading errors" />
+      ) : items.length === 0 ? (
+        error ? null : <p className="muted">No browser errors have been reported.</p>
+      ) : (
+        <>
+          <p className="muted">
+            {total} distinct error{total === 1 ? "" : "s"}, most recently seen first.
+          </p>
+          <TableScroll label="Browser errors">
+            <table className="table feedback-admin-table">
+              <thead>
+                <tr>
+                  <th scope="col">Last seen</th>
+                  <th scope="col">Times</th>
+                  <th scope="col">Error</th>
+                  <th scope="col">
+                    <span className="visually-hidden">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((row) => (
+                  <tr key={row.id}>
+                    <td>{when(row.last_seen_at)}</td>
+                    <td>{row.occurrences}</td>
+                    <td>
+                      <div className="feedback-admin-message">{row.message}</div>
+                      <div className="feedback-admin-meta">
+                        {row.page} · first seen {when(row.first_seen_at)}
+                      </div>
+                      {row.stack && (
+                        <details>
+                          <summary className="feedback-admin-meta">Stack</summary>
+                          <pre className="feedback-admin-stack">{row.stack}</pre>
+                        </details>
+                      )}
+                    </td>
+                    <td>
+                      <button type="button" className="btn btn-ghost" onClick={() => markFixed(row)}>
+                        Mark fixed
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
+        </>
+      )}
+    </section>
+  );
+}
+
 /**
  * The feedback inbox. Readable only by the sign-in emails in the server's
  * ADMIN_EMAILS; for anyone else the API answers 403 and this page says so
@@ -48,6 +142,8 @@ export default function AdminFeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
+  const [view, setView] = useState("feedback");
+  const onForbidden = useCallback(() => setForbidden(true), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -73,6 +169,17 @@ export default function AdminFeedbackPage() {
     return () => controller.abort();
   }, [filters, offset]);
 
+  const remove = async (f) => {
+    if (!window.confirm("Delete this feedback? This cannot be undone.")) return;
+    try {
+      await api.deleteFeedback(f.id);
+      setItems((all) => all.filter((x) => x.id !== f.id));
+      setTotal((t) => t - 1);
+    } catch (err) {
+      setError(err?.message || "That feedback could not be deleted.");
+    }
+  };
+
   const setFilter = (key) => (e) => {
     setOffset(0);
     setFilters((f) => ({ ...f, [key]: e.target.value }));
@@ -83,9 +190,30 @@ export default function AdminFeedbackPage() {
       <div className="page-head">
         <div>
           <h1>Feedback</h1>
-          <p className="muted">What visitors sent from the feedback button, newest first.</p>
+          <p className="muted">
+            What visitors sent from the feedback button, and the errors their browsers reported.
+          </p>
         </div>
       </div>
+
+      {!forbidden && (
+        <div className="filter-row" role="group" aria-label="View">
+          {[
+            ["feedback", "Feedback"],
+            ["errors", "Browser errors"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={view === value ? "chip chip-neutral is-active" : "chip chip-neutral"}
+              aria-pressed={view === value}
+              onClick={() => setView(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <ErrorBanner message={error} onDismiss={() => setError("")} />
 
@@ -96,6 +224,8 @@ export default function AdminFeedbackPage() {
             <code>ADMIN_EMAILS</code> list.
           </p>
         </section>
+      ) : view === "errors" ? (
+        <ErrorLog onForbidden={onForbidden} />
       ) : (
         <>
           <div className="filters">
@@ -135,6 +265,9 @@ export default function AdminFeedbackPage() {
                         <th scope="col">Category</th>
                         <th scope="col">Message</th>
                         <th scope="col">From</th>
+                        <th scope="col">
+                          <span className="visually-hidden">Actions</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -151,6 +284,11 @@ export default function AdminFeedbackPage() {
                             {f.page_url && <div>{f.page_url}</div>}
                             {f.ip_address && <div>{f.ip_address}</div>}
                             {f.user_agent && <div title={f.user_agent}>{f.user_agent.slice(0, 60)}</div>}
+                          </td>
+                          <td>
+                            <button type="button" className="btn btn-ghost" onClick={() => remove(f)}>
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))}

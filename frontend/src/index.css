@@ -3229,6 +3229,13 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 .feedback-flag-error { background: var(--bad-bg); }
+.feedback-admin-stack {
+  max-width: 60ch;
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
 .feedback-admin-meta {
   font-size: 12px;
   color: var(--ink-muted);

@@ -281,3 +281,57 @@ class TestUncaughtErrors:
         for i in range(30):
             assert report(client, message=f"Error {i}").status_code == 200
         assert report(client, message="Error 31").status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# Admin housekeeping
+# ---------------------------------------------------------------------------
+
+class TestTheErrorLogIsReadable:
+    def test_admins_read_it_most_recent_first_with_counts(self, client, admin):
+        report(client, message="old error")
+        report(client, message="new error")
+        report(client, message="new error")
+        body = admin.get("/api/v1/feedback/errors").json()
+        assert body["total"] == 2
+        first = body["items"][0]
+        assert (first["message"], first["occurrences"]) == ("new error", 2)
+        assert first["page"] == "https://gst.doaide.com/gstin-validator"
+
+    def test_a_visitor_is_asked_to_sign_in(self, client):
+        # `client` alone: requesting `auth_client` would sign this same client in.
+        assert client.get("/api/v1/feedback/errors").status_code == 401
+
+    def test_a_user_who_is_not_an_admin_is_refused(self, auth_client, monkeypatch):
+        monkeypatch.setattr(settings, "admin_emails", "ops@doaide.com")
+        assert auth_client.get("/api/v1/feedback/errors").status_code == 403
+
+
+class TestAdminsCanClearThings:
+    def test_a_fixed_error_is_cleared_and_counts_afresh_if_it_returns(self, client, admin):
+        report(client)
+        report(client)
+        error_id = admin.get("/api/v1/feedback/errors").json()["items"][0]["id"]
+        assert admin.delete(f"/api/v1/feedback/errors/{error_id}").status_code == 204
+        assert admin.get("/api/v1/feedback/errors").json()["total"] == 0
+        assert report(client).json() == {"occurrences": 1}
+
+    def test_spam_feedback_is_deleted(self, client, admin):
+        send(client, message="buy cheap followers")
+        feedback_id = admin.get(URL).json()["items"][0]["id"]
+        assert admin.delete(f"{URL}/{feedback_id}").status_code == 204
+        assert admin.get(URL).json()["total"] == 0
+
+    def test_deleting_what_is_not_there_is_a_404(self, admin):
+        assert admin.delete(f"{URL}/999").status_code == 404
+        assert admin.delete(f"{URL}/errors/999").status_code == 404
+
+    def test_a_visitor_cannot_delete(self, client):
+        send(client)
+        assert client.delete(f"{URL}/1").status_code == 401
+        assert client.delete(f"{URL}/errors/1").status_code == 401
+
+    def test_a_user_who_is_not_an_admin_cannot_delete(self, auth_client, monkeypatch):
+        send(auth_client)
+        monkeypatch.setattr(settings, "admin_emails", "ops@doaide.com")
+        assert auth_client.delete(f"{URL}/1").status_code == 403

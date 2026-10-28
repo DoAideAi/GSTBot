@@ -97,3 +97,21 @@ class ClientErrorCreate(BaseModel):
 
 class ClientErrorAck(BaseModel):
     occurrences: int
+
+
+class ClientErrorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    page: str
+    message: str
+    stack: str | None
+    user_agent: str | None
+    occurrences: int
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class ClientErrorListOut(BaseModel):
+    items: list[ClientErrorOut]
+    total: int

@@ -451,6 +451,10 @@ export const api = {
   // Admin-only on the server (ADMIN_EMAILS); anyone else gets a 403.
   listFeedback: (params = {}, { signal } = {}) =>
     request(`/feedback${query(params)}`, { signal }),
+  deleteFeedback: (id) => request(`/feedback/${id}`, { method: "DELETE" }),
+  listClientErrors: (params = {}, { signal } = {}) =>
+    request(`/feedback/errors${query(params)}`, { signal }),
+  deleteClientError: (id) => request(`/feedback/errors/${id}`, { method: "DELETE" }),
 
   // ---- Invoices ----
   uploadInvoice(file, invoiceType = "purchase") {

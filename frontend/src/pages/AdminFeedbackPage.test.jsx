@@ -119,4 +119,55 @@ describe("AdminFeedbackPage", () => {
     expect(first).toHaveTextContent("Path: / → /gstin-validator");
     expect(within(second).queryByRole("list", { name: "Struggle signals" })).toBeNull();
   });
+
+  it("deletes a piece of feedback once confirmed, and keeps it when not", async () => {
+    vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    renderPage();
+    const table = await screen.findByRole("table");
+    const firstDelete = within(table).getAllByRole("button", { name: "Delete" })[0];
+
+    await userEvent.click(firstDelete);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    global.fetch.mockImplementationOnce(() => Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") }));
+    await userEvent.click(firstDelete);
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe("/api/v1/feedback/2");
+    expect(global.fetch.mock.calls.at(-1)[1].method).toBe("DELETE");
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(2);
+  });
+
+  it("shows the browser error log, and clears an error marked fixed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+    await screen.findByRole("table");
+    global.fetch = vi.fn((url, init) =>
+      init?.method === "DELETE"
+        ? Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") })
+        : respond(200, {
+            items: [
+              {
+                id: 7,
+                page: "https://gst.doaide.com/hsn",
+                message: "TypeError: x is undefined",
+                stack: "at f (a.js:1)",
+                user_agent: "UA",
+                occurrences: 12,
+                first_seen_at: "2026-10-01T10:00:00Z",
+                last_seen_at: "2026-10-20T10:00:00Z",
+              },
+            ],
+            total: 1,
+          }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Browser errors" }));
+
+    const table = await screen.findByRole("table", {});
+    expect(within(table).getByText("TypeError: x is undefined")).toBeInTheDocument();
+    expect(within(table).getByText("12")).toBeInTheDocument();
+    expect(global.fetch.mock.calls[0][0]).toContain("/api/v1/feedback/errors");
+
+    await userEvent.click(within(table).getByRole("button", { name: "Mark fixed" }));
+    expect(global.fetch.mock.calls.at(-1)[0]).toBe("/api/v1/feedback/errors/7");
+    expect(await screen.findByText("No browser errors have been reported.")).toBeInTheDocument();
+  });
 });

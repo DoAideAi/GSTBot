@@ -6,20 +6,22 @@ import logging
 from datetime import UTC, date, datetime, time
 from urllib.parse import urlsplit, urlunsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_admin
-from app.core.params import Offset
+from app.core.params import Offset, RowId
 from app.core.rate_limit import RateLimit, client_ip
 from app.models.feedback import ClientError, Feedback, FeedbackCategory
 from app.models.mixins import utcnow
 from app.schemas.feedback import (
     ClientErrorAck,
     ClientErrorCreate,
+    ClientErrorListOut,
+    ClientErrorOut,
     FeedbackCreate,
     FeedbackListOut,
     FeedbackOut,
@@ -197,3 +199,81 @@ def report_client_error(
         return ClientErrorAck(occurrences=bump() or 1)
     logger.info("Client error recorded", extra={"page": page})
     return ClientErrorAck(occurrences=1)
+
+
+# ---------------------------------------------------------------------------
+# Admin housekeeping: read the error log, clear what has been dealt with
+# ---------------------------------------------------------------------------
+
+_ADMIN = [Depends(_read_limit), Depends(require_admin)]
+_ADMIN_REFUSALS = {
+    401: {"description": "Not signed in."},
+    403: {"description": "Signed in, but not a site administrator."},
+}
+
+
+@router.get(
+    "/errors",
+    summary="List uncaught browser errors (admins only)",
+    description=(
+        "One row per (page, message), most recently seen first, with how many "
+        "times it has happened. Restricted to `ADMIN_EMAILS`."
+    ),
+    response_model=ClientErrorListOut,
+    responses=_ADMIN_REFUSALS,
+    dependencies=_ADMIN,
+)
+def list_client_errors(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: Offset = 0,
+    db: Session = Depends(get_db),
+) -> ClientErrorListOut:
+    total = db.scalar(select(func.count()).select_from(ClientError)) or 0
+    rows = db.scalars(
+        select(ClientError)
+        .order_by(ClientError.last_seen_at.desc(), ClientError.id.desc())
+        .limit(limit)
+        .offset(offset)
+    ).all()
+    return ClientErrorListOut(items=[ClientErrorOut.model_validate(r) for r in rows], total=total)
+
+
+@router.delete(
+    "/errors/{error_id}",
+    summary="Clear a browser error once it is fixed (admins only)",
+    description=(
+        "Removes the row. If the error happens again it is recorded afresh, "
+        "with its count starting from one — which is how a regression shows."
+    ),
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**_ADMIN_REFUSALS, 404: {"description": "No such error."}},
+    dependencies=_ADMIN,
+)
+def delete_client_error(error_id: RowId, db: Session = Depends(get_db)) -> Response:
+    row = db.get(ClientError, error_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="That error is not in the log."
+        )
+    db.delete(row)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{feedback_id}",
+    summary="Delete one piece of feedback (admins only)",
+    description="For spam and test submissions. Restricted to `ADMIN_EMAILS`.",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**_ADMIN_REFUSALS, 404: {"description": "No such feedback."}},
+    dependencies=_ADMIN,
+)
+def delete_feedback(feedback_id: RowId, db: Session = Depends(get_db)) -> Response:
+    row = db.get(Feedback, feedback_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="That feedback is not here."
+        )
+    db.delete(row)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
