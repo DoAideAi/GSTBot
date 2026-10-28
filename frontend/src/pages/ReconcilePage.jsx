@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import ReadOnlyNotice from "../components/ReadOnlyNotice";
+import ReportPurchaseButton from "../components/ReportPurchaseButton";
 import { SkeletonText } from "../components/Skeleton";
 import StatCard from "../components/StatCard";
 import TableScroll from "../components/TableScroll";
@@ -703,6 +704,15 @@ export default function ReconcilePage() {
               tone={(shown.matched_count ?? 0) === shown.total_invoices ? "good" : "warn"}
             />
           </section>
+
+          {/* Bought per run, so it follows the run on screen — an earlier run
+              opened from the history gets its own report. Keyed on the run so
+              one run's "already bought" never labels another's button. A
+              viewer is not offered it: buying is a write, and the backend
+              refuses one from them. */}
+          {canWrite && shown.status === "completed" && (
+            <ReportPurchaseButton key={shown.id} runId={shown.id} />
+          )}
 
           <section className="panel">
             <h2>Findings</h2>

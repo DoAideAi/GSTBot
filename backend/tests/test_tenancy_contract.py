@@ -159,6 +159,7 @@ FACTORIES = {
     "/api/v1/alerts/{alert_id}/dismiss": _an_alert,
     "/api/v1/suppliers/{supplier_id}": _a_supplier,
     "/api/v1/reconciliation/{run_id}": _a_run,
+    "/api/v1/reconciliation/{run_id}/report.pdf": _a_run,
     "/api/v1/businesses/mine/{business_id}": _a_linked_business,
 }
 

@@ -11,21 +11,30 @@ from fastapi import (
     HTTPException,
     Path,
     Query,
+    Response,
     UploadFile,
     status,
 )
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_business, require_paid_tier, require_writer
+from app.core.deps import (
+    get_current_business,
+    get_current_user,
+    require_paid_tier,
+    require_writer,
+)
 from app.core.params import Offset, RowId
 from app.core.rate_limit import RateLimit
-from app.core.sanitize import safe_filename
+from app.core.sanitize import content_disposition, safe_filename
 from app.models.business import Business
 from app.models.gstr_return import GSTRReturn, ReturnType
-from app.models.reconciliation_run import ReconciliationRun
+from app.models.reconciliation_run import ReconciliationRun, ReconciliationStatus
+from app.models.report_purchase import ReportPurchase
+from app.models.user import User
 from app.schemas.reconciliation import (
     GSTR2BImportOut,
     ImportedPeriodsOut,
@@ -33,8 +42,18 @@ from app.schemas.reconciliation import (
     ReconciliationDetailOut,
     ReconciliationListOut,
     ReconciliationRunOut,
+    ReportOrderOut,
+    ReportOrderRequest,
+    ReportPurchaseOut,
+    ReportVerifyRequest,
 )
-from app.services import gst_calendar, gstr2b, reconciliation
+from app.services import (
+    gst_calendar,
+    gstr2b,
+    razorpay_client,
+    reconciliation,
+    reconciliation_report,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +67,11 @@ ALLOWED_EXTENSIONS = (".json", ".csv", ".txt")
 _import_limit = RateLimit("gstr2b_import", "20/minute")
 _run_limit = RateLimit("reconcile_run", "30/minute")
 _read_limit = RateLimit("reconcile_read", "240/minute")
+# Paying is a handful of calls per report; rendering one is a few hundred
+# milliseconds of CPU per call, which is what the download bucket is sized for.
+_report_order_limit = RateLimit("report_order", "10/minute")
+_report_verify_limit = RateLimit("report_verify", "10/minute")
+_report_download_limit = RateLimit("report_download", "30/minute")
 
 
 @router.post(
@@ -466,3 +490,282 @@ def get_imported_2b(
             detail=f"No GSTR-2B imported for {period}",
         )
     return GSTR2BImportOut.model_validate(found)
+
+
+# ---------------------------------------------------------------------------
+# The paid PDF report
+# ---------------------------------------------------------------------------
+
+
+def _reportable_run(db: Session, business: Business, run_id: int) -> ReconciliationRun:
+    """This tenant's run, completed — or the refusal that says why not.
+
+    404 outside the tenant, as everywhere else here. 409 for a run that never
+    completed: it has no findings, so there is nothing in it to pay for.
+    """
+    run = db.scalar(
+        select(ReconciliationRun).where(
+            ReconciliationRun.id == run_id,
+            ReconciliationRun.business_id == business.id,
+            ReconciliationRun.deleted_at.is_(None),
+        )
+    )
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Reconciliation run {run_id} not found",
+        )
+    if run.status is not ReconciliationStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"This run is {run.status.value}, so it has no report yet. "
+                "Run the reconciliation again and buy the report of that run."
+            ),
+        )
+    return run
+
+
+def _purchase_for(db: Session, business_id: int, run_id: int) -> ReportPurchase | None:
+    return db.scalar(
+        select(ReportPurchase).where(
+            ReportPurchase.business_id == business_id,
+            ReportPurchase.run_id == run_id,
+            ReportPurchase.deleted_at.is_(None),
+        ).limit(1)
+    )
+
+
+def _download_path(run_id: int) -> str:
+    return f"/reconciliation/{run_id}/report.pdf"
+
+
+@router.post(
+    "/report/purchase",
+    response_model=ReportOrderOut,
+    summary="Start buying the PDF report of one run (Rs. 99)",
+    description=(
+        "Creates a Razorpay order for the run's report. When this business has "
+        "already paid for it, no order is created and `already_purchased` is "
+        "true: the report is downloaded again rather than charged for twice."
+    ),
+    responses={
+        404: {"description": "No such run in this tenant."},
+        409: {"description": "The run did not complete, so it has no report."},
+        502: {"description": "Razorpay did not create the order. Safe to retry."},
+        503: {"description": "Payment processing is not configured on this server."},
+    },
+    dependencies=[Depends(_report_order_limit), Depends(require_writer)],
+)
+def purchase_report(
+    payload: ReportOrderRequest,
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+) -> ReportOrderOut:
+    run = _reportable_run(db, business, payload.run_id)
+    if _purchase_for(db, business.id, run.id) is not None:
+        return ReportOrderOut(run_id=run.id, already_purchased=True)
+
+    if not razorpay_client.is_configured():
+        logger.error(
+            "Report checkout refused: Razorpay is not configured",
+            extra={"business_id": business.id, "run_id": run.id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payment processing is not configured.",
+        )
+    order = razorpay_client.create_order(
+        amount_paise=razorpay_client.REPORT_PRICE_PAISE,
+        receipt=razorpay_client.report_receipt(business.id, run.id),
+    )
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Could not start the payment. Try again, or contact support if "
+                "this persists."
+            ),
+        )
+    return ReportOrderOut(
+        run_id=run.id,
+        already_purchased=False,
+        order_id=order["id"],
+        amount=order["amount"],
+        currency=order["currency"],
+        razorpay_key_id=settings.razorpay_key_id,
+    )
+
+
+_UNMATCHED_PAYMENT = (
+    "This payment does not match the report it is being applied to. Contact "
+    "support if you were charged."
+)
+
+
+@router.post(
+    "/report/verify",
+    response_model=ReportPurchaseOut,
+    summary="Confirm a report payment, then download it from `download_path`",
+    description=(
+        "Checks Razorpay's signature, then asks Razorpay for the order and "
+        "requires it to have been created for this business and run, at the "
+        "report's price, and paid in full. Safe to call again with the same "
+        "payment: a payment already recorded for this run is answered as a "
+        "success, so a browser that lost the response can still get the file."
+    ),
+    responses={
+        400: {"description": "The signature or the order does not match this report."},
+        404: {"description": "No such run in this tenant."},
+        409: {
+            "description": (
+                "The run did not complete, or this payment was already applied to "
+                "a different run."
+            )
+        },
+        502: {"description": "Razorpay could not be asked about the order. Safe to retry."},
+    },
+    dependencies=[Depends(_report_verify_limit), Depends(require_writer)],
+)
+def verify_report_payment(
+    payload: ReportVerifyRequest,
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+    current_user: User = Depends(get_current_user),
+) -> ReportPurchaseOut:
+    run = _reportable_run(db, business, payload.run_id)
+    done = ReportPurchaseOut(run_id=run.id, purchased=True, download_path=_download_path(run.id))
+
+    if not razorpay_client.verify_payment_signature(
+        payload.razorpay_order_id, payload.razorpay_payment_id, payload.razorpay_signature
+    ):
+        logger.warning(
+            "Report payment signature verification failed",
+            extra={
+                "business_id": business.id,
+                "user_id": current_user.id,
+                "run_id": run.id,
+                "razorpay_order_id": payload.razorpay_order_id,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Payment verification failed. Contact support if you were charged, "
+                "or try the payment again."
+            ),
+        )
+
+    def _recorded() -> ReportPurchase | None:
+        return db.scalar(
+            select(ReportPurchase).where(
+                ReportPurchase.business_id == business.id,
+                ReportPurchase.razorpay_payment_id == payload.razorpay_payment_id,
+            )
+        )
+
+    def _already(existing: ReportPurchase) -> ReportPurchaseOut:
+        if existing.run_id == run.id:
+            return done
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This payment has already been applied to a different report.",
+        )
+
+    existing = _recorded()
+    if existing is not None:
+        return _already(existing)
+
+    order = razorpay_client.fetch_order(payload.razorpay_order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Could not confirm the payment with the payment provider. Try again "
+                "in a moment — if you were charged, it will not be lost."
+            ),
+        )
+    price = razorpay_client.REPORT_PRICE_PAISE
+    problems = []
+    if order.get("receipt") != razorpay_client.report_receipt(business.id, run.id):
+        problems.append("receipt")
+    if order.get("amount") != price:
+        problems.append("amount")
+    if order.get("status") != "paid" or (order.get("amount_paid") or 0) < price:
+        problems.append("status")
+    if problems:
+        logger.warning(
+            "Report payment refused: order does not match the request",
+            extra={
+                "business_id": business.id,
+                "run_id": run.id,
+                "razorpay_order_id": payload.razorpay_order_id,
+                "mismatch": problems,
+                "order_status": order.get("status"),
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_UNMATCHED_PAYMENT)
+
+    db.add(
+        ReportPurchase(
+            business_id=business.id,
+            run_id=run.id,
+            razorpay_order_id=payload.razorpay_order_id,
+            razorpay_payment_id=payload.razorpay_payment_id,
+            amount_paise=price,
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError:
+        # Checkout's handler and a retry of it can both get here with the same
+        # payment; the unique constraint keeps one row, and the loser answers
+        # from it.
+        db.rollback()
+        existing = _recorded()
+        if existing is None:
+            raise
+        return _already(existing)
+
+    logger.info(
+        "Report purchased",
+        extra={"business_id": business.id, "user_id": current_user.id, "run_id": run.id},
+    )
+    return done
+
+
+@router.get(
+    "/{run_id}/report.pdf",
+    summary="Download the PDF report of a run this business has paid for",
+    description=(
+        "Rendered from what the run stored, so the same run always gives the "
+        "same report. Downloadable again at no charge once bought."
+    ),
+    response_class=Response,
+    responses={
+        200: {"description": "The report, as an attachment.", "content": {"application/pdf": {}}},
+        402: {"description": "This run's report has not been bought."},
+        404: {"description": "No such run in this tenant."},
+        409: {"description": "The run did not complete, so it has no report."},
+    },
+    dependencies=[Depends(_report_download_limit)],
+)
+def download_report(
+    run_id: RowId,
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+) -> Response:
+    run = _reportable_run(db, business, run_id)
+    if _purchase_for(db, business.id, run.id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Buy this report to download it. It is Rs. 99, once, for this run.",
+        )
+    body = reconciliation_report.build_pdf(run, business)
+    who = business.gstin or f"business-{business.id}"
+    filename = f"reconciliation-{who}-{run.period}-run{run.id}.pdf"
+    return Response(
+        content=body,
+        media_type="application/pdf",
+        headers={"Content-Disposition": content_disposition(filename)},
+    )

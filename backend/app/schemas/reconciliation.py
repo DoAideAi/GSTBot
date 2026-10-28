@@ -92,3 +92,44 @@ class ReconcileRequest(BaseModel):
     # the default, and because a CA checking a specific dispute wants to set it
     # to zero and see everything.
     tolerance: Decimal = Field(default=Decimal("1.00"), ge=0, le=1000)
+
+
+class ReportOrderRequest(BaseModel):
+    """Which run's PDF report to buy."""
+
+    run_id: int = Field(ge=1)
+
+
+class ReportOrderOut(BaseModel):
+    """A Razorpay order for one report, or word that it is already paid for.
+
+    ``already_purchased`` short-circuits checkout: a report this business has
+    paid for is downloaded again, never charged for twice, and the order fields
+    are null because no order was created.
+    """
+
+    run_id: int
+    already_purchased: bool
+    order_id: str | None = None
+    amount: int | None = None
+    currency: str | None = None
+    # The publishable key id Checkout needs in the browser. The key secret
+    # never leaves the server.
+    razorpay_key_id: str | None = None
+
+
+class ReportVerifyRequest(BaseModel):
+    """What Razorpay Checkout hands the browser after a successful payment."""
+
+    run_id: int = Field(ge=1)
+    razorpay_order_id: str = Field(max_length=64)
+    razorpay_payment_id: str = Field(max_length=64)
+    razorpay_signature: str = Field(max_length=512)
+
+
+class ReportPurchaseOut(BaseModel):
+    """A verified purchase, and where the report is fetched from."""
+
+    run_id: int
+    purchased: bool
+    download_path: str

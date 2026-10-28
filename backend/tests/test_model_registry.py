@@ -67,6 +67,7 @@ def test_the_registry_sweep_is_actually_looking_at_the_scoped_models() -> None:
         "gstr_returns",
         "invoices",
         "reconciliation_runs",
+        "report_purchases",
         "suppliers",
     }
 

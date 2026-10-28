@@ -625,27 +625,20 @@ export const api = {
    * cannot carry — so the file is fetched with the header and handed to the
    * browser as an object URL rather than linked to directly.
    */
-  async downloadExport(returnType, extension, period) {
-    const headers = {};
-    const token = getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const activeBusinessId = getActiveBusinessId();
-    if (activeBusinessId) headers["X-Business-Id"] = activeBusinessId;
-
-    const res = await send(api.exportUrl(returnType, extension, period), { headers });
-    if (res.status === 401 && token) tokenRejected();
-    if (!res.ok) {
-      // Same two hazards as `request`: an HTML error page from the edge must
-      // not surface as a JSON parse error, and `statusText` is empty over
-      // HTTP/2 so it cannot be the fallback on its own.
-      const { data, readable } = readBody(await res.text());
-      throw refusal(readable ? errorMessage(data, statusMessage(res)) : statusMessage(res), res);
-    }
-    return {
-      blob: await res.blob(),
-      filename: filenameFrom(res.headers.get("Content-Disposition")),
-    };
+  downloadExport(returnType, extension, period) {
+    return fetchFile(api.exportUrl(returnType, extension, period));
   },
+
+  // ---- Paid reconciliation report ----
+  //
+  // Bought per run. `purchaseReport` answers `already_purchased` instead of an
+  // order when this business has paid for the run before, and the report is
+  // then downloaded again rather than charged for twice.
+  purchaseReport: (runId) =>
+    request("/reconciliation/report/purchase", { method: "POST", body: { run_id: runId } }),
+  verifyReportPayment: (payload) =>
+    request("/reconciliation/report/verify", { method: "POST", body: payload }),
+  downloadReport: (runId) => fetchFile(`${BASE}/reconciliation/${runId}/report.pdf`),
 
   // ---- Alerts ----
   //
@@ -744,6 +737,34 @@ function query(params = {}) {
   );
   const suffix = search.toString();
   return suffix ? `?${suffix}` : "";
+}
+
+/**
+ * Fetch an authenticated download as `{blob, filename}`.
+ *
+ * A plain `<a href>` cannot carry the bearer token or the active business, so
+ * files are fetched with both headers and handed to the browser as a Blob.
+ */
+async function fetchFile(url) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const activeBusinessId = getActiveBusinessId();
+  if (activeBusinessId) headers["X-Business-Id"] = activeBusinessId;
+
+  const res = await send(url, { headers });
+  if (res.status === 401 && token) tokenRejected();
+  if (!res.ok) {
+    // Same two hazards as `request`: an HTML error page from the edge must
+    // not surface as a JSON parse error, and `statusText` is empty over
+    // HTTP/2 so it cannot be the fallback on its own.
+    const { data, readable } = readBody(await res.text());
+    throw refusal(readable ? errorMessage(data, statusMessage(res)) : statusMessage(res), res);
+  }
+  return {
+    blob: await res.blob(),
+    filename: filenameFrom(res.headers.get("Content-Disposition")),
+  };
 }
 
 /** Pull the filename out of a Content-Disposition header. */

@@ -35,6 +35,9 @@ redis>=5.0
 pypdf>=6.21.2
 # Excel/CSV purchase registers.
 openpyxl>=3.1
+# Paid reconciliation report. Pure Python, so it needs nothing on the host the
+# way the OCR fallback below does.
+reportlab>=5.1
 
 # Tesseract OCR fallback for image invoices when no vision model is reachable.
 # Needs the `tesseract` binary on the host; the parser degrades gracefully

@@ -14,6 +14,7 @@ from app.models.reconciliation_run import (
     ReconciliationStatus,
 )
 from app.models.referral import Referral
+from app.models.report_purchase import ReportPurchase
 from app.models.subscriber import Subscriber
 from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
 from app.models.supplier import RiskLevel, Supplier
@@ -38,6 +39,7 @@ __all__ = [
     "ReconciliationRun",
     "ReconciliationStatus",
     "Referral",
+    "ReportPurchase",
     "ReturnStatus",
     "ReturnType",
     "RiskLevel",

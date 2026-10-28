@@ -830,6 +830,52 @@ describe("api", () => {
   // downloadExport does not go through `request` — it needs the raw response
   // to get at the blob and the Content-Disposition — so it carries its own
   // copy of the auth and error handling, and that copy needs its own tests.
+  describe("the paid reconciliation report", () => {
+    it("asks for an order for one run", async () => {
+      global.fetch.mockResolvedValueOnce(jsonResponse({ run_id: 7, already_purchased: true }));
+
+      await api.purchaseReport(7);
+
+      const [url, options] = global.fetch.mock.calls[0];
+      expect(url).toBe("/api/v1/reconciliation/report/purchase");
+      expect(options.method).toBe("POST");
+      expect(JSON.parse(options.body)).toEqual({ run_id: 7 });
+    });
+
+    it("hands Checkout's response to the backend to verify", async () => {
+      global.fetch.mockResolvedValueOnce(jsonResponse({ run_id: 7, purchased: true }));
+      const payload = {
+        run_id: 7,
+        razorpay_order_id: "order_rpt",
+        razorpay_payment_id: "pay_rpt",
+        razorpay_signature: "sig",
+      };
+
+      await api.verifyReportPayment(payload);
+
+      const [url, options] = global.fetch.mock.calls[0];
+      expect(url).toBe("/api/v1/reconciliation/report/verify");
+      expect(JSON.parse(options.body)).toEqual(payload);
+    });
+
+    it("downloads the run's PDF with the bearer token", async () => {
+      setToken("tok-1");
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(["%PDF"]),
+        headers: { get: () => 'attachment; filename="reconciliation-run7.pdf"' },
+      });
+
+      const { filename } = await api.downloadReport(7);
+
+      const [url, options] = global.fetch.mock.calls[0];
+      expect(url).toBe("/api/v1/reconciliation/7/report.pdf");
+      expect(options.headers.Authorization).toBe("Bearer tok-1");
+      expect(filename).toBe("reconciliation-run7.pdf");
+    });
+  });
+
   describe("downloadExport", () => {
     function fileResponse(body, { status = 200, disposition = null } = {}) {
       return {
