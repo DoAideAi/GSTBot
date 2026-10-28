@@ -380,6 +380,13 @@ def get_or_create_supplier(
     to have pending; see :func:`_find_supplier` and :func:`_insert_supplier` for
     why that matters to callers who are part-way through an edit of their own.
     """
+    # Cleaned here, not by the caller: the INSERT below goes through the
+    # connection, so the before_flush hook that strips NUL from every ORM write
+    # never sees it. The parser's name is raw document text — pypdf emits NUL
+    # for glyphs it cannot map — and Postgres refuses NUL in a varchar, which
+    # failed the parse of the invoice that named the supplier. Bounded to the
+    # column for the same reason: SQLite enforces neither.
+    name = clean_text(name, max_length=255)
     supplier = _find_supplier(db, business_id, gstin)
     if supplier is None:
         try:

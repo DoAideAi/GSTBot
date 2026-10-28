@@ -201,6 +201,47 @@ class TestTwoWorkersMeetingAtANewSupplier:
         assert "already on file" in second["parse_error"]
 
 
+class TestTheSupplierNameIsCleanedOnTheWayIn:
+    """P16 M6: the supplier row is inserted through the connection, past the
+    before_flush hook that strips NUL from ORM writes, and it was given the
+    parser's raw name rather than the cleaned one the invoice keeps. A NUL in
+    it (pypdf emits them) is a failed write on Postgres; a long one overflows
+    ``VARCHAR(255)``. SQLite enforces neither, so both are asserted on what is
+    stored."""
+
+    def test_nul_control_characters_and_length_do_not_reach_the_row(
+        self, auth_client, db_session, stub_openrouter, sample_invoice_text
+    ):
+        stub_openrouter.update(
+            {
+                "supplier_gstin": SUPPLIER_GSTIN_OTHER_STATE,
+                "supplier_name": "Northwind\x00 Supplies\x07 " + "P" * 400,
+                "buyer_gstin": BUSINESS_GSTIN,
+                "invoice_number": "INV-NUL-1",
+                "invoice_date": "2026-04-15",
+                "taxable_value": 100,
+                "igst": 18,
+                "total_value": 118,
+            }
+        )
+        response = upload(auth_client, sample_invoice_text)
+        assert response.status_code == 201, response.text
+
+        supplier = db_session.query(Supplier).filter_by(gstin=SUPPLIER_GSTIN_OTHER_STATE).one()
+        assert "\x00" not in supplier.legal_name
+        assert "\x07" not in supplier.legal_name
+        assert supplier.legal_name.startswith("Northwind Supplies")
+        assert len(supplier.legal_name) <= Supplier.__table__.c.legal_name.type.length
+
+    def test_the_helper_cleans_whoever_calls_it(self, db_session, business):
+        supplier = invoice_service.get_or_create_supplier(
+            db_session, business.id, SUPPLIER_GSTIN_SAME_STATE, "Mehta\x00 Electricals"
+        )
+        db_session.commit()
+        db_session.refresh(supplier)
+        assert supplier.legal_name == "Mehta Electricals"
+
+
 def test_a_sales_upload_does_not_create_a_supplier(auth_client, db_session, sample_invoice_text):
     upload(auth_client, sample_invoice_text, invoice_type="sales")
     assert db_session.query(Supplier).count() == 0
