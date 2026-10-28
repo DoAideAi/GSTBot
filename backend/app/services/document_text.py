@@ -112,6 +112,24 @@ def from_pdf(content: bytes) -> str:
     return text if len(text) >= _MIN_PDF_TEXT_CHARS else ""
 
 
+def is_password_protected(content: bytes) -> bool:
+    """Whether *content* is a PDF that cannot be opened without a password.
+
+    Only a *user* password: a PDF locked with just an owner password (no
+    printing, no editing) opens with an empty one, and pypdf reads it as it
+    would any other. One that needs a password to be read has no text for
+    :func:`from_pdf`, no page for a vision model to render and no image for
+    OCR — every path the parser has ends empty, so it has to be told why.
+    """
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        return bool(reader.is_encrypted) and not reader.decrypt("")
+    except Exception:  # noqa: BLE001 - not a readable PDF at all is a different problem
+        return False
+
+
 def from_excel(content: bytes) -> str:
     """Flatten a spreadsheet to tab-separated rows.
 

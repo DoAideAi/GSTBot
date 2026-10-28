@@ -2135,3 +2135,63 @@ class TestAFullUploadVolume:
         assert item["accepted"] is False
         assert "Nothing was saved" in item["error"]
         assert self._files(full_disk) == []
+
+
+def _pdf_locked(user_password: str, owner_password: str = "owner") -> bytes:
+    import io
+
+    from pypdf import PdfReader, PdfWriter
+    from reportlab.pdfgen import canvas
+
+    plain = io.BytesIO()
+    page = canvas.Canvas(plain)
+    page.drawString(72, 720, f"Invoice No: LOCK-1 GSTIN {SUPPLIER_GSTIN_OTHER_STATE} Total 118")
+    page.showPage()
+    page.save()
+    writer = PdfWriter()
+    for each in PdfReader(io.BytesIO(plain.getvalue())).pages:
+        writer.add_page(each)
+    writer.encrypt(user_password=user_password, owner_password=owner_password)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+class TestAPasswordProtectedPdf:
+    """P17 M5: a PDF that needs a password to open has no text, no page a
+    vision model can render and no image for OCR. It was sent down every one of
+    those paths anyway — a wasted vision call — and the review screen then
+    blamed "no AI model was available"."""
+
+    def _upload(self, client, content):
+        return client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("locked.pdf", content, "application/pdf")},
+            data={"invoice_type": "purchase"},
+        )
+
+    def test_the_user_is_told_to_remove_the_password(self, auth_client, db_session):
+        from app.services.invoice_parser import PASSWORD_PROTECTED_WARNING
+
+        response = self._upload(auth_client, _pdf_locked("secret"))
+        assert response.status_code == 201
+        invoice = db_session.get(Invoice, response.json()["invoice"]["id"])
+        warnings = invoice.extraction["warnings"]
+        assert warnings[0] == PASSWORD_PROTECTED_WARNING
+        assert not any("no AI model" in w for w in warnings)
+
+    def test_no_model_call_is_spent_on_it(self, auth_client, stub_openrouter, monkeypatch):
+        from app.services import invoice_parser
+
+        def refuse(**_kwargs):
+            raise AssertionError("a locked PDF was sent to the model")
+
+        monkeypatch.setattr(invoice_parser, "parse_with_model", refuse)
+        assert self._upload(auth_client, _pdf_locked("secret")).status_code == 201
+
+    def test_an_owner_password_alone_does_not_stop_it_being_read(self, auth_client, db_session):
+        # Locked against editing, not reading: it opens with an empty password.
+        response = self._upload(auth_client, _pdf_locked(""))
+        invoice = db_session.get(Invoice, response.json()["invoice"]["id"])
+        assert "LOCK-1" in (invoice.raw_text or "")
+        assert not any("password" in w for w in invoice.extraction["warnings"])

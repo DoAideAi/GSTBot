@@ -1699,6 +1699,12 @@ def validate(parsed: ParsedInvoice) -> ParsedInvoice:
     return parsed
 
 
+PASSWORD_PROTECTED_WARNING = (
+    "This PDF is password-protected, so it could not be read. Open it, save or "
+    "print it as a new PDF without the password, and upload that instead."
+)
+
+
 def parse_invoice(
     *,
     content: bytes | None = None,
@@ -1716,6 +1722,20 @@ def parse_invoice(
     body = text or ""
     if not body and content is not None:
         body = document_text.extract(content, content_type, filename)
+
+    is_pdf = (content_type or "").lower() == "application/pdf" or (
+        filename or ""
+    ).lower().endswith(".pdf")
+    if not body and content is not None and is_pdf and document_text.is_password_protected(
+        content
+    ):
+        # Nothing downstream can read it: sent on, it cost a vision call on a
+        # file the model cannot render, then an OCR pass on bytes that are not
+        # an image, and the review screen blamed "no AI model was available".
+        # Say what is actually wrong, and what to do about it.
+        locked = parse_heuristic("")
+        locked.warnings.append(PASSWORD_PROTECTED_WARNING)
+        return validate(locked)
 
     treat_as_image = content is not None and not body and (
         document_text.is_image(content_type, filename)
