@@ -65,7 +65,9 @@ describe("HsnSacFinderPage", () => {
     renderPage();
     const input = screen.getByPlaceholderText(/laptop, cement/);
     await userEvent.type(input, "xyznonexistent");
-    expect(screen.getByText(/No results found/)).toBeInTheDocument();
+    expect(screen.getByText(/No results found\. Try a different/)).toBeInTheDocument();
+    // Announced too — this message used to sit outside the live region.
+    expect(screen.getByRole("status")).toHaveTextContent("No results found");
   });
 
   it("shows type column distinguishing HSN and SAC", async () => {

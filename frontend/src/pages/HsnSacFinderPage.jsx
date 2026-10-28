@@ -148,8 +148,16 @@ export default function HsnSacFinderPage() {
               </div>
             )}
 
+
+            {/* One short, always-mounted status line is what a screen reader
+                announces — not the results table, which used to sit inside the
+                live region and be read out in full on every keystroke. */}
+            <p className="visually-hidden" role="status" aria-live="polite">
+              {(query.trim() || selectedCategory) ? (results.length === 0 ? "No results found" : `${results.length} result${results.length === 1 ? "" : "s"} found`) : ""}
+            </p>
+
             {results.length > 0 && (
-              <div className="hsn-results" aria-live="polite">
+              <div className="hsn-results">
                 <div className="hsn-results-header">
                   <span>{results.length} result{results.length !== 1 ? "s" : ""} found</span>
                   {(query || selectedCategory) && (

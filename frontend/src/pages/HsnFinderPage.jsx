@@ -14,6 +14,9 @@ import { categories, byCategory, searchHSN } from "../lib/hsnData";
 import { copyToClipboard } from "../lib/share";
 import { track } from "../lib/track";
 
+/** How long a query must stand before it counts as a search. */
+const HSN_SEARCH_SETTLE_MS = 800;
+
 const FAQS = [
   {
     q: "What is an HSN code?",
@@ -41,10 +44,13 @@ export default function HsnFinderPage() {
   const results = searchHSN(query);
   const cats = categories();
 
+  // Counted once the query settles: tracking every keystroke logged "c",
+  // "ce", "cem"… as six separate searches for one look-up of "cement".
   useEffect(() => {
-    if (query.trim()) {
-      track("hsn_search", { query: query.trim() });
-    }
+    const term = query.trim();
+    if (!term) return undefined;
+    const timer = setTimeout(() => track("hsn_search", { query: term }), HSN_SEARCH_SETTLE_MS);
+    return () => clearTimeout(timer);
   }, [query]);
 
   const handleCopy = async (text) => {
@@ -85,8 +91,16 @@ export default function HsnFinderPage() {
               />
             </label>
 
+
+            {/* One short, always-mounted status line is what a screen reader
+                announces — not the results table, which used to sit inside the
+                live region and be read out in full on every keystroke. */}
+            <p className="visually-hidden" role="status" aria-live="polite">
+              {query.trim() ? (results.length === 0 ? "No results found" : `${results.length} result${results.length === 1 ? "" : "s"} found`) : ""}
+            </p>
+
             {query.trim() && (
-              <div className="hsn-results" aria-live="polite">
+              <div className="hsn-results">
                 {results.length === 0 ? (
                   <p className="hsn-empty">No matching HSN/SAC codes found. Try a different search term.</p>
                 ) : (

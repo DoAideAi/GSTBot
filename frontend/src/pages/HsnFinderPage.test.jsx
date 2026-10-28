@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -107,8 +107,17 @@ describe("HsnFinderPage", () => {
   it("fires hsn_search tracking event when searching", async () => {
     renderHsn();
 
+    mockTrack.mockClear();
     await userEvent.type(screen.getByPlaceholderText(/laptop/), "cement");
 
-    expect(mockTrack).toHaveBeenCalledWith("hsn_search", { query: "cement" });
+    // Once, for the settled query — not once per keystroke.
+    await waitFor(() => expect(mockTrack).toHaveBeenCalledWith("hsn_search", { query: "cement" }), { timeout: 2000 });
+    expect(mockTrack.mock.calls.filter(([name]) => name === "hsn_search")).toHaveLength(1);
+  });
+
+  it("announces how many codes matched, in one short status line", async () => {
+    renderHsn();
+    await userEvent.type(screen.getByPlaceholderText(/laptop/), "xyznonexistent");
+    expect(screen.getByRole("status")).toHaveTextContent("No results found");
   });
 });
