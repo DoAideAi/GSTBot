@@ -9,6 +9,12 @@ describe("ewayBillRequired", () => {
 });
 
 describe("validityDays", () => {
+  it("has no answer for an infinite distance", () => {
+    expect(validityDays(Infinity)).toBeNull();
+    expect(validityDays(parseFloat("1e400"))).toBeNull();
+  });
+
+
   it("normal cargo gets a day per 200 km or part of it", () => {
     expect(validityDays(1)).toBe(1);
     expect(validityDays(200)).toBe(1);
@@ -40,6 +46,11 @@ describe("validUntil", () => {
   it("is empty without a date or a validity", () => {
     expect(validUntil("", 2)).toBeNull();
     expect(validUntil("2026-10-05", null)).toBeNull();
+  });
+
+  it("is empty rather than throwing for a validity no calendar can reach", () => {
+    expect(validUntil("2026-10-05", validityDays(1e12))).toBeNull();
+    expect(validUntil("2026-10-05", 1e9)).toBeNull();
   });
 });
 

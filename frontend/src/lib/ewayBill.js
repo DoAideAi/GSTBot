@@ -16,7 +16,8 @@ export function ewayBillRequired(consignmentValue) {
 export const KM_PER_DAY = { normal: 200, odc: 20 };
 
 export function validityDays(distanceKm, overDimensional = false) {
-  if (!(distanceKm > 0)) return null;
+  // parseFloat("1e400") is Infinity, which is not a number of days.
+  if (!(distanceKm > 0) || !Number.isFinite(distanceKm)) return null;
   return Math.ceil(distanceKm / (overDimensional ? KM_PER_DAY.odc : KM_PER_DAY.normal));
 }
 
@@ -29,7 +30,10 @@ export function validityDays(distanceKm, overDimensional = false) {
 export function validUntil(generatedOn, days) {
   if (!generatedOn || !days) return null;
   const [y, m, d] = generatedOn.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  const until = new Date(Date.UTC(y, m - 1, d + days));
+  // A typed distance like 1e12 km is billions of days, past the last date a
+  // Date can hold; toISOString throws on that, and it runs on every render.
+  return Number.isNaN(until.getTime()) ? null : until.toISOString().slice(0, 10);
 }
 
 // Ordinary registrations (MH12AB1234, DL1CAA1234) and the Bharat series

@@ -76,6 +76,16 @@ describe("EwayBillGeneratorPage", () => {
     expect(screen.getByText(/23 days/)).toBeInTheDocument();
   });
 
+  it("a distance too large for any calendar does not take the page down", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText("Taxable value (₹)"), "100000");
+    await user.type(screen.getByLabelText("Approximate distance (km)"), "1e12");
+
+    expect(screen.getByLabelText("Approximate distance (km)")).toBeInTheDocument();
+    expect(screen.queryByText(/until midnight/)).not.toBeInTheDocument();
+  });
+
   it("an unregistered recipient appears as URP on the draft", async () => {
     const user = userEvent.setup();
     renderPage();
