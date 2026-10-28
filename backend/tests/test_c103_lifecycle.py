@@ -179,6 +179,25 @@ class TestCancelLifecycle:
         sub = _row(db_session, business.id)
         assert sub.status == SubscriptionStatus.ACTIVE
 
+    def test_a_past_due_lapsed_subscription_can_still_be_cancelled(
+        self, auth_client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.PAST_DUE,
+            razorpay_subscription_id="sub_managed",
+            current_period_end=datetime.now(UTC) - timedelta(hours=1),
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        resp = auth_client.post(CANCEL)
+        assert resp.status_code == 200
+        sub = _row(db_session, business.id)
+        assert sub.status == SubscriptionStatus.CANCELLED
+        assert sub.tier == SubscriptionTier.FREE
+
     def test_double_cancel_is_refused(self, auth_client, db_session, business):
         _pay(auth_client, business.id, payment="pay_1")
         assert auth_client.post(CANCEL).status_code == 200

@@ -428,7 +428,10 @@ def cancel_subscription(
     # for the API response. Cancelling it would move the row from ACTIVE to
     # CANCELLED, making resubscription harder (_order_postdates) for something
     # the business no longer has.
-    if sub.lapsed():
+    #
+    # Narrowed to ACTIVE: a PAST_DUE subscription whose period also lapsed is a
+    # Razorpay-managed one with a billing relationship the business wants to end.
+    if sub.status == SubscriptionStatus.ACTIVE and sub.lapsed():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No active paid subscription to cancel.",
