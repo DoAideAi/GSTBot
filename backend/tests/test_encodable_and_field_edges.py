@@ -222,3 +222,73 @@ class TestHsnCodeBoundaries:
         db_session.expire_all()
         stored = db_session.get(Invoice, invoice.id)
         assert stored.hsn_code is None
+
+
+# -----------------------------------------------------------------------
+# Tax rate validator at the PATCH endpoint
+# -----------------------------------------------------------------------
+
+class TestTaxRateBoundaries:
+
+    @pytest.fixture()
+    def invoice(self, auth_client, db_session, business):
+        inv = Invoice(
+            business_id=business.id,
+            invoice_type=InvoiceType.PURCHASE,
+            invoice_number="INV-RATE-1",
+        )
+        db_session.add(inv)
+        db_session.commit()
+        db_session.refresh(inv)
+        return inv
+
+    @pytest.mark.parametrize("rate", ["0", "5", "12", "18", "28"])
+    def test_standard_gst_slabs_are_accepted(self, auth_client, invoice, rate):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": rate},
+        )
+        assert resp.status_code == 200
+
+    def test_a_rate_that_is_not_a_gst_slab_is_rejected(self, auth_client, invoice):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": "17"},
+        )
+        assert resp.status_code == 422
+        assert "not a GST rate" in resp.text
+
+    def test_a_negative_rate_is_rejected(self, auth_client, invoice):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": "-5"},
+        )
+        assert resp.status_code == 422
+
+    def test_a_rate_over_100_is_rejected(self, auth_client, invoice):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": "101"},
+        )
+        assert resp.status_code == 422
+
+    def test_null_clears_the_rate(self, auth_client, db_session, invoice):
+        auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": "18"},
+        )
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": None},
+        )
+        assert resp.status_code == 200
+        db_session.expire_all()
+        stored = db_session.get(Invoice, invoice.id)
+        assert stored.tax_rate is None
+
+    def test_the_cess_rate_of_0_point_25_is_accepted(self, auth_client, invoice):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"tax_rate": "0.25"},
+        )
+        assert resp.status_code == 200
