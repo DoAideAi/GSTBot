@@ -651,6 +651,16 @@ def process_invoice(
             filename=invoice.source_filename,
             text=invoice.raw_text,
         )
+        if not _still_processing(db, invoice.id):
+            db.rollback()
+            logger.info(
+                "Invoice %s changed while it was parsed; discarding the extraction",
+                invoice.id,
+                extra={"invoice_id": invoice.id, "business_id": business_id},
+            )
+            metrics.count("invoice_parse_superseded")
+            db.refresh(invoice)
+            return invoice
         apply_parsed(db, invoice, parsed, business_gstin=business_gstin)
         number, counterparty = invoice.invoice_number, invoice.counterparty_gstin
         db.commit()
@@ -682,9 +692,7 @@ def process_invoice(
             counterparty_gstin=counterparty,
             invoice_number=number,
         )
-        invoice.status = InvoiceStatus.FAILED
-        invoice.parse_error = _duplicate_message(number, existing)
-        db.commit()
+        _record_failure(db, invoice.id, _duplicate_message(number, existing))
         logger.info(
             "Invoice %s duplicates invoice %s", invoice.id, existing.id if existing else "?",
             extra=_parse_outcome(invoice, business_id, started, duplicate_of=existing),
@@ -695,13 +703,13 @@ def process_invoice(
         # worse than none, and after a failed flush the session refuses to
         # commit anything at all until it is cleared.
         db.rollback()
-        invoice.status = InvoiceStatus.FAILED
-        invoice.parse_error = (
+        _record_failure(
+            db,
+            invoice.id,
             STORED_FILE_MISSING_REASON
             if isinstance(exc, StoredFileMissing)
-            else public_reason(exc)
+            else public_reason(exc),
         )
-        db.commit()
         # Logged after the write-back, not before it: the outcome fields read
         # the row, and before the commit the row still says ``processing``.
         # ``exc_info`` is the exception that was in flight, so this is still
@@ -715,6 +723,45 @@ def process_invoice(
 
     db.refresh(invoice)
     return invoice
+
+
+def _still_processing(db: Session, invoice_id: int) -> bool:
+    """Lock the row and say whether this parse still owns it.
+
+    A parse holds no lock while the model reads the document, which can take
+    the better part of a minute, and the row is not frozen meanwhile: an edit
+    (the way out of a spinner) moves it to ``parsed`` with the user's figures,
+    a delete soft-deletes it, and the stall sweep fails it. The write-back used
+    to land regardless, so a correction typed in during the parse was replaced
+    by the extraction it was correcting, with ``manual`` and its confidence of
+    1.0 overwritten too. The lock is held until the commit that records the
+    outcome, so nothing can move the row between this check and that write.
+    """
+    return db.execute(
+        select(Invoice.id)
+        .where(
+            Invoice.id == invoice_id,
+            Invoice.status == InvoiceStatus.PROCESSING,
+            Invoice.deleted_at.is_(None),
+        )
+        .with_for_update()
+    ).first() is not None
+
+
+def _record_failure(db: Session, invoice_id: int, reason: str) -> None:
+    """Mark a parse failed, unless something else has recorded an outcome since.
+
+    Conditional for the same reason as :func:`_still_processing`: a failure is
+    this attempt's verdict, and an edit or another parse that finished first
+    has the better claim to the row.
+    """
+    db.execute(
+        update(Invoice)
+        .where(Invoice.id == invoice_id, Invoice.status == InvoiceStatus.PROCESSING)
+        .values(status=InvoiceStatus.FAILED, parse_error=reason)
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
 
 
 def _parse_outcome(
