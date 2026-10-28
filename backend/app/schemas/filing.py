@@ -81,7 +81,8 @@ class RecordFilingIn(BaseModel):
         if v is not None and v < gst_calendar.GST_COMMENCEMENT:
             raise ValueError(
                 f"A filing date of {v.isoformat()} predates GST commencement "
-                f"({gst_calendar.GST_COMMENCEMENT.isoformat()})."
+                f"({gst_calendar.GST_COMMENCEMENT.isoformat()}). Check the year "
+                "on the acknowledgement from the portal."
             )
         return v
 

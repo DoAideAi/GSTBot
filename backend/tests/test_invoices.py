@@ -1878,3 +1878,18 @@ class TestTheAuditTrailOfAnInvoice:
         created = [item["invoice"]["id"] for item in response.json()["items"] if item["accepted"]]
         assert sorted(r.invoice_id for r in stored) == sorted(created)
         assert all(r.source == "upload" for r in stored)
+
+
+def test_blanking_an_amount_is_refused_in_words_the_form_can_show(
+    auth_client, sample_invoice_text
+):
+    """The form prefixes the field's label; the message must not repeat it as
+    a snake_case name, and must say what to enter instead."""
+    invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+
+    response = auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"taxable_value": None})
+
+    assert response.status_code == 422
+    [field] = response.json()["error"]["fields"]
+    assert "taxable_value" not in field["message"]
+    assert "Enter 0" in field["message"]

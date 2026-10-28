@@ -369,7 +369,9 @@ def test_register_rejects_a_password_that_is_only_whitespace(client):
     # Eight spaces satisfies min_length and is not in the corpus list.
     response = client.post("/api/v1/auth/register", json={**REGISTRATION, "password": "        "})
     assert response.status_code == 422
-    assert "whitespace" in str(response.json()["detail"]).lower()
+    [entry] = response.json()["detail"]
+    # The sentence the form shows, without pydantic's "Value error, " in front.
+    assert entry["msg"] == "A password cannot be only spaces. Use letters, numbers or symbols."
 
 
 def test_inactive_business_blocks_access(auth_client, db_session):

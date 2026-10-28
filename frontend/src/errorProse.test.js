@@ -405,11 +405,13 @@ describe("what the API client says about a response", () => {
     // the raw objects is how `[object Object]` reaches a user.
     const message = errorMessage({
       detail: [
-        { loc: ["body", "gstin"], msg: "Value error, A GSTIN is 15 characters." },
-        { loc: ["body", "password"], msg: "Value error, Use at least 8 characters." },
+        // As the API sends them: it strips pydantic's "Value error, " prefix,
+        // which used to reach the banner verbatim.
+        { loc: ["body", "gstin"], msg: "A GSTIN is 15 characters." },
+        { loc: ["body", "password"], msg: "Use at least 8 characters." },
       ],
     });
 
-    assertReadsAsProse(message.replaceAll("Value error, ", ""), "a 422 from the register form");
+    assertReadsAsProse(message, "a 422 from the register form");
   });
 });

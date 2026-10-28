@@ -215,7 +215,8 @@ class InvoiceUpdate(BaseModel):
         """
         if v is not None and v > gst_calendar.today_ist():
             raise ValueError(
-                f"A payment date of {v.isoformat()} is in the future."
+                f"A payment date of {v.isoformat()} is in the future. Enter the "
+                "date the supplier was actually paid."
             )
         return v
 
@@ -376,7 +377,10 @@ class InvoiceUpdate(BaseModel):
         """
         if v is None:
             raise ValueError(
-                f"{info.field_name} cannot be cleared. Omit it to leave it "
-                "unchanged, or send 0 (or false) to zero it."
+                # No field name: the form puts the field's label in front of
+                # this, and naming it here printed "Taxable value:
+                # taxable_value cannot be cleared".
+                "This cannot be left empty. Enter 0 if the amount is nil, or "
+                "leave the field as it was."
             )
         return v

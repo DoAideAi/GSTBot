@@ -260,6 +260,13 @@ def _bounded_detail(detail: Any) -> Any:
     return detail
 
 
+# What pydantic puts in front of every message a custom validator raises. The
+# sentence after it is ours, written for the person filling the form; the
+# prefix is pydantic's name for the mechanism, and it reached them verbatim —
+# "Password: Value error, A password cannot be only spaces."
+_VALIDATOR_PREFIX = re.compile(r"^(?:Value error|Assertion failed), ")
+
+
 def _bounded_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
     """``exc.errors()`` with every echoed value bounded.
 
@@ -270,6 +277,8 @@ def _bounded_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
     bounded: list[dict[str, Any]] = []
     for error in exc.errors():
         entry = {key: _bounded(value) for key, value in error.items()}
+        if isinstance(entry.get("msg"), str):
+            entry["msg"] = _VALIDATOR_PREFIX.sub("", entry["msg"], count=1)
         if "input" in entry:
             if _is_secret(error.get("loc", ())):
                 entry["input"] = _REDACTED

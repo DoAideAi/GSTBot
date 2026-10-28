@@ -163,7 +163,9 @@ class RegisterRequest(BaseModel):
         # a breach-corpus check, not a regex; what this catches is the sign-up
         # that would be brute-forced in an afternoon.
         if v.strip() == "":
-            raise ValueError("Password cannot be only whitespace")
+            raise ValueError(
+                "A password cannot be only spaces. Use letters, numbers or symbols."
+            )
         if v.lower() in _COMMON_PASSWORDS:
             raise ValueError("That password is too common. Choose something less guessable.")
         return v
