@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -20,6 +21,7 @@ from app.models.subscription import (
     SubscriptionTier,
     period_length,
 )
+from app.models.subscription_payment import SubscriptionPayment
 from app.models.user import User
 from app.schemas.subscription import (
     CreateOrderRequest,
@@ -218,6 +220,23 @@ def verify_payment(
         )
 
     sub = usage_service.get_subscription(db, business.id)
+    applied = _applied_payment(db, payload.razorpay_payment_id)
+    if applied is not None or (
+        sub is not None and sub.razorpay_subscription_id == payload.razorpay_payment_id
+    ):
+        # Already applied: answered as it stands, never applied again. The row
+        # alone could only recognise its *latest* payment, so re-verifying an
+        # older one — genuine, paid, correctly signed — bought another period
+        # each time. The second test is for the payment on a row from before
+        # the ledger existed.
+        if applied is not None and applied.business_id != business.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This payment has already been applied to another account.",
+            )
+        if sub is not None:
+            return SubscriptionOut.model_validate(sub)
+
     period_end = _period_end_for(order, payload, sub)
     if sub is None:
         sub = Subscription(
@@ -239,14 +258,34 @@ def verify_payment(
                     "Create a new order instead of verifying a payment against it."
                 ),
             )
-        if sub.razorpay_subscription_id != payload.razorpay_payment_id:
-            # A replayed verify of the payment already on the row must not
-            # push the end out again.
-            sub.current_period_end = period_end
+        sub.current_period_end = period_end
         sub.tier = payload.tier
         sub.status = SubscriptionStatus.ACTIVE
         sub.razorpay_subscription_id = payload.razorpay_payment_id
-    db.commit()
+    db.add(
+        SubscriptionPayment(
+            business_id=business.id,
+            razorpay_payment_id=payload.razorpay_payment_id,
+            razorpay_order_id=payload.razorpay_order_id,
+            tier=payload.tier.value,
+            amount_paise=order.get("amount") or 0,
+            period_end=period_end,
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two verifies of one payment raced past the check above; the ledger's
+        # unique key let one through. This one applies nothing.
+        db.rollback()
+        winner = _applied_payment(db, payload.razorpay_payment_id)
+        if winner is None or winner.business_id != business.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This payment has already been applied to another account.",
+            ) from None
+        sub = usage_service.get_subscription(db, business.id)
+        return SubscriptionOut.model_validate(sub)
     db.refresh(sub)
 
     logger.info(
@@ -258,6 +297,14 @@ def verify_payment(
         },
     )
     return SubscriptionOut.model_validate(sub)
+
+
+def _applied_payment(db: Session, payment_id: str) -> SubscriptionPayment | None:
+    return db.scalar(
+        select(SubscriptionPayment).where(
+            SubscriptionPayment.razorpay_payment_id == payment_id
+        )
+    )
 
 
 def _period_end_for(

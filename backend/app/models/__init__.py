@@ -17,6 +17,7 @@ from app.models.referral import Referral
 from app.models.report_purchase import ReportPurchase
 from app.models.subscriber import Subscriber
 from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
+from app.models.subscription_payment import SubscriptionPayment
 from app.models.supplier import RiskLevel, Supplier
 from app.models.usage import UsageRecord
 from app.models.user import User, UserRole
@@ -46,6 +47,7 @@ __all__ = [
     "Subscriber",
     "Supplier",
     "Subscription",
+    "SubscriptionPayment",
     "SubscriptionStatus",
     "SubscriptionTier",
     "UsageRecord",
