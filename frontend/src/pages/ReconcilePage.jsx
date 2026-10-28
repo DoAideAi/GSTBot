@@ -875,6 +875,11 @@ export default function ReconcilePage() {
           )}
         </section>
       )}
+
+      <nav className="next-steps" aria-label="Next steps">
+        <Link to="/filing" className="btn btn-ghost">Prepare filing</Link>
+        <Link to="/suppliers" className="btn btn-ghost">Supplier scores</Link>
+      </nav>
     </div>
   );
 }

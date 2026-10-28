@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import ReadOnlyNotice from "../components/ReadOnlyNotice";
 import { SkeletonPanel } from "../components/Skeleton";
@@ -626,6 +626,16 @@ export default function InvoiceDetailPage() {
           </div>
         </dl>
       </section>
+
+      <nav className="next-steps" aria-label="Next steps">
+        <Link to="/invoices" className="btn btn-ghost">← All invoices</Link>
+        {invoice.invoice_type === "purchase" && (
+          <Link to="/reconcile" className="btn btn-ghost">Reconcile with GSTR-2B</Link>
+        )}
+        {invoice.invoice_type === "sales" && (
+          <Link to="/filing" className="btn btn-ghost">Prepare GSTR-1</Link>
+        )}
+      </nav>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import Meter from "../components/Meter";
 import { SkeletonTable } from "../components/Skeleton";
@@ -464,10 +465,15 @@ export default function SuppliersPage() {
             </button>
           </div>
         ) : items.length === 0 ? (
-          <p className="muted">
-            No suppliers yet. They are created as purchase invoices are parsed, and scored
-            once a period has been reconciled.
-          </p>
+          <div className="empty">
+            <p>
+              No suppliers yet. They are created as purchase invoices are parsed, and scored
+              once a period has been reconciled.
+            </p>
+            {canWrite && (
+              <Link to="/upload" className="btn btn-primary">Upload invoices</Link>
+            )}
+          </div>
         ) : (
           <TableScroll label="Suppliers">
             <table className="table">
@@ -526,6 +532,11 @@ export default function SuppliersPage() {
           </TableScroll>
         )}
       </section>
+
+      <nav className="next-steps" aria-label="Next steps">
+        <Link to="/reconcile" className="btn btn-ghost">Reconcile invoices</Link>
+        <Link to="/invoices" className="btn btn-ghost">View invoices</Link>
+      </nav>
     </div>
   );
 }

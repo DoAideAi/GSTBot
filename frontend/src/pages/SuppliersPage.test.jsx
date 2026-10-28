@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StubAuth } from "../test/auth";
 import SuppliersPage from "./SuppliersPage";
@@ -99,9 +100,11 @@ function mockApi({ items = [supplier()], detail: one = detail(), rescored = 3, f
 
 const renderPage = ({ role } = {}) =>
   render(
-    <StubAuth role={role}>
-      <SuppliersPage />
-    </StubAuth>,
+    <MemoryRouter>
+      <StubAuth role={role}>
+        <SuppliersPage />
+      </StubAuth>
+    </MemoryRouter>,
   );
 
 /**
