@@ -236,21 +236,41 @@ _MAX_ECHOED_INPUT = 200
 _TRUNCATION_MARKER = "…[truncated]"
 
 
-def _bounded(value: Any) -> Any:
+# How far into a rejected body the echo goes.
+#
+# ``_bounded`` used to look at the top level only. That left two holes, both
+# reachable with nothing but a JSON body: a dict of a few keys whose *values*
+# were megabytes each came back whole — the reflector the ceiling above exists
+# to close, one level down — and a body nested a thousand objects deep made
+# ``jsonable_encoder`` recurse past the interpreter's limit inside this
+# handler, so a request that failed validation answered 500 instead of 422.
+# Every real field in this API sits within a few levels of the top; past this
+# depth a value is summarised, not walked.
+_MAX_ECHOED_DEPTH = 4
+
+
+def _bounded(value: Any, depth: int = 0) -> Any:
     """*value* with anything longer than the ceiling above cut down.
 
-    Only strings are shortened in place. A rejected *body* arrives as the whole
-    parsed dict or list, which has no meaningful prefix, so an oversized one is
-    replaced by a note of its type rather than a mangled fragment of itself.
+    Strings are shortened in place. A container is walked, to
+    :data:`_MAX_ECHOED_DEPTH`, with each member bounded the same way; one with
+    more members than the ceiling, or nested below the depth limit, has no
+    meaningful prefix, so it is replaced by a note of its type rather than a
+    mangled fragment of itself.
     """
     if isinstance(value, str):
         if len(value) <= _MAX_ECHOED_INPUT:
             return value
         return value[:_MAX_ECHOED_INPUT] + _TRUNCATION_MARKER
     if isinstance(value, (dict, list, tuple, set)):
-        if len(value) <= _MAX_ECHOED_INPUT:
-            return value
-        return f"<{type(value).__name__} of {len(value)} items{_TRUNCATION_MARKER}>"
+        if len(value) > _MAX_ECHOED_INPUT or (value and depth >= _MAX_ECHOED_DEPTH):
+            return f"<{type(value).__name__} of {len(value)} items{_TRUNCATION_MARKER}>"
+        if isinstance(value, dict):
+            return {
+                _bounded(key, depth + 1): _bounded(item, depth + 1)
+                for key, item in value.items()
+            }
+        return [_bounded(item, depth + 1) for item in value]
     return value
 
 

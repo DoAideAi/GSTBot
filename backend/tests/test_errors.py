@@ -11,6 +11,7 @@ turn it into a response, which would mean never reaching the code under test.
 """
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 import pytest
@@ -465,6 +466,44 @@ class TestA422DoesNotEchoTheWholeRequestBack:
         response = client.post("/api/v1/auth/register", json=[1, 2, 3])
         assert response.status_code == 422
         assert response.json()["detail"][0]["input"] == [1, 2, 3]
+
+    def test_an_oversized_value_one_level_down_is_not_echoed_whole(self, client):
+        """The ceiling only looked at the top level of a rejected body.
+
+        A "missing field" error quotes the whole body it looked in, so a dict
+        of three keys passed the item count and every value inside it came
+        back in full — the reflector closed above, reopened one level down.
+        """
+        response = client.post(
+            "/api/v1/auth/register",
+            json={"a": self.OVERSIZED, "b": [self.OVERSIZED], "c": {"d": self.OVERSIZED}},
+        )
+        assert response.status_code == 422
+        assert len(response.content) < 6_000
+        assert "truncated" in response.text
+
+    @pytest.mark.parametrize("depth", [1_000, 5_000])
+    def test_a_deeply_nested_body_is_a_422_not_a_500(self, raw_client, depth):
+        """The echo was encoded recursively, and a body a thousand objects
+        deep took that past the interpreter's recursion limit inside the 422
+        handler — so a malformed request answered 500 on every JSON route."""
+        payload: dict = {}
+        for _ in range(depth):
+            payload = {"a": payload}
+        response = raw_client.post(
+            "/api/v1/feedback",
+            content=json.dumps(payload),
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 422
+        assert len(response.content) < 2_000
+        assert "truncated" in response.text
+
+    def test_a_shallow_nested_value_is_still_quoted_in_full(self, client):
+        """Depth is cut where no real field reaches, not at the first level."""
+        response = client.post("/api/v1/auth/register", json={"x": {"y": [1, 2]}})
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["input"] == {"x": {"y": [1, 2]}}
 
 
 def test_a_404_from_a_route_keeps_its_own_wording(auth_client):
