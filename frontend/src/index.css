@@ -3038,7 +3038,7 @@ a:focus-visible {
 /* Floating WhatsApp share button */
 .whatsapp-float {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + var(--bottom-bar-height, 0px));
   right: 20px;
   z-index: 100;
   width: 56px;
@@ -3065,7 +3065,7 @@ a:focus-visible {
    Sits above the WhatsApp button that owns bottom: 20px. */
 .feedback-float {
   position: fixed;
-  bottom: 86px;
+  bottom: calc(86px + var(--bottom-bar-height, 0px));
   right: 20px;
   z-index: 100;
   padding: 8px 14px;
@@ -3096,11 +3096,11 @@ a:focus-visible {
 }
 .feedback-modal {
   position: fixed;
-  bottom: 132px;
+  bottom: calc(132px + var(--bottom-bar-height, 0px));
   right: 20px;
   z-index: 101;
   width: min(340px, calc(100vw - 40px));
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 160px - var(--bottom-bar-height, 0px));
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -5662,7 +5662,7 @@ a:focus-visible {
 /* GST AI Advisor chat widget */
 .advisor-float {
   position: fixed;
-  bottom: 142px;
+  bottom: calc(142px + var(--bottom-bar-height, 0px));
   right: 20px;
   z-index: 100;
   width: 52px;
@@ -5685,7 +5685,7 @@ a:focus-visible {
 .advisor-float svg { width: 26px; height: 26px; }
 .advisor-panel {
   position: fixed;
-  bottom: 142px;
+  bottom: calc(142px + var(--bottom-bar-height, 0px));
   right: 20px;
   z-index: 101;
   width: 360px;
@@ -5868,10 +5868,10 @@ a:focus-visible {
   .advisor-panel {
     width: calc(100vw - 24px);
     right: 12px;
-    bottom: 130px;
+    bottom: calc(130px + var(--bottom-bar-height, 0px));
     max-height: 70vh;
   }
-  .advisor-float { right: 12px; bottom: 130px; }
+  .advisor-float { right: 12px; bottom: calc(130px + var(--bottom-bar-height, 0px)); }
 }
 @media print {
   .advisor-float,

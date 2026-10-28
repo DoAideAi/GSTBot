@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useBottomBar } from "../lib/floatingLayout";
 import { track } from "../lib/track";
 
 const DISMISS_KEY = "gstbot_tools_banner_dismissed";
@@ -17,6 +18,8 @@ function isDismissed() {
 export default function StickyToolsBanner() {
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(() => isDismissed());
+  const bar = useRef(null);
+  useBottomBar(bar, visible && !dismissed);
 
   useEffect(() => {
     if (dismissed) return;
@@ -33,7 +36,7 @@ export default function StickyToolsBanner() {
   };
 
   return (
-    <div className="sticky-tools-banner" role="complementary" aria-label="Free tools banner">
+    <div ref={bar} className="sticky-tools-banner" role="complementary" aria-label="Free tools banner">
       <div className="sticky-tools-banner-inner">
         <span className="sticky-tools-banner-text">
           <strong>25+ free GST tools</strong> — no login needed. Calculate, verify, and file GST instantly.

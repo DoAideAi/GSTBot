@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useExclusivePanel } from "../lib/floatingLayout";
 import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
 import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
@@ -14,6 +15,8 @@ const SUGGESTED_QUESTIONS = [
 
 export default function GstAdvisor() {
   const [open, setOpen] = useState(false);
+  const closePanel = useCallback(() => setOpen(false), []);
+  useExclusivePanel("advisor", open, closePanel);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

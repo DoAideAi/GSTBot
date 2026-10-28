@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useBottomBar } from "../lib/floatingLayout";
 import { track } from "../lib/track";
 
 const DISMISS_KEY = "gstbot_cta_dismissed";
@@ -119,6 +120,8 @@ export function StickyMobileCTA() {
   const { user } = useAuth();
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(() => isDismissed(REMIND_KEY));
+  const bar = useRef(null);
+  useBottomBar(bar, Boolean(!user && !dismissed && visible));
 
   useEffect(() => {
     if (user || dismissed) return;
@@ -133,7 +136,7 @@ export function StickyMobileCTA() {
   if (user || dismissed || !visible) return null;
 
   return (
-    <div className="sticky-mobile-cta" role="complementary" aria-label="Sign up">
+    <div ref={bar} className="sticky-mobile-cta" role="complementary" aria-label="Sign up">
       <Link
         to="/login"
         className="btn btn-primary sticky-mobile-cta-btn"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
+import { useExclusivePanel } from "../lib/floatingLayout";
 import { routeChanged, snapshot } from "../lib/sessionTracker";
 
 export const CATEGORIES = [
@@ -55,6 +56,11 @@ export default function FeedbackWidget() {
     }
     buttonRef.current?.focus();
   }, [sent]);
+
+  // Opening the advisor closes this, and opening this closes the advisor:
+  // both panels open into the same space above the corner.
+  const dismissForOther = useCallback(() => setOpen(false), []);
+  useExclusivePanel("feedback", open, dismissForOther);
 
   useEffect(() => {
     if (!open) return undefined;
