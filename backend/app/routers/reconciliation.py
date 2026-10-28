@@ -588,6 +588,17 @@ def purchase_report(
                 "this persists."
             ),
         )
+    # Ties the order to the business and run, for the day someone says they
+    # paid for a report they cannot download.
+    logger.info(
+        "Report order created",
+        extra={
+            "business_id": business.id,
+            "run_id": run.id,
+            "razorpay_order_id": order["id"],
+            "amount_paise": order["amount"],
+        },
+    )
     return ReportOrderOut(
         run_id=run.id,
         already_purchased=False,
@@ -730,7 +741,14 @@ def verify_report_payment(
 
     logger.info(
         "Report purchased",
-        extra={"business_id": business.id, "user_id": current_user.id, "run_id": run.id},
+        extra={
+            "business_id": business.id,
+            "user_id": current_user.id,
+            "run_id": run.id,
+            "razorpay_payment_id": payload.razorpay_payment_id,
+            "razorpay_order_id": payload.razorpay_order_id,
+            "amount_paise": price,
+        },
     )
     return done
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
@@ -523,3 +524,17 @@ class TestALargeReportBuildsInLinearTime:
         pages = PdfReader(BytesIO(build_pdf(run, business))).pages
         text = "".join(page.extract_text() for page in pages)
         assert "<b>A&B</b>" in text
+
+
+class TestThePurchaseTrail:
+    def test_a_purchase_is_logged_with_its_payment_order_and_price(
+        self, auth_client, db_session, business, caplog
+    ):
+        run = _run(db_session, business)
+        with caplog.at_level(logging.INFO, logger="app.routers.reconciliation"):
+            _buy(auth_client, business, run)
+
+        [record] = [r for r in caplog.records if r.getMessage() == "Report purchased"]
+        assert (record.business_id, record.run_id) == (business.id, run.id)
+        assert (record.razorpay_payment_id, record.razorpay_order_id) == ("pay_rpt", "order_rpt")
+        assert record.amount_paise == PRICE
