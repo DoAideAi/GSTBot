@@ -338,6 +338,39 @@ def test_validation_errors_are_json_serialisable(client):
     assert response.json()["error"]["code"] == "validation_error"
 
 
+class TestAnUnpairedSurrogateIsRefusedNotCrashedOn:
+    """JSON may spell half of a UTF-16 pair, and Python parses it as written.
+
+    The 422 quotes the rejected value back, and UTF-8 cannot encode a lone
+    surrogate, so refusing it raised while writing the response: one escaped
+    ``\\ud800`` in any validated string field was a 500 on every route.
+    """
+
+    def _post(self, client, path, raw):
+        return client.post(path, content=raw, headers={"content-type": "application/json"})
+
+    def test_a_rejected_value_is_quoted_with_the_half_pair_replaced(self, raw_client):
+        response = self._post(
+            raw_client, "/api/v1/auth/register", b'{"email": "a\\ud800b@example.com"}'
+        )
+        assert response.status_code == 422
+        assert "\ufffd" in response.text or "\\ufffd" in response.text
+        assert response.json()["error"]["code"] == "validation_error"
+
+    def test_an_authenticated_route_refuses_it_too(self, raw_client, auth_client):
+        response = raw_client.post(
+            "/api/v1/reconciliation/run",
+            content=b'{"period": "\\ud800"}',
+            headers={**dict(auth_client.headers), "content-type": "application/json"},
+        )
+        assert response.status_code == 422
+
+    def test_a_real_pair_is_kept_whole(self):
+        # Only the half that cannot be written is replaced; an emoji survives.
+        body = error_body(422, "\U0001f600 and \ud800")
+        assert body["detail"] == "\U0001f600 and \ufffd"
+
+
 class TestA422DoesNotEchoTheWholeRequestBack:
     """Pydantic puts the rejected value in each error's ``input``.
 
