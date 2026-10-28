@@ -31,7 +31,20 @@ describe("errorMessage", () => {
       { loc: ["body", "gstin"], msg: "GSTIN check digit does not match" },
       { loc: ["body", "password"], msg: "too short" },
     ];
-    expect(errorMessage({ detail })).toBe("GSTIN check digit does not match, too short");
+    expect(errorMessage({ detail })).toBe("GSTIN check digit does not match, Password: too short");
+  });
+
+  it("says which field a generic validation message is about", () => {
+    const detail = [
+      { loc: ["body", "email"], msg: "Field required" },
+      { loc: ["body", "invoice_date"], msg: "Input should be a valid date" },
+      { loc: ["body", "items", 0, "hsn_code"], msg: "Field required" },
+      { loc: ["body", 29], msg: "JSON decode error" },
+    ];
+    expect(errorMessage({ detail })).toBe(
+      "Email: Field required, Invoice date: Input should be a valid date, " +
+        "HSN code: Field required, JSON decode error",
+    );
   });
 
   it("reads the message out of a structured conflict", () => {

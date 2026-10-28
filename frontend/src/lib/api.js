@@ -359,7 +359,7 @@ function flatten(detail) {
   if (typeof detail === "string") return detail;
   // Validation errors arrive as a list of {loc, msg} objects.
   if (Array.isArray(detail)) {
-    return detail.map((d) => d.msg ?? JSON.stringify(d)).join(", ");
+    return detail.map((d) => (d.msg == null ? JSON.stringify(d) : fieldMessage(d))).join(", ");
   }
   // Our own structured conflicts, e.g. the duplicate-upload response.
   if (detail && typeof detail === "object") {
@@ -367,6 +367,28 @@ function flatten(detail) {
   }
   return String(detail);
 }
+
+/**
+ * One validation entry as a sentence that says which field it is about.
+ *
+ * Pydantic's own messages do not: a register form missing both fields read
+ * "Field required, Field required", and a short password "String should have
+ * at least 8 characters" with nothing to say which input to fix. The field is
+ * the last named part of `loc`; a message that already names it — our own
+ * "GSTIN check digit does not match" — is left as it is.
+ */
+function fieldMessage({ loc, msg }) {
+  const name = Array.isArray(loc) ? [...loc].reverse().find((part) => typeof part === "string") : null;
+  if (!name || ["body", "query", "path", "header"].includes(name)) return msg;
+  const label = name
+    .split("_")
+    .map((word) => (FIELD_ACRONYMS.has(word) ? word.toUpperCase() : word))
+    .join(" ");
+  if (msg.toLowerCase().includes(label.toLowerCase())) return msg;
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${msg}`;
+}
+
+const FIELD_ACRONYMS = new Set(["gst", "gstin", "hsn", "sac", "pan", "arn", "itc", "otp"]);
 
 export const api = {
   // ---- Auth ----
