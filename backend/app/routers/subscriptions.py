@@ -559,6 +559,25 @@ def cancel_subscription(
                     "or contact support if this persists."
                 ),
             )
+    # Everything above was read with no lock, and verify-payment may have
+    # applied a renewal since: a new payment, a later period end. Cancelling
+    # over it wrote FREE across a period the user had just paid for. Take the
+    # same lock verify holds (after the provider call, so it is never held
+    # across one), re-read, and refuse if the subscription is no longer the
+    # one the user asked to cancel.
+    seen = (provider_id, sub.current_period_end)
+    _serialise_billing(db, business.id)
+    db.refresh(sub)
+    if (sub.razorpay_subscription_id or "", sub.current_period_end) != seen:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "A payment was applied to this subscription while it was being "
+                "cancelled. Review the renewed plan, then cancel again if you "
+                "still want to."
+            ),
+        )
     sub.tier = SubscriptionTier.FREE
     sub.status = SubscriptionStatus.CANCELLED
     db.commit()
