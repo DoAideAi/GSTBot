@@ -223,6 +223,7 @@ def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
 @router.get(
     "/google",
     summary="Initiate Google OAuth login",
+    description="Redirects to Google's consent screen. The browser returns to `/google/callback`.",
     dependencies=[Depends(_oauth_initiate_limit)],
     **_LOGIN_REDIRECT,
 )
@@ -233,6 +234,11 @@ async def google_login(request: Request):
 @router.get(
     "/google/callback",
     summary="Handle Google OAuth callback",
+    description=(
+        "Exchanges Google's authorization code for a token, resolves the user "
+        "(creating an account if needed), and redirects into the app with a "
+        "bearer token in the URL fragment. On failure, redirects to `/login?error=…`."
+    ),
     dependencies=[Depends(_oauth_callback_limit)],
     **_CALLBACK_REDIRECT,
 )
@@ -270,6 +276,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 @router.get(
     "/github",
     summary="Initiate GitHub OAuth login",
+    description="Redirects to GitHub's consent screen. The browser returns to `/github/callback`.",
     dependencies=[Depends(_oauth_initiate_limit)],
     **_LOGIN_REDIRECT,
 )
@@ -280,6 +287,11 @@ async def github_login(request: Request):
 @router.get(
     "/github/callback",
     summary="Handle GitHub OAuth callback",
+    description=(
+        "Exchanges GitHub's authorization code for a token, fetches the "
+        "user's primary verified email (from `/user/emails` when the profile "
+        "omits it), and redirects into the app with a bearer token or an error."
+    ),
     dependencies=[Depends(_oauth_callback_limit)],
     **_CALLBACK_REDIRECT,
 )
@@ -334,6 +346,7 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
 @router.get(
     "/microsoft",
     summary="Initiate Microsoft OAuth login",
+    description="Redirects to Microsoft's consent screen. The browser returns to `/microsoft/callback`.",
     dependencies=[Depends(_oauth_initiate_limit)],
     **_LOGIN_REDIRECT,
 )
@@ -344,6 +357,11 @@ async def microsoft_login(request: Request):
 @router.get(
     "/microsoft/callback",
     summary="Handle Microsoft OAuth callback",
+    description=(
+        "Exchanges Microsoft's authorization code for a token, reads the "
+        "email from `userinfo` (falling back to `preferred_username`), and "
+        "redirects into the app with a bearer token or an error."
+    ),
     dependencies=[Depends(_oauth_callback_limit)],
     **_CALLBACK_REDIRECT,
 )

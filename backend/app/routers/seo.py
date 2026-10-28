@@ -283,6 +283,10 @@ def sitemap() -> Response:
 @router.get(
     "/seo/robots.txt",
     summary="Robots.txt for search engine crawlers",
+    description=(
+        "Allows all crawlers on all public pages and points at the XML "
+        "sitemap. Cached for 24 hours."
+    ),
     dependencies=[Depends(_seo_limit)],
 )
 def robots() -> Response:
