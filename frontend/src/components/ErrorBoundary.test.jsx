@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import ErrorBoundary, { SectionBoundary } from "./ErrorBoundary";
+import ErrorBoundary, { isChunkLoadError, SectionBoundary } from "./ErrorBoundary";
 
 /** Throws on render when `explode` is true. */
 function Bomb({ explode, message = "Cannot read properties of null" }) {
@@ -34,6 +34,36 @@ describe("ErrorBoundary", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("Everything is fine")).toBeInTheDocument();
+  });
+
+  it("says the app was updated when a screen's file cannot be fetched", () => {
+    // After a deploy an open tab asks for a chunk that no longer exists. Try
+    // again cannot fix that (React.lazy keeps the rejected import), and the
+    // text to quote would be the browser's own.
+    render(
+      <MemoryRouter>
+        <ErrorBoundary>
+          <Bomb explode message="Failed to fetch dynamically imported module: /assets/Filing-3f2a.js" />
+        </ErrorBoundary>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "This app has been updated" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/dynamically imported module/)).not.toBeInTheDocument();
+  });
+
+  it("recognises each browser's wording for a failed chunk, and nothing else", () => {
+    for (const message of [
+      "Failed to fetch dynamically imported module: https://x/a.js", // Chrome
+      "error loading dynamically imported module", // Firefox
+      "Importing a module script failed.", // Safari
+    ]) {
+      expect(isChunkLoadError(new TypeError(message))).toBe(true);
+    }
+    expect(isChunkLoadError(Object.assign(new Error("x"), { name: "ChunkLoadError" }))).toBe(true);
+    expect(isChunkLoadError(new Error("Cannot read properties of null"))).toBe(false);
+    expect(isChunkLoadError("a string")).toBe(false);
   });
 
   it("catches a render crash instead of blanking the app", () => {

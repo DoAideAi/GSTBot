@@ -28,18 +28,27 @@ function recentPeriodOptions(now = new Date()) {
   return options;
 }
 
-function deadlineBanner(label, dueDate) {
+const dayCount = (n) => `${n} day${n === 1 ? "" : "s"}`;
+
+/*
+ * Exported for its wording. It said "1 days overdue", "1 days left", and on the
+ * due date itself "0 days left" — the one day the reader most needs it to say
+ * that the return is due today.
+ */
+export function deadlineBanner(label, dueDate) {
   const days = daysUntil(dueDate);
   if (days === null) return null;
 
   let tone = "neutral";
-  let text = `${label} due ${dateLabel(dueDate)} — ${days} days left`;
+  let text = `${label} due ${dateLabel(dueDate)} — ${dayCount(days)} left`;
   if (days < 0) {
     tone = "bad";
-    text = `${label} was due ${dateLabel(dueDate)} — ${Math.abs(days)} days overdue`;
+    text = `${label} was due ${dateLabel(dueDate)} — ${dayCount(Math.abs(days))} overdue`;
+  } else if (days === 0) {
+    tone = "bad";
+    text = `${label} is due today, ${dateLabel(dueDate)}`;
   } else if (days <= 3) {
     tone = "bad";
-    text = `${label} due ${dateLabel(dueDate)} — ${days} days left`;
   } else if (days <= 7) {
     tone = "warn";
   }

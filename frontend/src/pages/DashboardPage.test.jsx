@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StubAuth } from "../test/auth";
-import DashboardPage from "./DashboardPage";
+import DashboardPage, { deadlineBanner } from "./DashboardPage";
 
 const BUCKET = {
   count: 0,
@@ -335,7 +335,7 @@ describe("DashboardPage", () => {
       const gstr3b = notices.find((n) => n.textContent.includes("GSTR-3B"));
 
       expect(gstr3b).toHaveClass("banner-bad");
-      expect(gstr3b).toHaveTextContent(/0 days left/);
+      expect(gstr3b).toHaveTextContent(/is due today/);
       expect(gstr3b).not.toHaveTextContent(/overdue/);
     });
 
@@ -903,7 +903,9 @@ describe("DashboardPage", () => {
       renderPage();
 
       expect(await screen.findByText(/1 day overdue/)).toBeInTheDocument();
-      expect(screen.queryByText(/1 days/)).not.toBeInTheDocument();
+      // Word-bounded: the deadline banner counts from today's date, and
+      // "161 days overdue" matched a bare /1 days/ once the calendar moved on.
+      expect(screen.queryByText(/\b1 days\b/)).not.toBeInTheDocument();
     });
 
     it("stays hidden when there is no late fee", async () => {
@@ -994,5 +996,27 @@ describe("DashboardPage", () => {
       await screen.findByText(/Umang Traders/);
       expect(screen.queryByText("Last reconciliation")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("deadlineBanner wording", () => {
+  // Midday, so a day boundary is never a question of which hour the test ran.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 4, 20, 12, 0, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("says one day, not one days, either side of the date", () => {
+    expect(deadlineBanner("GSTR-3B", "2026-05-19").text).toMatch(/— 1 day overdue$/);
+    expect(deadlineBanner("GSTR-3B", "2026-05-21").text).toMatch(/— 1 day left$/);
+    expect(deadlineBanner("GSTR-3B", "2026-05-22").text).toMatch(/— 2 days left$/);
+  });
+
+  it("says the return is due today on the day, not that 0 days are left", () => {
+    const banner = deadlineBanner("GSTR-3B", "2026-05-20");
+    expect(banner.text).toMatch(/^GSTR-3B is due today/);
+    expect(banner.text).not.toMatch(/0 days/);
+    expect(banner.tone).toBe("bad");
   });
 });

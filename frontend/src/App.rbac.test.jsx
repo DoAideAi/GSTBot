@@ -127,7 +127,9 @@ describe("a viewer's session, end to end", () => {
     await goTo(user, "Suppliers", "Suppliers");
     expect(await screen.findByText(/Northwind/)).toBeInTheDocument();
 
-    await goTo(user, "Alerts", "Alerts");
+    // The link's name carries the open count — "Alerts (1 open)" — once the
+    // books have an alert, so it is matched by its start.
+    await goTo(user, /^Alerts\b/, "Alerts");
     expect(await screen.findByText(/GSTR-3B for 2026-04 is due soon/)).toBeInTheDocument();
 
     // Nine screens, and not one request that would have changed anything.

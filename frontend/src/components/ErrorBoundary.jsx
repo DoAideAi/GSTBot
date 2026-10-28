@@ -80,8 +80,42 @@ function ErrorReference({ error }) {
   );
 }
 
+/**
+ * A lazily-loaded screen whose file could not be fetched.
+ *
+ * Almost always a deploy: the tab was opened before it, and the chunk it asks
+ * for now has a new hash. "Try again" cannot work — `React.lazy` keeps the
+ * rejected import, so the retry throws the same error — and the text to quote
+ * would be the browser's own ("Failed to fetch dynamically imported module").
+ * The only fix is a reload, so that is what this says and offers.
+ */
+export function isChunkLoadError(error) {
+  const text = `${error?.name ?? ""} ${error?.message ?? ""}`;
+  return /ChunkLoadError|dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(
+    text,
+  );
+}
+
+function UpdatedAppFallback() {
+  return (
+    <div className="panel error-fallback" role="alert">
+      <h2>This app has been updated</h2>
+      <p className="muted">
+        A newer version was released while this tab was open. Reload to continue — nothing you
+        have saved is lost.
+      </p>
+      <div className="button-row">
+        <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The whole-screen fallback: the route rendered nothing usable. */
 function PageFallback({ error, reset }) {
+  if (isChunkLoadError(error)) return <UpdatedAppFallback />;
   return (
     <div className="panel error-fallback" role="alert">
       <h2>This screen hit an error</h2>

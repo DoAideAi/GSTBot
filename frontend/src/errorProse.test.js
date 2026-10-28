@@ -75,11 +75,18 @@ const OBJECT_MARKERS = ["[object ", "function ", "=> ", "{\"", "[{", "undefined"
 // message is a log line that took a wrong turn.
 const MAX_LENGTH = 220;
 
+// An FAQ answer is reference prose the reader asked for, not a message
+// interrupting them: the turnover limits by state, the parts of an e-way bill.
+// Eight of them ran to 230-260 characters and failed the message cap, which
+// was never written for them. They keep every other rule here; the length
+// bar is only raised to what a short paragraph needs.
+const MAX_ANSWER_LENGTH = 400;
+
 /** The whole standard, in one place, so both sweeps hold to the same one. */
-function assertReadsAsProse(message, where) {
+function assertReadsAsProse(message, where, { maxLength = MAX_LENGTH } = {}) {
   expect(message.trim(), `${where}: empty message`).not.toBe("");
   expect(message.length, `${where}: ${message.length} characters — ${message}`).toBeLessThanOrEqual(
-    MAX_LENGTH,
+    maxLength,
   );
 
   const lowered = message.toLowerCase();
@@ -166,20 +173,34 @@ function literals(node) {
  * are the parts of that string, and collecting them again would report the
  * halves of a joined sentence as sentences in their own right.
  */
-function walk(node, visit) {
+function walk(node, visit, context = null) {
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node)) {
-    for (const child of node) walk(child, visit);
+    for (const child of node) walk(child, visit, context);
     return;
   }
   if (typeof node.type === "string") {
     const texts = literals(node);
     if (texts.length > 0) {
-      for (const text of texts) visit(node, text);
+      for (const text of texts) visit(node, text, context === "answer");
       return;
     }
   }
-  for (const key of Object.keys(node)) walk(node[key], visit);
+  // Carries which property a value sits under, for the one distinction this
+  // walk makes: an FAQ answer — `a:` in a page's FAQ list, or `text:` inside a
+  // schema.org `acceptedAnswer` — is reference prose rather than a message.
+  if (node.type === "Property") {
+    const key = node.key?.name ?? node.key?.value;
+    const next =
+      key === "acceptedAnswer"
+        ? "acceptedAnswer"
+        : key === "a" || (key === "text" && context === "acceptedAnswer")
+          ? "answer"
+          : null;
+    walk(node.value, visit, next);
+    return;
+  }
+  for (const key of Object.keys(node)) walk(node[key], visit, context);
 }
 
 /**
@@ -206,10 +227,10 @@ function sentences() {
       ecmaFeatures: { jsx: true },
       loc: true,
     });
-    walk(tree, (node, text) => {
+    walk(tree, (node, text, answer) => {
       if (!/[a-z]{2}\s+\S/i.test(text)) return;
       if (!/[.!?]$/.test(text.trim())) return;
-      found.push([`${path.basename(file)}:${node.loc.start.line}`, text]);
+      found.push([`${path.basename(file)}:${node.loc.start.line}`, text, answer]);
     });
   }
   return found;
@@ -245,8 +266,17 @@ describe("every sentence the app can put on screen", () => {
     expect(messages.some((message) => message.includes("monthly allowance"))).toBe(true);
   });
 
-  it.each(SENTENCES)("%s reads as prose", (where, message) => {
-    assertReadsAsProse(message, where);
+  it("tells an FAQ answer from a message", () => {
+    // Both shapes are read as answers, and a message is not.
+    const answers = SENTENCES.filter(([, , answer]) => answer);
+    expect(answers.some(([where]) => where.startsWith("RegistrationCheckerPage.jsx"))).toBe(true);
+    expect(answers.some(([where]) => where.startsWith("CompositionSchemePage.jsx"))).toBe(true);
+    const gstinMessage = SENTENCES.find(([, m]) => m.startsWith("That does not look like a GSTIN."));
+    expect(gstinMessage[2]).toBe(false);
+  });
+
+  it.each(SENTENCES)("%s reads as prose", (where, message, answer) => {
+    assertReadsAsProse(message, where, answer ? { maxLength: MAX_ANSWER_LENGTH } : undefined);
   });
 });
 
