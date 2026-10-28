@@ -1390,3 +1390,63 @@ class TestASignedBodyOfTheWrongShapeIsNotA500:
                 headers={"X-Razorpay-Signature": "good"},
             )
         assert response.status_code == 400
+
+
+# --------------------------------------------------------------------------
+# The payment trail in the log
+# --------------------------------------------------------------------------
+
+def _record(caplog, message):
+    matches = [r for r in caplog.records if r.getMessage() == message]
+    assert matches, f"no {message!r} log line"
+    return matches[-1]
+
+
+class TestThePaymentTrail:
+    """Enough to answer a dispute from the log alone: which order and payment
+    bought what, for which business, at what price, until when."""
+
+    def test_an_order_is_logged_with_who_it_is_for_and_its_price(
+        self, auth_client, business, caplog
+    ):
+        order = {"id": "order_trail", "amount": 499_00, "currency": "INR"}
+        with (
+            patch.object(razorpay_client, "is_configured", return_value=True),
+            patch.object(razorpay_client, "create_order", return_value=order),
+            caplog.at_level(logging.INFO, logger="app.routers.subscriptions"),
+        ):
+            auth_client.post("/api/v1/subscriptions/create-order", json={"tier": "pro"})
+
+        record = _record(caplog, "Payment order created")
+        assert record.business_id == business.id
+        assert record.razorpay_order_id == "order_trail"
+        assert record.amount_paise == 499_00
+        assert (record.tier, record.billing) == ("pro", "monthly")
+
+    def test_an_activation_names_the_payment_order_amount_and_period(
+        self, auth_client, business, caplog
+    ):
+        with (
+            patch.object(razorpay_client, "verify_payment_signature", return_value=True),
+            patch.object(
+                razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
+            ),
+            caplog.at_level(logging.INFO, logger="app.routers.subscriptions"),
+        ):
+            auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_test",
+                    "razorpay_payment_id": "pay_trail",
+                    "razorpay_signature": "valid_sig",
+                    "tier": "pro",
+                },
+            )
+
+        record = _record(caplog, "Subscription activated")
+        assert record.razorpay_payment_id == "pay_trail"
+        assert record.razorpay_order_id == "order_test"
+        monthly = razorpay_client.TIER_PRICING[SubscriptionTier.PRO]["price_monthly"]
+        assert record.amount_paise == monthly
+        assert record.period_end
+        assert record.renewal is False

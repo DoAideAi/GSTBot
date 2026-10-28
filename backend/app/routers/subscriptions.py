@@ -133,6 +133,18 @@ def create_order(
                 "if this persists."
             ),
         )
+    # The first half of every dispute trail: "I was charged and have no plan"
+    # starts from an order id, and nothing tied one to a business here.
+    logger.info(
+        "Payment order created",
+        extra={
+            "business_id": business.id,
+            "razorpay_order_id": order["id"],
+            "amount_paise": order["amount"],
+            "tier": payload.tier.value,
+            "billing": payload.billing,
+        },
+    )
     return CreateOrderResponse(
         order_id=order["id"],
         amount=order["amount"],
@@ -230,6 +242,14 @@ def verify_payment(
         # each time. The second test is for the payment on a row from before
         # the ledger existed.
         if applied is not None and applied.business_id != business.id:
+            logger.warning(
+                "Payment already redeemed by another business",
+                extra={
+                    "business_id": business.id,
+                    "holder_business_id": applied.business_id,
+                    "razorpay_payment_id": payload.razorpay_payment_id,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This payment has already been applied to another account.",
@@ -238,6 +258,7 @@ def verify_payment(
             return SubscriptionOut.model_validate(sub)
 
     period_end = _period_end_for(order, payload, sub)
+    renewal = sub is not None
     if sub is None:
         sub = Subscription(
             business_id=business.id,
@@ -288,12 +309,19 @@ def verify_payment(
         return SubscriptionOut.model_validate(sub)
     db.refresh(sub)
 
+    # Enough to answer a dispute from the log alone: which payment bought what,
+    # for whom, at what price, until when.
     logger.info(
         "Subscription activated",
         extra={
             "business_id": business.id,
             "user_id": current_user.id,
             "tier": payload.tier.value,
+            "razorpay_payment_id": payload.razorpay_payment_id,
+            "razorpay_order_id": payload.razorpay_order_id,
+            "amount_paise": order.get("amount"),
+            "period_end": period_end.isoformat(),
+            "renewal": renewal,
         },
     )
     return SubscriptionOut.model_validate(sub)
