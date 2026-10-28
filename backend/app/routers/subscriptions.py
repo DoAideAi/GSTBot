@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -735,8 +735,35 @@ async def razorpay_webhook(
             )
             return {"status": "ok"}
         old = sub.status
-        sub.status = new_status
+        # Written only onto the subscription as it was read. Between the read
+        # above and here the user can renew — verify-payment moving a halted
+        # or cancelled subscription back to ``active`` under a new payment id —
+        # and a plain assignment wrote this event's status over that by primary
+        # key: a ``subscription.cancelled`` for the old mandate cancelled the
+        # plan the user had just paid for. Matching the status and the id the
+        # event was looked up by leaves a row that moved on alone; the event
+        # was about a subscription that no longer exists in that form.
+        moved = db.execute(
+            update(Subscription)
+            .where(
+                Subscription.id == sub.id,
+                Subscription.status == old,
+                Subscription.razorpay_subscription_id == razorpay_id,
+            )
+            .values(status=new_status)
+            .execution_options(synchronize_session=False)
+        ).rowcount
         db.commit()
+        if not moved:
+            logger.info(
+                "Webhook skipped: the subscription changed while it was handled",
+                extra={
+                    "business_id": sub.business_id,
+                    "razorpay_id": razorpay_id,
+                    "event": event,
+                },
+            )
+            return {"status": "ok"}
         logger.info(
             "Webhook transitioned subscription %s → %s",
             old.value, new_status.value,

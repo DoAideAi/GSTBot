@@ -1450,3 +1450,82 @@ class TestThePaymentTrail:
         assert record.amount_paise == monthly
         assert record.period_end
         assert record.renewal is False
+
+
+class TestAWebhookRacingARenewal:
+    """The webhook reads the subscription, then writes. A verify-payment that
+    commits in between — the user renewing — must not be overwritten by an
+    event about the mandate it replaced."""
+
+    @staticmethod
+    def _renew_after_the_webhook_reads(db_session, sub_id):
+        from sqlalchemy import event
+
+        engine = db_session.get_bind()
+        state = {"done": False}
+
+        def renew(conn, cursor, statement, parameters, context, executemany):
+            if state["done"] or not statement.lstrip().upper().startswith("SELECT"):
+                return
+            if "FROM subscriptions" not in statement:
+                return
+            state["done"] = True
+            # A second cursor: the first still holds the SELECT's rows.
+            conn.connection.dbapi_connection.cursor().execute(
+                "UPDATE subscriptions SET status = ?, "
+                "razorpay_subscription_id = 'pay_renewed' WHERE id = ?",
+                (SubscriptionStatus.ACTIVE.name, sub_id),
+            )
+
+        event.listen(engine, "after_cursor_execute", renew)
+        return lambda: event.remove(engine, "after_cursor_execute", renew)
+
+    def _post(self, client, event_name, entity):
+        import json
+
+        with patch.object(razorpay_client, "verify_webhook_signature", return_value=True):
+            return client.post(
+                "/api/v1/subscriptions/webhook",
+                content=json.dumps(
+                    {"event": event_name, "payload": {"subscription": {"entity": entity}}}
+                ).encode(),
+                headers={"X-Razorpay-Signature": "valid"},
+            )
+
+    def test_a_cancellation_for_the_old_mandate_does_not_cancel_the_renewal(
+        self, client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.PAST_DUE,
+            razorpay_subscription_id="sub_old",
+        )
+        db_session.add(sub)
+        db_session.commit()
+        stop = self._renew_after_the_webhook_reads(db_session, sub.id)
+        try:
+            response = self._post(client, "subscription.cancelled", {"id": "sub_old"})
+        finally:
+            stop()
+
+        assert response.status_code == 200
+        db_session.expire_all()
+        stored = db_session.get(Subscription, sub.id)
+        assert stored.status is SubscriptionStatus.ACTIVE
+        assert stored.razorpay_subscription_id == "pay_renewed"
+
+    def test_an_uncontested_event_still_transitions(self, client, db_session, business):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.ACTIVE,
+            razorpay_subscription_id="sub_plain",
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        assert self._post(client, "subscription.cancelled", {"id": "sub_plain"}).status_code == 200
+
+        db_session.expire_all()
+        assert db_session.get(Subscription, sub.id).status is SubscriptionStatus.CANCELLED
