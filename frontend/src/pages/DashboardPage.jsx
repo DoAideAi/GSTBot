@@ -384,7 +384,13 @@ export default function DashboardPage() {
         </label>
       </div>
 
-      <ErrorBanner message={error} onDismiss={() => setError("")} />
+      <ErrorBanner
+        message={error}
+        onDismiss={() => setError("")}
+        // A failed load clears the month (see `load`), so dismissing alone left
+        // an empty page with no way back short of changing period or reloading.
+        onRetry={data ? undefined : () => load(period)}
+      />
 
       {data && (
         <>

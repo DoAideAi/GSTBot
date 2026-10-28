@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -269,6 +269,22 @@ describe("DashboardPage", () => {
     });
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Database unavailable");
+  });
+
+  it("offers to try a failed load again, and recovers when it works", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      text: async () => JSON.stringify({ detail: "Database unavailable" }),
+    });
+    renderPage();
+    const retry = await screen.findByRole("button", { name: "Try again" });
+
+    mockDashboard(dashboard());
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 
   describe("the filing deadline notices", () => {
