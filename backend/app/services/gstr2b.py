@@ -84,6 +84,18 @@ class GSTR2BRecord:
     # the portal JSON declares it; a CSV export does not carry it.
     statement_period: str | None = None
 
+    def __post_init__(self) -> None:
+        # A credit note's direction is its document type, not its sign — see
+        # :attr:`is_credit_note` — and every consumer subtracts its amounts.
+        # The portal writes them positive, but this also reads CSV, and an ERP
+        # or Tally export routinely writes a note as -9,000.00. Subtracting that
+        # *added* ₹9,000 of credit: a note issued to take credit back raised the
+        # eligible pool and the statement's summary by its own amount. The
+        # magnitude is the amount; the type already says which way it goes.
+        if self.is_credit_note:
+            for name in ("taxable_value", "cgst", "sgst", "igst", "cess", "total_value"):
+                setattr(self, name, abs(getattr(self, name)))
+
     @property
     def total_tax(self) -> Decimal:
         return self.cgst + self.sgst + self.igst + self.cess

@@ -337,3 +337,33 @@ def test_utf8_bom_is_stripped():
 )
 def test_portal_period_conversion(raw, expected):
     assert gstr2b.period_from_portal(raw) == expected
+
+
+def test_a_credit_note_written_negative_is_stored_as_its_magnitude():
+    """The sign is the document type's job. An ERP export that also signs the
+    figures must not flip the note back into a grant of credit."""
+    note = gstr2b.GSTR2BRecord(
+        document_type="C",
+        taxable_value=Decimal("-50000.00"),
+        igst=Decimal("-9000.00"),
+        total_value=Decimal("-59000.00"),
+    )
+    assert note.taxable_value == Decimal("50000.00")
+    assert note.igst == Decimal("9000.00")
+    assert note.total_tax == Decimal("9000.00")
+
+    invoice = gstr2b.GSTR2BRecord(document_type="R", igst=Decimal("-1.00"))
+    assert invoice.igst == Decimal("-1.00"), "only a credit note is normalised"
+
+
+def test_a_signed_credit_note_takes_credit_away_in_the_summary():
+    """₹18,000 of credit less a ₹9,000 note written as -9,000 is ₹9,000 — the
+    signed note used to be subtracted as a negative and read as ₹27,000."""
+    from app.services.reconciliation import summarise_records
+
+    records = [
+        gstr2b.GSTR2BRecord(document_type="R", taxable_value=Decimal("100000"), igst=Decimal("18000")),
+        gstr2b.GSTR2BRecord(document_type="C", taxable_value=Decimal("-50000"), igst=Decimal("-9000")),
+    ]
+    summary = summarise_records(records)
+    assert summary["total_igst"] == Decimal("9000")
