@@ -7,7 +7,10 @@ import { AuthProvider } from "./hooks/useAuth";
 import { PageTitleProvider } from "./hooks/usePageTitle";
 import { StateCodesProvider } from "./hooks/useStateCodes";
 import { ThemeProvider } from "./hooks/useTheme";
+import { installStaleChunkReload } from "./lib/staleChunk";
 import "./index.css";
+
+installStaleChunkReload();
 
 const fontCss = document.getElementById("font-css");
 if (fontCss) {
