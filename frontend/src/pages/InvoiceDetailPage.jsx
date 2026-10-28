@@ -499,6 +499,19 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
+      {invoice.parse_error && (
+        <section className="banner banner-error" role="alert">
+          <div>
+            <strong>Extraction failed:</strong> {invoice.parse_error}
+          </div>
+          {canWrite && (
+            <button type="button" className="btn btn-ghost" onClick={handleReparse} disabled={busy}>
+              Try re-extracting
+            </button>
+          )}
+        </section>
+      )}
+
       {invoice.warnings?.length > 0 && (
         <section className="panel panel-warn">
           <h2>Needs attention</h2>

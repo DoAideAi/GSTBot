@@ -100,6 +100,60 @@ describe("Journey 1: upload → review invoice → next step", () => {
   });
 });
 
+describe("Journey 5: upload → parsing failure → error feedback → retry", () => {
+  const failed = {
+    id: 99,
+    invoice_number: null,
+    invoice_type: "purchase",
+    status: "failed",
+    counterparty_gstin: null,
+    counterparty_name: null,
+    invoice_date: null,
+    hsn_code: null,
+    taxable_value: "0.00",
+    cgst: "0.00",
+    sgst: "0.00",
+    igst: "0.00",
+    cess: "0.00",
+    total_value: "0.00",
+    invoice_value: "0.00",
+    warnings: [],
+    parsed_with: null,
+    extraction_confidence: null,
+    parse_error: "Could not identify any invoice fields in the uploaded image.",
+  };
+
+  it("shows the parse error so the user knows what went wrong", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse(failed));
+    render(
+      <MemoryRouter initialEntries={["/invoices/99"]}>
+        <StubAuth>
+          <Routes>
+            <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+          </Routes>
+        </StubAuth>
+      </MemoryRouter>,
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/could not identify any invoice fields/i);
+  });
+
+  it("offers re-extraction as a retry path", async () => {
+    global.fetch.mockResolvedValueOnce(jsonResponse(failed));
+    render(
+      <MemoryRouter initialEntries={["/invoices/99"]}>
+        <StubAuth role="owner">
+          <Routes>
+            <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+          </Routes>
+        </StubAuth>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: /try re-extracting/i })).toBeInTheDocument();
+  });
+});
+
 describe("Journey 2: paywall → pricing", () => {
   it("the paid-tier refusal links to pricing", () => {
     render(
