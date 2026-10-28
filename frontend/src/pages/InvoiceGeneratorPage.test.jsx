@@ -118,6 +118,31 @@ describe("InvoiceGeneratorPage", () => {
     expect(screen.getByText(/GSTIN: URP \(Unregistered\) · Place of supply: 29-Karnataka/)).toBeInTheDocument();
   });
 
+  it("escapes the invoice number in the print window's title", async () => {
+    const written = [];
+    const fakeWindow = { document: { write: (html) => written.push(html), close: () => {} } };
+    const open = vi.spyOn(window, "open").mockReturnValue(fakeWindow);
+    try {
+      renderPage();
+      const [sellerName, buyerName] = screen.getAllByPlaceholderText(/business name/i);
+      await userEvent.type(sellerName, "Test Seller");
+      await userEvent.type(buyerName, "Buyer");
+      const number = screen.getByLabelText("Invoice Number");
+      await userEvent.clear(number);
+      await userEvent.type(number, "</title><img src=x onerror=alert(1)>");
+      await userEvent.type(screen.getAllByPlaceholderText("Item description")[0], "Chair");
+      await userEvent.type(screen.getAllByPlaceholderText("0.00")[0], "1000");
+      await userEvent.click(screen.getByText("Preview Invoice"));
+      await userEvent.click(screen.getByText("Download PDF"));
+    } finally {
+      open.mockRestore();
+    }
+    expect(written).toHaveLength(1);
+    const title = written[0].match(/<title>[\s\S]*?<\/title>/)[0];
+    expect(title).toBe("<title>Invoice &lt;/title&gt;&lt;img src=x onerror=alert(1)&gt;</title>");
+    expect(written[0]).not.toContain("<img src=x onerror");
+  });
+
   it("renders FAQ section", () => {
     renderPage();
     expect(screen.getByText("Frequently Asked Questions")).toBeInTheDocument();

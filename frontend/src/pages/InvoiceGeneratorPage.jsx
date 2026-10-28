@@ -13,6 +13,12 @@ import { formatINR } from "../lib/gstCalc";
 import { gstinShapeError } from "../lib/validate";
 import { todayInIndia } from "../lib/returnDueDates";
 
+// The print window is about:blank, which shares this page's origin, so markup
+// in the one field interpolated raw — the invoice number in <title> — ran as
+// this site. The body is React's own escaped DOM and needs nothing.
+const escapeHtml = (value) =>
+  String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
 const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28];
 
 const STATE_CODES = [
@@ -238,7 +244,7 @@ export default function InvoiceGeneratorPage() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Invoice ${invoiceNo}</title>
+<html><head><meta charset="utf-8"><title>Invoice ${escapeHtml(invoiceNo)}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;padding:24px;max-width:800px;margin:0 auto}
