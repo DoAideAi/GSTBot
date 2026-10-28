@@ -90,6 +90,13 @@ def create_order(
             detail="Cannot create an order for the free tier.",
         )
     if not razorpay_client.is_configured():
+        # A customer trying to pay and being turned away: the one 503 here
+        # that is about money, so it is written down rather than left to the
+        # access log's status code.
+        logger.error(
+            "Checkout refused: Razorpay is not configured",
+            extra={"business_id": business.id, "tier": payload.tier.value},
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Payment processing is not configured.",
@@ -275,6 +282,17 @@ async def razorpay_webhook(
     body = await request.body()
     signature = request.headers.get("X-Razorpay-Signature", "")
     if not razorpay_client.verify_webhook_signature(body, signature):
+        # Either somebody other than Razorpay is calling, or the webhook secret
+        # here and in the Razorpay dashboard have drifted apart — in which case
+        # every real event is being refused and nothing else will say so.
+        logger.warning(
+            "Razorpay webhook refused: signature did not verify",
+            extra={
+                "has_signature": bool(signature),
+                "body_length": len(body),
+                "client": request.client.host if request.client else None,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid webhook signature.",
@@ -354,6 +372,19 @@ async def razorpay_webhook(
     }
 
     new_status = _TRANSITION.get(event)
+    if new_status is None or sub.status == new_status:
+        # Acknowledged so Razorpay stops retrying, and recorded so "the
+        # webhook arrived and changed nothing" is distinguishable from "the
+        # webhook never arrived".
+        logger.info(
+            "Webhook acknowledged without a status change",
+            extra={
+                "business_id": sub.business_id,
+                "razorpay_id": razorpay_id,
+                "event": event,
+                "reason": "unhandled event" if new_status is None else "already in that status",
+            },
+        )
     if new_status is not None and sub.status != new_status:
         allowed_from = _VALID_FROM.get(new_status, frozenset())
         if sub.status not in allowed_from:

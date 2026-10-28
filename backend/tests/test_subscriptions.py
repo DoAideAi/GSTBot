@@ -1141,3 +1141,56 @@ class TestPaymentVerificationFailureIsLogged:
             and r.business_id == business.id
             for r in caplog.records
         )
+
+
+class TestPaymentPathLeavesARecord:
+    """GB081: outcomes on the payment path that used to write nothing down."""
+
+    def test_a_refused_signature_is_logged(self, client, caplog):
+        with patch.object(razorpay_client, "verify_webhook_signature", return_value=False):
+            client.post(
+                "/api/v1/subscriptions/webhook",
+                content=b'{"event": "x"}',
+                headers={"X-Razorpay-Signature": "bad"},
+            )
+        [line] = [r for r in caplog.records if "signature did not verify" in r.getMessage()]
+        assert line.levelname == "WARNING"
+        assert line.has_signature is True
+
+    def test_an_event_that_changes_nothing_is_logged(self, client, db_session, business, caplog):
+        import json
+        import logging
+
+        db_session.add(
+            Subscription(
+                business_id=business.id,
+                tier=SubscriptionTier.PRO,
+                status=SubscriptionStatus.ACTIVE,
+                razorpay_subscription_id="sub_noop1",
+            )
+        )
+        db_session.commit()
+        body = json.dumps(
+            {
+                "event": "subscription.charged",
+                "payload": {"subscription": {"entity": {"id": "sub_noop1"}}},
+            }
+        ).encode()
+        with (
+            patch.object(razorpay_client, "verify_webhook_signature", return_value=True),
+            caplog.at_level(logging.INFO, logger="app.routers.subscriptions"),
+        ):
+            resp = client.post(
+                "/api/v1/subscriptions/webhook", content=body, headers={"X-Razorpay-Signature": "v"}
+            )
+        assert resp.status_code == 200
+        [line] = [r for r in caplog.records if "without a status change" in r.getMessage()]
+        assert line.reason == "already in that status"
+        assert line.event == "subscription.charged"
+
+    def test_checkout_without_razorpay_is_logged(self, auth_client, caplog):
+        with patch.object(razorpay_client, "is_configured", return_value=False):
+            resp = auth_client.post("/api/v1/subscriptions/create-order", json={"tier": "pro"})
+        assert resp.status_code == 503
+        [line] = [r for r in caplog.records if "Razorpay is not configured" in r.getMessage()]
+        assert line.levelname == "ERROR"
