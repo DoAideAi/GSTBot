@@ -151,6 +151,16 @@ def _build_contents(history: list[HistoryMessage], message: str) -> list[dict]:
         "Accepts the current message and conversation history. Public — called "
         "from the chatbot widget before and after sign-in."
     ),
+    responses={
+        502: {
+            "description": (
+                "The model refused the question, gave no answer, or failed "
+                "upstream. `detail` says which, and whether rephrasing helps."
+            )
+        },
+        503: {"description": "The model is overloaded, or no API key is configured."},
+        504: {"description": "The model took too long to answer."},
+    },
     dependencies=[Depends(_advisor_limit)],
 )
 async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:

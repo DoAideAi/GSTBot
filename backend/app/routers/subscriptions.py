@@ -78,6 +78,11 @@ def current_subscription(
     "/create-order",
     response_model=CreateOrderResponse,
     summary="Create a Razorpay order for a tier upgrade",
+    responses={
+        400: {"description": "The free tier was requested; there is nothing to pay for."},
+        502: {"description": "Razorpay did not create the order. Safe to retry."},
+        503: {"description": "Payment processing is not configured on this server."},
+    },
     dependencies=[Depends(require_owner), Depends(_order_limit)],
 )
 def create_order(
@@ -129,6 +134,21 @@ def create_order(
     "/verify-payment",
     response_model=SubscriptionOut,
     summary="Verify Razorpay payment and activate subscription",
+    responses={
+        400: {
+            "description": (
+                "The signature does not verify, or the order was not created for "
+                "this business, tier and price, or is not fully paid."
+            )
+        },
+        409: {
+            "description": (
+                "The payment is already applied to another business, or this "
+                "subscription has ended since the order was created."
+            )
+        },
+        502: {"description": "Razorpay could not be asked about the order. Safe to retry."},
+    },
     dependencies=[Depends(require_owner), Depends(_verify_limit)],
 )
 def verify_payment(
@@ -293,6 +313,11 @@ def _require_order_matches(payload: VerifyPaymentRequest, business: Business) ->
     "/cancel",
     response_model=SubscriptionOut,
     summary="Cancel the current subscription (reverts to free)",
+    responses={
+        400: {"description": "There is no paid subscription to cancel."},
+        409: {"description": "The subscription is already cancelled or expired."},
+        502: {"description": "Razorpay did not cancel the subscription. Safe to retry."},
+    },
     dependencies=[Depends(require_owner), Depends(_cancel_limit)],
 )
 def cancel_subscription(

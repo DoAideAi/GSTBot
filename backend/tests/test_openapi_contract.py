@@ -187,6 +187,26 @@ class TestRateLimitedIsDocumentedWhereItCanHappen:
         assert described["description"] == RATE_LIMITED["description"]
 
 
+class TestTheRefusalsTheClientsActOnAreDocumented:
+    """Statuses that the pricing and advisor screens branch on, each raised by
+    the route itself rather than inherited from a dependency, so no sweep above
+    would notice one going undocumented."""
+
+    @pytest.mark.parametrize(
+        ("method", "path", "codes"),
+        [
+            ("post", "/api/v1/subscriptions/create-order", {"400", "502", "503"}),
+            ("post", "/api/v1/subscriptions/verify-payment", {"400", "409", "502"}),
+            ("post", "/api/v1/subscriptions/cancel", {"400", "409", "502"}),
+            ("post", "/api/v1/advisor/ask", {"502", "503", "504"}),
+        ],
+    )
+    def test_each_status_the_route_raises_is_in_its_spec(
+        self, documented, method, path, codes
+    ):
+        assert codes <= documented[(path, method)]
+
+
 class TestFiveHundredStaysBlanket:
     """The one code that really does belong to every route."""
 
