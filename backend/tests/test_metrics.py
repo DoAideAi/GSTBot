@@ -188,3 +188,51 @@ class TestPerformanceBudgets:
 
         hour = next(k for k in fake.hashes if k.startswith("gstbot:metrics:over:"))
         assert fake.hashes[hour] == {"GET /meta/states": 1, "GET /meta/gstin/{gstin}": 1}
+
+
+class TestBusinessEvents:
+    def test_an_event_lands_in_its_hour_and_in_the_summary(self, fake):
+        metrics.count("invoice_parsed", now=NOW)
+        metrics.count("invoice_parse_failed", 3, now=NOW)
+
+        assert fake.hashes[metrics.EVENTS_PREFIX + "2026102814"] == {
+            "invoice_parsed": 1,
+            "invoice_parse_failed": 3,
+        }
+        events = metrics.summary(2, now=NOW)["events"]
+        assert events["invoice_parsed"] == 1
+        assert events["invoice_parse_failed"] == 3
+
+    def test_every_event_is_reported_even_at_zero(self, fake):
+        # A dashboard reading ``events["invoice_parse_failed"]`` should get a
+        # zero on a quiet day, not a KeyError.
+        assert metrics.summary(1, now=NOW)["events"] == dict.fromkeys(metrics.EVENTS, 0)
+
+    def test_an_unknown_event_is_refused(self, fake):
+        with pytest.raises(ValueError):
+            metrics.count("invoice_parsd")
+
+    def test_a_failing_redis_never_fails_the_caller(self, monkeypatch):
+        class Broken:
+            def pipeline(self, transaction=False):
+                raise ConnectionError("gone")
+
+        monkeypatch.setattr(metrics, "get_redis", lambda: Broken())
+        metrics.count("invoice_parsed")  # does not raise
+
+    def test_a_parse_is_counted_and_so_is_the_heuristic_fallback(
+        self, auth_client, fake, sample_invoice_text
+    ):
+        # No model is configured in the suite, so the heuristics read it —
+        # which is exactly the fallback the second counter exists to show.
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("invoice.txt", sample_invoice_text.encode(), "text/plain")},
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code in (200, 201)
+
+        events = metrics.summary(1)["events"]
+        assert events["invoice_parsed"] == 1
+        assert events["invoice_parsed_heuristic"] == 1
+        assert events["invoice_parse_failed"] == 0

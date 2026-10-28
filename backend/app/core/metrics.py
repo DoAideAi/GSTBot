@@ -1,4 +1,4 @@
-"""Request counts, error rates and latency, per hour, across every worker.
+"""Request counts, error rates, latency and business outcomes, per hour, across every worker.
 
 Before this the only record of how the API was doing was one log line per
 request — enough to investigate a request, not to answer "is the error rate
@@ -21,6 +21,7 @@ KEY_PREFIX = "gstbot:metrics:"
 # Which routes went over their budget that hour, as "METHOD /template" -> count.
 # A separate hash so the per-hour row keeps a fixed set of fields.
 OVER_PREFIX = KEY_PREFIX + "over:"
+EVENTS_PREFIX = KEY_PREFIX + "events:"
 RETENTION = timedelta(hours=48)
 SLOW_MS = 1000
 
@@ -33,6 +34,19 @@ FIELDS = (
     "slow",
     "over_budget",
     "latency_ms_sum",
+)
+
+
+# Business outcomes counted beside the requests. A fixed set, so a caller
+# cannot grow the hash with names nobody reads; ``count`` refuses the rest.
+EVENTS = (
+    "invoice_parsed",
+    # Parsed, but by the regex heuristics rather than the model: the rate at
+    # which the provider is failing, which an invoice that still parses hides.
+    "invoice_parsed_heuristic",
+    "invoice_duplicate",
+    "invoice_parse_failed",
+    "invoice_parse_stalled",
 )
 
 
@@ -77,6 +91,28 @@ def record(
         mark_unavailable("metrics write failed")
 
 
+def count(event: str, n: int = 1, *, now: datetime | None = None) -> None:
+    """Count *n* of a business outcome in its hour. Never raises.
+
+    The request counters say the API answered; they cannot say a parse that
+    answered 200 came back ``failed``, or that the model has quietly stopped
+    being the thing that reads invoices. These can.
+    """
+    if event not in EVENTS:
+        raise ValueError(f"unknown metrics event {event!r}")
+    client = get_redis()
+    if client is None:
+        return
+    key = EVENTS_PREFIX + _hour(now or datetime.now(UTC))
+    try:
+        pipe = client.pipeline(transaction=False)
+        pipe.hincrby(key, event, n)
+        pipe.expire(key, int(RETENTION.total_seconds()))
+        pipe.execute()
+    except Exception:  # noqa: BLE001 - a metric is never worth a failed parse
+        mark_unavailable("metrics write failed")
+
+
 def _row(hour: datetime, raw: dict[Any, Any]) -> dict[str, Any]:
     values = {k.decode() if isinstance(k, bytes) else str(k): v for k, v in raw.items()}
     counts = {f: float(values.get(f, 0) or 0) for f in FIELDS}
@@ -108,8 +144,11 @@ def summary(hours: int = 24, *, now: datetime | None = None) -> dict[str, Any] |
             pipe.hgetall(KEY_PREFIX + _hour(hour))
         for hour in hours_list:
             pipe.hgetall(OVER_PREFIX + _hour(hour))
+        for hour in hours_list:
+            pipe.hgetall(EVENTS_PREFIX + _hour(hour))
         fetched = pipe.execute()
-        raws, overs = fetched[: len(hours_list)], fetched[len(hours_list):]
+        n = len(hours_list)
+        raws, overs, event_raws = fetched[:n], fetched[n : 2 * n], fetched[2 * n :]
     except Exception:  # noqa: BLE001
         mark_unavailable("metrics read failed")
         return None
@@ -122,6 +161,12 @@ def summary(hours: int = 24, *, now: datetime | None = None) -> dict[str, Any] |
         for name, count in (raw or {}).items():
             label = name.decode() if isinstance(name, bytes) else str(name)
             by_route[label] = by_route.get(label, 0) + int(float(count))
+    events = dict.fromkeys(EVENTS, 0)
+    for raw in event_raws:
+        for name, value in (raw or {}).items():
+            label = name.decode() if isinstance(name, bytes) else str(name)
+            if label in events:
+                events[label] += int(float(value))
     return {
         "hours": rows,
         "totals": {
@@ -137,4 +182,5 @@ def summary(hours: int = 24, *, now: datetime | None = None) -> dict[str, Any] |
         "over_budget_routes": dict(
             sorted(by_route.items(), key=lambda item: (-item[1], item[0]))[:20]
         ),
+        "events": events,
     }

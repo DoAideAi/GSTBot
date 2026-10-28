@@ -20,6 +20,7 @@ from sqlalchemy import and_, case, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
+from app.core import metrics
 from app.core.config import settings
 from app.core.errors import public_reason
 from app.core.sanitize import clean_text, safe_extension, strip_control_chars, without_nul
@@ -664,6 +665,9 @@ def process_invoice(
             "Invoice %s parsed", invoice.id,
             extra=_parse_outcome(invoice, business_id, started),
         )
+        metrics.count("invoice_parsed")
+        if (invoice.parsed_with or "").endswith("heuristic"):
+            metrics.count("invoice_parsed_heuristic")
     except IntegrityError:
         # The same invoice number from the same counterparty is already on
         # file. Only discoverable here: the number is not known until the
@@ -685,6 +689,7 @@ def process_invoice(
             "Invoice %s duplicates invoice %s", invoice.id, existing.id if existing else "?",
             extra=_parse_outcome(invoice, business_id, started, duplicate_of=existing),
         )
+        metrics.count("invoice_duplicate")
     except Exception as exc:  # noqa: BLE001 - the row is the error channel
         # Rollback before writing the failure: a half-applied extraction is
         # worse than none, and after a failed flush the session refuses to
@@ -706,6 +711,7 @@ def process_invoice(
             exc_info=exc,
             extra=_parse_outcome(invoice, business_id, started),
         )
+        metrics.count("invoice_parse_failed")
 
     db.refresh(invoice)
     return invoice
@@ -840,6 +846,7 @@ def reap_stalled_parses(
                 "invoice_ids": stalled_ids,
             },
         )
+        metrics.count("invoice_parse_stalled", len(stalled_ids))
     return len(stalled_ids)
 
 
