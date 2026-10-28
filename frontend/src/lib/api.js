@@ -708,8 +708,8 @@ export const api = {
   // ---- Subscriptions & Payments ----
   pricing: () => request("/subscriptions/pricing", { auth: false }),
   currentSubscription: () => request("/subscriptions/current"),
-  createOrder: (tier) =>
-    request("/subscriptions/create-order", { method: "POST", body: { tier } }),
+  createOrder: (tier, billing = "monthly") =>
+    request("/subscriptions/create-order", { method: "POST", body: { tier, billing } }),
   verifyPayment: (payload) =>
     request("/subscriptions/verify-payment", { method: "POST", body: payload }),
   cancelSubscription: () =>

@@ -25,6 +25,12 @@ function loadRazorpayScript() {
   });
 }
 
+function formatPrice(paise) {
+  if (!paise) return "Free forever";
+  const rupees = paise / 100;
+  return `₹${rupees.toLocaleString("en-IN")}`;
+}
+
 export default function PricingPage() {
   usePageTitle("Pricing — DoAide GST");
   const { user } = useAuth();
@@ -34,6 +40,7 @@ export default function PricingPage() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [billing, setBilling] = useState("monthly");
 
   const fetchData = useCallback(async () => {
     try {
@@ -72,14 +79,15 @@ export default function PricingPage() {
         return;
       }
 
-      const order = await api.createOrder(tier);
+      const order = await api.createOrder(tier, billing);
+      const periodLabel = billing === "annual" ? "Annual" : "Monthly";
 
       const options = {
         key: order.razorpay_key_id,
         amount: order.amount,
         currency: order.currency,
         name: "DoAide GST",
-        description: `${TIER_LABELS[tier]} Plan — Monthly`,
+        description: `${TIER_LABELS[tier]} Plan — ${periodLabel}`,
         order_id: order.order_id,
         handler: async function (response) {
           try {
@@ -118,10 +126,6 @@ export default function PricingPage() {
     }
   }
 
-  // Cancelling a paid plan took one click, with nothing in flight to stop a
-  // second: a double-click cancelled, then answered "already cancelled" as an
-  // error under the success message. It is confirmed first now, and the
-  // controls go dead while the request runs.
   const [cancelling, setCancelling] = useState(false);
   async function handleCancel() {
     if (cancelling) return;
@@ -155,13 +159,33 @@ export default function PricingPage() {
     <div className="pricing-page">
       <SeoHead
         title="Pricing — DoAide GST"
-        description="Free GST calculator, GSTIN lookup, and HSN search forever. Upgrade from ₹499/month for filing assistance, saved history, and multi-client management."
+        description="Free GST calculator, GSTIN lookup, and HSN search forever. Upgrade from ₹499/month for filing assistance, bulk validation, and GSTR-2B reconciliation."
         path="/pricing"
       />
       <div className="pricing-header">
         <h1>Simple, transparent pricing</h1>
         <p>Calculator, GSTIN lookup, and HSN search are free forever — no login required.</p>
-        <p>Upgrade for filing assistance, saved history, and multi-client management.</p>
+        <p>Upgrade for bulk validation, reconciliation, and ITC optimization.</p>
+      </div>
+
+      <div className="pricing-toggle" role="radiogroup" aria-label="Billing period">
+        <button
+          className={`pricing-toggle-btn${billing === "monthly" ? " pricing-toggle-active" : ""}`}
+          onClick={() => setBilling("monthly")}
+          aria-checked={billing === "monthly"}
+          role="radio"
+        >
+          Monthly
+        </button>
+        <button
+          className={`pricing-toggle-btn${billing === "annual" ? " pricing-toggle-active" : ""}`}
+          onClick={() => setBilling("annual")}
+          aria-checked={billing === "annual"}
+          role="radio"
+        >
+          Annual
+          <span className="pricing-save-badge">Save 17%</span>
+        </button>
       </div>
 
       {error && <div className="pricing-error" role="alert">{error}</div>}
@@ -174,6 +198,12 @@ export default function PricingPage() {
             if (!tier) return null;
             const isCurrent = currentTier === tierKey;
             const isHighlight = tierKey === HIGHLIGHT_TIER;
+            const price = billing === "annual" && tier.price_annual
+              ? tier.price_annual
+              : tier.price_monthly;
+            const perMonth = billing === "annual" && tier.price_annual
+              ? Math.round(tier.price_annual / 1200) * 100
+              : tier.price_monthly;
 
             return (
               <div
@@ -184,7 +214,21 @@ export default function PricingPage() {
                   <div className="pricing-badge">Most Popular</div>
                 )}
                 <h2>{tier.name}</h2>
-                <div className="pricing-price">{tier.price_display}</div>
+                <div className="pricing-price">
+                  {price === 0 ? (
+                    "Free forever"
+                  ) : (
+                    <>
+                      <span className="pricing-amount">{formatPrice(perMonth)}</span>
+                      <span className="pricing-period">/month</span>
+                      {billing === "annual" && (
+                        <div className="pricing-billed">
+                          Billed {formatPrice(price)}/year
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
                 <ul className="pricing-features">
                   {tier.features.map((f, i) => (
                     <li key={i}>{f}</li>
@@ -222,8 +266,6 @@ export default function PricingPage() {
                         {paying ? "Processing..." : "Subscribe"}
                       </button>
                     ) : (
-                      // Was a disabled button reading "Sign in to subscribe"
-                      // that led nowhere.
                       <Link className="btn btn-primary" to="/login">
                         Sign in to subscribe
                       </Link>

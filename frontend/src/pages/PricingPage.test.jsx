@@ -14,18 +14,21 @@ const PRICING_RESPONSE = {
       name: "Free Tools",
       price_display: "Free forever",
       price_monthly: 0,
+      price_annual: 0,
       features: ["GST calculator", "GSTIN lookup & verification", "HSN/SAC code search"],
     },
     pro: {
       name: "SMB",
       price_display: "₹499/month",
-      price_monthly: 499,
+      price_monthly: 49900,
+      price_annual: 499900,
       features: ["GST filing assistance", "Bulk GSTIN lookup", "Saved calculations & history", "Email reports"],
     },
     enterprise: {
       name: "CA",
       price_display: "₹2,999/month",
-      price_monthly: 2999,
+      price_monthly: 299900,
+      price_annual: 2999000,
       features: ["Everything in SMB", "Multi-client management", "Bulk filing", "API access"],
     },
   },
@@ -87,8 +90,20 @@ describe("PricingPage", () => {
     renderPage();
 
     expect(await screen.findByText("Free forever")).toBeInTheDocument();
-    expect(screen.getByText("₹499/month")).toBeInTheDocument();
-    expect(screen.getByText("₹2,999/month")).toBeInTheDocument();
+    expect(screen.getByText("₹499")).toBeInTheDocument();
+    expect(screen.getByText("₹2,999")).toBeInTheDocument();
+    expect(screen.getAllByText("/month")).toHaveLength(2);
+  });
+
+  it("switches to annual pricing when the toggle is clicked", async () => {
+    mockFetch(PRICING_RESPONSE, SUBSCRIPTION_RESPONSE);
+    renderPage();
+
+    await screen.findByText("Free forever");
+    fireEvent.click(screen.getByRole("radio", { name: /Annual/ }));
+
+    expect(screen.getByText("₹417")).toBeInTheDocument();
+    expect(screen.getByText(/Billed ₹4,999\/year/)).toBeInTheDocument();
   });
 
   it("lists features for each tier", async () => {
