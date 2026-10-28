@@ -87,6 +87,36 @@ celery_app.conf.update(
     # renders as a neutral chip that means work in hand, and the dashboard's
     # needs-review count does not include it. The sweep is what makes the
     # sentence true.
+    #
+    # The three below bound what an upload pays when Redis is down, which is
+    # the case the upload's inline-parse fallback exists for. Measured against
+    # an unreachable broker before them: 19s on a refused port, before the
+    # fallback even started, and no answer at all within two minutes on an
+    # address that drops packets.
+    #
+    # Nothing reads a task's return value: every outcome is written to the
+    # row, which is what the UI polls. Storing results anyway made each
+    # ``delay()`` subscribe to the result backend first, and that subscription
+    # retries twenty times before giving up — that was the 19s. Results also
+    # sat in Redis for a day on a box where memory is the scarce thing.
+    task_ignore_result=True,
+    # redis-py's default connect timeout is none at all: a host that drops
+    # packets holds the request thread until the kernel gives up. The same
+    # bound the rate limiter's client uses. socket_timeout is more generous
+    # because the worker's blocking pop shares it.
+    broker_transport_options={
+        "socket_connect_timeout": settings.redis_timeout_seconds,
+        "socket_timeout": 10,
+    },
+    # One retry, quickly. Kombu's default is three with backoff, all of it
+    # spent on the request thread; the fallback beyond it is parsing inline,
+    # which the user is waiting for either way.
+    task_publish_retry_policy={
+        "max_retries": 1,
+        "interval_start": 0,
+        "interval_step": 0.2,
+        "interval_max": 0.2,
+    },
 )
 
 # The hour, in IST, at which the deadline sweep runs. Early enough that an alert
