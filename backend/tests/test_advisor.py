@@ -339,3 +339,29 @@ class TestAdvisorLeavesARecord:
                 assert advisor._get_api_key() is None
         [line] = [r for r in caplog.records if "could not be read" in r.getMessage()]
         assert line.levelname == "ERROR"
+
+
+def test_clients_for_closed_loops_are_not_kept():
+    """GB082: the per-loop client map dropped nothing, so it grew by a client and
+    a dead loop for every event loop the process ever ran."""
+    import asyncio
+
+    from app.routers import advisor
+
+    advisor._clients.clear()
+
+    async def touch():
+        return advisor._client()
+
+    for _ in range(5):
+        asyncio.run(touch())
+    # The last loop is closed too, but entries are pruned on the next call,
+    # so at most one stale entry can be waiting.
+    assert len(advisor._clients) <= 1
+
+    async def touch_and_count():
+        advisor._client()
+        return len(advisor._clients)
+
+    assert asyncio.run(touch_and_count()) == 1
+    advisor._clients.clear()

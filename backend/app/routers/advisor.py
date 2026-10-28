@@ -92,6 +92,13 @@ _clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
 def _client() -> httpx.AsyncClient:
     loop = asyncio.get_running_loop()
+    # A loop that has closed can never run its client again, and nothing else
+    # would remove its entry: any process that makes loops over its life (a
+    # worker that restarts its loop, a test run) grew this dict by one client
+    # and one dead loop per loop. Dropped rather than closed — aclose() needs
+    # the loop that is gone; the sockets go with the objects.
+    for dead in [other for other in _clients if other.is_closed()]:
+        del _clients[dead]
     client = _clients.get(loop)
     if client is None or client.is_closed:
         client = httpx.AsyncClient(
