@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_business, get_current_user, require_owner
-from app.core.rate_limit import RateLimit
+from app.core.rate_limit import RateLimit, client_ip
 from app.models.business import Business
 from app.models.subscription import (
     Subscription,
@@ -673,7 +673,9 @@ async def razorpay_webhook(
             extra={
                 "has_signature": bool(signature),
                 "body_length": len(body),
-                "client": request.client.host if request.client else None,
+                # The caller, not the proxy: behind Caddy ``request.client`` is
+                # the same container address on every forged attempt.
+                "client": client_ip(request),
             },
         )
         raise HTTPException(

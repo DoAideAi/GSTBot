@@ -1246,6 +1246,23 @@ class TestPaymentPathLeavesARecord:
         assert line.levelname == "WARNING"
         assert line.has_signature is True
 
+    def test_a_refused_signature_names_the_caller_not_the_proxy(
+        self, client, caplog, monkeypatch
+    ):
+        # P17 M4: behind Caddy, request.client is the proxy's address on every
+        # forged attempt; client_ip() is the caller the rate limiter sees too.
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "trust_proxy_headers", True)
+        with patch.object(razorpay_client, "verify_webhook_signature", return_value=False):
+            client.post(
+                "/api/v1/subscriptions/webhook",
+                content=b'{"event": "x"}',
+                headers={"X-Razorpay-Signature": "bad", "X-Real-IP": "198.51.100.23"},
+            )
+        [line] = [r for r in caplog.records if "signature did not verify" in r.getMessage()]
+        assert line.client == "198.51.100.23"
+
     def test_an_event_that_changes_nothing_is_logged(self, client, db_session, business, caplog):
         import json
         import logging
