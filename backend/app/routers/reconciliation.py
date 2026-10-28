@@ -17,7 +17,7 @@ from fastapi import (
 )
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -378,8 +378,12 @@ def list_runs(
         conditions.append(ReconciliationRun.period == period)
 
     total = int(db.scalar(select(func.count(ReconciliationRun.id)).where(*conditions)) or 0)
+    # Counts only, as the description promises — and so without ``report``,
+    # the per-invoice findings, which for a busy period runs to thousands of
+    # entries a row on a page of up to a hundred rows.
     rows = db.scalars(
         select(ReconciliationRun)
+        .options(defer(ReconciliationRun.report))
         .where(*conditions)
         .order_by(ReconciliationRun.created_at.desc(), ReconciliationRun.id.desc())
         .limit(limit)
@@ -481,8 +485,10 @@ def get_imported_2b(
     business: Business = Depends(get_current_business),
 ) -> GSTR2BImportOut:
     """The GSTR-2B currently on file for a period."""
+    # The summary columns are the answer; ``data`` is the whole statement.
     found = db.scalar(
         select(GSTRReturn)
+        .options(defer(GSTRReturn.data))
         .where(
             GSTRReturn.business_id == business.id,
             GSTRReturn.period == period,

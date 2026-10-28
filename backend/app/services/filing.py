@@ -34,7 +34,7 @@ from enum import Enum
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.core.sanitize import csv_safe
 from app.models.business import Business
@@ -743,10 +743,16 @@ def filed_returns(
             return {}
         conditions.append(GSTRReturn.period.in_(periods))
 
-    return {
-        (row.period, row.return_type): row
-        for row in db.scalars(select(GSTRReturn).where(*conditions)).all()
-    }
+    # ``data`` is the whole return as built — every B2B invoice of a GSTR-1 —
+    # and neither caller reads it: both ask whether and when a period was
+    # filed. The ITC sweep asks it of the tenant's entire history, every night,
+    # for every tenant.
+    query = (
+        select(GSTRReturn)
+        .options(defer(GSTRReturn.data), defer(GSTRReturn.validation_errors))
+        .where(*conditions)
+    )
+    return {(row.period, row.return_type): row for row in db.scalars(query).all()}
 
 
 @dataclass(frozen=True)
