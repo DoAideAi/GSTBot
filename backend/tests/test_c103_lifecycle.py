@@ -720,3 +720,65 @@ class TestPeriodStackingHandlesNaiveDatetimes:
         naive_end = original_end.replace(tzinfo=None) if original_end.tzinfo else original_end
         aware_end = naive_end.replace(tzinfo=UTC)
         assert new_end - aware_end == timedelta(days=30)
+
+
+# ---- PAST_DUE cancel without lapse ----
+
+class TestPastDueNonLapsedCancel:
+    """A Razorpay-managed sub that is PAST_DUE but whose period hasn't ended
+    can still be cancelled — the business wants to end the billing relationship."""
+
+    def test_past_due_with_future_period_can_be_cancelled(
+        self, auth_client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.PAST_DUE,
+            razorpay_subscription_id="pay_checkout",
+            current_period_end=datetime.now(UTC) + timedelta(days=10),
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        resp = auth_client.post("/api/v1/subscriptions/cancel")
+        assert resp.status_code == 200
+        sub = _row(db_session, business.id)
+        assert sub.status == SubscriptionStatus.CANCELLED
+        assert sub.tier == SubscriptionTier.FREE
+
+
+# ---- PAST_DUE recovery via one-time checkout ----
+
+class TestPastDueRecoveryViaCheckout:
+    """A Razorpay-managed sub that went PAST_DUE can be recovered by paying
+    through the one-time checkout flow — the business bypasses the failed
+    recurring billing."""
+
+    def test_a_past_due_sub_can_be_reactivated_by_a_fresh_payment(
+        self, auth_client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.PAST_DUE,
+            razorpay_subscription_id="sub_pastdue",
+            current_period_end=datetime.now(UTC) - timedelta(hours=1),
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        assert auth_client.get("/api/v1/itc").status_code == 403
+
+        resp = _pay(auth_client, business.id, payment="pay_recover")
+        assert resp.status_code == 200
+        sub = _row(db_session, business.id)
+        assert sub.status == SubscriptionStatus.ACTIVE
+        assert sub.tier == SubscriptionTier.PRO
+        end = sub.current_period_end
+        assert end is not None
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=UTC)
+        assert end > datetime.now(UTC)
+
+        assert auth_client.get("/api/v1/itc").status_code == 200
