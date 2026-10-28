@@ -414,6 +414,40 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
         assert sub.status == SubscriptionStatus.ACTIVE
         assert sub.tier == SubscriptionTier.PRO
 
+    def test_an_order_from_the_same_second_as_the_cancellation_is_accepted(
+        self, auth_client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.FREE,
+            status=SubscriptionStatus.CANCELLED,
+            razorpay_subscription_id="pay_old",
+        )
+        db_session.add(sub)
+        db_session.commit()
+        db_session.refresh(sub)
+        ended = sub.updated_at
+        if ended.tzinfo is None:
+            ended = ended.replace(tzinfo=UTC)
+        same_second = {
+            **_order(business.id, "pro"),
+            "created_at": int(ended.timestamp()),
+        }
+
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(razorpay_client, "fetch_order", return_value=same_second):
+            resp = auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_x",
+                    "razorpay_payment_id": "pay_same_sec",
+                    "razorpay_signature": "sig",
+                    "tier": "pro",
+                },
+            )
+        assert resp.status_code == 200
+
     def test_expired_row_still_rejects_a_stale_order(
         self, auth_client, db_session, business
     ):

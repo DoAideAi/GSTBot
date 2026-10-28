@@ -348,7 +348,10 @@ def _order_postdates(order: dict, sub: Subscription, payment_id: str) -> bool:
     ended = sub.updated_at
     if ended.tzinfo is None:  # SQLite hands back naive UTC
         ended = ended.replace(tzinfo=UTC)
-    return datetime.fromtimestamp(created, tz=UTC) > ended
+    # >= rather than >: a cancel-then-resubscribe in the same wall-clock
+    # second is a fresh purchase, and the payment_id check above already
+    # prevents the old payment from being replayed.
+    return datetime.fromtimestamp(created, tz=UTC) >= ended
 
 
 def _require_order_matches(payload: VerifyPaymentRequest, business: Business) -> dict:
