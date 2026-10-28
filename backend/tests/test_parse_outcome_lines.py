@@ -25,10 +25,14 @@ _LOGGER = "app.services.invoice_service"
 
 
 def _outcome_line(caplog, invoice_id: int) -> logging.LogRecord:
+    # "Invoice stored" names the same invoice and comes first; it is the
+    # upload's line, not the parse's.
     return next(
         record
         for record in caplog.records
-        if record.name == _LOGGER and getattr(record, "invoice_id", None) == invoice_id
+        if record.name == _LOGGER
+        and getattr(record, "invoice_id", None) == invoice_id
+        and record.getMessage() != "Invoice stored"
     )
 
 
