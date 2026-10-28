@@ -207,6 +207,16 @@ class TestCalculateGst:
         assert response.status_code == 422
         assert "1.8% is not a GST rate" in response.json()["detail"]
 
+
+    def test_an_extreme_rate_is_quoted_so_the_sentence_survives(self, client):
+        # Spelt positionally, 1E-999999 is a million characters: the handler
+        # cut it to its ceiling and the list of valid rates never arrived.
+        response = client.get(f"{GPT}/calculate", params={"amount": "100", "rate": "1E-999999"})
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert detail.startswith("1E-999999% is not a GST rate")
+        assert detail.endswith("18, 28, 40")
+
     def test_the_pre_reform_slabs_are_still_accepted_for_old_invoices(self, client):
         for rate in ("12", "28"):
             response = client.get(f"{GPT}/calculate", params={"amount": "100", "rate": rate})

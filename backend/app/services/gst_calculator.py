@@ -48,8 +48,21 @@ def q(value: Decimal) -> Decimal:
 def check_rate(rate: Decimal) -> Decimal:
     if rate not in VALID_RATES:
         allowed = ", ".join(f"{r.normalize():f}" for r in sorted(VALID_RATES))
-        raise GstInputError(f"{rate.normalize():f}% is not a GST rate. Use one of: {allowed}")
+        raise GstInputError(f"{_quoted_rate(rate)}% is not a GST rate. Use one of: {allowed}")
     return rate
+
+
+def _quoted_rate(rate: Decimal) -> str:
+    """The refused rate as the caller would recognise it.
+
+    Positional notation spells ``1E-999999`` as a million characters, which
+    the error handler then cut to its ceiling — so the sentence saying which
+    rates are allowed never arrived, and each such request built a megabyte of
+    zeros to throw away. Past a dozen digits either side, the caller sent it in
+    exponent form and gets it back that way.
+    """
+    normalized = rate.normalize()
+    return f"{normalized:f}" if abs(normalized.adjusted()) <= 12 else f"{normalized:E}"
 
 
 @dataclass(frozen=True)
