@@ -106,6 +106,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
@@ -463,9 +464,18 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(OperationalError)
-    async def _operational(request: Request, exc: OperationalError) -> JSONResponse:
+    @app.exception_handler(PoolTimeoutError)
+    async def _operational(
+        request: Request, exc: OperationalError | PoolTimeoutError
+    ) -> JSONResponse:
         # A dropped connection or an exhausted pool: the request is retryable
         # and the caller should be told so, rather than shown a 500.
+        #
+        # The pool half was not true until both were registered. Waiting out
+        # ``DB_POOL_TIMEOUT`` raises ``sqlalchemy.exc.TimeoutError``, which is
+        # a ``SQLAlchemyError`` but not an ``OperationalError``, so a saturated
+        # pool (the one case this was written for) answered 500 "internal
+        # error" with no Retry-After, and clients that back off on 503 hammered.
         logger.error(
             "Database unavailable",
             extra={"path": request.url.path, "method": request.method},
