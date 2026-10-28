@@ -190,9 +190,25 @@ async def import_gstr2b(
     # it breaks ties toward the latest month rather than on dict ordering —
     # late filings drag earlier months in, and the statement is about the
     # newest of them.
-    resolved = period or next(
+    stamped = next(
         (record.statement_period for record in records if record.statement_period), None
     )
+    # The portal's stamp is the statement's own word on which month it covers,
+    # so a form naming another month is a wrong file or a wrong pick, not a
+    # preference. Letting the form win stored April's statement as May's,
+    # silently replacing whatever May had on file, and reconciled both months'
+    # credit against the wrong supplier filings. A file with no stamp — a CSV
+    # export — still takes the period it is given.
+    if period and stamped and period != stamped:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"{filename} is the GSTR-2B for {stamped}, but it was uploaded as "
+                f"{period}. Pick {stamped}, or download the statement for {period} "
+                "from the portal."
+            ),
+        )
+    resolved = period or stamped
     if resolved is None:
         periods = [record.period for record in records if record.period]
         resolved = max(sorted(set(periods), reverse=True), key=periods.count) if periods else None

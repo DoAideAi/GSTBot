@@ -461,11 +461,36 @@ class TestWhoseStatementThisIs:
         ) == BUSINESS_GSTIN
 
 
+def _unstamped() -> bytes:
+    """The portal fixture with neither period stamp — as a CSV export arrives."""
+    payload = portal_json()
+    del payload["data"]["rtnprd"]
+    payload["data"]["docdata"]["b2b"][0]["supprd"] = ""
+    return json.dumps(payload).encode()
+
+
 class TestWhichPeriodAStatementBelongsTo:
-    def test_an_explicit_period_on_the_form_wins(self, auth_client):
-        response = upload_2b(auth_client, period="2026-05")
+    def test_an_explicit_period_on_the_form_wins_when_the_file_has_no_stamp(
+        self, auth_client
+    ):
+        response = upload_2b(auth_client, content=_unstamped(), period="2026-05")
         assert response.status_code in (200, 201)
         assert response.json()["period"] == "2026-05"
+
+    def test_a_form_period_contradicting_the_portal_stamp_is_refused(self, auth_client):
+        # The fixture is stamped April. Stored as May it would have replaced
+        # May's real statement and reconciled both months against the wrong one.
+        response = upload_2b(auth_client, period="2026-05")
+        assert response.status_code == 422
+        assert "2026-04" in response.json()["detail"]
+        assert "2026-05" in response.json()["detail"]
+        periods = auth_client.get("/api/v1/reconciliation/gstr2b/periods").json()
+        assert "2026-05" not in json.dumps(periods)
+
+    def test_a_form_period_agreeing_with_the_stamp_is_accepted(self, auth_client):
+        response = upload_2b(auth_client, period=PERIOD)
+        assert response.status_code == 201, response.text
+        assert response.json()["period"] == PERIOD
 
     def test_otherwise_the_period_the_portal_stamped_is_used(self, auth_client):
         assert upload_2b(auth_client).json()["period"] == PERIOD
@@ -557,8 +582,8 @@ class TestAPeriodTheCallerNames:
         # nothing wrong. Refusing it here is what makes the two agree.
         assert upload_2b(auth_client, period="2026-04-15").status_code == 422
 
-    def test_a_real_period_still_wins_over_the_file(self, auth_client):
-        response = upload_2b(auth_client, period="2026-05")
+    def test_a_real_period_still_wins_over_an_unstamped_file(self, auth_client):
+        response = upload_2b(auth_client, content=_unstamped(), period="2026-05")
         assert response.status_code == 201, response.text
         assert response.json()["period"] == "2026-05"
 
