@@ -36,6 +36,7 @@ FREE_TOOLS = {
     ("POST", "/api/v1/advisor/ask"),
     ("GET", "/api/v1/subscriptions/pricing"),
     ("POST", "/api/v1/feedback"),
+    ("POST", "/api/v1/feedback/error"),
 }
 
 _AUTH = {deps.get_current_user, deps.oauth2_scheme}

@@ -123,6 +123,8 @@ class TestSetOffNeedsAToken:
             "/api/v1/whatsapp/webhook",
             # Anonymous product feedback from the floating widget.
             "/api/v1/feedback",
+            # Uncaught browser errors, reported by the page on its own.
+            "/api/v1/feedback/error",
             # AI advisor chatbot — public, proxied through the backend.
             "/api/v1/advisor/ask",
             # CA referral program — tracking and leaderboard are public.

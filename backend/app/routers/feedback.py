@@ -1,19 +1,29 @@
 """Product feedback: posted by anyone from the widget, read by site admins."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import UTC, date, datetime, time
+from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_admin
 from app.core.params import Offset
 from app.core.rate_limit import RateLimit, client_ip
-from app.models.feedback import Feedback, FeedbackCategory
-from app.schemas.feedback import FeedbackCreate, FeedbackListOut, FeedbackOut
+from app.models.feedback import ClientError, Feedback, FeedbackCategory
+from app.models.mixins import utcnow
+from app.schemas.feedback import (
+    ClientErrorAck,
+    ClientErrorCreate,
+    FeedbackCreate,
+    FeedbackListOut,
+    FeedbackOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +33,11 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
 # few enough that the inbox cannot be flooded from one connection.
 _submit_limit = RateLimit("feedback", "5/hour", by="ip")
 _read_limit = RateLimit("feedback_read", "120/minute")
+# Error reports are sent by the browser on its own, so a visitor never sees
+# this refused: the widget sends each distinct error once per page load. It is
+# here because the endpoint is public and every *new* message is a new row —
+# without a ceiling, one script could fill the table.
+_error_limit = RateLimit("client_error", "30/minute", by="ip")
 
 MAX_USER_AGENT = 512
 
@@ -51,6 +66,7 @@ def submit_feedback(
         message=body.message,
         email=str(body.email) if body.email else None,
         page_url=body.page_url,
+        meta=body.metadata.model_dump(exclude_none=True) if body.metadata else None,
         user_agent=(request.headers.get("user-agent") or "")[:MAX_USER_AGENT] or None,
         ip_address=client_ip(request),
     )
@@ -111,3 +127,73 @@ def list_feedback(
     return FeedbackListOut(
         items=[FeedbackOut.model_validate(r) for r in rows], total=total
     )
+
+
+def _bare_page(page: str) -> str:
+    """The page without its query string or fragment.
+
+    Both for the fingerprint — ``/lookup?gstin=A`` and ``/lookup?gstin=B``
+    failing the same way is one error — and because a query or fragment can
+    carry a sign-in code or reset token that has no business being stored.
+    """
+    try:
+        parts = urlsplit(page)
+    except ValueError:
+        return page.split("?", 1)[0].split("#", 1)[0]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
+@router.post(
+    "/error",
+    summary="Report an uncaught browser error",
+    description=(
+        "Public — sent by the frontend on its own when a page throws. The same "
+        "message on the same page is stored once and counted, so `occurrences` "
+        "in the answer says how many times it has been seen."
+    ),
+    response_model=ClientErrorAck,
+    responses={
+        422: {"description": "The page or message is missing, or a field is too long."},
+        429: {"description": "More than thirty reports from this address in a minute."},
+    },
+    dependencies=[Depends(_error_limit)],
+)
+def report_client_error(
+    body: ClientErrorCreate, request: Request, db: Session = Depends(get_db)
+) -> ClientErrorAck:
+    page = _bare_page(body.page)
+    fingerprint = hashlib.sha256(f"{page}\n{body.message}".encode()).hexdigest()
+
+    def bump() -> int | None:
+        db.execute(
+            update(ClientError)
+            .where(ClientError.fingerprint == fingerprint)
+            .values(occurrences=ClientError.occurrences + 1, last_seen_at=utcnow())
+        )
+        db.commit()
+        return db.scalar(
+            select(ClientError.occurrences).where(ClientError.fingerprint == fingerprint)
+        )
+
+    seen = db.scalar(select(ClientError.id).where(ClientError.fingerprint == fingerprint))
+    if seen is not None:
+        return ClientErrorAck(occurrences=bump() or 1)
+
+    db.add(
+        ClientError(
+            fingerprint=fingerprint,
+            page=page,
+            message=body.message,
+            stack=body.stack,
+            user_agent=(request.headers.get("user-agent") or "")[:MAX_USER_AGENT] or None,
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two tabs reported the same crash at once and the other one won the
+        # insert: that is a second occurrence, not a failure.
+        db.rollback()
+        return ClientErrorAck(occurrences=bump() or 1)
+    logger.info("Client error recorded", extra={"page": page})
+    return ClientErrorAck(occurrences=1)

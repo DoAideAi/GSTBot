@@ -149,7 +149,8 @@ class TestTheInbox:
         assert [i["message"] for i in body["items"]] == ["new bug", "a wish"]
 
     def test_a_range_running_backwards_is_refused(self, admin):
-        assert admin.get(URL, params={"since": "2026-10-20", "until": "2026-10-01"}).status_code == 422
+        backwards = {"since": "2026-10-20", "until": "2026-10-01"}
+        assert admin.get(URL, params=backwards).status_code == 422
 
     def test_the_last_representable_day_is_not_a_crash(self, admin, seeded):
         assert admin.get(URL, params={"until": "9999-12-31"}).json()["total"] == 3
@@ -161,3 +162,122 @@ class TestTheInbox:
 
     def test_an_unknown_category_filter_is_refused(self, admin):
         assert admin.get(URL, params={"category": "nope"}).status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# What the widget observed about the visit
+# ---------------------------------------------------------------------------
+
+METADATA = {
+    "pages": ["/", "/gstin-validator"],
+    "feature_area": "GSTIN Lookup",
+    "time_on_page_ms": 192_000,
+    "scroll_depth_pct": 80,
+    "click_count": 14,
+    "rage_clicks": 5,
+    "rage_click_targets": ["button#validate"],
+    "form_abandoned": True,
+    "form_time_ms": 150_000,
+    "js_errors": 1,
+    "js_error_messages": ["TypeError: x is undefined"],
+    "reloaded": False,
+}
+
+
+class TestTheVisitTravelsWithTheFeedback:
+    def test_it_is_stored_and_read_back(self, client, admin, db_session, monkeypatch):
+        assert send(client, metadata=METADATA).status_code == 201
+        assert db_session.query(Feedback).one().meta == METADATA
+
+        item = admin.get(URL).json()["items"][0]
+        assert item["metadata"] == METADATA
+
+    def test_feedback_without_it_still_goes_through(self, client, admin):
+        send(client)
+        assert admin.get(URL).json()["items"][0]["metadata"] is None
+
+    def test_a_field_this_server_does_not_know_is_dropped_not_refused(self, client, db_session):
+        # A newer widget must not cost the visitor their feedback.
+        response = send(client, metadata={"scroll_depth_pct": 50, "from_the_future": 1})
+        assert response.status_code == 201
+        assert db_session.query(Feedback).one().meta == {"scroll_depth_pct": 50}
+
+    @pytest.mark.parametrize(
+        "metadata",
+        [
+            {"scroll_depth_pct": 101},
+            {"time_on_page_ms": -1},
+            {"pages": ["/x"] * 51},
+            {"js_error_messages": ["y" * 301]},
+            {"feature_area": "z" * 61},
+        ],
+    )
+    def test_it_is_bounded(self, client, metadata):
+        assert send(client, metadata=metadata).status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Uncaught errors, reported by the browser on its own
+# ---------------------------------------------------------------------------
+
+ERROR_URL = "/api/v1/feedback/error"
+
+
+def report(client, **overrides):
+    body = {
+        "page": "https://gst.doaide.com/gstin-validator",
+        "message": "TypeError: Cannot read properties of undefined (reading 'state')",
+        "stack": "at validate (index-abc.js:1:2)",
+        **overrides,
+    }
+    return client.post(ERROR_URL, json=body, headers={"User-Agent": "pytest-browser/1.0"})
+
+
+class TestUncaughtErrors:
+    def test_anyone_can_report_one(self, client, db_session):
+        from app.models.feedback import ClientError
+
+        response = report(client)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"occurrences": 1}
+        row = db_session.query(ClientError).one()
+        assert row.page == "https://gst.doaide.com/gstin-validator"
+        assert row.stack == "at validate (index-abc.js:1:2)"
+        assert row.user_agent == "pytest-browser/1.0"
+
+    def test_the_same_error_on_the_same_page_is_counted_not_repeated(self, client, db_session):
+        from app.models.feedback import ClientError
+
+        report(client)
+        report(client)
+        assert report(client).json() == {"occurrences": 3}
+        assert db_session.query(ClientError).count() == 1
+
+    def test_the_query_and_fragment_are_not_part_of_the_page(self, client, db_session):
+        from app.models.feedback import ClientError
+
+        report(client, page="https://gst.doaide.com/gstin-validator?gstin=27AAPFU0939F1ZV")
+        assert report(client, page="https://gst.doaide.com/gstin-validator#token=x").json() == {
+            "occurrences": 2
+        }
+        assert db_session.query(ClientError).one().page == "https://gst.doaide.com/gstin-validator"
+
+    def test_a_different_message_or_page_is_a_different_error(self, client, db_session):
+        from app.models.feedback import ClientError
+
+        report(client)
+        report(client, message="ReferenceError: y is not defined")
+        report(client, page="https://gst.doaide.com/hsn-code-finder")
+        assert db_session.query(ClientError).count() == 3
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [("message", ""), ("page", ""), ("stack", "s" * 10_001), ("message", "m" * 2001)],
+    )
+    def test_it_is_bounded(self, client, field, value):
+        assert report(client, **{field: value}).status_code == 422
+
+    def test_a_flood_from_one_address_is_cut_off(self, client, rate_limited):
+        for i in range(30):
+            assert report(client, message=f"Error {i}").status_code == 200
+        assert report(client, message="Error 31").status_code == 429

@@ -124,6 +124,7 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/auth/microsoft/callback",
             "/api/v1/auth/register",
             "/api/v1/feedback",
+            "/api/v1/feedback/error",
             "/api/v1/gpt/calculate",
             "/api/v1/gpt/filing-dates",
             "/api/v1/gpt/gstin/{gstin}",
