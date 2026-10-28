@@ -223,6 +223,15 @@ class TestCalculateGst:
         response = client.get(f"{GPT}/calculate", params={"amount": amount, "rate": "18"})
         assert response.status_code == 422
 
+    @pytest.mark.parametrize(
+        "params",
+        [{"amount": "1", "rate": "-0"},
+         {"amount": "-0", "rate": "18", "mode": "inclusive", "supply_type": "inter_state"}],
+    )
+    def test_a_negative_zero_is_never_printed_with_its_sign(self, client, params):
+        body = client.get(f"{GPT}/calculate", params=params).json()
+        assert not [k for k, v in body.items() if isinstance(v, str) and v.startswith("-")]
+
 
 # ---------------------------------------------------------------------------
 # Invoice
@@ -295,6 +304,28 @@ class TestGenerateInvoice:
         body = _invoice(client, buyer={"name": "Walk-in", "state_code": "27"}).json()
         assert body["supply_type"] == "intra_state"
         assert any("B2C" in w for w in body["warnings"])
+
+    def test_an_empty_buyer_gstin_is_warned_about_as_b2c_too(self, client):
+        body = _invoice(client, buyer={"name": "Walk-in", "gstin": "", "state_code": "27"}).json()
+        assert body["buyer"]["gstin"] is None
+        assert any("B2C" in w for w in body["warnings"])
+
+    @pytest.mark.parametrize("day", ["0001-01-01", "2017-06-30", "2100-01-01", "9999-12-31"])
+    def test_an_invoice_date_outside_gst_is_refused(self, client, day):
+        response = _invoice(client, invoice_date=day)
+        assert response.status_code == 422
+        assert "outside GST" in response.json()["detail"]
+
+    def test_gst_s_first_and_last_days_are_accepted(self, client):
+        assert _invoice(client, invoice_date="2017-07-01").status_code == 200
+        assert _invoice(client, invoice_date="2099-12-31").status_code == 200
+
+    def test_a_negative_zero_line_prints_no_signed_zero(self, client):
+        items = [{"description": "Free sample", "quantity": 1, "unit_price": "-0",
+                  "gst_rate": "-0", "discount_percent": "-0"}]
+        body = _invoice(client, items=items).json()
+        printed = [*body["items"][0].values(), *body["tax_summary"][0].values()]
+        assert not [v for v in printed if isinstance(v, str) and v.startswith("-0")]
 
     def test_a_line_without_an_hsn_code_is_named_in_a_warning(self, client):
         items = [{"description": "Thing", "quantity": 1, "unit_price": "10", "gst_rate": 18}]
@@ -453,6 +484,12 @@ class TestFilingDates:
     def test_a_date_before_gst_existed_is_answered_for_its_first_month(self, client):
         body, _ = _dates(client, as_of="2017-07-10")
         assert body["period"] == "2017-07"
+
+    def test_a_date_past_the_last_period_is_refused_not_answered_for_2017(self, client):
+        assert _dates(client, as_of="2100-01-31")[0]["period"] == "2099-12"
+        for as_of in ("2100-02-01", "9999-12-31"):
+            response = client.get(f"{GPT}/filing-dates", params={"as_of": as_of})
+            assert response.status_code == 422
 
     @pytest.mark.parametrize(
         "params",

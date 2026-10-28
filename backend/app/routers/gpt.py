@@ -45,12 +45,15 @@ DISCLAIMER = (
 )
 
 
+# ``+ 0`` drops the sign of a negative zero. ``-0`` passes every ``ge=0``
+# bound and compares equal to the 0% slab, and a ``-0.00`` CGST is not a
+# figure anyone can copy onto an invoice.
 def _money(value: Decimal) -> str:
-    return f"{value:.2f}"
+    return f"{value + 0:.2f}"
 
 
 def _rate(value: Decimal) -> str:
-    return f"{value.normalize():f}"
+    return f"{(value + 0).normalize():f}"
 
 
 def _split(tax: calc.TaxSplit) -> dict[str, Any]:
@@ -262,6 +265,13 @@ def generate_invoice(body: InvoiceRequest) -> dict[str, Any]:
                 "to decide the tax split"
             )
         invoice_date = body.invoice_date or gst_calendar.today_ist()
+        # A date outside the periods GST returns cover is a slipped year, not
+        # an invoice: nothing before July 2017 carried GST.
+        if not gst_calendar.is_period(gst_calendar.period_of(invoice_date)):
+            raise calc.GstInputError(
+                f"Invoice date {invoice_date.isoformat()} is outside GST: use a date "
+                f"from {gst_calendar.FIRST_PERIOD} to {gst_calendar.LAST_PERIOD}"
+            )
         invoice = calc.build_invoice(
             [
                 calc.LineInput(
@@ -292,7 +302,7 @@ def generate_invoice(body: InvoiceRequest) -> dict[str, Any]:
         }
 
     warnings = []
-    if body.buyer.gstin is None:
+    if not body.buyer.gstin:
         warnings.append(
             "No buyer GSTIN: this is a B2C invoice and the buyer cannot claim ITC on it."
         )
@@ -388,8 +398,15 @@ def filing_dates_for(
     if period is None:
         period = gst_calendar.previous_period(gst_calendar.period_of(today))
         # The month before July 2017 has no return; asking "as of" a date
-        # that early is answered for GST's first month instead of a 500.
+        # that early is answered for GST's first month instead of a 500. One
+        # past the far end is refused: answering it for July 2017 instead
+        # would be a confident date for the wrong decade.
         if not gst_calendar.is_period(period):
+            if period > gst_calendar.LAST_PERIOD:
+                raise _unprocessable(ValueError(
+                    f"as_of {today.isoformat()} is past the last GST period "
+                    f"this answers for ({gst_calendar.LAST_PERIOD})"
+                ))
             period = gst_calendar.FIRST_PERIOD
 
     statuses = [
