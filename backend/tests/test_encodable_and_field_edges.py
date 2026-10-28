@@ -4,11 +4,14 @@
 HTTP response: an unpaired surrogate makes the response unwritable, and
 three call sites depend on it for exactly that.  Zero tests covered it.
 
-The place-of-supply and HSN validators are the two remaining field-level
-gates a human types into at the PATCH endpoint that had no boundary test
-at the HTTP layer.
+The place-of-supply, HSN, and tax-rate validators are the remaining
+field-level gates a human types into at the PATCH endpoint that had no
+boundary test at the HTTP layer.  The sub-paise test pins the
+``decimal_places=2`` constraint at the endpoint.
 """
 from __future__ import annotations
+
+from decimal import Decimal
 
 import pytest
 
@@ -292,3 +295,69 @@ class TestTaxRateBoundaries:
             json={"tax_rate": "0.25"},
         )
         assert resp.status_code == 200
+
+
+# -----------------------------------------------------------------------
+# Sub-paise amounts — decimal_places=2 on the correction endpoint
+# -----------------------------------------------------------------------
+
+class TestSubPaiseAmountsAreRefused:
+    """A correction with three or more decimal places was silently rounded
+    by the column, so the stored figure was not the one the reviewer typed.
+    ``decimal_places=2`` on every money field now refuses it."""
+
+    @pytest.fixture()
+    def invoice(self, auth_client, db_session, business):
+        inv = Invoice(
+            business_id=business.id,
+            invoice_type=InvoiceType.PURCHASE,
+            invoice_number="INV-PAISE-1",
+            taxable_value=Decimal("1000.00"),
+        )
+        db_session.add(inv)
+        db_session.commit()
+        db_session.refresh(inv)
+        return inv
+
+    @pytest.mark.parametrize(
+        "field",
+        ["taxable_value", "cgst", "sgst", "igst", "cess", "total_value"],
+    )
+    def test_three_decimal_places_are_rejected(self, auth_client, invoice, field):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={field: "1000.005"},
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.parametrize(
+        "field",
+        ["taxable_value", "cgst", "sgst", "igst", "cess", "total_value"],
+    )
+    def test_exactly_two_decimal_places_are_accepted(
+        self, auth_client, invoice, field,
+    ):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={field: "1000.05"},
+        )
+        assert resp.status_code == 200
+
+    def test_a_whole_number_is_accepted(self, auth_client, invoice):
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"taxable_value": "1000"},
+        )
+        assert resp.status_code == 200
+
+    def test_the_refused_correction_does_not_change_the_stored_value(
+        self, auth_client, db_session, invoice,
+    ):
+        before = invoice.taxable_value
+        auth_client.patch(
+            f"/api/v1/invoices/{invoice.id}",
+            json={"taxable_value": "999.999"},
+        )
+        db_session.expire_all()
+        stored = db_session.get(Invoice, invoice.id)
+        assert stored.taxable_value == before
