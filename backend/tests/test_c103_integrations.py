@@ -153,3 +153,45 @@ class TestGeminiAnsweringWithSomethingUnusable:
         response = _ask(client, httpx.Response(200, json=body))
         assert response.status_code == 200
         assert response.json()["reply"] == "18%."
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp Cloud API envelopes
+# ---------------------------------------------------------------------------
+
+MALFORMED_ENVELOPES = [
+    [],
+    "x",
+    {"entry": [None]},
+    {"entry": ["x"]},
+    {"entry": [{"changes": [None]}]},
+    {"entry": [{"changes": [{"value": "x"}]}]},
+    {"entry": [{"changes": [{"value": {"messages": [None]}}]}]},
+    {"entry": [{"changes": [{"value": {"messages": [{"from": 5, "type": "text"}]}}]}]},
+    {"entry": [{"changes": [{"value": {"messages": [{"type": "text", "text": "x"}]}}]}]},
+    {"entry": [{"changes": [{"value": {"messages": [{"type": "text", "text": {"body": 7}}]}}]}]},
+    {"entry": [{"changes": [{"value": {"messages": [{"type": "text", "text": {"body": {}}}]}}]}]},
+]
+
+
+class TestAMalformedCloudApiEnvelopeIsNotA500:
+    """The JSON branch is unauthenticated, so its body is whatever anyone
+    sends; each of these raised AttributeError and answered a 500."""
+
+    @pytest.mark.parametrize("envelope", MALFORMED_ENVELOPES, ids=repr)
+    def test_it_is_answered(self, client, envelope):
+        import json
+
+        response = client.post(
+            "/api/v1/whatsapp/webhook",
+            content=json.dumps(envelope),
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 200
+
+    def test_a_well_formed_message_is_still_read(self, client):
+        from app.routers.whatsapp import _cloud_api_message
+
+        message = {"from": "919800000000", "type": "text", "text": {"body": "gst 18% on 1000"}}
+        envelope = {"entry": [{"changes": [{"value": {"messages": [message]}}]}]}
+        assert _cloud_api_message(envelope) == ("919800000000", "gst 18% on 1000")

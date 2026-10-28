@@ -78,6 +78,37 @@ def _verify_twilio_signature(
     return hmac.compare_digest(signature.encode("utf-8"), expected_b64.encode("utf-8"))
 
 
+def _first_object(container: object, key: str) -> dict:
+    """``container[key][0]`` when every step is the shape the Cloud API documents,
+    else ``{}``."""
+    items = container.get(key) if isinstance(container, dict) else None
+    first = items[0] if isinstance(items, list) and items else None
+    return first if isinstance(first, dict) else {}
+
+
+def _cloud_api_message(data: object) -> tuple[str, str]:
+    """``(sender, text)`` from a Cloud API envelope; empty strings for anything else.
+
+    This route is unauthenticated on the JSON branch, so the body is whatever
+    anyone sends. Each level used to be read with ``.get`` on the assumption it
+    was an object: a top-level list, a ``null`` or string entry, a ``null``
+    message or a numeric ``from`` each raised and answered a 500. Every level is
+    now checked, and a shape that is not the documented one is simply no message.
+    """
+    entry = _first_object(data, "entry")
+    change = _first_object(entry, "changes")
+    value = change.get("value")
+    message = _first_object(value, "messages")
+    sender = message.get("from")
+    sender = sender if isinstance(sender, str) else ""
+    text = ""
+    if message.get("type") == "text":
+        content = message.get("text")
+        candidate = content.get("body") if isinstance(content, dict) else None
+        text = candidate if isinstance(candidate, str) else ""
+    return sender, text
+
+
 @router.get(
     "/webhook",
     summary="WhatsApp webhook verification (Cloud API handshake)",
@@ -165,18 +196,7 @@ async def receive_message(request: Request) -> Response:
                 content="Invalid JSON",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        # Navigate the Cloud API envelope.
-        raw_entry = data.get("entry")
-        entry = (raw_entry or [{}])[0] if isinstance(raw_entry, list) else {}
-        raw_changes = entry.get("changes")
-        changes = (raw_changes or [{}])[0] if isinstance(raw_changes, list) else {}
-        value = changes.get("value", {})
-        messages = value.get("messages", [])
-        if messages:
-            msg = messages[0]
-            sender = msg.get("from", "")
-            if msg.get("type") == "text":
-                body = msg.get("text", {}).get("body", "")
+        sender, body = _cloud_api_message(data)
     else:
         return Response(
             content="Unsupported content type",
