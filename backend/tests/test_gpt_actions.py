@@ -305,6 +305,21 @@ class TestGenerateInvoice:
         assert body["supply_type"] == "intra_state"
         assert any("B2C" in w for w in body["warnings"])
 
+    @pytest.mark.parametrize(
+        "override",
+        [
+            {"seller": {"name": "   ", "gstin": MH_FIRM}},
+            {"buyer": {"name": "\t", "state_code": "27"}},
+            {"items": [{"description": "  ", "quantity": 1, "unit_price": "10", "gst_rate": 18}]},
+        ],
+    )
+    def test_a_name_or_description_of_only_spaces_is_refused(self, client, override):
+        assert _invoice(client, **override).status_code == 422
+
+    def test_names_come_back_trimmed(self, client):
+        body = _invoice(client, seller={"name": "  Seller Traders  ", "gstin": MH_FIRM}).json()
+        assert body["seller"]["name"] == "Seller Traders"
+
     def test_an_empty_buyer_gstin_is_warned_about_as_b2c_too(self, client):
         body = _invoice(client, buyer={"name": "Walk-in", "gstin": "", "state_code": "27"}).json()
         assert body["buyer"]["gstin"] is None

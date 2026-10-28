@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.mixins import MONEY_MAX
 
@@ -28,8 +28,21 @@ QUANTITY_MAX = Decimal("1000000")
 MAX_LINES = 100
 
 
+def _has_words(value: str) -> str:
+    """Trimmed, and refused if nothing is left.
+
+    ``min_length=1`` counts spaces, so a party called "   " or an item described
+    as "   " passed and came back on a tax invoice with that box blank.
+    """
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("must contain something other than spaces")
+    return stripped
+
+
 class InvoiceParty(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+    _name_has_words = field_validator("name")(_has_words)
     gstin: str | None = Field(default=None, max_length=GSTIN_INPUT_MAX)
     state_code: str | None = Field(
         default=None, pattern=STATE_CODE_PATTERN,
@@ -40,6 +53,7 @@ class InvoiceParty(BaseModel):
 
 class InvoiceItem(BaseModel):
     description: str = Field(min_length=1, max_length=300)
+    _description_has_words = field_validator("description")(_has_words)
     hsn_code: str | None = Field(default=None, pattern=HSN_PATTERN)
     quantity: Decimal = Field(gt=0, le=QUANTITY_MAX)
     unit: str | None = Field(default=None, max_length=20)
