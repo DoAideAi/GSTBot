@@ -16,7 +16,7 @@ for: whether these alerts cause anybody to do anything.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -55,6 +55,28 @@ _SEVERITY_RANK = case(
 # the Postgres this deploys on and the SQLite the suite runs, and an ordering
 # that silently differs between the two is the kind of thing a test cannot see.
 _UNDATED_LAST = case((Alert.due_date.is_(None), 1), else_=0)
+
+
+def _move_if(
+    db: Session, alert: Alert, to: AlertStatus, *, only_from: tuple[AlertStatus, ...]
+) -> Alert:
+    """Set *alert*'s status to *to* only if it is still in *only_from*.
+
+    Pinned in the WHERE rather than decided off the loaded row, because the
+    daily sweep writes the same column: an alert loaded open and resolved by the
+    sweep before this commits would otherwise be overwritten — a filed return's
+    RESOLVED turned into DISMISSED, the one difference the alert history exists
+    to keep. Same guard ``alert_delivery`` puts on its SENT/FAILED stamp.
+    """
+    db.execute(
+        update(Alert)
+        .where(Alert.id == alert.id, Alert.status.in_(only_from))
+        .values(status=to)
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
+    db.refresh(alert)
+    return alert
 
 
 def _owned_alert(db: Session, business: Business, alert_id: int) -> Alert:
@@ -190,9 +212,8 @@ def mark_read(
     """Mark an alert as seen, without closing it."""
     alert = _owned_alert(db, business, alert_id)
     if alert.status in OPEN_STATUSES and alert.status is not AlertStatus.READ:
-        alert.status = AlertStatus.READ
-        db.commit()
-        db.refresh(alert)
+        unread = tuple(s for s in OPEN_STATUSES if s is not AlertStatus.READ)
+        alert = _move_if(db, alert, AlertStatus.READ, only_from=unread)
     return AlertOut.model_validate(alert)
 
 
@@ -225,7 +246,5 @@ def dismiss(
     """Close an alert. The sweep will not raise it again unless it worsens."""
     alert = _owned_alert(db, business, alert_id)
     if alert.status in OPEN_STATUSES:
-        alert.status = AlertStatus.DISMISSED
-        db.commit()
-        db.refresh(alert)
+        alert = _move_if(db, alert, AlertStatus.DISMISSED, only_from=tuple(OPEN_STATUSES))
     return AlertOut.model_validate(alert)

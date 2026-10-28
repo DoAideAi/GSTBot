@@ -482,3 +482,44 @@ class TestTheBadgeAgreesWithTheList:
         make_alert(db_session, business, status=AlertStatus.DISMISSED, title="three")
 
         assert self.badge(auth_client) == listing(auth_client)["open_total"] == 2
+
+
+class TestAUserActionDoesNotOverwriteTheSweep:
+    """The sweep resolves an alert between the route loading it and writing.
+
+    Simulated with a Core UPDATE that leaves the route's loaded row stale, which
+    is what a concurrent sweep's commit looks like from inside the request.
+    """
+
+    @pytest.fixture
+    def resolved_mid_request(self, monkeypatch, db_session):
+        from sqlalchemy import update
+
+        from app.routers import alerts as alerts_router
+
+        original = alerts_router._owned_alert
+
+        def load_then_sweep(db, business, alert_id):
+            alert = original(db, business, alert_id)
+            db.execute(
+                update(Alert)
+                .where(Alert.id == alert.id)
+                .values(status=AlertStatus.RESOLVED)
+                .execution_options(synchronize_session=False)
+            )
+            return alert
+
+        monkeypatch.setattr(alerts_router, "_owned_alert", load_then_sweep)
+
+    @pytest.mark.parametrize("action", ["dismiss", "read"])
+    def test_a_resolution_landing_first_stays_resolved(
+        self, auth_client, db_session, business, resolved_mid_request, action
+    ):
+        alert = make_alert(db_session, business, status=AlertStatus.SENT)
+
+        response = auth_client.post(f"/api/v1/alerts/{alert.id}/{action}")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "resolved"
+        db_session.expire_all()
+        assert db_session.get(Alert, alert.id).status is AlertStatus.RESOLVED
