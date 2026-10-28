@@ -10,6 +10,7 @@ page can carry a unique social preview without shipping pre-built images.
 from __future__ import annotations
 
 import io
+import logging
 import textwrap
 from datetime import date
 
@@ -17,6 +18,8 @@ from fastapi import APIRouter, Depends, Query, Response
 from PIL import Image, ImageDraw, ImageFont
 
 from app.core.rate_limit import RateLimit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -310,6 +313,7 @@ def _render_og_image(title: str, subtitle: str | None = None) -> bytes:
         subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
         watermark_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
     except OSError:  # IOError is an alias of OSError
+        logger.warning("DejaVu fonts not found, falling back to default bitmap font")
         title_font = ImageFont.load_default()
         subtitle_font = ImageFont.load_default()
         watermark_font = ImageFont.load_default()

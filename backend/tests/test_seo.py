@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import io
+import logging
 import xml.etree.ElementTree as ET
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -134,3 +136,22 @@ class TestOgImage:
         assert response.status_code == 200
         img = Image.open(io.BytesIO(response.content))
         assert img.size == (1200, 630)
+
+    def test_font_fallback_logs_warning(self, caplog):
+        from PIL import ImageFont as _IF
+
+        from app.routers.seo import _render_og_image
+
+        _real_truetype = _IF.truetype
+
+        def _reject_dejavu(*args, **kwargs):
+            path = args[0] if args else kwargs.get("font", "")
+            if "dejavu" in str(path).lower():
+                raise OSError("not found")
+            return _real_truetype(*args, **kwargs)
+
+        with patch("app.routers.seo.ImageFont.truetype", side_effect=_reject_dejavu):
+            with caplog.at_level(logging.WARNING, logger="app.routers.seo"):
+                png = _render_og_image("Fallback test")
+        assert isinstance(png, bytes)
+        assert "DejaVu fonts not found" in caplog.text

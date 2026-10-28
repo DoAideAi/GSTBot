@@ -134,7 +134,11 @@ async def receive_message(request: Request) -> Response:
 
         body_params = {k: str(v) for k, v in form.items()}
         if not _verify_twilio_signature(request, body_params):
-            logger.warning("Invalid Twilio signature from %s", sender)
+            sender_hash = hashlib.sha256(sender.encode()).hexdigest()[:12] if sender else ""
+            logger.warning(
+                "Invalid Twilio signature",
+                extra={"sender_hash": sender_hash},
+            )
             return Response(
                 content="Invalid signature",
                 status_code=status.HTTP_403_FORBIDDEN,

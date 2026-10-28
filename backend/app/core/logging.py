@@ -43,7 +43,8 @@ _REDACTED_KEYS = frozenset(
         "password", "passwd", "secret", "token", "access_token", "authorization",
         "api_key", "apikey", "jwt_secret", "openrouter_api_key", "hashed_password",
         "set-cookie", "cookie",
-        "recipient", "email_address",
+        "recipient", "email_address", "email",
+        "phone", "pan", "signature",
     }
 )
 _REDACTED = "[redacted]"
