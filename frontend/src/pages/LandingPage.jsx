@@ -520,15 +520,15 @@ export default function LandingPage() {
 
         <section className="landing-section landing-demo" aria-labelledby="demo-heading">
           <h2 id="demo-heading" className="landing-section-title">See DoAide GST in Action</h2>
-          <p className="landing-section-subtitle">Watch how Indian businesses save hours every month on GST compliance.</p>
-          <div className="landing-demo-placeholder" onClick={() => track("demo_video_click")}>
-            <div className="landing-demo-play" aria-label="Play demo video">
+          <p className="landing-section-subtitle">Indian businesses save hours every month on GST compliance.</p>
+          <Link to="/login" className="landing-demo-placeholder" onClick={() => track("demo_cta_click")}>
+            <div className="landing-demo-play" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="48" height="48" fill="#F0B429" aria-hidden="true">
-                <polygon points="5 3 19 12 5 21 5 3" />
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
               </svg>
             </div>
-            <p className="landing-demo-caption">2-minute walkthrough: Upload → Reconcile → File</p>
-          </div>
+            <p className="landing-demo-caption">Upload → Reconcile → File — try it free</p>
+          </Link>
         </section>
 
         <section className="landing-section" aria-labelledby="testimonials-heading">
@@ -580,9 +580,9 @@ export default function LandingPage() {
           <h2>Need Automated GST Filing?</h2>
           <p>Free for up to 50 invoices/month — upload invoices, auto-reconcile GSTR-2B, and prepare returns in minutes.</p>
           <div className="landing-cta-actions">
-            <a href="#root" className="btn btn-primary landing-cta-btn" onClick={(e) => { e.preventDefault(); track("signup_click"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+            <Link to="/login" className="btn btn-primary landing-cta-btn" onClick={() => track("signup_click")}>
               Create Free Account
-            </a>
+            </Link>
             <Link to="/pricing" className="btn landing-cta-secondary">
               View Plans →
             </Link>

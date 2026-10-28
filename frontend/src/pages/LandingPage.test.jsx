@@ -110,13 +110,14 @@ describe("LandingPage", () => {
     it("shows the demo caption", () => {
       renderLanding();
 
-      expect(screen.getByText(/2-minute walkthrough/)).toBeInTheDocument();
+      expect(screen.getByText(/try it free/)).toBeInTheDocument();
     });
 
-    it("has a play button", () => {
+    it("links to signup", () => {
       renderLanding();
 
-      expect(screen.getByLabelText("Play demo video")).toBeInTheDocument();
+      const link = screen.getByText(/try it free/).closest("a");
+      expect(link).toHaveAttribute("href", "/login");
     });
   });
 
