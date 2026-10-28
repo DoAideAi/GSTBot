@@ -307,8 +307,9 @@ def recipient_gstin(content: bytes, filename: str | None = None) -> str | None:
         return None
     try:
         payload = json.loads(text)
-    except ValueError:
+    except (ValueError, RecursionError):
         # Not readable as JSON, so :func:`parse` is about to say so properly.
+        # RecursionError too: see :func:`parse_json`.
         return None
     return _addressed_to(payload) if isinstance(payload, dict) else None
 
@@ -421,7 +422,10 @@ def parse_json(payload: dict | str | bytes) -> list[GSTR2BRecord]:
     if isinstance(payload, bytes | str):
         try:
             payload = json.loads(payload)
-        except ValueError as exc:
+        # ``json.loads`` recurses once per nesting level, so a few kilobytes of
+        # ``[[[[…`` is a RecursionError rather than a ValueError — and was a 500
+        # on an upload whose only fault is that it is not a GSTR-2B.
+        except (ValueError, RecursionError) as exc:
             raise GSTR2BParseError(
                 "This file is not valid JSON. Upload the unmodified download "
                 "from the GST portal."
@@ -564,7 +568,17 @@ def parse_csv(content: str | bytes) -> list[GSTR2BRecord]:
     """Read a CSV export, summing its rate-wise rows back into invoices."""
     if isinstance(content, bytes):
         content = content.decode("utf-8-sig", errors="replace")
-    rows = [row for row in csv.reader(io.StringIO(content)) if any(cell.strip() for cell in row)]
+    try:
+        rows = [
+            row for row in csv.reader(io.StringIO(content)) if any(cell.strip() for cell in row)
+        ]
+    except csv.Error as exc:
+        # A cell past the module's field limit (128 KiB), or a NUL the reader
+        # refuses: either way not a portal export, and a 500 was the answer.
+        raise GSTR2BParseError(
+            "This file could not be read as CSV. Upload the JSON download from "
+            "the GST portal, or a CSV export of it."
+        ) from exc
     if not rows:
         raise GSTR2BParseError(
             "The file has no data rows. It may still be downloading, or "

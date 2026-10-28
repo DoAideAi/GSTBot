@@ -709,3 +709,23 @@ class TestASectionThatIsNotAList:
         response = upload_2b(auth_client, content=json.dumps(payload).encode())
         assert response.status_code < 500, response.text
 
+
+
+class TestAFileThatIsNotAStatementIsRefusedNotCrashedOn:
+    """Two shapes the readers raised on with something other than a parse
+    error, each a 500 on an upload whose only fault is not being a GSTR-2B."""
+
+    def test_json_nested_past_the_recursion_limit(self, auth_client):
+        deep = b"[" * 100_000 + b"]" * 100_000
+        response = upload_2b(auth_client, content=deep, filename="gstr2b.json")
+        assert response.status_code == 422
+        assert "not valid JSON" in response.json()["detail"]
+
+    def test_a_csv_cell_past_the_field_limit(self, auth_client):
+        huge = b"GSTIN of supplier,Invoice number\n" + b"x" * 200_000 + b",A1\n"
+        response = upload_2b(auth_client, content=huge, filename="gstr2b.csv")
+        assert response.status_code == 422
+        assert "could not be read as CSV" in response.json()["detail"]
+
+    def test_the_addressee_check_survives_it_too(self):
+        assert gstr2b.recipient_gstin(b"[" * 100_000, "x.json") is None
