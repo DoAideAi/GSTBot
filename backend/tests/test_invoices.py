@@ -2123,6 +2123,17 @@ class TestAFullUploadVolume:
         assert self._files(full_disk) == []
         assert db_session.query(Invoice).count() == 0
 
+    def test_the_operator_hears_about_it(
+        self, auth_client, sample_invoice_text, full_disk, caplog
+    ):
+        # P17 M11: the caller gets a polite 503; the full volume is the
+        # operator's problem, and every upload after this one will hit it too.
+        upload(auth_client, sample_invoice_text)
+        message = "Upload could not be written to storage"
+        (line,) = [r for r in caplog.records if r.getMessage() == message]
+        assert line.levelname == "ERROR"
+        assert line.errno == 28  # ENOSPC
+
     def test_a_batch_reports_the_file_and_leaves_nothing(
         self, auth_client, db_session, sample_invoice_text, full_disk
     ):

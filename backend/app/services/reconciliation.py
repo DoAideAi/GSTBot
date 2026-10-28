@@ -424,6 +424,22 @@ def _carried_invoices(
     )
 
 
+def _with_amendment(note: str | None, matched_on: str | None, record: GSTR2BRecord) -> str | None:
+    """*note*, plus the supplier's corrected number when the match was by amendment.
+
+    The finding says "matched" while the books and the portal carry different
+    numbers, so a user following it up with the supplier needs the number the
+    supplier now uses — it appears nowhere else on the finding.
+    """
+    if matched_on != "amended":
+        return note
+    amended = (
+        f"Matched through the supplier's amendment: GSTR-2B now lists this invoice "
+        f"as {record.invoice_number}."
+    )
+    return f"{note} {amended}" if note else amended
+
+
 def match(
     invoices: list[Invoice],
     records: list[GSTR2BRecord],
@@ -598,9 +614,11 @@ def match(
                     differences=differences,
                     matched_on=matched_on,
                     carried=True,
-                    note=(
+                    note=_with_amendment(
                         f"Declared in this statement but booked under {invoice.period}, "
-                        "where its credit is counted. The supplier filed it late."
+                        "where its credit is counted. The supplier filed it late.",
+                        matched_on,
+                        record,
                     ),
                 )
             )
@@ -630,6 +648,7 @@ def match(
                 record=record,
                 differences=differences,
                 matched_on=matched_on,
+                note=_with_amendment(None, matched_on, record),
             )
         )
 

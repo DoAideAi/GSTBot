@@ -249,6 +249,19 @@ def store_upload(content: bytes, filename: str, business_id: int) -> str:
         # the volume that just ran out of it, while the caller was told
         # "nothing was saved". Removed here, the one place that knows the path.
         _discard_upload(str(path))
+        # Logged here, at ERROR: the caller only sees a polite 503, and a full
+        # or read-only volume is an operator's problem that every upload after
+        # this one will hit too. Directory, not the file path — the tenant id
+        # is what an operator needs, and the uuid name means nothing.
+        logger.error(
+            "Upload could not be written to storage",
+            extra={
+                "business_id": business_id,
+                "upload_dir": str(directory),
+                "errno": exc.errno,
+                "error": exc.strerror or str(exc),
+            },
+        )
         raise UploadNotStored(str(exc.strerror or exc)) from exc
     return str(path)
 

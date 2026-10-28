@@ -78,13 +78,19 @@ def record_conversion(db: Session, ip: str) -> bool:
         )
         if latest is None:
             return False
-        db.execute(
+        # Conditional on still being open: two sign-ups from one address in
+        # the same moment both find this visit, and only one may convert it.
+        # The loser reports False rather than claiming a conversion it lost.
+        converted = db.execute(
             update(Referral)
             .where(Referral.id == latest, Referral.converted.is_(False))
             .values(converted=True)
-        )
+            .execution_options(synchronize_session=False)
+        ).rowcount
         db.commit()
-        return True
+        if converted:
+            logger.info("Referral converted", extra={"referral_id": latest})
+        return bool(converted)
     except Exception:  # noqa: BLE001 - a statistic must not fail a sign-up
         db.rollback()
         logger.exception("Referral conversion not recorded")

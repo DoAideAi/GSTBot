@@ -208,3 +208,24 @@ class TestASignupConvertsTheVisit:
 
         monkeypatch.setattr(referrals, "_hash_ip", broken)
         self._signup(client)
+
+    def test_a_visit_converted_by_a_concurrent_signup_is_not_claimed_twice(
+        self, auth_client, db_session, monkeypatch
+    ):
+        # P17 M9: both sign-ups find the same open visit; the UPDATE is
+        # conditional on it still being open, so the second converts nothing
+        # and says so rather than reporting a conversion it lost.
+        from app.models.referral import Referral
+        from app.routers import referrals
+
+        code, _ = self._referrer(auth_client)
+        auth_client.headers.pop("Authorization")
+        auth_client.post("/api/v1/referrals/track", json={"referral_code": code})
+        visit = db_session.query(Referral).one()
+
+        assert referrals.record_conversion(db_session, "testclient") is True
+        # The loser read the visit before the winner committed:
+        monkeypatch.setattr(db_session, "scalar", lambda *_a, **_k: visit.id)
+        assert referrals.record_conversion(db_session, "testclient") is False
+        db_session.expire_all()
+        assert db_session.query(Referral).filter_by(converted=True).count() == 1

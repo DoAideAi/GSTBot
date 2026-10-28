@@ -1742,6 +1742,7 @@ def parse_invoice(
         # file the model cannot render, then an OCR pass on bytes that are not
         # an image, and the review screen blamed "no AI model was available".
         # Say what is actually wrong, and what to do about it.
+        logger.info("PDF is password-protected; not read", extra={"upload_filename": filename})
         locked = parse_heuristic("")
         locked.warnings.append(PASSWORD_PROTECTED_WARNING)
         return validate(locked)

@@ -1516,6 +1516,8 @@ class TestASupplierAmendmentFindsTheInvoiceItAmends:
         )
         assert categories(result) == [MatchCategory.MATCHED]
         assert result.findings[0].matched_on == "amended"
+        # P17 M7: the number to follow up with appears nowhere else.
+        assert "INV-NEW-7" in result.findings[0].note
 
     def test_an_invoice_matching_its_own_number_keeps_its_row(self):
         # The original number is the last thing tried, so it cannot take a row
