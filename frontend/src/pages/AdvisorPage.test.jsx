@@ -63,6 +63,7 @@ describe("AdvisorPage", () => {
       body: JSON.stringify({ message: "How to register?", history: [] }),
     }));
     expect(mockTrack).toHaveBeenCalledWith("advisor_ask", { chars: 16 });
+    expect(mockTrack).toHaveBeenCalledWith("tool_complete", { tool: "advisor" });
     expect(JSON.stringify(mockTrack.mock.calls)).not.toContain("register");
   });
 
@@ -80,12 +81,16 @@ describe("AdvisorPage", () => {
 
   it("explains a refused request instead of showing an empty reply", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 422, json: () => Promise.resolve({ detail: [] }) });
+    mockTrack.mockClear();
     renderAdvisor();
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("Ask a GST question..."), "test");
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => expect(screen.getByText(/could not answer just now/)).toBeInTheDocument());
+    // Asked and not answered: the visit that completion rate exists to show.
+    expect(mockTrack).toHaveBeenCalledWith("tool_start", { tool: "advisor" });
+    expect(mockTrack).not.toHaveBeenCalledWith("tool_complete", expect.anything());
   });
 
   it("sends the earlier turns as history with a follow-up", async () => {

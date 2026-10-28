@@ -4,6 +4,7 @@ import { advisorErrorMessage, streamAdvisor } from "../lib/advisor";
 import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
+import { useToolFunnel } from "../hooks/useToolFunnel";
 
 const SUGGESTED_QUESTIONS = [
   "How to register for GST?",
@@ -52,6 +53,10 @@ export default function AdvisorPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Started by a question, finished by an answer: a failed or empty reply
+  // leaves the visit unfinished, which is the case worth seeing.
+  const { start: startTool, complete: completeTool } = useToolFunnel("advisor");
+
   const ask = async (question) => {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
@@ -63,6 +68,7 @@ export default function AdvisorPage() {
     // routinely carries a name, a GSTIN or an amount, none of which belongs
     // in a third-party analytics store.
     track("advisor_ask", { chars: trimmed.length });
+    startTool();
 
     try {
       let added = false;
@@ -78,6 +84,7 @@ export default function AdvisorPage() {
           });
         }
       });
+      if (added) completeTool();
     } catch (err) {
       setMessages((prev) => [
         ...prev,

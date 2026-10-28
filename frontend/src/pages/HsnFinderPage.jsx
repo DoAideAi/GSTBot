@@ -10,6 +10,7 @@ import SeoHead from "../components/SeoHead";
 import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
+import { useToolFunnel } from "../hooks/useToolFunnel";
 import { categories, byCategory, searchHSN } from "../lib/hsnData";
 import { copyToClipboard } from "../lib/share";
 import { track } from "../lib/track";
@@ -40,6 +41,7 @@ export default function HsnFinderPage() {
   usePageTitle("HSN Code Finder — Search GST Rates by Product Name");
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState(null);
+  const { start: startTool, complete: completeTool } = useToolFunnel("hsn_finder");
 
   const results = searchHSN(query);
   const cats = categories();
@@ -49,9 +51,14 @@ export default function HsnFinderPage() {
   useEffect(() => {
     const term = query.trim();
     if (!term) return undefined;
-    const timer = setTimeout(() => track("hsn_search", { query: term }), HSN_SEARCH_SETTLE_MS);
+    const timer = setTimeout(() => {
+      track("hsn_search", { query: term });
+      // Finished when a settled search found something: most visitors want
+      // the rate on screen, not to copy the code, so a copy would undercount.
+      if (searchHSN(term).length > 0) completeTool();
+    }, HSN_SEARCH_SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, completeTool]);
 
   const handleCopy = async (text) => {
     const ok = await copyToClipboard(text);
@@ -85,7 +92,10 @@ export default function HsnFinderPage() {
                 type="search"
                 className="calc-input"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  startTool();
+                  setQuery(e.target.value);
+                }}
                 placeholder='e.g. "laptop", "1006", "construction services"'
                 autoFocus
               />

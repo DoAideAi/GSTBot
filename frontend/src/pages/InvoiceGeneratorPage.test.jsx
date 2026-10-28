@@ -15,7 +15,8 @@ vi.mock("../lib/share", () => ({
 vi.mock("../lib/api", () => ({
   api: { subscribe: vi.fn().mockResolvedValue({ subscribed: true, new: true, message: "Done" }) },
 }));
-vi.mock("../lib/track", () => ({ track: () => {} }));
+const mockTrack = vi.fn();
+vi.mock("../lib/track", () => ({ track: (...args) => mockTrack(...args) }));
 
 function renderPage() {
   return render(
@@ -141,6 +142,9 @@ describe("InvoiceGeneratorPage", () => {
     const title = written[0].match(/<title>[\s\S]*?<\/title>/)[0];
     expect(title).toBe("<title>Invoice &lt;/title&gt;&lt;img src=x onerror=alert(1)&gt;</title>");
     expect(written[0]).not.toContain("<img src=x onerror");
+    // Edited, then downloaded: a finished invoice.
+    expect(mockTrack).toHaveBeenCalledWith("tool_start", { tool: "invoice_generator" });
+    expect(mockTrack).toHaveBeenCalledWith("tool_complete", { tool: "invoice_generator" });
   });
 
   it("offers GST 2.0 rates today, and the retired 12% and 28% only for an earlier invoice", async () => {

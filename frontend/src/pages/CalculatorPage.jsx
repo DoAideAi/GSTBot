@@ -10,6 +10,7 @@ import RelatedTools from "../components/RelatedTools";
 import SavedCalculations, { getSavedCalcs, SaveCalcButton } from "../components/SavedCalculations";
 import SavePrompt, { getCalcCount, incrementCalcCount } from "../components/SavePrompt";
 import SeoHead from "../components/SeoHead";
+import { useToolFunnel } from "../hooks/useToolFunnel";
 import PrintButton from "../components/PrintButton";
 import ShareButtons from "../components/ShareButtons";
 import ShareSavings from "../components/ShareSavings";
@@ -28,6 +29,7 @@ export default function CalculatorPage() {
 
   const initial = parseCalcParams(location.search);
   const [amount, setAmount] = useState(initial.amount != null ? String(initial.amount) : "");
+  const { start: startTool, complete: completeTool } = useToolFunnel("gst_calculator");
   const [rate, setRate] = useState(initial.rate != null ? initial.rate : 18);
   const [interstate, setInterstate] = useState(initial.interstate);
   const [mode, setMode] = useState("exclusive");
@@ -72,9 +74,11 @@ export default function CalculatorPage() {
     const timer = setTimeout(() => {
       track("gst_calculate", { amount: result.taxable, rate });
       setCalcCount(incrementCalcCount());
+      // Only once the visitor typed: a shared link's result is not theirs.
+      completeTool();
     }, CALC_SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [result, rate]);
+  }, [result, rate, completeTool]);
 
   return (
     <div className="tool-page">
@@ -152,7 +156,10 @@ export default function CalculatorPage() {
                 type="number"
                 className="calc-input"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  startTool();
+                  setAmount(e.target.value);
+                }}
                 placeholder="Enter amount in ₹"
                 min="0"
                 step="0.01"

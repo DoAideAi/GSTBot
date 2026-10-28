@@ -153,7 +153,12 @@ describe("CalculatorPage", () => {
     renderCalc();
 
     await userEvent.type(screen.getByPlaceholderText("Enter amount in ₹"), "12345");
-    await waitFor(() => expect(mockTrack).toHaveBeenCalled(), { timeout: 2000 });
+    // The calculation event specifically: tool_start arrives on the first
+    // keystroke, long before the result has settled.
+    await waitFor(
+      () => expect(mockTrack).toHaveBeenCalledWith("gst_calculate", expect.anything()),
+      { timeout: 2000 },
+    );
 
     const calcs = mockTrack.mock.calls.filter(([name]) => name === "gst_calculate");
     expect(calcs).toHaveLength(1);
@@ -196,5 +201,33 @@ describe("CalculatorPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("zero or more");
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(screen.queryByText("Taxable Value")).not.toBeInTheDocument();
+  });
+});
+
+describe("completion of the calculator", () => {
+  const funnelEvents = () =>
+    mockTrack.mock.calls.filter(([name]) => name.startsWith("tool_")).map(([name]) => name);
+
+  it("counts a visitor who types an amount and gets a settled result", async () => {
+    mockTrack.mockClear();
+    renderCalc();
+    await userEvent.type(screen.getByPlaceholderText("Enter amount in ₹"), "1000");
+
+    await waitFor(() => expect(funnelEvents()).toEqual(["tool_start", "tool_complete"]), {
+      timeout: 2000,
+    });
+    expect(mockTrack).toHaveBeenCalledWith("tool_complete", { tool: "gst_calculator" });
+  });
+
+  it("does not count a shared link's result as anyone finishing", async () => {
+    mockTrack.mockClear();
+    renderCalc("/calculator?amount=1000&rate=18");
+
+    // The result settles and is counted as a calculation, but nobody started.
+    await waitFor(
+      () => expect(mockTrack).toHaveBeenCalledWith("gst_calculate", expect.anything()),
+      { timeout: 2000 },
+    );
+    expect(funnelEvents()).toEqual([]);
   });
 });

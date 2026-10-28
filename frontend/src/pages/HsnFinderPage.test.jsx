@@ -113,6 +113,19 @@ describe("HsnFinderPage", () => {
     // Once, for the settled query — not once per keystroke.
     await waitFor(() => expect(mockTrack).toHaveBeenCalledWith("hsn_search", { query: "cement" }), { timeout: 2000 });
     expect(mockTrack.mock.calls.filter(([name]) => name === "hsn_search")).toHaveLength(1);
+    // A settled search that found something finishes the tool.
+    expect(mockTrack).toHaveBeenCalledWith("tool_start", { tool: "hsn_finder" });
+    expect(mockTrack).toHaveBeenCalledWith("tool_complete", { tool: "hsn_finder" });
+  });
+
+  it("does not count a search that found nothing as finished", async () => {
+    renderHsn();
+
+    mockTrack.mockClear();
+    await userEvent.type(screen.getByPlaceholderText(/laptop/), "zzqqxx");
+
+    await waitFor(() => expect(mockTrack).toHaveBeenCalledWith("hsn_search", { query: "zzqqxx" }), { timeout: 2000 });
+    expect(mockTrack).not.toHaveBeenCalledWith("tool_complete", expect.anything());
   });
 
   it("announces how many codes matched, in one short status line", async () => {

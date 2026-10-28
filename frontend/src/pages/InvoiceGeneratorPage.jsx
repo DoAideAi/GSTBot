@@ -9,6 +9,7 @@ import SeoHead from "../components/SeoHead";
 import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
+import { useToolFunnel } from "../hooks/useToolFunnel";
 import { formatINR } from "../lib/gstCalc";
 import { gstinShapeError } from "../lib/validate";
 import { todayInIndia } from "../lib/returnDueDates";
@@ -185,8 +186,12 @@ export default function InvoiceGeneratorPage() {
   const [items, setItems] = useState([{ ...emptyItem }]);
   const [notes, setNotes] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  // Started by the first edit to a party or an item; finished by the PDF,
+  // which is the whole point of the page.
+  const { start: startTool, complete: completeTool } = useToolFunnel("invoice_generator");
 
   function updateSeller(field, value) {
+    startTool();
     setSeller((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "gstin" && value.length >= 2) {
@@ -197,6 +202,7 @@ export default function InvoiceGeneratorPage() {
   }
 
   function updateBuyer(field, value) {
+    startTool();
     setBuyer((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "gstin" && value.length >= 2) {
@@ -207,6 +213,7 @@ export default function InvoiceGeneratorPage() {
   }
 
   function updateItem(index, field, value) {
+    startTool();
     setItems((prev) => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   }
 
@@ -262,6 +269,7 @@ export default function InvoiceGeneratorPage() {
     if (!invoiceRef.current) return;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
+    completeTool();
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Invoice ${escapeHtml(invoiceNo)}</title>
 <style>
@@ -290,11 +298,11 @@ td{padding:8px 10px;border-bottom:1px solid #f3f4f6}
 @media print{body{padding:12px}@page{size:A4;margin:12mm}}
 </style></head><body>
 ${invoiceRef.current.innerHTML}
-<script>window.onload=function(){window.print()}<\/script>
+<script>window.onload=function(){window.print()}</script>
 </body></html>`;
     printWindow.document.write(html);
     printWindow.document.close();
-  }, [invoiceNo]);
+  }, [invoiceNo, completeTool]);
 
   return (
     <div className="tool-page">
