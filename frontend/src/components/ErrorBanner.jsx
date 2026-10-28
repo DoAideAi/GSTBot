@@ -4,7 +4,7 @@
 // user meets it on the ITC screen or pressing Import/Run on Reconcile, and a
 // path they would have to retype is not a way forward — so it becomes a link.
 // A plain anchor because the banner is also rendered outside the router.
-const PAID_TIER_REFUSAL = /requires a paid subscription/i;
+const PAID_TIER_REFUSAL = /requires a paid subscription|monthly allowance ran out|upgrade the plan/i;
 
 export default function ErrorBanner({ message, onDismiss, onRetry }) {
   if (!message) return null;

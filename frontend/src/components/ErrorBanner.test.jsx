@@ -62,6 +62,13 @@ describe("ErrorBanner", () => {
     expect(screen.getByRole("link", { name: "See plans" })).toHaveAttribute("href", "/pricing");
   });
 
+  it("offers the plans when the upload allowance runs out", () => {
+    render(
+      <ErrorBanner message="The monthly allowance ran out. 3 file(s) were not uploaded. Upgrade the plan or try again next month." />,
+    );
+    expect(screen.getByRole("link", { name: "See plans" })).toHaveAttribute("href", "/pricing");
+  });
+
   it("offers no plans for any other refusal", () => {
     render(<ErrorBanner message="You do not have access to this (403)." />);
     expect(screen.queryByRole("link", { name: "See plans" })).not.toBeInTheDocument();

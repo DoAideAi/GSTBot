@@ -217,7 +217,12 @@ export default function PricingPage() {
       </div>
 
       {error && <div className="pricing-error" role="alert">{error}</div>}
-      {success && <div className="pricing-success" role="status">{success}</div>}
+      {success && (
+        <div className="pricing-success" role="status">
+          <span>{success}</span>
+          <Link to="/dashboard" className="btn btn-primary">Go to dashboard</Link>
+        </div>
+      )}
 
       <div className="pricing-grid">
         {pricing &&
