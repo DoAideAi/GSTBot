@@ -149,3 +149,37 @@ class TestNulNeverReachesAQueryParameter:
         assert without_nul_params([{"a": "\x00"}]) == [{"a": ""}]
         assert without_nul_params(["a\x00", 2]) == ["a", 2]
         assert without_nul_params(None) is None
+
+
+class TestUnpairedSurrogatesAreReplaced:
+    """P16 M6: a lone UTF-16 surrogate cannot be encoded to UTF-8, and escaped
+    inside JSON Postgres refuses it ("Unicode low surrogate must follow a high
+    surrogate"). Found by fuzzing the parse write-back against Postgres 17:
+    the invoice was stored and its extraction then failed to save. pypdf can
+    produce one from a PDF string with a broken pair."""
+
+    def test_text_and_json_are_written_with_a_replacement_character(
+        self, auth_client, db_session, business
+    ):
+        invoice = Invoice(
+            business_id=business.id,
+            invoice_type=InvoiceType.PURCHASE,
+            raw_text="Invoice \ud800 total",
+            extraction={"supplier_name": "\ud83d", "line_items": [{"hsn": "a\udc00"}]},
+        )
+        db_session.add(invoice)
+        db_session.commit()
+        db_session.refresh(invoice)
+
+        assert invoice.raw_text == "Invoice � total"
+        assert invoice.extraction == {
+            "supplier_name": "�",
+            "line_items": [{"hsn": "a�"}],
+        }
+        invoice.raw_text.encode("utf-8")  # what the driver has to be able to do
+
+    def test_a_valid_pair_is_kept(self, auth_client, db_session, business):
+        business.legal_name = "Umang \U0001f600 Traders"
+        db_session.commit()
+        db_session.refresh(business)
+        assert business.legal_name == "Umang \U0001f600 Traders"
