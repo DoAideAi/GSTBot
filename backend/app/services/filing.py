@@ -724,6 +724,49 @@ def record_filing(
     return record
 
 
+def withdraw_filing(
+    db: Session, business: Business, period: str, return_type: ReturnType
+) -> GSTRReturn | None:
+    """Take back a filing that was recorded by mistake; ``None`` if none was.
+
+    Recording is the only way into ``filed`` and, until this, there was no way
+    out. Re-recording corrects the date or the ARN, but marking the wrong month
+    or the wrong return — May instead of April, a GSTR-3B for a GSTR-1 — left
+    that period filed for good: its deadline alert resolved and never came
+    back, its late fee stopped projecting, and the month actually unfiled was
+    the one the product went quiet about. The alerting already reopens an
+    alert whose filing has disappeared; nothing could make one disappear.
+
+    A soft delete, like every other removal here: a filing record is part of
+    what an assessment reads, and one taken back is still something that was
+    said. The partial unique index ignores the tombstone, so recording the
+    period again afterwards is an ordinary first recording.
+    """
+    record = db.scalar(
+        select(GSTRReturn).where(
+            GSTRReturn.business_id == business.id,
+            GSTRReturn.period == period,
+            GSTRReturn.return_type == return_type,
+            GSTRReturn.status == ReturnStatus.FILED,
+            GSTRReturn.deleted_at.is_(None),
+        )
+    )
+    if record is None:
+        return None
+    record.soft_delete()
+    db.commit()
+    logger.info(
+        "Filing withdrawn",
+        extra={
+            "business_id": business.id,
+            "period": period,
+            "return_type": return_type.value,
+            "arn": record.arn,
+        },
+    )
+    return record
+
+
 def filed_returns(
     db: Session, business_id: int, periods: list[str] | None = None
 ) -> dict[tuple[str, ReturnType], GSTRReturn]:

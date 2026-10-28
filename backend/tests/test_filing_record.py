@@ -517,3 +517,119 @@ class TestReadingAStoredTimestampBackAsAnIndianDate:
         stored = db_session.query(GSTRReturn).filter_by(period=PERIOD).one()
         assert stored.status is ReturnStatus.FILED
         assert gst_calendar.ist_date(stored.filed_at) == date(2026, 5, 1)
+
+
+# ---------------------------------------------------------------------------
+# Taking a filing back
+# ---------------------------------------------------------------------------
+
+def withdraw(client, return_type="gstr3b", period=PERIOD):
+    return client.delete(f"/api/v1/filing/{return_type}/filed", params={"period": period})
+
+
+def _standing(client, return_type="gstr3b", period=PERIOD):
+    items = client.get("/api/v1/filing/status").json()["items"]
+    return next(
+        item for item in items
+        if item["period"] == period and item["return_type"] == return_type
+    )
+
+
+class TestWithdrawingAFilingRecordedByMistake:
+    def test_the_period_is_unfiled_again(self, auth_client, business, frozen_today):
+        record(auth_client, arn="AA270426123456Z", filed_on="2026-05-18")
+
+        assert withdraw(auth_client).status_code == 204
+
+        standing = _standing(auth_client)
+        assert standing["filed"] is False
+        assert standing["arn"] is None
+
+    def test_the_record_is_kept_as_a_tombstone(
+        self, auth_client, db_session, business, frozen_today
+    ):
+        record(auth_client, arn="AA270426123456Z")
+        withdraw(auth_client)
+
+        rows = db_session.query(GSTRReturn).filter_by(business_id=business.id).all()
+        assert len(rows) == 1
+        assert rows[0].deleted_at is not None
+        assert rows[0].arn == "AA270426123456Z"
+
+    def test_the_period_can_be_recorded_again_afterwards(
+        self, auth_client, business, frozen_today
+    ):
+        record(auth_client, filed_on="2026-05-18")
+        withdraw(auth_client)
+
+        again = record(auth_client, filed_on="2026-05-19")
+
+        assert again.status_code == 201
+        assert _standing(auth_client)["filed_on"] == "2026-05-19"
+
+    def test_only_the_named_return_is_withdrawn(self, auth_client, business, frozen_today):
+        record(auth_client, "gstr1", filed_on="2026-05-10")
+        record(auth_client, "gstr3b", filed_on="2026-05-18")
+
+        withdraw(auth_client, "gstr3b")
+
+        assert _standing(auth_client, "gstr1")["filed"] is True
+        assert _standing(auth_client, "gstr3b")["filed"] is False
+
+    def test_the_deadline_alert_comes_back(self, auth_client, db_session, business, frozen_today):
+        from app.models.alert import Alert, AlertStatus
+        from app.services import alerting
+
+        # Backdated: the sweep says nothing about periods closed before signup.
+        business.created_at = datetime(2026, 4, 2, 10, 0)
+        db_session.commit()
+        alerting.sweep_business(db_session, business, today=TODAY)
+        db_session.commit()
+        record(auth_client, filed_on="2026-06-01")
+        alerting.sweep_business(db_session, business, today=TODAY)
+        db_session.commit()
+
+        withdraw(auth_client)
+        alerting.sweep_business(db_session, business, today=TODAY)
+        db_session.commit()
+
+        db_session.expire_all()
+        [alert] = [
+            row for row in db_session.query(Alert).filter_by(business_id=business.id)
+            if row.period == PERIOD and (row.context or {}).get("return_type") == "gstr3b"
+        ]
+        assert alert.status is AlertStatus.PENDING
+
+    def test_a_period_never_recorded_is_a_404(self, auth_client, business, frozen_today):
+        response = withdraw(auth_client)
+        assert response.status_code == 404
+        assert "No gstr3b filing is recorded for 2026-04" in response.text
+
+    def test_withdrawing_twice_is_a_404_the_second_time(
+        self, auth_client, business, frozen_today
+    ):
+        record(auth_client)
+        assert withdraw(auth_client).status_code == 204
+        assert withdraw(auth_client).status_code == 404
+
+    def test_an_unknown_return_type_is_a_404(self, auth_client, business, frozen_today):
+        assert withdraw(auth_client, "gstr9").status_code == 404
+
+    def test_an_imported_2b_cannot_be_withdrawn_through_it(self, auth_client, business):
+        # Not a filable return: the 2B is the portal's statement, not a filing.
+        assert withdraw(auth_client, "gstr2b").status_code == 404
+
+    def test_a_malformed_period_is_refused(self, auth_client, business):
+        assert withdraw(auth_client, period="April").status_code == 422
+
+    def test_another_tenants_filing_cannot_be_withdrawn(
+        self, auth_client, business, other_tenant, frozen_today
+    ):
+        record(auth_client)
+        mine = auth_client.headers["Authorization"]
+
+        auth_client.headers.update({"Authorization": f"Bearer {other_tenant}"})
+        assert withdraw(auth_client).status_code == 404
+
+        auth_client.headers.update({"Authorization": mine})
+        assert _standing(auth_client)["filed"] is True

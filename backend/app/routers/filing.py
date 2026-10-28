@@ -335,6 +335,46 @@ def record_filed(
     return _filed_out(record)
 
 
+@router.delete(
+    "/{return_type}/filed",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    summary="Withdraw a filing recorded by mistake",
+    description=(
+        "The way back out of `POST /filing/{return_type}/filed`, for a filing "
+        "recorded against the wrong period or the wrong return. Recording again "
+        "corrects a date or an ARN; it cannot say the return was never filed.\n\n"
+        "The period becomes unfiled again: its deadline alert reopens on the next "
+        "sweep and its late fee goes back to projecting. The record is kept, "
+        "soft-deleted, and the period can be recorded again afterwards."
+    ),
+    responses={
+        204: {"description": "Withdrawn."},
+        404: {"description": "Unknown return type, or no filing recorded for that period."},
+    },
+    dependencies=[Depends(_record_limit), Depends(require_writer)],
+)
+def withdraw_filed(
+    return_type: Slug,
+    period: str = Query(pattern=gst_calendar.PERIOD_PATTERN),
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+) -> None:
+    """Withdraw a filing recorded by mistake."""
+    kind = _FILABLE.get(return_type.lower())
+    if kind is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown return type '{return_type}'. Expected one of: "
+            + ", ".join(sorted(_FILABLE)),
+        )
+    if filing_service.withdraw_filing(db, business, period, kind) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No {kind.value} filing is recorded for {period}.",
+        )
+
+
 def _filed_out(record: GSTRReturn) -> FiledReturnOut:
     due = record.due_date
     filed_at = record.filed_at
