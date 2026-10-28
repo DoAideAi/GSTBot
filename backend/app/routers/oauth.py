@@ -124,6 +124,19 @@ def _login_error(code: str) -> RedirectResponse:
     return RedirectResponse(f"{FRONTEND_URL}/login?error={code}")
 
 
+def _provider_id(value: object) -> str:
+    """The provider's account id as text, or "" when it sent none.
+
+    ``str(profile.get("id", ""))`` turned a null id into the string "None", and
+    ``.get("sub", "")`` kept an absent one as "": either is then looked up as an
+    identity, and matches whichever account was once stored with the same
+    placeholder. The callers refuse an empty one.
+    """
+    if value is None or isinstance(value, bool):
+        return ""
+    return str(value).strip()
+
+
 def _find_or_create_oauth_user(
     db: Session,
     *,
@@ -236,10 +249,15 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     if not email:
         return _login_error("no_email")
 
+    oauth_id = _provider_id(userinfo.get("sub", ""))
+    if not oauth_id:
+        logger.warning("OAuth sign-in refused: no account id", extra={"provider": "google"})
+        return _login_error("google_auth_failed")
+
     user = _find_or_create_oauth_user(
         db,
         provider="google",
-        oauth_id=userinfo.get("sub", ""),
+        oauth_id=oauth_id,
         email=email.lower(),
         name=userinfo.get("name"),
         email_verified=bool(userinfo.get("email_verified")),
@@ -295,10 +313,15 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
     if not email:
         return _login_error("no_email")
 
+    oauth_id = _provider_id(profile.get("id", ""))
+    if not oauth_id:
+        logger.warning("OAuth sign-in refused: no account id", extra={"provider": "github"})
+        return _login_error("github_auth_failed")
+
     user = _find_or_create_oauth_user(
         db,
         provider="github",
-        oauth_id=str(profile.get("id", "")),
+        oauth_id=oauth_id,
         email=email.lower(),
         name=profile.get("name") or profile.get("login"),
         email_verified=True,
@@ -337,10 +360,15 @@ async def microsoft_callback(request: Request, db: Session = Depends(get_db)):
     if not email:
         return _login_error("no_email")
 
+    oauth_id = _provider_id(userinfo.get("sub", ""))
+    if not oauth_id:
+        logger.warning("OAuth sign-in refused: no account id", extra={"provider": "microsoft"})
+        return _login_error("microsoft_auth_failed")
+
     user = _find_or_create_oauth_user(
         db,
         provider="microsoft",
-        oauth_id=userinfo.get("sub", ""),
+        oauth_id=oauth_id,
         email=email.lower(),
         name=userinfo.get("name"),
         email_verified=bool(userinfo.get("email_verified")),

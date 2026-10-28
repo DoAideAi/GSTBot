@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -32,6 +32,21 @@ class User(Base, TimestampMixin):
     """
 
     __tablename__ = "users"
+    # One account per provider identity. Social sign-in looks a user up by
+    # these two columns on every login, and nothing indexed or constrained
+    # them: a full scan of users each time, and no guarantee that one Google
+    # account could not end up linked to two users. Partial, because a
+    # password account has neither.
+    __table_args__ = (
+        Index(
+            "uq_users_oauth_identity",
+            "oauth_provider",
+            "oauth_id",
+            unique=True,
+            sqlite_where=text("oauth_id IS NOT NULL"),
+            postgresql_where=text("oauth_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     business_id: Mapped[int] = mapped_column(

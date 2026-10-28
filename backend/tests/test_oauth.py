@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.main import create_app
 from app.models.business import Business, BusinessPlan
 from app.models.user import User, UserRole
-from app.routers.oauth import _complete_oauth_login, _find_or_create_oauth_user
+from app.routers.oauth import _complete_oauth_login, _find_or_create_oauth_user, _provider_id
 
 
 @pytest.fixture
@@ -455,3 +455,68 @@ def test_returning_oauth_login_does_not_log_creation(db_session, caplog):
         "OAuth account created" in r.message or "OAuth provider linked" in r.message
         for r in caplog.records
     )
+
+
+# ---------------------------------------------------------------------------
+# One account per provider identity (C103 M13)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(None, ""), ("", ""), ("  ", ""), (True, ""), (12345, "12345"), ("g-123", "g-123")],
+)
+def test_a_provider_id_is_text_or_nothing(raw, expected):
+    # str(None) was "None": every GitHub profile without an id shared it.
+    assert _provider_id(raw) == expected
+
+
+def _user(db_session, email, **fields):
+    business = Business(legal_name=email, plan=BusinessPlan.FREE, is_active=True)
+    db_session.add(business)
+    db_session.flush()
+    user = User(email=email, business_id=business.id, role=UserRole.OWNER, is_active=True, **fields)
+    db_session.add(user)
+    return user
+
+
+def test_one_provider_identity_cannot_be_linked_to_two_users(db_session):
+    from sqlalchemy.exc import IntegrityError
+
+    _user(db_session, "first@example.com", oauth_provider="google", oauth_id="g-1")
+    db_session.commit()
+    _user(db_session, "second@example.com", oauth_provider="google", oauth_id="g-1")
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_password_accounts_without_an_identity_are_not_in_each_others_way(db_session):
+    _user(db_session, "a@example.com")
+    _user(db_session, "b@example.com")
+    db_session.commit()  # the index is partial: NULL identities never collide
+
+
+def test_the_same_id_at_two_providers_is_two_identities(db_session):
+    _user(db_session, "a@example.com", oauth_provider="google", oauth_id="42")
+    _user(db_session, "b@example.com", oauth_provider="github", oauth_id="42")
+    db_session.commit()
+
+
+def test_a_github_profile_without_an_id_is_refused(client, caplog):
+    """Before, it was stored and looked up as the identity "None"."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    oauth_client = MagicMock()
+    oauth_client.authorize_access_token = AsyncMock(return_value={"access_token": "t"})
+    profile = MagicMock()
+    profile.json.return_value = {"id": None, "email": "x@example.com", "login": "x"}
+    oauth_client.get = AsyncMock(return_value=profile)
+    with (
+        patch("app.routers.oauth._configured_client", return_value=oauth_client),
+        caplog.at_level(logging.WARNING, logger="app.routers.oauth"),
+    ):
+        response = client.get("/api/v1/auth/github/callback?code=c&state=s", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    assert "error=github_auth_failed" in response.headers["location"]
+    # Refused at the id check, not by an earlier step of the callback.
+    assert any(r.getMessage() == "OAuth sign-in refused: no account id" for r in caplog.records)

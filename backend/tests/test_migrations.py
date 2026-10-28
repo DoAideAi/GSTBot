@@ -676,3 +676,51 @@ class TestReferralVisitsAreUnique:
         engine.dispose()
 
         _run(scratch, "downgrade:0012")
+
+
+class TestTheOauthIdentityMigrationCleansUpFirst:
+    """0020 builds a unique index on (oauth_provider, oauth_id). On a database
+    that already holds an empty id or one identity on two users, building it
+    would fail the deploy — so the migration clears those links first."""
+
+    def test_empty_and_duplicate_links_are_cleared_and_the_index_then_holds(self, scratch):
+        import sqlalchemy as sa
+
+        _run(scratch, "upgrade:0019")
+        engine = sa.create_engine(scratch)
+        with engine.begin() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO businesses (id, legal_name, plan, is_active, created_at, updated_at) "
+                "VALUES (1, 'B', 'free', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            ))
+            for uid, email, provider, oid in [
+                (1, "first@x.com", "google", "g-1"),
+                (2, "dup@x.com", "google", "g-1"),
+                (3, "empty@x.com", "github", ""),
+                (4, "password@x.com", None, None),
+            ]:
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO users (id, business_id, email, role, is_active, "
+                        "oauth_provider, oauth_id, created_at, updated_at) VALUES "
+                        "(:id, 1, :email, 'OWNER', 1, :p, :o, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    {"id": uid, "email": email, "p": provider, "o": oid},
+                )
+        engine.dispose()
+
+        _run(scratch, "upgrade:0020")
+
+        engine = sa.create_engine(scratch)
+        with engine.connect() as conn:
+            rows = dict(
+                (r.id, (r.oauth_provider, r.oauth_id))
+                for r in conn.execute(sa.text("SELECT id, oauth_provider, oauth_id FROM users"))
+            )
+        engine.dispose()
+        assert rows == {
+            1: ("google", "g-1"),  # the earliest keeps the identity
+            2: (None, None),       # the later duplicate is unlinked, not deleted
+            3: (None, None),       # "" was never an identity
+            4: (None, None),
+        }
