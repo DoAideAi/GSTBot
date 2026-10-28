@@ -1789,3 +1789,45 @@ class TestTheSupplierSavepointHoldsOnlyTheSupplier:
 
         db_session.rollback()
         assert db_session.query(Supplier).count() == 1
+
+
+class TestCorrectionBoundaries:
+    """InvoiceUpdate checked only lengths on three fields GSTR-1 exports."""
+
+    @pytest.mark.parametrize("rate", ["17", "12.5", "100", "0.18"])
+    def test_a_rate_that_is_not_a_gst_slab_is_refused(self, rate):
+        from pydantic import ValidationError
+
+        from app.schemas.invoice import InvoiceUpdate
+
+        with pytest.raises(ValidationError, match="is not a GST rate"):
+            InvoiceUpdate(tax_rate=rate)
+
+    @pytest.mark.parametrize("rate", ["0", "0.1", "1.5", "18", "18.00", "40"])
+    def test_every_slab_is_accepted(self, rate):
+        from app.schemas.invoice import InvoiceUpdate
+
+        assert InvoiceUpdate(tax_rate=rate).tax_rate == Decimal(rate)
+
+    @pytest.mark.parametrize("hsn", ["abcd", "N/A", "123", "123456789", "84７1"])
+    def test_an_hsn_that_is_not_4_to_8_digits_is_refused(self, hsn):
+        from pydantic import ValidationError
+
+        from app.schemas.invoice import InvoiceUpdate
+
+        with pytest.raises(ValidationError, match="4 to 8 digits"):
+            InvoiceUpdate(hsn_code=hsn)
+
+    def test_an_hsn_is_read_as_its_digits_and_blank_clears_it(self):
+        from app.schemas.invoice import InvoiceUpdate
+
+        assert InvoiceUpdate(hsn_code="8471.30").hsn_code == "847130"
+        assert InvoiceUpdate(hsn_code="8471.30.10").hsn_code == "84713010"
+        assert InvoiceUpdate(hsn_code=" 9983 ").hsn_code == "9983"
+        assert InvoiceUpdate(hsn_code="  ").hsn_code is None
+
+    def test_an_invoice_number_is_trimmed_and_an_all_space_one_cleared(self):
+        from app.schemas.invoice import InvoiceUpdate
+
+        assert InvoiceUpdate(invoice_number=" INV-1 ").invoice_number == "INV-1"
+        assert InvoiceUpdate(invoice_number="   ").invoice_number is None

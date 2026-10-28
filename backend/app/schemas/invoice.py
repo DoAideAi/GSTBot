@@ -10,6 +10,7 @@ from app.models.invoice import InvoiceSource, InvoiceStatus, InvoiceType
 from app.models.mixins import MONEY_MAX
 from app.services import gst_calendar
 from app.services import gstin as gstin_service
+from app.services.invoice_parser import VALID_TAX_RATES
 
 
 class InvoiceOut(BaseModel):
@@ -170,7 +171,8 @@ class InvoiceUpdate(BaseModel):
     invoice_number: str | None = Field(default=None, max_length=64)
     invoice_date: date | None = None
     place_of_supply: str | None = Field(default=None, max_length=2)
-    hsn_code: str | None = Field(default=None, max_length=8)
+    # Room for the dotted tariff form ("8471.30.10"); `_hsn_digits` holds it to 8 digits.
+    hsn_code: str | None = Field(default=None, max_length=12)
     # Bounded above as well as below. ``ge=0`` alone let a correction of
     # ``1E+100`` through with a 200: the column took it on SQLite, and every
     # screen that totals the period then raised ``InvalidOperation`` out of the
@@ -241,6 +243,49 @@ class InvoiceUpdate(BaseModel):
             f"Expected a date between {gst_calendar.GST_COMMENCEMENT.isoformat()}, "
             f"when GST commenced, and today."
         )
+
+    @field_validator("tax_rate")
+    @classmethod
+    def _a_gst_slab(cls, v: Decimal | None) -> Decimal | None:
+        """A rate GST actually levies, not just a number from 0 to 100.
+
+        The parser has only ever kept a rate on :data:`VALID_TAX_RATES`, but a
+        correction took any figure in range, so ``17`` or ``12.5`` was stored and
+        exported on the GSTR-1 line as its ``rt`` — a value the portal refuses,
+        on the return this product exists to get right.
+        """
+        if v is None or v in VALID_TAX_RATES:
+            return v
+        allowed = ", ".join(f"{r.normalize():f}" for r in sorted(VALID_TAX_RATES))
+        raise ValueError(f"{v.normalize():f}% is not a GST rate. Use one of: {allowed}")
+
+    @field_validator("hsn_code")
+    @classmethod
+    def _hsn_digits(cls, v: str | None) -> str | None:
+        """4 to 8 digits, as the portal takes them; blank clears the field.
+
+        Length alone admitted "abcd" or "N/A", which then went out in the
+        GSTR-1 HSN summary. The dotted form printed on tariff schedules
+        (``8471.30``) is read as its digits.
+        """
+        if v is None or not v.strip():
+            return None
+        digits = v.strip().replace(".", "").replace(" ", "")
+        if not digits.isascii() or not digits.isdigit() or not 4 <= len(digits) <= 8:
+            raise ValueError("An HSN/SAC code is 4 to 8 digits")
+        return digits
+
+    @field_validator("invoice_number")
+    @classmethod
+    def _invoice_number_not_blank(cls, v: str | None) -> str | None:
+        """Surrounding space trimmed, and an all-space number cleared.
+
+        Stored as typed, "   " was an invoice number duplicate detection keyed
+        on and GSTR-1 exported as ``inum``; " INV-1 " never matched "INV-1".
+        """
+        if v is None:
+            return None
+        return v.strip() or None
 
     @field_validator("counterparty_gstin")
     @classmethod
