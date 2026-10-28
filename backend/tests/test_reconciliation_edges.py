@@ -1393,3 +1393,23 @@ class TestTwoImportsOfOnePeriodAtOnce:
 
         with pytest.raises(IntegrityError):
             import_2b(db_session, business.id, [portal()])
+
+
+class TestAFailedRunsErrorLeaksNothingAboutTheServer:
+    def test_a_database_error_is_stored_without_its_sql(self, monkeypatch, db_session, business):
+        from sqlalchemy.exc import DataError
+
+        from app.core.errors import DATABASE_FAILURE_REASON
+
+        save(db_session, business.id)
+        import_2b(db_session, business.id, [portal()])
+
+        def explode(*a, **kw):
+            raise DataError("UPDATE suppliers SET compliance_score=?", (9e99,), Exception("x"))
+
+        monkeypatch.setattr(reconciliation, "_score_suppliers", explode)
+
+        run = reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        assert run.status is ReconciliationStatus.FAILED
+        assert run.error == DATABASE_FAILURE_REASON

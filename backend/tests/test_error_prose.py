@@ -213,6 +213,9 @@ INTERNAL_ONLY = {
     "EmailSendError": "logged inside the digest task",
     # Control flow inside the text extractor, not an error anyone sees.
     "_TextLimitReached": "stops reading a document that is over the limit",
+    # Its message names the storage path, so it goes to the log; the row the
+    # caller reads is given STORED_FILE_MISSING_REASON instead.
+    "StoredFileMissing": "logged with its path; parse_error carries a pathless reason",
 }
 
 

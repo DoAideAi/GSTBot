@@ -137,6 +137,49 @@ _CODES = {
 }
 
 
+# What a stored failure reason says in place of an exception's own text when
+# that text is about the machine rather than the document.
+DATABASE_FAILURE_REASON = (
+    "The result could not be saved because of a problem on our side. Try again; "
+    "if it keeps failing, contact support."
+)
+STORAGE_FAILURE_REASON = (
+    "The stored file could not be read because of a problem on our side. Try "
+    "again; if it keeps failing, upload the document again."
+)
+# Absolute POSIX paths of two or more segments: an upload directory, a
+# library's install path, a temp file. Two segments so a fraction like "1/2"
+# or a date like "15/04/2026" in a document's own message is left alone.
+_ABSOLUTE_PATH = re.compile(r"(?<![\w.])/(?:[\w.@+-]+/)+[\w.@+-]*")
+
+
+def public_reason(exc: BaseException, *, limit: int = 2000) -> str:
+    """An exception's message, fit to store on a row the API returns.
+
+    A failed parse and a failed reconciliation both record why on the row —
+    ``parse_error``, ``error`` — and both rows go straight back to the caller.
+    Storing ``str(exc)`` handed the caller whatever the exception carried: a
+    SQLAlchemy error's ``[SQL: ...]`` and ``[parameters: ...]`` (the statement,
+    the table, and the tenant's own figures), an ``OSError``'s absolute path
+    under the upload directory, a library's install path. None of it is
+    something the reader can act on, and all of it maps the server for
+    someone who can.
+
+    The full exception is still logged with its traceback at every call site,
+    which is where an operator debugging a bad volume mount goes for the path.
+    What remains here is what the user can do about it: a database or storage
+    failure becomes a sentence saying so, and any other message keeps its words
+    with absolute paths taken out — a parser's own reason is usually the most
+    useful thing on the screen.
+    """
+    if isinstance(exc, SQLAlchemyError):
+        return DATABASE_FAILURE_REASON
+    if isinstance(exc, OSError) and not isinstance(exc, ConnectionError | TimeoutError):
+        return STORAGE_FAILURE_REASON
+    message = _ABSOLUTE_PATH.sub("<path>", str(exc)).strip()
+    return (message or type(exc).__name__)[:limit]
+
+
 def error_code(status_code: int) -> str:
     return _CODES.get(status_code, "error" if status_code < 500 else "internal_error")
 

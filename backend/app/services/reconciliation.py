@@ -44,6 +44,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.core.errors import public_reason
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
 from app.models.invoice import (
     UNREADABLE_STATUSES,
@@ -1140,7 +1141,8 @@ def run_reconciliation(
             status=ReconciliationStatus.FAILED,
             started_at=started_at,
             completed_at=datetime.now(UTC),
-            error=str(exc)[:2000],
+            # The run row is returned by the API; see ``public_reason``.
+            error=public_reason(exc),
         )
         db.add(run)
         db.commit()

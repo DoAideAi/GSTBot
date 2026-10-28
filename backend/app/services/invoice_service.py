@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from app.core.config import settings
+from app.core.errors import public_reason
 from app.core.sanitize import clean_text, safe_extension, strip_control_chars, without_nul
 from app.models.business import Business
 from app.models.invoice import (
@@ -37,6 +38,24 @@ from app.services import gstin as gstin_service
 from app.services.invoice_parser import ParsedInvoice, parse_invoice
 
 logger = logging.getLogger(__name__)
+
+
+class StoredFileMissing(FileNotFoundError):
+    """The upload's bytes are not where the row says, and no text was kept.
+
+    Carries the path for the log line; the row is given
+    :data:`STORED_FILE_MISSING_REASON` instead, which names no path.
+    """
+
+    def __init__(self, path: str | None) -> None:
+        super().__init__(f"Stored file is missing: {path}")
+        self.path = path
+
+
+STORED_FILE_MISSING_REASON = (
+    "The stored copy of this file is missing, so it cannot be read again. "
+    "Upload the document again."
+)
 
 
 class PlanLimitExceeded(RuntimeError):
@@ -623,7 +642,7 @@ def process_invoice(
         path = Path(invoice.storage_path) if invoice.storage_path else None
         content = path.read_bytes() if path and path.exists() else None
         if content is None and not invoice.raw_text:
-            raise FileNotFoundError(f"Stored file is missing: {invoice.storage_path}")
+            raise StoredFileMissing(invoice.storage_path)
 
         parsed = parse_invoice(
             content=content,
@@ -672,7 +691,11 @@ def process_invoice(
         # commit anything at all until it is cleared.
         db.rollback()
         invoice.status = InvoiceStatus.FAILED
-        invoice.parse_error = str(exc)[:2000]
+        invoice.parse_error = (
+            STORED_FILE_MISSING_REASON
+            if isinstance(exc, StoredFileMissing)
+            else public_reason(exc)
+        )
         db.commit()
         # Logged after the write-back, not before it: the outcome fields read
         # the row, and before the commit the row still says ``processing``.
