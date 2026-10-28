@@ -71,7 +71,7 @@ describe("AdvisorPage", () => {
     await user.type(screen.getByPlaceholderText("Ask a GST question..."), "test");
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
-    await waitFor(() => expect(screen.getByText(/could not answer that just now/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/could not answer just now/)).toBeInTheDocument());
   });
 
   it("sends the earlier turns as history with a follow-up", async () => {
@@ -102,7 +102,7 @@ describe("AdvisorPage", () => {
     await user.type(screen.getByPlaceholderText("Ask a GST question..."), "test");
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
-    await waitFor(() => expect(screen.getByText(/Something went wrong/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Could not reach the AI advisor/)).toBeInTheDocument());
   });
 
   it("clicking a suggested question sends it", async () => {

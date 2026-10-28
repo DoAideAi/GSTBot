@@ -8,14 +8,18 @@ import httpx
 
 class TestAdvisorAsk:
 
-    def test_a_missing_api_key_returns_a_graceful_fallback(self, client):
+    def test_a_missing_api_key_is_a_503_that_says_it_is_not_set_up(self, client):
+        """Not a 200 with an apology dressed as an answer: the chat could not
+        tell it from a reply, and "temporarily" was untrue — it is a setup
+        fault that waiting does not fix."""
         with patch("app.routers.advisor._get_api_key", return_value=None):
             response = client.post(
                 "/api/v1/advisor/ask",
                 json={"message": "What is GST?"},
             )
-        assert response.status_code == 200
-        assert "unavailable" in response.json()["reply"].lower()
+        assert response.status_code == 503
+        assert "not set up" in response.json()["detail"]
+        assert "reply" not in response.json()
 
     def test_a_successful_gemini_call_returns_the_reply(self, client):
         gemini_body = {
@@ -72,8 +76,8 @@ class TestAdvisorAsk:
                 "/api/v1/advisor/ask",
                 json={"message": "Hello"},
             )
-        assert response.status_code == 200
-        assert "could not generate" in response.json()["reply"].lower()
+        assert response.status_code == 502
+        assert "having problems" in response.json()["detail"]
 
     def test_a_timeout_returns_a_graceful_fallback(self, client):
         with (
@@ -88,8 +92,8 @@ class TestAdvisorAsk:
                 "/api/v1/advisor/ask",
                 json={"message": "Hello"},
             )
-        assert response.status_code == 200
-        assert "timed out" in response.json()["reply"].lower()
+        assert response.status_code == 504
+        assert "took too long" in response.json()["detail"]
 
     def test_an_empty_message_is_refused(self, client):
         response = client.post(
@@ -111,7 +115,8 @@ class TestAdvisorAsk:
                 "/api/v1/advisor/ask",
                 json={"message": "What is GST?"},
             )
-        assert response.status_code == 200
+        # Reached without a token: the answer is about the advisor, not auth.
+        assert response.status_code not in (401, 403)
 
     def test_an_overloaded_model_falls_through_to_the_next_one(self, client):
         overloaded = httpx.Response(503, text="high demand")
@@ -140,7 +145,8 @@ class TestAdvisorAsk:
             response = client.post("/api/v1/advisor/ask", json={"message": "Hello"})
 
         assert post.await_count == 1
-        assert "could not generate" in response.json()["reply"].lower()
+        assert response.status_code == 502
+        assert "refused this question" in response.json()["detail"]
 
     def test_every_model_overloaded_returns_the_graceful_fallback(self, client):
         post = AsyncMock(return_value=httpx.Response(503, text="high demand"))
@@ -152,7 +158,8 @@ class TestAdvisorAsk:
             response = client.post("/api/v1/advisor/ask", json={"message": "Hello"})
 
         assert post.await_count > 1
-        assert "could not generate" in response.json()["reply"].lower()
+        assert response.status_code == 503
+        assert "overloaded" in response.json()["detail"]
 
     def test_a_reply_with_no_parts_is_not_returned_as_blank(self, client):
         blocked = httpx.Response(200, json={"candidates": [{"finishReason": "SAFETY"}]})
@@ -163,7 +170,8 @@ class TestAdvisorAsk:
         ):
             response = client.post("/api/v1/advisor/ask", json={"message": "Hello"})
 
-        assert "could not generate" in response.json()["reply"].lower()
+        assert response.status_code == 502
+        assert "no answer" in response.json()["detail"]
 
     def test_the_api_key_is_sent_in_a_header_not_the_url(self, client):
         post = AsyncMock(
@@ -298,8 +306,8 @@ class TestAdvisorLeavesARecord:
                 side_effect=httpx.ReadTimeout("slow"),
             ),
         ):
-            reply = client.post("/api/v1/advisor/ask", json={"message": "Hi"}).json()["reply"]
-        assert "timed out" in reply
+            response = client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+        assert response.status_code == 504
         [line] = [r for r in caplog.records if "timed out" in r.getMessage()]
         assert line.levelname == "WARNING"
         assert line.model == "gemini-3.8-flash"

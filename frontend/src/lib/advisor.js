@@ -22,3 +22,22 @@ export function advisorHistory(messages) {
     text: String(m.text ?? "").slice(0, ADVISOR_TURN_MAX_CHARS),
   }));
 }
+
+/** What the user can do when the advisor could not be reached at all. */
+export const ADVISOR_UNREACHABLE =
+  "Could not reach the AI advisor. Check your connection and ask again.";
+
+/**
+ * The sentence to show for a failed `POST /advisor/ask`.
+ *
+ * The server answers a failure with a status and `{ detail }` saying what
+ * happened and what to do — not set up, overloaded, too slow, refused. The
+ * widget used to print the raw response body (a JSON blob) and the page a
+ * fixed "Something went wrong", so either way the explanation was lost.
+ */
+export async function advisorFailure(res) {
+  const body = await res.json().catch(() => null);
+  if (typeof body?.detail === "string" && body.detail.trim()) return body.detail;
+  if (res.status === 429) return "You're asking quickly — wait a minute and ask again.";
+  return "The AI advisor could not answer just now. Ask again in a minute.";
+}

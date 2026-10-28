@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SeoHead from "../components/SeoHead";
-import { advisorHistory } from "../lib/advisor";
+import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
 
@@ -82,14 +82,12 @@ export default function AdvisorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: trimmed, history }),
       });
-      const data = res.ok ? await res.json() : null;
-      const reply = data?.reply || "Sorry, I could not answer that just now. Please try again.";
-      setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
+      const text = res.ok
+        ? (await res.json())?.reply || "The advisor sent back an empty answer. Ask again."
+        : await advisorFailure(res);
+      setMessages((prev) => [...prev, { role: "assistant", text }]);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", text: "Something went wrong. Please try again." },
-      ]);
+      setMessages((prev) => [...prev, { role: "assistant", text: ADVISOR_UNREACHABLE }]);
     } finally {
       setLoading(false);
       inputRef.current?.focus();

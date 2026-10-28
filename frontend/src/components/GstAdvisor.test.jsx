@@ -78,8 +78,12 @@ describe("GstAdvisor", () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: false,
-        status: 500,
-        text: () => Promise.resolve("Internal Server Error"),
+        status: 503,
+        json: () =>
+          Promise.resolve({
+            detail: "The AI advisor is overloaded right now. Wait a minute and ask again.",
+            correlation_id: "abc123",
+          }),
       }),
     );
 
@@ -92,7 +96,9 @@ describe("GstAdvisor", () => {
     await userEvent.click(screen.getByLabelText("Send message"));
 
     await waitFor(() => {
-      expect(screen.getByText("Internal Server Error")).toBeInTheDocument();
+      // The server's explanation, not its raw JSON body.
+      expect(screen.getByText(/overloaded right now/)).toBeInTheDocument();
+      expect(screen.queryByText(/correlation_id/)).not.toBeInTheDocument();
     });
   });
 

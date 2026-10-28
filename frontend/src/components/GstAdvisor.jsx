@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { advisorHistory } from "../lib/advisor";
+import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
 import { track } from "../lib/track";
 
 const SUGGESTED_QUESTIONS = [
@@ -43,15 +43,17 @@ export default function GstAdvisor() {
       });
 
       if (!res.ok) {
-        const errBody = await res.text().catch(() => "");
-        throw new Error(errBody || `API error ${res.status}`);
+        setError(await advisorFailure(res));
+        return;
       }
 
       const data = await res.json();
       const reply = data?.reply ?? "Sorry, I could not generate a response.";
       setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
     } catch (err) {
-      setError(err.message || "Something went wrong. Please try again.");
+      // fetch itself failed — offline, DNS, a dropped connection. Its own
+      // wording ("Failed to fetch") tells the user nothing.
+      setError(ADVISOR_UNREACHABLE);
     } finally {
       setLoading(false);
       scrollToBottom();

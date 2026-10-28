@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.core.rate_limit import RateLimit
@@ -33,7 +33,6 @@ _advisor_limit = RateLimit("advisor_ask", "30/minute", by="ip")
 _GEMINI_MODELS = ("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite")
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 _RETRYABLE = frozenset({429, 500, 502, 503, 504})
-_NO_REPLY = "Sorry, I could not generate a response. Please try again."
 
 SYSTEM_PROMPT = (
     "You are GSTIndia AI Advisor, an expert on India's Goods and Services Tax. "
@@ -165,7 +164,14 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                 "'temporarily unavailable' (set GEMINI_API_KEY or the key file)",
                 extra={"key_file": str(_KEY_FILE)},
             )
-        return {"reply": "The AI advisor is temporarily unavailable. Please try again later."}
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "The AI advisor is not set up on this server yet, so it cannot answer "
+                "questions. The GSTIndia team has been alerted; the GST calculators and "
+                "guides work in the meantime."
+            ),
+        )
 
     contents = _build_contents(body.history, body.message)
     payload = {
@@ -193,7 +199,16 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                         "history_turns": len(body.history),
                     },
                 )
-                return {"reply": _reply_text(response.json())}
+                reply = _reply_text(response.json())
+                if reply is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=(
+                            "The advisor produced no answer to that question. Try "
+                            "rephrasing it, or asking about one GST topic at a time."
+                        ),
+                    )
+                return {"reply": reply}
             logger.warning(
                 "Gemini %s returned %d: %s",
                 model,
@@ -210,23 +225,56 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                 "duration_ms": int((time.monotonic() - started) * 1000),
             },
         )
-        return {"reply": _NO_REPLY}
+        # Which of three things the last refusal was decides what the user can
+        # do about it: wait (overloaded), wait longer (the service is failing),
+        # or change the question (it was refused as asked).
+        if response.status_code in (429, 503):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="The AI advisor is overloaded right now. Wait a minute and ask again.",
+            )
+        if response.status_code in _RETRYABLE:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "The AI service behind the advisor is having problems. Try again "
+                    "in a few minutes."
+                ),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The AI service refused this question. Try rephrasing it.",
+        )
 
+    except HTTPException:
+        raise
     except httpx.TimeoutException:
         logger.warning(
             "Advisor request to Gemini timed out",
             extra={"model": model, "duration_ms": int((time.monotonic() - started) * 1000)},
         )
-        return {"reply": "The request timed out. Please try again."}
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=(
+                "The AI advisor took too long to answer. Ask again — shorter "
+                "questions are answered faster."
+            ),
+        ) from None
     except Exception:
         logger.exception("Advisor proxy error")
-        return {"reply": "Something went wrong. Please try again later."}
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "The AI advisor could not answer because of a problem on our side. "
+                "Try again in a minute."
+            ),
+        ) from None
 
 
-def _reply_text(data: dict) -> str:
+def _reply_text(data: dict) -> str | None:
     # A 200 is not always an answer: a candidate stopped by a safety filter, or
     # one that spent its whole budget thinking, arrives with no parts at all.
     candidates = data.get("candidates") or [{}]
     parts = (candidates[0].get("content") or {}).get("parts") or []
     text = "".join(p.get("text", "") for p in parts).strip()
-    return text or _NO_REPLY
+    return text or None
