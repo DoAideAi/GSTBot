@@ -900,3 +900,32 @@ def test_an_unhandled_500_carries_the_same_security_headers_as_any_response(
     for header, value in security_headers().items():
         assert response.headers.get(header) == value, header
     assert "Strict-Transport-Security" in response.headers
+
+
+class TestAValidationMessageNamesItsField:
+    """P16 M19: ``error.message`` is what an API client without this product's
+    frontend shows — the GPT actions read it out — and it was pydantic's bare
+    text: two missing fields read "Field required; Field required"."""
+
+    def test_each_missing_field_is_named(self, client):
+        response = client.post("/api/v1/auth/register", json={})
+        assert response.status_code == 422
+        message = response.json()["error"]["message"]
+        assert "email: Field required" in message
+        assert "password: Field required" in message
+
+    def test_a_query_bound_is_named(self, client):
+        response = client.get("/api/v1/gpt/calculate", params={"amount": "-1", "rate": "18"})
+        assert response.status_code == 422
+        assert response.json()["error"]["message"].startswith("amount: ")
+
+    def test_a_message_that_already_names_its_field_is_left_alone(self):
+        from app.core.errors import _summarise
+
+        error = {"loc": ("body", "gstin"), "msg": "GSTIN check digit does not match"}
+        assert _summarise([error]) == "GSTIN check digit does not match"
+
+    def test_a_whole_body_error_has_no_field_to_name(self):
+        from app.core.errors import _summarise
+
+        assert _summarise([{"loc": ("body",), "msg": "JSON decode error"}]) == "JSON decode error"

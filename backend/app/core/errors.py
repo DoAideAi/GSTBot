@@ -215,10 +215,33 @@ def _summarise(detail: Any) -> str:
     if isinstance(detail, dict):
         return str(detail.get("message") or detail)
     if isinstance(detail, list):
-        return "; ".join(
-            str(item.get("msg") if isinstance(item, dict) else item) for item in detail
-        )
+        return "; ".join(_named(item) if isinstance(item, dict) else str(item) for item in detail)
     return str(detail)
+
+
+# The parts of a pydantic ``loc`` that say where a value came from rather than
+# which value it was.
+_LOCATIONS = frozenset({"body", "query", "path", "header", "cookie"})
+
+
+def _named(error: dict) -> str:
+    """One pydantic error as a sentence that says which field it is about.
+
+    ``error.message`` is what an API client without our frontend shows — the
+    GPT actions read it to a user — and pydantic's own messages do not name the
+    field: a request missing two read "Field required; Field required". The
+    frontend has always prefixed the field itself (``fieldMessage`` in
+    ``lib/api.js``); this is the same rule, so both say the same thing.
+    """
+    message = str(error.get("msg", "Invalid value"))
+    loc = error.get("loc") or ()
+    name = next(
+        (str(part) for part in reversed(loc) if isinstance(part, str) and part not in _LOCATIONS),
+        None,
+    )
+    if not name or name.replace("_", " ").lower() in message.lower():
+        return message
+    return f"{name}: {message}"
 
 
 # How much of a rejected value is quoted back in a 422.
