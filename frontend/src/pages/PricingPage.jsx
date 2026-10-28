@@ -73,15 +73,24 @@ export default function PricingPage() {
     setError(null);
     setSuccess(null);
     setPaying(true);
+    // The upgrade funnel, one event per step: chose a plan, saw checkout, and
+    // then exactly one of paid, walked away, or failed — with the stage it
+    // failed at, because a gateway that will not load and a payment that will
+    // not verify are different problems to go and fix.
+    const step = { tier, billing };
+    track("upgrade_click", step);
+    let stage = "gateway";
 
     try {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
+        track("upgrade_failed", { ...step, stage });
         setError("Could not load payment gateway. Please try again.");
         setPaying(false);
         return;
       }
 
+      stage = "order";
       const order = await api.createOrder(tier, billing);
       const periodLabel = billing === "annual" ? "Annual" : "Monthly";
 
@@ -100,10 +109,13 @@ export default function PricingPage() {
               razorpay_signature: response.razorpay_signature,
               tier,
             });
+            track("subscribe_success", step);
             setSuccess(`Subscribed to ${TIER_LABELS[tier]} plan!`);
             const sub = await api.currentSubscription();
             setCurrentSub(sub);
           } catch (err) {
+            // Paid but not activated: the step a support ticket follows.
+            track("upgrade_failed", { ...step, stage: "verify" });
             setError(err.message);
           } finally {
             setPaying(false);
@@ -111,6 +123,7 @@ export default function PricingPage() {
         },
         modal: {
           ondismiss: function () {
+            track("checkout_dismissed", step);
             setPaying(false);
           },
         },
@@ -123,7 +136,9 @@ export default function PricingPage() {
 
       const rzp = new window.Razorpay(options);
       rzp.open();
+      track("checkout_open", step);
     } catch (err) {
+      track("upgrade_failed", { ...step, stage });
       setError(err.message);
       setPaying(false);
     }

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthContext } from "../hooks/useAuth";
@@ -251,5 +251,126 @@ describe("PricingPage", () => {
     expect(links.length).toBeGreaterThan(0);
     links.forEach((link) => expect(link).toHaveAttribute("href", "/login"));
     expect(screen.queryByRole("button", { name: "Sign in to subscribe" })).toBeNull();
+  });
+});
+
+describe("the upgrade funnel", () => {
+  const ORDER = {
+    order_id: "order_sub",
+    amount: 49900,
+    currency: "INR",
+    razorpay_key_id: "rzp_test_publishable",
+    tier: "pro",
+  };
+  const PAYMENT = {
+    razorpay_order_id: "order_sub",
+    razorpay_payment_id: "pay_sub",
+    razorpay_signature: "sig",
+  };
+  let checkout;
+
+  function json(body, status = 200) {
+    return { ok: status < 400, status, statusText: "", text: async () => JSON.stringify(body) };
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    mockTrack.mockClear();
+    checkout = null;
+    window.Razorpay = vi.fn(function Razorpay(options) {
+      checkout = options;
+      return { open: vi.fn() };
+    });
+    // Already on the page, so the loader resolves at once.
+    const script = document.createElement("script");
+    script.id = "razorpay-script";
+    document.body.appendChild(script);
+  });
+
+  afterEach(() => {
+    delete window.Razorpay;
+    document.getElementById("razorpay-script")?.remove();
+  });
+
+  async function chooseSmb(...responses) {
+    const fetch = vi.fn();
+    [PRICING_RESPONSE, SUBSCRIPTION_RESPONSE, ...responses].forEach((r) =>
+      fetch.mockResolvedValueOnce(r.ok === undefined ? json(r) : r),
+    );
+    global.fetch = fetch;
+    renderPage();
+    fireEvent.click((await screen.findAllByRole("button", { name: "Subscribe" }))[0]);
+  }
+
+  const events = () => mockTrack.mock.calls.map(([name]) => name);
+
+  it("records choosing a plan, opening checkout and paying", async () => {
+    await chooseSmb(ORDER, { id: 1 }, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
+    await waitFor(() => expect(checkout).not.toBeNull());
+
+    await checkout.handler(PAYMENT);
+
+    await waitFor(() => expect(events()).toContain("subscribe_success"));
+    expect(mockTrack).toHaveBeenCalledWith("upgrade_click", { tier: "pro", billing: "monthly" });
+    expect(mockTrack).toHaveBeenCalledWith("checkout_open", { tier: "pro", billing: "monthly" });
+    expect(events()).not.toContain("upgrade_failed");
+  });
+
+  it("records walking away from checkout", async () => {
+    await chooseSmb(ORDER);
+    await waitFor(() => expect(checkout).not.toBeNull());
+
+    checkout.modal.ondismiss();
+
+    expect(mockTrack).toHaveBeenCalledWith("checkout_dismissed", { tier: "pro", billing: "monthly" });
+  });
+
+  it("records a payment that would not verify as a failure at the verify stage", async () => {
+    await chooseSmb(ORDER, json({ detail: "Payment verification failed." }, 400));
+    await waitFor(() => expect(checkout).not.toBeNull());
+
+    await checkout.handler(PAYMENT);
+
+    await waitFor(() =>
+      expect(mockTrack).toHaveBeenCalledWith("upgrade_failed", {
+        tier: "pro",
+        billing: "monthly",
+        stage: "verify",
+      }),
+    );
+    expect(events()).not.toContain("subscribe_success");
+  });
+
+  it("records an order that could not be created as a failure at the order stage", async () => {
+    await chooseSmb(json({ detail: "Payment processing is not configured." }, 503));
+
+    await waitFor(() =>
+      expect(mockTrack).toHaveBeenCalledWith("upgrade_failed", {
+        tier: "pro",
+        billing: "monthly",
+        stage: "order",
+      }),
+    );
+    expect(events()).not.toContain("checkout_open");
+  });
+
+  it("records a payment window that would not load as a failure at the gateway stage", async () => {
+    document.getElementById("razorpay-script").remove();
+    await chooseSmb();
+    const script = await waitFor(() => {
+      const found = document.getElementById("razorpay-script");
+      expect(found).not.toBeNull();
+      return found;
+    });
+
+    script.onerror();
+
+    await waitFor(() =>
+      expect(mockTrack).toHaveBeenCalledWith("upgrade_failed", {
+        tier: "pro",
+        billing: "monthly",
+        stage: "gateway",
+      }),
+    );
   });
 });
