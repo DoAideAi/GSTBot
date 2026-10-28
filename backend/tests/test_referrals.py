@@ -136,3 +136,75 @@ class TestReferralLeaderboard:
         leaders = r.json()["leaders"]
         assert len(leaders) == 1
         assert leaders[0]["referral_count"] == 1
+
+
+class TestASignupConvertsTheVisit:
+    """P17 M3: a referral visit had a ``converted`` state, ``/my-stats`` counted
+    it and the referral page shows it as "Signups" — and nothing ever moved a
+    visit into it, so every CA saw 0. Signing up now converts the visitor's
+    latest visit, matched the way ``/track`` recognised it."""
+
+    def _referrer(self, auth_client):
+        code = auth_client.get("/api/v1/referrals/my-code").json()["referral_code"]
+        token = auth_client.headers["Authorization"]
+        return code, token
+
+    def _signup(self, client, email="newcomer@example.com"):
+        client.headers.pop("Authorization", None)
+        response = client.post(
+            "/api/v1/auth/register",
+            json={"email": email, "password": "a-long-passphrase", "legal_name": "Newcomer"},
+        )
+        assert response.status_code == 201, response.text
+
+    def _stats(self, client, token):
+        return client.get("/api/v1/referrals/my-stats", headers={"Authorization": token}).json()
+
+    def test_a_visit_followed_by_a_signup_counts_once(self, auth_client):
+        code, token = self._referrer(auth_client)
+        auth_client.headers.pop("Authorization")
+        assert auth_client.post(
+            "/api/v1/referrals/track", json={"referral_code": code}
+        ).json()["tracked"]
+
+        self._signup(auth_client)
+        assert self._stats(auth_client, token) == {
+            "referral_code": code,
+            "total_visits": 1,
+            "conversions": 1,
+        }
+
+        self._signup(auth_client, email="second@example.com")
+        # The visit converted once; a second sign-up from that address is not
+        # a second conversion of it.
+        assert self._stats(auth_client, token)["conversions"] == 1
+
+    def test_a_signup_with_no_visit_converts_nothing(self, auth_client):
+        code, token = self._referrer(auth_client)
+        self._signup(auth_client)
+        assert self._stats(auth_client, token)["conversions"] == 0
+
+    def test_a_visit_older_than_the_window_does_not_convert(self, auth_client, db_session):
+        from datetime import UTC, datetime
+
+        from app.models.referral import Referral
+        from app.routers.referrals import CONVERSION_WINDOW
+
+        code, token = self._referrer(auth_client)
+        auth_client.headers.pop("Authorization")
+        auth_client.post("/api/v1/referrals/track", json={"referral_code": code})
+        visit = db_session.query(Referral).one()
+        visit.created_at = datetime.now(UTC) - CONVERSION_WINDOW - CONVERSION_WINDOW / 30
+        db_session.commit()
+
+        self._signup(auth_client)
+        assert self._stats(auth_client, token)["conversions"] == 0
+
+    def test_a_failure_to_record_it_does_not_fail_the_signup(self, client, monkeypatch):
+        from app.routers import referrals
+
+        def broken(*_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(referrals, "_hash_ip", broken)
+        self._signup(client)

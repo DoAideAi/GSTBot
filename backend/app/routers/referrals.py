@@ -13,11 +13,13 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func as sa_func
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -38,6 +40,55 @@ _my_limit = RateLimit("referral_my", "60/minute", by="identity")
 
 def _hash_ip(ip: str) -> str:
     return hashlib.sha256(ip.encode()).hexdigest()[:16]
+
+
+# How long after a visit a sign-up from the same visitor still counts as the
+# referral converting.
+CONVERSION_WINDOW = timedelta(days=30)
+
+
+def visitor_ip(request: Request) -> str:
+    """The address a referral visit is keyed on — the same one ``/track`` uses."""
+    return request.client.host if request.client else "unknown"
+
+
+def record_conversion(db: Session, ip: str) -> bool:
+    """Mark this visitor's latest open referral as converted; ``True`` if one was.
+
+    ``converted`` existed, ``/my-stats`` counted it and the referral page shows
+    it as "Signups" — and nothing ever set it, so every CA's count read 0 no
+    matter who signed up through their link. A sign-up is matched to a visit
+    the way ``/track`` recognised the visit: by the visitor's hashed address.
+    The most recent visit wins when one visitor followed two links, and only
+    within :data:`CONVERSION_WINDOW`.
+
+    Best effort, in its own commit after the account exists: attribution is a
+    statistic, and a sign-up must never fail for its sake.
+    """
+    try:
+        latest = db.scalar(
+            select(Referral.id)
+            .where(
+                Referral.visitor_ip_hash == _hash_ip(ip),
+                Referral.converted.is_(False),
+                Referral.created_at >= datetime.now(UTC) - CONVERSION_WINDOW,
+            )
+            .order_by(Referral.created_at.desc(), Referral.id.desc())
+            .limit(1)
+        )
+        if latest is None:
+            return False
+        db.execute(
+            update(Referral)
+            .where(Referral.id == latest, Referral.converted.is_(False))
+            .values(converted=True)
+        )
+        db.commit()
+        return True
+    except Exception:  # noqa: BLE001 - a statistic must not fail a sign-up
+        db.rollback()
+        logger.exception("Referral conversion not recorded")
+        return False
 
 
 def _generate_code() -> str:
@@ -63,8 +114,7 @@ def track_referral(
     request: Request,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    ip = request.client.host if request.client else "unknown"
-    ip_hash = _hash_ip(ip)
+    ip_hash = _hash_ip(visitor_ip(request))
 
     referrer = db.query(User).filter(
         User.referral_code == body.referral_code,

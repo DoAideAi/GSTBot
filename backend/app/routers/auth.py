@@ -40,6 +40,7 @@ from app.core.ratespec import Rate, parse_rate
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.business import Business, BusinessPlan
 from app.models.user import User, UserRole
+from app.routers import referrals
 from app.schemas.auth import (
     BusinessOut,
     MeOut,
@@ -115,7 +116,9 @@ def _account_key(username: str) -> str:
     },
     dependencies=[Depends(_register_limit)],
 )
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+def register(
+    payload: RegisterRequest, request: Request, db: Session = Depends(get_db)
+) -> RegisterResponse:
     """Create a business and its owner login in one step.
 
     GSTIN is optional — a user can sign up to explore the product and add their
@@ -176,6 +179,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Registe
         "Business registered",
         extra={"business_id": business.id, "user_id": user.id},
     )
+    referrals.record_conversion(db, referrals.visitor_ip(request))
 
     return RegisterResponse(
         user=UserOut.model_validate(user),
