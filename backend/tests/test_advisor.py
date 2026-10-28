@@ -1,6 +1,7 @@
 """The AI advisor proxy returns a model reply without exposing the API key."""
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -236,11 +237,13 @@ class TestAdvisorLatency:
                 "/api/v1/advisor/ask", json={"message": "latest", "history": history}
             )
         assert response.status_code == 200
-        contents = post.call_args.kwargs["json"]["contents"]
+        payload = post.call_args.kwargs["json"]
+        # System prompt moved to systemInstruction, no longer a conversation turn.
+        assert "systemInstruction" in payload
+        contents = payload["contents"]
         texts = [c["parts"][0]["text"] for c in contents]
-        # System prompt + its acknowledgement, the recent turns, then the question.
-        assert len(contents) == 2 + HISTORY_TURNS_SENT + 1
-        assert texts[2] == f"turn {50 - HISTORY_TURNS_SENT}"
+        assert len(contents) == HISTORY_TURNS_SENT + 1
+        assert texts[0] == f"turn {50 - HISTORY_TURNS_SENT}"
         assert texts[-2] == "turn 49"
         assert texts[-1] == "latest"
         assert "turn 0" not in texts
@@ -373,3 +376,190 @@ def test_clients_for_closed_loops_are_not_kept():
 
     assert asyncio.run(touch_and_count()) == 1
     advisor._clients.clear()
+
+
+# ---------------------------------------------------------------------------
+# Streaming endpoint
+# ---------------------------------------------------------------------------
+
+def _sse_body(text_chunks: list[str]) -> bytes:
+    """Fake SSE bytes like Gemini's ``streamGenerateContent?alt=sse``."""
+    parts = []
+    for chunk in text_chunks:
+        data = json.dumps({"candidates": [{"content": {"parts": [{"text": chunk}]}}]})
+        parts.append(f"data: {data}\n\n")
+    return "".join(parts).encode()
+
+
+class _FakeStreamResponse:
+    """Stands in for ``httpx.Response`` from ``client.send(stream=True)``."""
+
+    def __init__(self, status_code: int, body: bytes = b""):
+        self.status_code = status_code
+        self._body = body
+        self._pos = 0
+
+    async def aiter_lines(self):
+        for line in self._body.decode().splitlines():
+            yield line
+
+    async def aread(self) -> bytes:
+        return self._body
+
+    async def aclose(self) -> None:
+        pass
+
+
+class TestAdvisorStream:
+
+    def test_a_streamed_answer_arrives_as_sse_chunks(self, client):
+        body = _sse_body(["GST ", "is ", "18%."])
+        response_obj = _FakeStreamResponse(200, body)
+
+        async def fake_send(self, req, *, stream=False):
+            return response_obj
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post(
+                "/api/v1/advisor/ask/stream",
+                json={"message": "What is the GST rate?"},
+            )
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        lines = [
+            ln for ln in response.text.strip().split("\n") if ln.startswith("data: ")
+        ]
+        texts = [json.loads(ln[6:]).get("t") for ln in lines if "\"t\"" in ln]
+        # Chunks keep their spacing: the model splits mid-sentence, and the
+        # browser joins them as they come.
+        assert texts == ["GST ", "is ", "18%."]
+        assert "".join(texts) == "GST is 18%."
+        assert any('"done": true' in ln or '"done":true' in ln for ln in lines)
+
+    def test_a_missing_key_on_stream_is_a_503(self, client):
+        with patch("app.routers.advisor._get_api_key", return_value=None):
+            response = client.post(
+                "/api/v1/advisor/ask/stream",
+                json={"message": "Hello"},
+            )
+        assert response.status_code == 503
+
+    def test_stream_falls_through_on_retryable_error(self, client):
+        overloaded = _FakeStreamResponse(503, b"overloaded")
+        ok_body = _sse_body(["ok"])
+        ok_resp = _FakeStreamResponse(200, ok_body)
+        responses = iter([overloaded, ok_resp])
+
+        async def fake_send(self, req, *, stream=False):
+            return next(responses)
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post(
+                "/api/v1/advisor/ask/stream",
+                json={"message": "Hello"},
+            )
+        assert response.status_code == 200
+        assert '"t": "ok"' in response.text or '"t":"ok"' in response.text
+
+    def test_stream_all_models_fail_sends_error_event(self, client):
+        fail = _FakeStreamResponse(503, b"overloaded")
+
+        async def fake_send(self, req, *, stream=False):
+            return fail
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post(
+                "/api/v1/advisor/ask/stream",
+                json={"message": "Hello"},
+            )
+        assert response.status_code == 200
+        assert '"error"' in response.text
+        assert "overloaded" in response.text
+
+
+class _CutOffStream(_FakeStreamResponse):
+    """Sends its first chunk, then the connection to Gemini times out."""
+
+    async def aiter_lines(self):
+        for line in self._body.decode().splitlines():
+            yield line
+        raise httpx.ReadTimeout("read timed out")
+
+
+def _events(response) -> list[dict]:
+    return [
+        json.loads(ln[6:]) for ln in response.text.split("\n") if ln.startswith("data: ")
+    ]
+
+
+class TestAdvisorStreamFailures:
+    def test_a_stream_cut_off_midway_is_not_restarted_by_the_next_model(self, client):
+        # Falling through would append a second answer, from its first word,
+        # to the half of the first one the visitor is already reading.
+        calls = []
+        cut = _CutOffStream(200, _sse_body(["GST on laptops "]))
+
+        async def fake_send(self, req, *, stream=False):
+            calls.append(str(req.url))
+            return cut
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post("/api/v1/advisor/ask/stream", json={"message": "Laptops?"})
+
+        events = _events(response)
+        assert [e.get("t") for e in events if "t" in e] == ["GST on laptops "]
+        assert events[-1] == {"error": "The answer was cut off. Ask again for the rest."}
+        assert len(calls) == 1
+
+    def test_an_empty_answer_tries_the_next_model_and_never_reports_done(self, client):
+        empty = _FakeStreamResponse(200, b'data: {"candidates": [{"finishReason": "SAFETY"}]}\n\n')
+
+        async def fake_send(self, req, *, stream=False):
+            return empty
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
+
+        events = _events(response)
+        assert not any(e.get("done") for e in events)
+        assert "error" in events[-1]
+
+    def test_the_system_prompt_is_an_instruction_not_a_fake_turn(self, client):
+        sent = {}
+
+        async def fake_send(self, req, *, stream=False):
+            sent.update(json.loads(req.content))
+            return _FakeStreamResponse(200, _sse_body(["ok"]))
+
+        history = [
+            {"role": "assistant", "text": "Hello! Ask me about GST."},
+            {"role": "user", "text": "Rate on gold?"},
+            {"role": "assistant", "text": "3%."},
+        ]
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            client.post(
+                "/api/v1/advisor/ask/stream", json={"message": "And silver?", "history": history}
+            )
+
+        assert sent["systemInstruction"]["parts"][0]["text"]
+        roles = [c["role"] for c in sent["contents"]]
+        # Gemini needs the first turn to be the user's: a leading model greeting is dropped.
+        assert roles == ["user", "model", "user"]

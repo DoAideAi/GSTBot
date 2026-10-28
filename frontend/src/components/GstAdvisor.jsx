@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useExclusivePanel } from "../lib/floatingLayout";
-import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
+import { advisorErrorMessage, streamAdvisor } from "../lib/advisor";
 import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 
@@ -37,27 +37,22 @@ export default function GstAdvisor() {
     scrollToBottom();
 
     try {
-      const res = await fetch("/api/v1/advisor/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          history: advisorHistory(history),
-        }),
+      let added = false;
+      await streamAdvisor(text, history, (partial) => {
+        if (!added) {
+          setMessages((prev) => [...prev, { role: "assistant", text: partial }]);
+          added = true;
+        } else {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { role: "assistant", text: partial };
+            return next;
+          });
+        }
+        scrollToBottom();
       });
-
-      if (!res.ok) {
-        setError(await advisorFailure(res));
-        return;
-      }
-
-      const data = await res.json();
-      const reply = data?.reply ?? "Sorry, I could not generate a response.";
-      setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
     } catch (err) {
-      // fetch itself failed — offline, DNS, a dropped connection. Its own
-      // wording ("Failed to fetch") tells the user nothing.
-      setError(ADVISOR_UNREACHABLE);
+      setError(advisorErrorMessage(err));
     } finally {
       setLoading(false);
       scrollToBottom();
@@ -163,7 +158,7 @@ export default function GstAdvisor() {
                 )}
               </div>
             ))}
-            {loading && (
+            {loading && (messages.length === 0 || messages[messages.length - 1].role !== "assistant") && (
               <div className="advisor-msg advisor-msg-assistant">
                 <div className="advisor-typing" aria-label="Thinking">
                   <span /><span /><span />

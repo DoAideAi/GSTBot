@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SeoHead from "../components/SeoHead";
-import { ADVISOR_UNREACHABLE, advisorFailure, advisorHistory } from "../lib/advisor";
+import { advisorErrorMessage, streamAdvisor } from "../lib/advisor";
 import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -56,29 +56,30 @@ export default function AdvisorPage() {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
 
-    // The turns before this one, in the shape POST /advisor/ask takes and
-    // within its caps — see lib/advisor.
-    const history = advisorHistory(messages);
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
     setLoading(true);
     track("advisor_ask", { question: trimmed.slice(0, 100) });
 
     try {
-      // The API takes `message` and answers `reply`. This page sent
-      // `question` and read `answer`, so every question was a 422 and came back
-      // as an empty bubble — the chat widget (GstAdvisor) always used this shape.
-      const res = await fetch("/api/v1/advisor/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history }),
+      let added = false;
+      await streamAdvisor(trimmed, messages, (partial) => {
+        if (!added) {
+          setMessages((prev) => [...prev, { role: "assistant", text: partial }]);
+          added = true;
+        } else {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { role: "assistant", text: partial };
+            return next;
+          });
+        }
       });
-      const text = res.ok
-        ? (await res.json())?.reply || "The advisor sent back an empty answer. Ask again."
-        : await advisorFailure(res);
-      setMessages((prev) => [...prev, { role: "assistant", text }]);
-    } catch {
-      setMessages((prev) => [...prev, { role: "assistant", text: ADVISOR_UNREACHABLE }]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: advisorErrorMessage(err) },
+      ]);
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -132,7 +133,7 @@ export default function AdvisorPage() {
             <MessageBubble key={i} role={msg.role} text={msg.text} />
           ))}
 
-          {loading && <TypingIndicator />}
+          {loading && (messages.length === 0 || messages[messages.length - 1].role !== "assistant") && <TypingIndicator />}
           <div ref={chatEndRef} />
         </div>
 

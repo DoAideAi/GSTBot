@@ -34,6 +34,7 @@ FREE_TOOLS = {
     ("GET", "/api/v1/gpt/filing-dates"),
     ("POST", "/api/v1/gpt/invoice"),
     ("POST", "/api/v1/advisor/ask"),
+    ("POST", "/api/v1/advisor/ask/stream"),
     ("GET", "/api/v1/subscriptions/pricing"),
     ("POST", "/api/v1/feedback"),
     ("POST", "/api/v1/feedback/error"),

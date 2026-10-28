@@ -41,3 +41,105 @@ export async function advisorFailure(res) {
   if (res.status === 429) return "You're asking quickly — wait a minute and ask again.";
   return "The AI advisor could not answer just now. Ask again in a minute.";
 }
+
+/**
+ * A failure whose message is written for the visitor — the server's own
+ * sentence, or one of ours. Anything else that is thrown (the browser's
+ * "Failed to fetch", a parse error) is shown as `ADVISOR_UNREACHABLE` instead,
+ * because its wording tells the visitor nothing.
+ */
+export class AdvisorError extends Error {}
+
+/** Shown when the stream stopped after part of the answer had arrived. */
+export const ADVISOR_CUT_OFF = "The answer was cut off. Ask again for the rest.";
+
+/** The sentence to show for anything `streamAdvisor` throws. */
+export function advisorErrorMessage(err) {
+  return err instanceof AdvisorError ? err.message : ADVISOR_UNREACHABLE;
+}
+
+async function post(path, message, messages) {
+  try {
+    return await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history: advisorHistory(messages) }),
+    });
+  } catch {
+    throw new AdvisorError(ADVISOR_UNREACHABLE);
+  }
+}
+
+/** The whole answer in one response — for a browser that cannot read a stream. */
+async function askOnce(message, messages, onChunk) {
+  const res = await post("/api/v1/advisor/ask", message, messages);
+  if (!res.ok) throw new AdvisorError(await advisorFailure(res));
+  const reply = (await res.json().catch(() => null))?.reply;
+  if (!reply) throw new AdvisorError("The advisor sent back an empty answer. Ask again.");
+  onChunk(reply);
+  return reply;
+}
+
+/**
+ * Stream an advisor answer as it is written, via server-sent events.
+ *
+ * `onChunk` is called with the answer so far each time more arrives, so the
+ * first words show in about a second instead of after the whole reply.
+ *
+ * A stream only counts as finished when the server says `done`. One that just
+ * stops — a dropped connection, a proxy timing out — throws: with nothing
+ * received it is unreachable, and with part of an answer received it says the
+ * answer was cut off, leaving the part on screen rather than passing it off as
+ * the whole thing.
+ *
+ * @param {string} message  The user's question.
+ * @param {Array}  messages The conversation so far (before this question).
+ * @param {(cumulative: string) => void} onChunk Called with the growing text.
+ * @returns {Promise<string>} The complete answer.
+ */
+export async function streamAdvisor(message, messages, onChunk) {
+  const res = await post("/api/v1/advisor/ask/stream", message, messages);
+  if (!res.ok) throw new AdvisorError(await advisorFailure(res));
+  if (typeof res.body?.getReader !== "function") return askOnce(message, messages, onChunk);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  let buf = "";
+
+  try {
+    for (;;) {
+      let chunk;
+      try {
+        chunk = await reader.read();
+      } catch {
+        break; // the connection dropped mid-answer; handled below
+      }
+      if (chunk.done) break;
+
+      buf += decoder.decode(chunk.value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let evt;
+        try {
+          evt = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+        if (evt.error) throw new AdvisorError(evt.error);
+        if (evt.done) return full;
+        if (typeof evt.t === "string" && evt.t) {
+          full += evt.t;
+          onChunk(full);
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  throw new AdvisorError(full ? ADVISOR_CUT_OFF : ADVISOR_UNREACHABLE);
+}

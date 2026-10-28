@@ -127,6 +127,7 @@ class TestSetOffNeedsAToken:
             "/api/v1/feedback/error",
             # AI advisor chatbot — public, proxied through the backend.
             "/api/v1/advisor/ask",
+            "/api/v1/advisor/ask/stream",
             # CA referral program — tracking and leaderboard are public.
             "/api/v1/referrals/track",
             "/api/v1/referrals/leaderboard",

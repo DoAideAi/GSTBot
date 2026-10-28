@@ -513,6 +513,7 @@ UNGATED_MUTATIONS = {
     "/api/v1/feedback/error",
     # AI advisor chatbot — public, no session exists.
     "/api/v1/advisor/ask",
+    "/api/v1/advisor/ask/stream",
     # CA referral tracking — public, records a visit by hashed IP.
     "/api/v1/referrals/track",
     # GPT Actions invoice — arithmetic over the body, like ``/itc/set-off``;

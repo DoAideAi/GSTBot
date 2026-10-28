@@ -7,13 +7,16 @@ the browser.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 import os
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core.rate_limit import RateLimit
@@ -32,6 +35,10 @@ _advisor_limit = RateLimit("advisor_ask", "30/minute", by="ip")
 # is wrong and every model would refuse it the same way.
 _GEMINI_MODELS = ("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite")
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+_GEMINI_STREAM_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "{model}:streamGenerateContent?alt=sse"
+)
 _RETRYABLE = frozenset({429, 500, 502, 503, 504})
 
 SYSTEM_PROMPT = (
@@ -101,7 +108,7 @@ def _client() -> httpx.AsyncClient:
     client = _clients.get(loop)
     if client is None or client.is_closed:
         client = httpx.AsyncClient(
-            timeout=30.0,
+            timeout=20.0,
             limits=httpx.Limits(max_keepalive_connections=10, keepalive_expiry=60.0),
         )
         _clients[loop] = client
@@ -130,17 +137,28 @@ class AdvisorRequest(BaseModel):
 
 
 def _build_contents(history: list[HistoryMessage], message: str) -> list[dict]:
-    contents: list[dict] = [
-        {"role": "user", "parts": [{"text": SYSTEM_PROMPT}]},
-        {"role": "model", "parts": [{"text": "Understood. I'm your GST advisor. How can I help?"}]},
-    ]
-    for m in history[-HISTORY_TURNS_SENT:]:
-        contents.append({
-            "role": "user" if m.role == "user" else "model",
-            "parts": [{"text": m.text}],
-        })
+    # The system prompt is now a top-level ``systemInstruction`` (see
+    # ``_build_payload``), so it no longer takes a fake user/model turn pair
+    # that grew every request by two turns the model had to read. The Gemini
+    # API requires the first content to have role "user"; slicing into the
+    # middle of a long history can land on a model turn, so those are skipped.
+    recent = history[-HISTORY_TURNS_SENT:]
+    contents: list[dict] = []
+    for m in recent:
+        role = "user" if m.role == "user" else "model"
+        if not contents and role == "model":
+            continue
+        contents.append({"role": role, "parts": [{"text": m.text}]})
     contents.append({"role": "user", "parts": [{"text": message}]})
     return contents
+
+
+def _build_payload(history: list[HistoryMessage], message: str) -> dict:
+    return {
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": _build_contents(history, message),
+        "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.7},
+    }
 
 
 @router.post(
@@ -183,11 +201,7 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
             ),
         )
 
-    contents = _build_contents(body.history, body.message)
-    payload = {
-        "contents": contents,
-        "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.7},
-    }
+    payload = _build_payload(body.history, body.message)
 
     started = time.monotonic()
     model = _GEMINI_MODELS[0]
@@ -285,6 +299,20 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
         ) from None
 
 
+def _reply_parts(data: object) -> str | None:
+    """The answer's text exactly as written, or ``None`` when there is none."""
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    first = candidates[0] if isinstance(candidates, list) and candidates else None
+    content = first.get("content") if isinstance(first, dict) else None
+    parts = content.get("parts") if isinstance(content, dict) else None
+    if not isinstance(parts, list):
+        return None
+    text = "".join(
+        p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)
+    )
+    return text or None
+
+
 def _reply_text(data: object) -> str | None:
     """The answer's text, or ``None`` when the 200 carries none.
 
@@ -306,3 +334,155 @@ def _reply_text(data: object) -> str | None:
         p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)
     ).strip()
     return text or None
+
+
+# ---------------------------------------------------------------------------
+# Streaming endpoint — tokens appear in the chat as the model writes them
+# ---------------------------------------------------------------------------
+
+_STREAM_TIMEOUT = httpx.Timeout(5.0, read=30.0)
+
+
+def _chunk_text(raw: str) -> str | None:
+    """Extract text from one Gemini SSE ``data:`` line.
+
+    Unstripped, unlike a whole reply: the model splits its answer mid-sentence,
+    so the space after "GST " belongs to this chunk, and stripping each one
+    printed "GSTis18%." for "GST is 18%.".
+    """
+    try:
+        data = _json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    return _reply_parts(data)
+
+
+async def _stream_from_gemini(
+    api_key: str,
+    payload: dict,
+    started: float,
+) -> AsyncIterator[str]:
+    """Try models in order; yield ``data: …`` SSE lines as text arrives."""
+    client = _client()
+    last_model = _GEMINI_MODELS[0]
+    last_status = 0
+    # Once any text has reached the browser, falling through to the next model
+    # would start a second answer from its first word, appended to the first
+    # answer's half. From then on a failure ends the stream with an error.
+    sent_text = False
+
+    for attempt, model in enumerate(_GEMINI_MODELS, start=1):
+        last_model = model
+        url = _GEMINI_STREAM_URL.format(model=model)
+        try:
+            req = client.build_request(
+                "POST", url,
+                headers={"x-goog-api-key": api_key},
+                json=payload,
+                timeout=_STREAM_TIMEOUT,
+            )
+            response = await client.send(req, stream=True)
+            last_status = response.status_code
+
+            if response.status_code != 200:
+                body = (await response.aread()).decode(errors="replace")[:200]
+                await response.aclose()
+                logger.warning(
+                    "Gemini %s stream returned %d: %s", model, response.status_code, body,
+                )
+                if response.status_code not in _RETRYABLE:
+                    break
+                continue
+
+            try:
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    text = _chunk_text(line[6:])
+                    if text:
+                        sent_text = True
+                        yield f"data: {_json.dumps({'t': text})}\n\n"
+            finally:
+                await response.aclose()
+
+            if not sent_text:
+                # A 200 with no text — a safety block, an empty candidate. The
+                # next model may answer; if none does, the error below says so
+                # rather than a "done" over an empty bubble.
+                logger.warning("Gemini %s streamed no text", model)
+                continue
+
+            logger.info(
+                "Advisor streamed",
+                extra={
+                    "model": model,
+                    "attempt": attempt,
+                    "duration_ms": int((time.monotonic() - started) * 1000),
+                },
+            )
+            yield f"data: {_json.dumps({'done': True})}\n\n"
+            return
+
+        except httpx.TimeoutException:
+            logger.warning(
+                "Advisor stream to %s timed out",
+                model,
+                extra={"duration_ms": int((time.monotonic() - started) * 1000)},
+            )
+            if sent_text:
+                break
+            continue
+        except Exception:
+            logger.exception("Advisor stream error with %s", model)
+            break
+
+    duration = int((time.monotonic() - started) * 1000)
+    logger.error(
+        "Advisor stream gave no answer",
+        extra={"last_model": last_model, "last_status": last_status, "duration_ms": duration},
+    )
+    if sent_text:
+        msg = "The answer was cut off. Ask again for the rest."
+    elif last_status in (429, 503):
+        msg = "The AI advisor is overloaded right now. Wait a minute and ask again."
+    else:
+        msg = "The AI advisor could not answer just now. Try again in a minute."
+    yield f"data: {_json.dumps({'error': msg})}\n\n"
+
+
+@router.post(
+    "/advisor/ask/stream",
+    summary="Stream a GST AI Advisor answer token by token",
+    description=(
+        "Same question shape as ``/advisor/ask`` but the answer arrives as "
+        "server-sent events: ``{t: text}`` chunks, then ``{done: true}`` or "
+        "``{error: message}``. The first token appears in under a second."
+    ),
+    responses={503: {"description": "No API key is configured."}},
+    dependencies=[Depends(_advisor_limit)],
+)
+async def ask_advisor_stream(body: AdvisorRequest) -> StreamingResponse:
+    global _reported_missing_key
+    api_key = _get_api_key()
+    if not api_key:
+        if not _reported_missing_key:
+            _reported_missing_key = True
+            logger.error(
+                "Advisor has no Gemini API key (stream)",
+                extra={"key_file": str(_KEY_FILE)},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "The AI advisor is not set up on this server yet, so it cannot answer "
+                "questions. The GSTIndia team has been alerted."
+            ),
+        )
+
+    payload = _build_payload(body.history, body.message)
+    started = time.monotonic()
+    return StreamingResponse(
+        _stream_from_gemini(api_key, payload, started),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

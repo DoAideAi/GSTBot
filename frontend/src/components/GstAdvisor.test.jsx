@@ -3,6 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GstAdvisor from "./GstAdvisor";
 
+/** Build a mock fetch Response whose body is an SSE stream. */
+function mockStream(text) {
+  const sse =
+    `data: ${JSON.stringify({ t: text })}\n\n` +
+    `data: ${JSON.stringify({ done: true })}\n\n`;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(sse));
+      controller.close();
+    },
+  });
+  return { ok: true, body: stream };
+}
+
 function renderAdvisor() {
   return render(<GstAdvisor />);
 }
@@ -51,13 +66,7 @@ describe("GstAdvisor", () => {
 
   it("sends a message and displays the reply", async () => {
     global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            reply: "The GST rate for IT services is 18%.",
-          }),
-      }),
+      Promise.resolve(mockStream("The GST rate for IT services is 18%.")),
     );
 
     renderAdvisor();
@@ -75,7 +84,7 @@ describe("GstAdvisor", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/v1/advisor/ask",
+      "/api/v1/advisor/ask/stream",
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -115,13 +124,7 @@ describe("GstAdvisor", () => {
   });
 
   it("sends on Enter key", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({ reply: "Reply" }),
-      }),
-    );
+    global.fetch = vi.fn(() => Promise.resolve(mockStream("Reply")));
 
     renderAdvisor();
     await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));
@@ -134,13 +137,7 @@ describe("GstAdvisor", () => {
   });
 
   it("clears the welcome message after the first user message", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({ reply: "Hi!" }),
-      }),
-    );
+    global.fetch = vi.fn(() => Promise.resolve(mockStream("Hi!")));
 
     renderAdvisor();
     await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));
@@ -169,11 +166,7 @@ describe("GstAdvisor", () => {
 
   it("sends a message when a suggested question is clicked", async () => {
     global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({ reply: "The GSTR-3B is due on the 20th of each month." }),
-      }),
+      Promise.resolve(mockStream("The GSTR-3B is due on the 20th of each month.")),
     );
 
     renderAdvisor();
@@ -187,16 +180,14 @@ describe("GstAdvisor", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/v1/advisor/ask",
+      "/api/v1/advisor/ask/stream",
       expect.objectContaining({ method: "POST" }),
     );
   });
 
   it("keeps asking after a reply too long for the API to take back as history", async () => {
     const long = "x".repeat(5000);
-    global.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ reply: long }) }),
-    );
+    global.fetch = vi.fn(() => Promise.resolve(mockStream(long)));
     renderAdvisor();
     await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));
     const input = screen.getByPlaceholderText("Ask a GST question...");
@@ -217,13 +208,7 @@ describe("GstAdvisor", () => {
   });
 
   it("hides suggested questions after the first message is sent", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({ reply: "Sure!" }),
-      }),
-    );
+    global.fetch = vi.fn(() => Promise.resolve(mockStream("Sure!")));
 
     renderAdvisor();
     await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));

@@ -115,6 +115,7 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
         assert public == [
             "/",
             "/api/v1/advisor/ask",
+            "/api/v1/advisor/ask/stream",
             "/api/v1/auth/github",
             "/api/v1/auth/github/callback",
             "/api/v1/auth/google",

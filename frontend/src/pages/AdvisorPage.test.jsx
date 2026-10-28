@@ -11,6 +11,21 @@ vi.mock("../hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
 // jsdom has no layout, so the chat's auto-scroll target needs a stand-in.
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
+/** Build a mock fetch Response whose body is an SSE stream. */
+function mockStream(text) {
+  const sse =
+    `data: ${JSON.stringify({ t: text })}\n\n` +
+    `data: ${JSON.stringify({ done: true })}\n\n`;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(sse));
+      controller.close();
+    },
+  });
+  return { ok: true, body: stream };
+}
+
 function renderAdvisor() {
   return render(
     <MemoryRouter initialEntries={["/advisor"]}>
@@ -33,10 +48,9 @@ describe("AdvisorPage", () => {
   });
 
   it("sends a question and displays the answer", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ reply: "GST registration requires PAN and Aadhaar." }),
-    });
+    global.fetch = vi.fn().mockResolvedValue(
+      mockStream("GST registration requires PAN and Aadhaar."),
+    );
     renderAdvisor();
     const user = userEvent.setup();
     const input = screen.getByPlaceholderText("Ask a GST question...");
@@ -44,7 +58,7 @@ describe("AdvisorPage", () => {
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => expect(screen.getByText(/GST registration requires PAN/)).toBeInTheDocument());
-    expect(global.fetch).toHaveBeenCalledWith("/api/v1/advisor/ask", expect.objectContaining({
+    expect(global.fetch).toHaveBeenCalledWith("/api/v1/advisor/ask/stream", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({ message: "How to register?", history: [] }),
     }));
@@ -52,10 +66,9 @@ describe("AdvisorPage", () => {
   });
 
   it("shows the reply the API sends when the advisor is unavailable", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ reply: "AI advisor is unavailable." }),
-    });
+    global.fetch = vi.fn().mockResolvedValue(
+      mockStream("AI advisor is unavailable."),
+    );
     renderAdvisor();
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("Ask a GST question..."), "test");
@@ -75,7 +88,7 @@ describe("AdvisorPage", () => {
   });
 
   it("sends the earlier turns as history with a follow-up", async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ reply: "First answer." }) });
+    global.fetch = vi.fn().mockResolvedValue(mockStream("First answer."));
     renderAdvisor();
     const user = userEvent.setup();
     const input = screen.getByPlaceholderText("Ask a GST question...");
@@ -102,20 +115,23 @@ describe("AdvisorPage", () => {
     await user.type(screen.getByPlaceholderText("Ask a GST question..."), "test");
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
-    await waitFor(() => expect(screen.getByText(/Could not reach the AI advisor/)).toBeInTheDocument());
+    // The browser's own wording is replaced: it tells the visitor nothing.
+    await waitFor(() =>
+      expect(screen.getByText(/Could not reach the AI advisor/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/Network error/)).not.toBeInTheDocument();
   });
 
   it("clicking a suggested question sends it", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ reply: "ITC is Input Tax Credit." }),
-    });
+    global.fetch = vi.fn().mockResolvedValue(
+      mockStream("ITC is Input Tax Credit."),
+    );
     renderAdvisor();
     const user = userEvent.setup();
     await user.click(screen.getByText("What is ITC?"));
 
     await waitFor(() => expect(screen.getByText(/ITC is Input Tax Credit/)).toBeInTheDocument());
-    expect(global.fetch).toHaveBeenCalledWith("/api/v1/advisor/ask", expect.objectContaining({
+    expect(global.fetch).toHaveBeenCalledWith("/api/v1/advisor/ask/stream", expect.objectContaining({
       body: JSON.stringify({ message: "What is ITC?", history: [] }),
     }));
   });
@@ -131,10 +147,7 @@ describe("AdvisorPage", () => {
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
     expect(screen.getByPlaceholderText("Ask a GST question...")).toBeDisabled();
-    resolvePromise({
-      ok: true,
-      json: () => Promise.resolve({ reply: "Done" }),
-    });
+    resolvePromise(mockStream("Done"));
     await waitFor(() => expect(screen.getByPlaceholderText("Ask a GST question...")).not.toBeDisabled());
   });
 });
