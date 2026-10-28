@@ -139,12 +139,12 @@ class AccessQueryFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) >= 3:
-            path = record.args[2]
-            if isinstance(path, str) and "?" in path:
-                args = list(record.args)
-                args[2] = path.split("?", 1)[0]
-                record.args = tuple(args)
+        args = record.args
+        if record.name != "uvicorn.access" or not isinstance(args, tuple) or len(args) < 3:
+            return True
+        path = args[2]
+        if isinstance(path, str) and "?" in path:
+            record.args = (*args[:2], path.split("?", 1)[0], *args[3:])
         return True
 
 
