@@ -17,14 +17,18 @@ httpx>=0.28.1
 # compliance-risk and tax-route classification (services/jev_service.py).
 # Only called with TYPESAFE_API_KEY set; without one nothing changes.
 typesafe-sdk>=0.7.5
-authlib>=1.3
+# 1.8.x carries six advisories (M20, 2026-10-28).
+authlib>=1.9.1
 itsdangerous>=2.1
 celery[redis]>=5.4
 redis>=5.0
 
 # Invoice ingestion: PDFs are read as text first (pypdf) and only fall back to
 # the vision model when a page carries no extractable text — a scan.
-pypdf>=4.2
+# Floor is the release that clears every advisory on 6.14.x (27 at M20,
+# 2026-10-28) — this parser reads PDFs uploaded by users, so it is the one
+# dependency that sees attacker-shaped input on every request.
+pypdf>=6.21.2
 # Excel/CSV purchase registers.
 openpyxl>=3.1
 
@@ -32,4 +36,5 @@ openpyxl>=3.1
 # Needs the `tesseract` binary on the host; the parser degrades gracefully
 # without either, so this stays a soft dependency at runtime.
 pytesseract>=0.3.10
-pillow>=10.3
+# 12.x carries 38 advisories (M20, 2026-10-28).
+pillow>=13.0.0
