@@ -180,6 +180,30 @@ describe("GstAdvisor", () => {
     );
   });
 
+  it("keeps asking after a reply too long for the API to take back as history", async () => {
+    const long = "x".repeat(5000);
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ reply: long }) }),
+    );
+    renderAdvisor();
+    await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));
+    const input = screen.getByPlaceholderText("Ask a GST question...");
+    await userEvent.type(input, "first");
+    await userEvent.click(screen.getByLabelText("Send message"));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByLabelText("Send message")).toBeDefined());
+
+    await userEvent.type(input, "second");
+    await userEvent.click(screen.getByLabelText("Send message"));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+
+    const { history } = JSON.parse(global.fetch.mock.calls[1][1].body);
+    expect(history).toEqual([
+      { role: "user", text: "first" },
+      { role: "model", text: "x".repeat(4000) },
+    ]);
+  });
+
   it("hides suggested questions after the first message is sent", async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({

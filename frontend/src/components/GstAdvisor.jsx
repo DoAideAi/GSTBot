@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { advisorHistory } from "../lib/advisor";
 import { track } from "../lib/track";
 
 const SUGGESTED_QUESTIONS = [
@@ -37,7 +38,7 @@ export default function GstAdvisor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          history: history.map((m) => ({ role: m.role, text: m.text })),
+          history: advisorHistory(history),
         }),
       });
 

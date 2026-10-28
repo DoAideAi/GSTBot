@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SeoHead from "../components/SeoHead";
+import { advisorHistory } from "../lib/advisor";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
 
@@ -48,9 +49,6 @@ function formatMarkdown(text) {
     .replace(/\n/g, "<br />");
 }
 
-/** The API's own ceiling on prior turns sent with a question. */
-const ADVISOR_HISTORY_MAX = 50;
-
 export default function AdvisorPage() {
   usePageTitle("Free GST AI Advisor");
   const [messages, setMessages] = useState([]);
@@ -68,10 +66,8 @@ export default function AdvisorPage() {
     if (!trimmed || loading) return;
 
     // The turns before this one, in the shape POST /advisor/ask takes and
-    // within its caps (50 messages, 4,000 characters each).
-    const history = messages
-      .slice(-ADVISOR_HISTORY_MAX)
-      .map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text.slice(0, 4000) }));
+    // within its caps — see lib/advisor.
+    const history = advisorHistory(messages);
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
     setLoading(true);
