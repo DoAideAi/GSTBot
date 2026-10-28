@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -18,6 +18,13 @@ class Referral(Base):
     """
 
     __tablename__ = "referrals"
+    # One row per visitor per code (migration 0013). The route's read-first
+    # check is the fast path; this is what holds when two requests race it.
+    __table_args__ = (
+        UniqueConstraint(
+            "referral_code", "visitor_ip_hash", name="uq_referrals_code_visitor"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     referral_code: Mapped[str] = mapped_column(

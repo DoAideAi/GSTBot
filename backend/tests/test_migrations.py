@@ -632,3 +632,47 @@ class TestTheMigrationsRunWhereTheyAreAimed:
             line for line in ini.splitlines() if line.strip().startswith("sqlalchemy.url")
         ]
         assert setting == ["sqlalchemy.url ="], setting
+
+
+class TestReferralVisitsAreUnique:
+    """0013: one referral row per (code, visitor), duplicates removed first."""
+
+    def test_existing_duplicates_collapse_to_the_earliest_and_the_constraint_holds(self, scratch):
+        import sqlalchemy as sa
+
+        _run(scratch, "upgrade:0012")
+        engine = sa.create_engine(scratch)
+        with engine.begin() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO businesses (id, legal_name, plan, is_active) "
+                "VALUES (1, 'Ref Co', 'FREE', true)"
+            ))
+            conn.execute(sa.text(
+                "INSERT INTO users (id, email, hashed_password, business_id, role, is_active) "
+                "VALUES (1, 'ref@example.com', 'x', 1, 'OWNER', true)"
+            ))
+            for visitor in ("aaa", "aaa", "aaa", "bbb"):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO referrals (referral_code, referrer_user_id, "
+                        "visitor_ip_hash, converted) VALUES ('CODE', 1, :v, false)"
+                    ),
+                    {"v": visitor},
+                )
+        engine.dispose()
+
+        _run(scratch, "upgrade:head")
+        engine = sa.create_engine(scratch)
+        with engine.connect() as conn:
+            rows = conn.execute(
+                sa.text("SELECT id, visitor_ip_hash FROM referrals ORDER BY id")
+            ).all()
+        assert [(r.id, r.visitor_ip_hash) for r in rows] == [(1, "aaa"), (4, "bbb")]
+        with pytest.raises(sa.exc.IntegrityError), engine.begin() as conn:
+            conn.execute(sa.text(
+                "INSERT INTO referrals (referral_code, referrer_user_id, visitor_ip_hash, "
+                "converted) VALUES ('CODE', 1, 'aaa', false)"
+            ))
+        engine.dispose()
+
+        _run(scratch, "downgrade:0012")

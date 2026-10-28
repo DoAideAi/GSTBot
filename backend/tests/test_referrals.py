@@ -29,6 +29,45 @@ class TestReferralTrack:
         assert r.json()["tracked"] is False
         assert r.json()["reason"] == "already_tracked"
 
+    def test_a_request_that_loses_the_race_is_already_tracked_not_a_500(
+        self, auth_client, client, monkeypatch
+    ):
+        """Two requests from one visitor can both pass the read-first check; the
+        unique constraint (migration 0013) rejects the second commit."""
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.orm import Session
+
+        code = auth_client.get("/api/v1/referrals/my-code").json()["referral_code"]
+        real_commit = Session.commit
+        calls = {"n": 0}
+
+        def commit_that_loses_once(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise IntegrityError("INSERT INTO referrals", {}, Exception("unique"))
+            return real_commit(self)
+
+        monkeypatch.setattr(Session, "commit", commit_that_loses_once)
+        r = client.post("/api/v1/referrals/track", json={"referral_code": code})
+        assert r.status_code == 200
+        assert r.json() == {"tracked": False, "reason": "already_tracked"}
+
+    def test_the_database_refuses_a_second_row_for_one_visitor(self, auth_client, db_session):
+        import pytest
+        from sqlalchemy.exc import IntegrityError
+
+        from app.models.referral import Referral
+        from app.models.user import User
+
+        auth_client.get("/api/v1/referrals/my-code")
+        user = db_session.query(User).filter_by(email=TEST_EMAIL).one()
+        db_session.add(Referral(referral_code="C1", referrer_user_id=user.id, visitor_ip_hash="h"))
+        db_session.commit()
+        db_session.add(Referral(referral_code="C1", referrer_user_id=user.id, visitor_ip_hash="h"))
+        with pytest.raises(IntegrityError):
+            db_session.commit()
+        db_session.rollback()
+
     def test_empty_code_is_refused(self, client):
         r = client.post("/api/v1/referrals/track", json={"referral_code": ""})
         assert r.status_code == 422

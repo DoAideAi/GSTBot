@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func as sa_func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -85,7 +86,13 @@ def track_referral(
         visitor_ip_hash=ip_hash,
     )
     db.add(referral)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # The same visitor's other request inserted between the check above and
+        # this commit; uq_referrals_code_visitor kept the second row out.
+        db.rollback()
+        return {"tracked": False, "reason": "already_tracked"}
     logger.info("Referral tracked", extra={"code": body.referral_code})
     return {"tracked": True}
 
