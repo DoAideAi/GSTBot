@@ -57,6 +57,38 @@ FRONTEND_URL = settings.cors_origins[0] if settings.cors_origins else "http://lo
 _oauth_initiate_limit = RateLimit("oauth_initiate", "30/minute", by="ip")
 _oauth_callback_limit = RateLimit("oauth_callback", "30/minute", by="ip")
 
+# What these six routes answer, for the spec. Each one *redirects* — to the
+# provider, or back into the app with a token or an error code — and the spec
+# said 200, which no client following it would ever see. And each one raises
+# 501 from `_configured_client` when the provider has no client id, which the
+# spec did not mention. Declaring the status code here documents the redirect
+# without changing it: every handler returns its RedirectResponse directly, and
+# a returned Response keeps its own status.
+_NOT_CONFIGURED = {
+    501: {"description": "This sign-in provider is not configured on this deployment."}
+}
+_LOGIN_REDIRECT: dict[str, Any] = {
+    "status_code": status.HTTP_302_FOUND,  # authlib's authorize_redirect
+    "response_class": RedirectResponse,
+    "responses": {
+        302: {"description": "Redirect to the provider's consent screen."},
+        **_NOT_CONFIGURED,
+    },
+}
+_CALLBACK_REDIRECT: dict[str, Any] = {
+    "status_code": status.HTTP_307_TEMPORARY_REDIRECT,  # RedirectResponse's default
+    "response_class": RedirectResponse,
+    "responses": {
+        307: {
+            "description": (
+                "Redirect into the app: `/auth/callback#token=…` on success, "
+                "`/login?error=<code>` on failure."
+            )
+        },
+        **_NOT_CONFIGURED,
+    },
+}
+
 
 #: How each provider is named in an error the user or a log reader sees.
 _PROVIDER_LABELS = {"google": "Google", "github": "GitHub", "microsoft": "Microsoft"}
@@ -179,6 +211,7 @@ def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
     "/google",
     summary="Initiate Google OAuth login",
     dependencies=[Depends(_oauth_initiate_limit)],
+    **_LOGIN_REDIRECT,
 )
 async def google_login(request: Request):
     return await _start_login(request, "google")
@@ -188,6 +221,7 @@ async def google_login(request: Request):
     "/google/callback",
     summary="Handle Google OAuth callback",
     dependencies=[Depends(_oauth_callback_limit)],
+    **_CALLBACK_REDIRECT,
 )
 async def google_callback(request: Request, db: Session = Depends(get_db)):
     client = _configured_client("google")
@@ -219,6 +253,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     "/github",
     summary="Initiate GitHub OAuth login",
     dependencies=[Depends(_oauth_initiate_limit)],
+    **_LOGIN_REDIRECT,
 )
 async def github_login(request: Request):
     return await _start_login(request, "github")
@@ -228,6 +263,7 @@ async def github_login(request: Request):
     "/github/callback",
     summary="Handle GitHub OAuth callback",
     dependencies=[Depends(_oauth_callback_limit)],
+    **_CALLBACK_REDIRECT,
 )
 async def github_callback(request: Request, db: Session = Depends(get_db)):
     client = _configured_client("github")
@@ -276,6 +312,7 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
     "/microsoft",
     summary="Initiate Microsoft OAuth login",
     dependencies=[Depends(_oauth_initiate_limit)],
+    **_LOGIN_REDIRECT,
 )
 async def microsoft_login(request: Request):
     return await _start_login(request, "microsoft")
@@ -285,6 +322,7 @@ async def microsoft_login(request: Request):
     "/microsoft/callback",
     summary="Handle Microsoft OAuth callback",
     dependencies=[Depends(_oauth_callback_limit)],
+    **_CALLBACK_REDIRECT,
 )
 async def microsoft_callback(request: Request, db: Session = Depends(get_db)):
     client = _configured_client("microsoft")

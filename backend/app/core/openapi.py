@@ -51,6 +51,27 @@ FORBIDDEN = {
 }
 
 
+PAID_TIER_REQUIRED = {
+    "description": (
+        "The business has no active paid subscription, and this feature needs "
+        "one. The detail points at /pricing."
+    )
+}
+ROLE_OR_PAID_TIER = {
+    "description": (
+        "Either the caller's role on this business is read-only (only an owner "
+        "or an accountant may change the tenant's books), or the business has no "
+        "active paid subscription and this feature needs one. The detail says which."
+    )
+}
+DATABASE_UNAVAILABLE = {
+    "description": (
+        "The database is unreachable or its pool is exhausted. Retryable; "
+        "see the `Retry-After` header."
+    )
+}
+
+
 def is_guarded(route: Any) -> bool:
     """Does *route* actually require a token? Then it can answer 401."""
     from app.core.deps import get_current_business, get_current_user
@@ -92,8 +113,46 @@ def is_role_gated(route: Any) -> bool:
     return any(isinstance(call, RequireRole) for call in dependency_calls(route.dependant))
 
 
+def is_paid_gated(route: Any) -> bool:
+    """Does *route* need a paid subscription? Then it can 403 for that.
+
+    Like the role check and unlike the ``X-Business-Id`` one, this distinguishes
+    routes: it is exactly the set a free business is refused, and the frontend
+    branches on it to offer the plans. It was documented on the one route that
+    spelled it out by hand (``/meta/gstin/bulk``) and on none of the three ITC
+    reads that carry the same gate.
+    """
+    from app.core.deps import require_paid_tier
+
+    return require_paid_tier in dependency_calls(route.dependant)
+
+
+def uses_database(route: Any) -> bool:
+    """Does *route* open a session? Then it can answer 503.
+
+    ``app.core.errors`` turns an ``OperationalError`` — a dropped connection,
+    an exhausted pool — into a retryable 503 with ``Retry-After``. That can
+    happen on any route that reaches the database and on none that does not,
+    and it is the one failure a client should retry rather than report. Four
+    routes documented it by hand; the other fifty-odd that can return it did not.
+    """
+    from app.core.database import get_db
+
+    return get_db in dependency_calls(route.dependant)
+
+
+def _forbidden_for(role_gated: bool, paid_gated: bool) -> dict[str, Any] | None:
+    if role_gated and paid_gated:
+        return dict(ROLE_OR_PAID_TIER)
+    if role_gated:
+        return dict(FORBIDDEN)
+    if paid_gated:
+        return dict(PAID_TIER_REQUIRED)
+    return None
+
+
 def describe_conditional_responses(application: FastAPI, schema: dict[str, Any]) -> None:
-    """Add 401/403/429 to *schema* for the routes that can really return them."""
+    """Add 401/403/429/503 to *schema* for the routes that can really return them."""
     paths = schema.get("paths", {})
     for route in collect_api_routes(application):
         operations = paths.get(route.path)
@@ -103,6 +162,8 @@ def describe_conditional_responses(application: FastAPI, schema: dict[str, Any])
         guarded = is_guarded(route)
         metered = is_metered(route)
         role_gated = is_role_gated(route)
+        forbidden = _forbidden_for(role_gated, is_paid_gated(route))
+        database = uses_database(route)
         for method in route.methods or ():
             operation = operations.get(method.lower())
             if not isinstance(operation, dict):
@@ -112,10 +173,12 @@ def describe_conditional_responses(application: FastAPI, schema: dict[str, Any])
             # itself described a specific event and that wording wins.
             if guarded:
                 responses.setdefault("401", dict(UNAUTHORIZED))
-            if role_gated:
-                responses.setdefault("403", dict(FORBIDDEN))
+            if forbidden is not None:
+                responses.setdefault("403", forbidden)
             if metered:
                 responses.setdefault("429", dict(RATE_LIMITED))
+            if database:
+                responses.setdefault("503", dict(DATABASE_UNAVAILABLE))
 
 
 def install_openapi(application: FastAPI) -> None:
@@ -141,12 +204,17 @@ def install_openapi(application: FastAPI) -> None:
 
 
 __all__ = [
+    "DATABASE_UNAVAILABLE",
     "FORBIDDEN",
+    "PAID_TIER_REQUIRED",
     "RATE_LIMITED",
+    "ROLE_OR_PAID_TIER",
     "UNAUTHORIZED",
     "describe_conditional_responses",
     "install_openapi",
     "is_guarded",
     "is_metered",
+    "is_paid_gated",
     "is_role_gated",
+    "uses_database",
 ]

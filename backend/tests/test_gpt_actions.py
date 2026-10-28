@@ -627,6 +627,21 @@ class TestTheSpecMatchesTheApp:
         tools = {k for k, r in _gpt_operations().items() if r.operation_id}
         assert tools == published
 
+    def test_every_refusal_the_app_can_send_a_tool_is_in_the_spec(self, spec):
+        """The GPT reads this file, not the app's own spec, to learn what a call
+        can answer. ``/gstin`` and ``/hsn`` refuse oversized input with a 422,
+        and every tool shares a rate-limit bucket that answers 429 — none of
+        which the file said. 500 stays out: it is not something to plan for."""
+        app_spec = app.openapi()
+        for path, methods in spec["paths"].items():
+            for method, operation in methods.items():
+                served = app_spec["paths"][f"{GPT}{path}"][method]["responses"]
+                expected = {code for code in served if code.startswith("4")}
+                assert expected <= set(operation["responses"]), (
+                    f"{method.upper()} {path}: the app can send {sorted(expected)}, "
+                    f"the GPT spec lists {sorted(operation['responses'])}"
+                )
+
     def test_descriptions_fit_openais_limits(self, spec):
         # The GPT builder rejects an operation description over 300 characters.
         for methods in spec["paths"].values():

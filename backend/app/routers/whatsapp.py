@@ -88,6 +88,7 @@ def _verify_twilio_signature(
     ),
     dependencies=[Depends(_webhook_limit)],
     response_model=None,
+    responses={403: {"description": "`hub.verify_token` does not match the configured token."}},
 )
 def verify_webhook(
     response: Response,
@@ -116,6 +117,15 @@ def verify_webhook(
         "authenticated by its ``X-Twilio-Signature`` header."
     ),
     dependencies=[Depends(_webhook_limit)],
+    responses={
+        400: {"description": "A JSON body that does not parse, or a content type that is neither."},
+        403: {
+            "description": (
+                "A Twilio (form-encoded) request whose `X-Twilio-Signature` is missing "
+                "or does not verify, when a Twilio auth token is configured."
+            )
+        },
+    },
 )
 async def receive_message(request: Request) -> Response:
     """Handle an incoming WhatsApp message from Twilio or Cloud API."""

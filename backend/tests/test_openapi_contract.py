@@ -290,3 +290,97 @@ class TestARouteTheSpecDoesNotPublish:
 
         describe_conditional_responses(application, schema)
         assert set(schema["paths"]["/thing"]) == {"get"}
+
+
+class TestThePaidTierRefusalIsDocumented:
+    """``require_paid_tier`` refuses a free business with a 403 the frontend
+    branches on. It was documented on the one route that wrote it out by hand
+    and on none of the ITC reads that carry the same gate."""
+
+    def test_every_paid_route_documents_a_403(self, documented):
+        from app.core.openapi import is_paid_gated
+
+        missing = [
+            f"{method.upper()} {path}"
+            for route in _schema_routes()
+            if is_paid_gated(route)
+            for path, method in _operations(route)
+            if "403" not in documented[(path, method)]
+        ]
+        assert missing == []
+
+    def test_a_paid_only_route_says_it_is_the_plan(self, spec):
+        from app.core.openapi import PAID_TIER_REQUIRED
+
+        assert spec["paths"]["/api/v1/itc"]["get"]["responses"]["403"] == PAID_TIER_REQUIRED
+
+    def test_a_route_behind_both_gates_names_both(self, spec):
+        """The reconciliation run is role- *and* paid-gated; the role wording
+        alone told a free owner their role was the problem."""
+        from app.core.openapi import ROLE_OR_PAID_TIER
+
+        described = spec["paths"]["/api/v1/reconciliation/run"]["post"]["responses"]["403"]
+        assert described == ROLE_OR_PAID_TIER
+
+    def test_a_route_that_words_its_own_403_keeps_it(self, spec):
+        described = spec["paths"]["/api/v1/meta/gstin/bulk"]["post"]["responses"]["403"]
+        assert described["description"] == "No active paid subscription."
+
+
+class TestADatabaseOutageIsDocumentedWhereItCanHappen:
+    """An ``OperationalError`` becomes a retryable 503 on any route that opens
+    a session. Four routes said so; fifty-odd others could return it."""
+
+    def test_every_route_with_a_session_documents_a_503(self, documented):
+        from app.core.openapi import uses_database
+
+        missing = [
+            f"{method.upper()} {path}"
+            for route in _schema_routes()
+            if uses_database(route)
+            for path, method in _operations(route)
+            if "503" not in documented[(path, method)]
+        ]
+        assert missing == []
+
+    def test_a_route_without_one_does_not_claim_it(self, spec):
+        """It may document a 503 of its own — a readiness probe does — but not
+        the database's."""
+        from app.core.openapi import DATABASE_UNAVAILABLE, uses_database
+
+        sessionless = [r for r in _schema_routes() if not uses_database(r)]
+        assert sessionless, "every route uses the database — the check is vacuous"
+        claimed = [
+            f"{method.upper()} {path}"
+            for route in sessionless
+            for path, method in _operations(route)
+            if spec["paths"][path][method]["responses"].get("503") == DATABASE_UNAVAILABLE
+        ]
+        assert claimed == []
+
+
+class TestTheSignInRoutesSayTheyRedirect:
+    """All six OAuth routes redirect, and all six raise 501 when the provider
+    has no client id. The spec said 200 and nothing about 501."""
+
+    PROVIDERS = ("google", "github", "microsoft")
+
+    @pytest.mark.parametrize("provider", PROVIDERS)
+    def test_starting_a_sign_in_is_a_302_or_a_501(self, spec, provider):
+        responses = spec["paths"][f"/api/v1/auth/{provider}"]["get"]["responses"]
+        assert {"302", "501"} <= set(responses)
+        assert "200" not in responses
+
+    @pytest.mark.parametrize("provider", PROVIDERS)
+    def test_the_callback_is_a_307_or_a_501(self, spec, provider):
+        responses = spec["paths"][f"/api/v1/auth/{provider}/callback"]["get"]["responses"]
+        assert {"307", "501"} <= set(responses)
+        assert "200" not in responses
+
+
+class TestTheWhatsappWebhookRefusalsAreDocumented:
+    def test_the_handshake_documents_its_403(self, spec):
+        assert "403" in spec["paths"]["/api/v1/whatsapp/webhook"]["get"]["responses"]
+
+    def test_the_receiver_documents_its_400_and_403(self, spec):
+        assert {"400", "403"} <= set(spec["paths"]["/api/v1/whatsapp/webhook"]["post"]["responses"])
