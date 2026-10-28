@@ -479,10 +479,6 @@ class TestRazorpayClient:
         result = razorpay_client.create_order(499_00)
         assert result is None
 
-    def test_create_customer_returns_none_when_not_configured(self):
-        result = razorpay_client.create_customer("test@example.com")
-        assert result is None
-
     def test_verify_payment_signature_fails_without_secret(self):
         result = razorpay_client.verify_payment_signature(
             "order_id", "payment_id", "signature"
@@ -495,10 +491,6 @@ class TestRazorpayClient:
 
     def test_cancel_subscription_returns_none_when_not_configured(self):
         result = razorpay_client.cancel_subscription("sub_test")
-        assert result is None
-
-    def test_fetch_subscription_returns_none_when_not_configured(self):
-        result = razorpay_client.fetch_subscription("sub_test")
         assert result is None
 
     def test_tier_pricing_has_all_tiers(self):

@@ -28,14 +28,6 @@ def _auth() -> tuple[str, str]:
     return (settings.razorpay_key_id, settings.razorpay_key_secret)
 
 
-def _plan_id_for_tier(tier: SubscriptionTier) -> str | None:
-    if tier == SubscriptionTier.PRO:
-        return settings.razorpay_plan_id_pro or None
-    if tier == SubscriptionTier.ENTERPRISE:
-        return settings.razorpay_plan_id_enterprise or None
-    return None
-
-
 def _exc_context(exc: Exception, operation: str, **fields: Any) -> dict[str, Any]:
     """Structured fields for a Razorpay failure log line.
 
@@ -47,56 +39,6 @@ def _exc_context(exc: Exception, operation: str, **fields: Any) -> dict[str, Any
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
     return {"operation": operation, "status_code": status, **fields}
-
-
-def create_customer(email: str, name: str | None = None) -> dict[str, Any] | None:
-    if not is_configured():
-        return None
-    try:
-        resp = httpx.post(
-            f"{_BASE_URL}/customers",
-            json={"email": email, "name": name or email.split("@")[0]},
-            auth=_auth(),
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as exc:
-        logger.exception(
-            "Razorpay create_customer failed",
-            extra=_exc_context(exc, "create_customer"),
-        )
-        return None
-
-
-def create_subscription(
-    plan_id: str,
-    customer_id: str | None = None,
-    total_count: int = 12,
-) -> dict[str, Any] | None:
-    if not is_configured():
-        return None
-    payload: dict[str, Any] = {
-        "plan_id": plan_id,
-        "total_count": total_count,
-    }
-    if customer_id:
-        payload["customer_id"] = customer_id
-    try:
-        resp = httpx.post(
-            f"{_BASE_URL}/subscriptions",
-            json=payload,
-            auth=_auth(),
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as exc:
-        logger.exception(
-            "Razorpay create_subscription failed",
-            extra=_exc_context(exc, "create_subscription", plan_id=plan_id),
-        )
-        return None
 
 
 def create_order(
@@ -216,25 +158,6 @@ def fetch_order(order_id: str) -> dict[str, Any] | None:
         logger.exception(
             "Razorpay fetch_order failed",
             extra=_exc_context(exc, "fetch_order", order_id=order_id),
-        )
-        return None
-
-
-def fetch_subscription(subscription_id: str) -> dict[str, Any] | None:
-    if not is_configured():
-        return None
-    try:
-        resp = httpx.get(
-            f"{_BASE_URL}/subscriptions/{subscription_id}",
-            auth=_auth(),
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as exc:
-        logger.exception(
-            "Razorpay fetch_subscription failed",
-            extra=_exc_context(exc, "fetch_subscription", subscription_id=subscription_id),
         )
         return None
 

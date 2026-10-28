@@ -231,10 +231,6 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     razorpay_webhook_secret: str = ""
-    # Razorpay plan IDs created via the dashboard or API, keyed by tier name.
-    # Set at deploy time once plans exist; empty disables subscription creation.
-    razorpay_plan_id_pro: str = ""
-    razorpay_plan_id_enterprise: str = ""
 
     # ---- OAuth / SSO ----
     google_client_id: str = ""

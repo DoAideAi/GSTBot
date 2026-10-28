@@ -33,39 +33,6 @@ class TestRazorpayFailureLogsCarryStructuredContext:
         response = httpx.Response(status, request=request)
         return httpx.HTTPStatusError("server error", request=request, response=response)
 
-    def test_create_customer_failure_carries_operation_and_status(self, monkeypatch, caplog):
-        monkeypatch.setattr(
-            httpx, "post", lambda *a, **kw: (_ for _ in ()).throw(self._http_error(502))
-        )
-        with caplog.at_level(logging.ERROR, logger="app.services.razorpay_client"):
-            result = razorpay_client.create_customer("test@example.com")
-
-        assert result is None
-        errors = [
-            r for r in caplog.records
-            if r.name == "app.services.razorpay_client" and r.levelno >= logging.ERROR
-        ]
-        assert errors, "No error log line emitted on create_customer failure"
-        assert errors[0].operation == "create_customer"
-        assert errors[0].status_code == 502
-
-    def test_create_subscription_failure_carries_plan_id(self, monkeypatch, caplog):
-        monkeypatch.setattr(
-            httpx, "post", lambda *a, **kw: (_ for _ in ()).throw(self._http_error(400))
-        )
-        with caplog.at_level(logging.ERROR, logger="app.services.razorpay_client"):
-            result = razorpay_client.create_subscription("plan_test_123")
-
-        assert result is None
-        errors = [
-            r for r in caplog.records
-            if r.name == "app.services.razorpay_client" and r.levelno >= logging.ERROR
-        ]
-        assert errors
-        assert errors[0].operation == "create_subscription"
-        assert errors[0].plan_id == "plan_test_123"
-        assert errors[0].status_code == 400
-
     def test_create_order_failure_carries_amount(self, monkeypatch, caplog):
         monkeypatch.setattr(
             httpx, "post", lambda *a, **kw: (_ for _ in ()).throw(self._http_error(500))
@@ -99,22 +66,6 @@ class TestRazorpayFailureLogsCarryStructuredContext:
         assert errors[0].subscription_id == "sub_abc123"
         assert errors[0].status_code == 404
 
-    def test_fetch_subscription_failure_carries_subscription_id(self, monkeypatch, caplog):
-        monkeypatch.setattr(
-            httpx, "get", lambda *a, **kw: (_ for _ in ()).throw(self._http_error(500))
-        )
-        with caplog.at_level(logging.ERROR, logger="app.services.razorpay_client"):
-            result = razorpay_client.fetch_subscription("sub_xyz789")
-
-        assert result is None
-        errors = [
-            r for r in caplog.records
-            if r.name == "app.services.razorpay_client" and r.levelno >= logging.ERROR
-        ]
-        assert errors
-        assert errors[0].operation == "fetch_subscription"
-        assert errors[0].subscription_id == "sub_xyz789"
-
     def test_a_transport_error_carries_null_status(self, monkeypatch, caplog):
         """A connect timeout has no HTTP status to report."""
         monkeypatch.setattr(
@@ -122,14 +73,14 @@ class TestRazorpayFailureLogsCarryStructuredContext:
             lambda *a, **kw: (_ for _ in ()).throw(httpx.ConnectError("connection refused")),
         )
         with caplog.at_level(logging.ERROR, logger="app.services.razorpay_client"):
-            razorpay_client.create_customer("test@example.com")
+            razorpay_client.create_order(9900)
 
         errors = [
             r for r in caplog.records
             if r.name == "app.services.razorpay_client" and r.levelno >= logging.ERROR
         ]
         assert errors
-        assert errors[0].operation == "create_customer"
+        assert errors[0].operation == "create_order"
         assert errors[0].status_code is None
 
 
