@@ -581,3 +581,39 @@ class TestADocumentThatYieldedNoTextAndIsNotAnImage:
         assert with_model.warnings == without.warnings
         assert with_model.parsed_with == without.parsed_with
         assert with_model.confidence == without.confidence
+
+
+class TestARepeatedLabelCannotStallTheParser:
+    """P17 M6: each candidate label searched the whole line before it for a
+    reference or e-way prefix, so one long line repeating a label that never
+    yields a value cost time quadratic in its length — 7 s at 50 KB, most of an
+    hour at the 2 MB text ceiling, on a worker that retried it four times. Any
+    signed-in user could upload that as a .txt. The guards now look back a
+    bounded window; what they match is unchanged."""
+
+    @pytest.mark.parametrize(
+        "label", ["Invoice No: ", "E-Way Bill No: ", "E-Way Bill Date: 01/04/2026 "]
+    )
+    def test_half_a_megabyte_of_one_label_parses_in_seconds(self, label):
+        import time
+
+        from app.services.invoice_parser import parse_heuristic
+
+        text = label * (500_000 // len(label))
+        started = time.perf_counter()
+        parse_heuristic(text)
+        # Quadratic, this was ~100 s for the first label and ~650 s for the
+        # second; linear it is well under one. The bound is loose on purpose.
+        assert time.perf_counter() - started < 10
+
+    def test_a_reference_marker_right_before_the_label_still_counts(self):
+        from app.services.invoice_parser import parse_heuristic
+
+        text = "Against our Invoice No: OLD-7\nInvoice No: NEW-9\n"
+        assert parse_heuristic(text).invoice_number == "NEW-9"
+
+    def test_a_marker_far_back_along_the_line_is_outside_the_window(self):
+        from app.services.invoice_parser import _PREFIX_WINDOW, parse_heuristic
+
+        text = "Original" + " filler" * (_PREFIX_WINDOW // 7 + 5) + " Invoice No: N-5"
+        assert parse_heuristic(text).invoice_number == "N-5"

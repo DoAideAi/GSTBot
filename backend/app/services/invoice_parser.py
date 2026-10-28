@@ -682,6 +682,27 @@ _REFERENCE_PREFIX = re.compile(
 )
 
 
+# How far back from a label the prefix guards look. They are anchored to the
+# text immediately before it (``$``), so what matters is the last few words; the
+# longest prefix that means anything — "with reference to your tax invoice" plus
+# its separators — is well under this.
+#
+# Bounded because the window was the whole line, and every candidate searched
+# it again: a document of one long line repeating a label that never yields a
+# value (an e-way bill number, a label with nothing after it) cost time
+# quadratic in its length — 7 s at 50 KB, the better part of an hour at the
+# 2 MB text ceiling — on a worker, retried four times. ``search(text, pos)``
+# still sees the characters before ``pos`` for ``\b``, so a window that starts
+# mid-word cannot invent a word boundary.
+_PREFIX_WINDOW = 160
+
+
+def _before(text: str, end: int) -> tuple[int, int]:
+    """The span the prefix guards search: this line, at most a window back."""
+    line_start = text.rfind("\n", max(0, end - _PREFIX_WINDOW), end) + 1
+    return max(line_start, end - _PREFIX_WINDOW), end
+
+
 def _invoice_number_in(text: str) -> str | None:
     """The document number the text labels, or ``None``.
 
@@ -710,15 +731,7 @@ def _invoice_number_in(text: str) -> str | None:
     position of a confirmed label is a first-year series, not a column heading.
     """
     for match in _INVOICE_NO_PATTERN.finditer(text):
-        # The ``0`` here and in :func:`_invoice_date_in` both leave a mutation
-        # survivor, and for a reason that is a property of the two guards below
-        # rather than of this line. Starting the search at 1 instead can only
-        # change ``line_start`` when the last newline before the match sits at
-        # index 0, and the window it then widens by is that newline alone —
-        # which neither guard can begin a match on, both starting at a word
-        # character. So no document distinguishes the two.
-        line_start = text.rfind("\n", 0, match.start()) + 1
-        before = (line_start, match.start())
+        before = _before(text, match.start())
         if _REFERENCE_PREFIX.search(text, *before) or _EWAY_PREFIX.search(text, *before):
             continue
         # Well clear of anything the pattern can hand over: both of its value
@@ -905,11 +918,7 @@ def _invoice_date_in(text: str) -> date | None:
     """
     marked: list[str] = []
     for start, raw in _date_candidates(text):
-        # Survives mutation for the reason given at the same line in
-        # :func:`_invoice_number_in`: the only window the change can widen is a
-        # lone newline, and no guard here starts on one.
-        line_start = text.rfind("\n", 0, start) + 1
-        before = (line_start, start)
+        before = _before(text, start)
         if (
             _OTHER_DATE_PREFIX.search(text, *before)
             or _REFERENCE_PREFIX.search(text, *before)
