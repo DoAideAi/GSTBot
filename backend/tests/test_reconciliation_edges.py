@@ -1351,3 +1351,45 @@ class TestAVerdictIsNotWrittenOverAConcurrentChange:
         # No number, so nothing in the statement can be it — and a null in a
         # judged field must still compare equal to itself.
         assert self._stored(db_session, invoice.id).status is InvoiceStatus.MISSING_IN_2B
+
+
+# ---------------------------------------------------------------------------
+# Two imports of one period at once
+# ---------------------------------------------------------------------------
+
+class TestTwoImportsOfOnePeriodAtOnce:
+    """Both read the same live statement before either commits. Simulated by
+    hiding the winner from the loser's first read, which is exactly what the
+    loser saw: no live row to retire, so its INSERT meets the winner's."""
+
+    @staticmethod
+    def _miss_the_winner_once(monkeypatch):
+        real = reconciliation.latest_gstr2b
+        calls = []
+
+        def stale_then_real(*args, **kwargs):
+            calls.append(1)
+            return None if len(calls) == 1 else real(*args, **kwargs)
+
+        monkeypatch.setattr(reconciliation, "latest_gstr2b", stale_then_real)
+
+    def test_the_later_import_replaces_the_one_that_won(self, monkeypatch, db_session, business):
+        first = import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+        self._miss_the_winner_once(monkeypatch)
+
+        second = import_2b(db_session, business.id, [portal(invoice_number="B-2")])
+
+        db_session.expire_all()
+        live = reconciliation.latest_gstr2b(db_session, business.id, PERIOD)
+        assert live.id == second.id
+        assert [row["invoice_number"] for row in live.data["invoices"]] == ["B-2"]
+        assert db_session.get(GSTRReturn, first.id).deleted_at is not None
+
+    def test_a_collision_that_persists_still_raises(self, monkeypatch, db_session, business):
+        from sqlalchemy.exc import IntegrityError
+
+        import_2b(db_session, business.id, [portal()])
+        monkeypatch.setattr(reconciliation, "latest_gstr2b", lambda *a, **kw: None)
+
+        with pytest.raises(IntegrityError):
+            import_2b(db_session, business.id, [portal()])

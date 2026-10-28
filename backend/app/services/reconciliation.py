@@ -40,6 +40,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -1156,6 +1157,7 @@ def store_gstr2b(
     *,
     source_filename: str | None = None,
     raw: dict | None = None,
+    _retried: bool = False,
 ) -> GSTRReturn:
     """Persist an imported 2B, replacing any earlier import for the period.
 
@@ -1190,7 +1192,23 @@ def store_gstr2b(
         total_cess=totals["total_cess"],
     )
     db.add(gstr_return)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two imports of one period at once — the same download dropped twice,
+        # or the owner and their CA each importing — both read the same live
+        # statement, both retire it, and the partial unique index lets one
+        # INSERT through. The loser answered the generic 409 for an import
+        # whose whole contract is "the newest download replaces the last". It
+        # is the newest now, so it replaces the one that just won. Once only:
+        # a second collision is not this race, and is left to raise.
+        db.rollback()
+        if _retried:
+            raise
+        return store_gstr2b(
+            db, business_id, period, records,
+            source_filename=source_filename, raw=raw, _retried=True,
+        )
     db.refresh(gstr_return)
     return gstr_return
 
