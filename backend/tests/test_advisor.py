@@ -5,6 +5,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
 
 
 class TestAdvisorAsk:
@@ -563,3 +564,42 @@ class TestAdvisorStreamFailures:
         roles = [c["role"] for c in sent["contents"]]
         # Gemini needs the first turn to be the user's: a leading model greeting is dropped.
         assert roles == ["user", "model", "user"]
+
+
+class TestTheAdvisorBill:
+    """Every question is a paid Gemini call. Without a key the endpoint answers
+    503 once every limit has passed, so a 429 is a limit and a 503 is not."""
+
+    @pytest.fixture()
+    def tight(self, monkeypatch, rate_limited):
+        from app.core.config import settings
+        from app.core.ratespec import parse_rate
+        from app.routers import advisor
+
+        monkeypatch.setattr(settings, "trust_proxy_headers", True)
+        monkeypatch.setattr(advisor._advisor_daily, "_rate", parse_rate("2/day"))
+        monkeypatch.setattr(advisor._advisor_site_daily, "_rate", parse_rate("3/day"))
+        monkeypatch.setattr(advisor, "_get_api_key", lambda: None)
+
+    def _ask(self, client, ip, path="/api/v1/advisor/ask"):
+        return client.post(path, json={"message": "GST on gold?"}, headers={"X-Real-IP": ip})
+
+    def test_one_address_has_a_daily_allowance(self, client, tight):
+        assert self._ask(client, "198.51.100.1").status_code == 503
+        assert self._ask(client, "198.51.100.1", "/api/v1/advisor/ask/stream").status_code == 503
+        refused = self._ask(client, "198.51.100.1")
+        assert refused.status_code == 429
+        assert "daily limit" in refused.json()["detail"]
+        assert "Retry-After" in refused.headers
+
+    def test_many_addresses_cannot_do_what_one_cannot(self, client, tight):
+        for ip in ("198.51.100.1", "198.51.100.2", "198.51.100.3"):
+            assert self._ask(client, ip).status_code == 503
+        refused = self._ask(client, "198.51.100.4")
+        assert refused.status_code == 429
+        assert "as many questions as it can today" in refused.json()["detail"]
+
+    def test_a_caller_refused_for_their_own_day_is_not_charged_to_everyone(self, client, tight):
+        for _ in range(4):  # two answered, two refused for the address's own day
+            self._ask(client, "198.51.100.1")
+        assert self._ask(client, "198.51.100.2").status_code == 503

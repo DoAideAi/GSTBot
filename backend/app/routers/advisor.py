@@ -26,6 +26,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["advisor"])
 
 _advisor_limit = RateLimit("advisor_ask", "30/minute", by="ip")
+# Every question is a paid Gemini call, and 30 a minute from one address is
+# still 43,200 a day: the per-minute limit stops a burst, not a bill. A daily
+# allowance per address, and a ceiling on everyone together so that many
+# addresses cannot do what one cannot. Both are RATE_LIMIT_OVERRIDES names.
+_advisor_daily = RateLimit(
+    "advisor_daily",
+    "100/day",
+    by="ip",
+    detail=(
+        "You have asked the AI advisor its daily limit of questions. It resets within "
+        "24 hours; the free calculators and lookups still work in the meantime."
+    ),
+)
+_advisor_site_daily = RateLimit(
+    "advisor_site_daily",
+    "5000/day",
+    by="site",
+    detail=(
+        "The AI advisor has answered as many questions as it can today. It will be "
+        "back tomorrow; the free calculators and lookups still work in the meantime."
+    ),
+)
+# In this order: a caller refused for their own minute or day is never
+# charged against everyone's ceiling.
+_ADVISOR_LIMITS = [
+    Depends(_advisor_limit),
+    Depends(_advisor_daily),
+    Depends(_advisor_site_daily),
+]
 
 # Tried in order. One model is a single point of failure the advisor has
 # already met: gemini-3.8-flash answered 503 "high demand" for long enough that
@@ -179,7 +208,7 @@ def _build_payload(history: list[HistoryMessage], message: str) -> dict:
         503: {"description": "The model is overloaded, or no API key is configured."},
         504: {"description": "The model took too long to answer."},
     },
-    dependencies=[Depends(_advisor_limit)],
+    dependencies=_ADVISOR_LIMITS,
 )
 async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
     global _reported_missing_key
@@ -459,7 +488,7 @@ async def _stream_from_gemini(
         "``{error: message}``. The first token appears in under a second."
     ),
     responses={503: {"description": "No API key is configured."}},
-    dependencies=[Depends(_advisor_limit)],
+    dependencies=_ADVISOR_LIMITS,
 )
 async def ask_advisor_stream(body: AdvisorRequest) -> StreamingResponse:
     global _reported_missing_key

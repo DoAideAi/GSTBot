@@ -205,7 +205,20 @@ class TestClientIp:
         # Left-most is the original client; the rest are hops.
         assert rate_limit.client_ip(request) == "1.2.3.4"
 
-    def test_x_real_ip_is_the_fallback(self, monkeypatch):
+    def test_the_proxy_set_x_real_ip_beats_a_forwarded_for_the_client_wrote(
+        self, monkeypatch
+    ):
+        """Caddy overwrites X-Real-IP with the connection's address; the
+        left-most X-Forwarded-For is only the client's own claim if the proxy
+        ever passes it through."""
+        from app.core import rate_limit
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "trust_proxy_headers", True)
+        request = self._request({"x-forwarded-for": "6.6.6.6", "x-real-ip": "5.6.7.8"})
+        assert rate_limit.client_ip(request) == "5.6.7.8"
+
+    def test_x_real_ip_is_used_alone(self, monkeypatch):
         from app.core import rate_limit
         from app.core.config import settings
 

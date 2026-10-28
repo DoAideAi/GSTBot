@@ -239,13 +239,19 @@ def client_ip(request: Request) -> str:
     front and is rewriting it.
     """
     if settings.trust_proxy_headers:
+        # X-Real-IP first: deploy/caddy-gstbot.conf sets it from the
+        # connection, overwriting whatever the client sent. X-Forwarded-For is
+        # only safe left-most-first while the proxy also discards a client's
+        # own value — Caddy does by default today, but that is a property of
+        # its version and config, not of this code, and a client-written
+        # left-most entry is a fresh rate-limit bucket per request.
+        real_ip = request.headers.get("x-real-ip", "").strip()
+        if real_ip:
+            return real_ip[:64]
         forwarded = request.headers.get("x-forwarded-for", "")
         if forwarded:
             # Left-most entry is the original client; the rest are hops.
             return forwarded.split(",")[0].strip()[:64]
-        real_ip = request.headers.get("x-real-ip", "")
-        if real_ip:
-            return real_ip.strip()[:64]
     return request.client.host if request.client else "unknown"
 
 
@@ -278,10 +284,17 @@ class RateLimit:
     are separate buckets rather than one shared pool.
     """
 
-    def __init__(self, name: str, spec: str, *, by: str = "identity") -> None:
+    def __init__(
+        self, name: str, spec: str, *, by: str = "identity", detail: str | None = None
+    ) -> None:
+        # ``by``: "identity" (the signed-in user, else the address), "ip", or
+        # "site" — one bucket shared by every caller, a ceiling on the total
+        # rather than on any one of them. ``detail`` replaces the default
+        # "try again in Ns" where the wait is hours, not seconds.
         self.name = name
         self.spec = spec
         self.by = by
+        self.detail = detail
         self._rate: Rate | None = None
 
     @property
@@ -296,7 +309,12 @@ class RateLimit:
         if not settings.rate_limit_enabled:
             return
 
-        who = f"ip:{client_ip(request)}" if self.by == "ip" else identity(request)
+        if self.by == "site":
+            who = "site"
+        elif self.by == "ip":
+            who = f"ip:{client_ip(request)}"
+        else:
+            who = identity(request)
         decision = charge(f"{self.name}:{who}", self.rate)
 
         # Stashed on the request so the middleware can put the headers on the
@@ -310,7 +328,7 @@ class RateLimit:
             )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Too many requests. Try again in {decision.retry_after}s.",
+                detail=self.detail or f"Too many requests. Try again in {decision.retry_after}s.",
                 headers={
                     "Retry-After": str(decision.retry_after),
                     "X-RateLimit-Limit": str(decision.limit),
