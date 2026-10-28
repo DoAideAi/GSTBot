@@ -234,6 +234,74 @@ class TestFromExcel:
         assert "Spreadsheet read failed" in caplog.text
 
 
+def _corrupt_sheet_xlsx() -> bytes:
+    """A workbook that opens, then fails while its sheet is walked.
+
+    ``read_only`` parses sheets lazily, so the damage — a shared-string index
+    past the end of the table — is only reached inside ``iter_rows``.
+    """
+    import zipfile
+
+    source = zipfile.ZipFile(io.BytesIO(make_xlsx([["Invoice"]])))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            if info.filename == "xl/worksheets/sheet1.xml":
+                data = data.replace(
+                    b"</sheetData>",
+                    b"<row r='2'><c r='A2' t='s'><v>999</v></c></row></sheetData>",
+                )
+            target.writestr(info, data)
+    return out.getvalue()
+
+
+def _full_grid_xlsx() -> bytes:
+    """Five kilobytes on disk that declare a 1,048,576 x 16,384 sheet."""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet["A1"] = "Invoice"
+    sheet.cell(row=1_048_576, column=16_384, value="x")
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+class TestASpreadsheetCannotOutlastItsRead:
+    """Two ways a sheet escaped the bounds the read already had (M6)."""
+
+    def test_a_sheet_that_fails_partway_returns_empty_rather_than_raising(self):
+        assert document_text.from_excel(_corrupt_sheet_xlsx()) == ""
+
+    def test_a_partway_failure_is_logged_for_the_operator(self, caplog):
+        with caplog.at_level("WARNING"):
+            document_text.from_excel(_corrupt_sheet_xlsx())
+        assert "Spreadsheet read failed partway" in caplog.text
+
+    def test_a_declared_full_grid_is_not_walked_cell_by_cell(self):
+        import time
+
+        content = _full_grid_xlsx()
+        assert len(content) < 10_000
+        started = time.monotonic()
+        text = document_text.from_excel(content)
+        # Unbounded, this is minutes; bounded, a fraction of a second. The
+        # margin is for a slow CI box, not for the bound.
+        assert time.monotonic() - started < 5
+        assert text.startswith("Invoice")
+
+    def test_blank_cells_count_against_the_budget(self, monkeypatch, caplog):
+        monkeypatch.setattr(document_text, "MAX_CELLS", 10)
+        rows = [["Invoice", None, None]] + [[None, None, None]] * 10 + [["INV-9", None, None]]
+        with caplog.at_level("WARNING"):
+            text = document_text.from_excel(make_xlsx(rows))
+        assert "INV-9" not in text
+        assert "stopped after 10 cells" in caplog.text
+
+    def test_a_real_register_is_inside_the_budget(self):
+        assert document_text.MAX_CELLS >= 10_000 * 50
+
+
 # --------------------------------------------------------------------------
 # from_csv
 # --------------------------------------------------------------------------

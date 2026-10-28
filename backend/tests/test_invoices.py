@@ -1970,3 +1970,25 @@ class TestBoundaryInputsReachTheDatabaseInAFormItAccepts:
             f"/api/v1/invoices/{invoice_id}", json={"taxable_value": value}
         )
         assert response.status_code == 200
+
+
+def test_a_spreadsheet_that_breaks_partway_fails_with_a_reason_a_person_can_use(auth_client):
+    """M6: a sheet that opened and then failed mid-read escaped text extraction,
+    and the row's ``parse_error`` became the exception text — "list index out
+    of range" — instead of the parser's own account of an unreadable file."""
+    from tests.test_document_text import _corrupt_sheet_xlsx
+
+    response = auth_client.post(
+        "/api/v1/invoices/upload",
+        files={
+            "file": (
+                "register.xlsx",
+                _corrupt_sheet_xlsx(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        data={"invoice_type": "purchase"},
+    )
+    assert response.status_code in (200, 201, 202), response.text
+    invoice = response.json()["invoice"]
+    assert "index out of range" not in (invoice["parse_error"] or "")

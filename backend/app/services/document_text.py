@@ -47,6 +47,18 @@ _MIN_PDF_TEXT_CHARS = 40
 # while the text is being built, not after, because building it is the cost.
 MAX_TEXT_CHARS = 2_000_000
 
+# The most spreadsheet cells a read will look at, blank or not.
+#
+# ``MAX_TEXT_CHARS`` bounds what a sheet *becomes*, and a blank row becomes
+# nothing, so it never counted. But a sheet's declared dimension is what
+# openpyxl pads every row to, and a 5 KB .xlsx with one value at XFD1048576
+# declares the whole grid: a million rows of 16,384 empty cells, each one
+# turned into a string and tested before being skipped. Twenty thousand of
+# those rows took 9 seconds; the full grid is minutes of CPU per upload,
+# inline in the request when Celery is off. A real purchase register — ten
+# thousand lines by fifty columns — is a tenth of this.
+MAX_CELLS = 5_000_000
+
 
 class _TextLimitReached(Exception):
     """Internal: break out of a nested sheet/row walk once the cap is hit."""
@@ -108,9 +120,18 @@ def from_excel(content: bytes) -> str:
         return ""
     lines: list[str] = []
     size = 0
+    visited = 0
     try:
         for sheet in workbook.worksheets:
             for row in sheet.iter_rows(values_only=True):
+                visited += len(row)
+                if visited > MAX_CELLS:
+                    logger.warning(
+                        "Spreadsheet read stopped after %s cells (%s rows kept)",
+                        MAX_CELLS,
+                        len(lines),
+                    )
+                    raise _TextLimitReached
                 cells = ["" if cell is None else str(cell) for cell in row]
                 if not any(cell.strip() for cell in cells):
                     continue
@@ -125,6 +146,15 @@ def from_excel(content: bytes) -> str:
                     raise _TextLimitReached
     except _TextLimitReached:
         pass
+    except Exception as exc:  # noqa: BLE001 - a corrupt sheet must not 500
+        # ``read_only`` parses each sheet lazily, so a workbook that opened
+        # can still fail here — a shared-string index past the table, a cell
+        # whose value is not what its type says. This escaped to the caller,
+        # whose contract is that extraction never raises: the invoice row was
+        # failed with "list index out of range" as its reason, and a Celery
+        # worker retried a file that would fail identically every time.
+        logger.warning("Spreadsheet read failed partway: %s", exc)
+        return ""
     finally:
         workbook.close()
     return "\n".join(lines)[:MAX_TEXT_CHARS].strip()
