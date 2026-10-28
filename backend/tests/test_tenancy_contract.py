@@ -56,18 +56,48 @@ def _row_id_params(path: str) -> list[str]:
     return _ROW_ID.findall(path)
 
 
+# Routes that address a row by id but whose rows belong to no business: the
+# site's own feedback inbox and browser-error log. There is no "other tenant"
+# to be refused with a 404 — every caller who is not a site administrator is
+# refused, with 403, before any row is read. Kept out of the per-tenant sweep
+# below, and held instead to the guard that actually protects them, so a route
+# cannot be parked here to escape the sweep.
+SITE_ADMIN_ROUTES = {
+    "/api/v1/feedback/{feedback_id}",
+    "/api/v1/feedback/errors/{error_id}",
+}
+
+
 def _routes_with_a_row_id() -> list[tuple[str, str]]:
-    """``(method, path)`` for every route addressing a row by id."""
+    """``(method, path)`` for every tenant-data route addressing a row by id."""
     found = {
         (method, route.path)
         for route in API_ROUTES
-        if _row_id_params(route.path)
+        if _row_id_params(route.path) and route.path not in SITE_ADMIN_ROUTES
         for method in route.methods - {"HEAD", "OPTIONS"}
     }
     return sorted(found)
 
 
 ROW_ID_ROUTES = _routes_with_a_row_id()
+
+
+class TestSiteAdminRoutesAreGuardedByTheAdminCheck:
+    def test_each_is_a_live_route_behind_require_admin(self):
+        from app.core.deps import require_admin
+        from app.core.openapi import dependency_calls
+
+        by_path = {route.path: route for route in API_ROUTES}
+        for path in SITE_ADMIN_ROUTES:
+            assert path in by_path, f"{path} is listed as a site-admin route but not served"
+            assert require_admin in dependency_calls(by_path[path].dependant), (
+                f"{path} is exempt from the tenancy sweep but not behind require_admin"
+            )
+
+    @pytest.mark.parametrize("path", sorted(SITE_ADMIN_ROUTES))
+    def test_a_business_owner_is_refused_whatever_the_id(self, auth_client, path):
+        response = auth_client.delete(_ROW_ID.sub("1", path))
+        assert response.status_code == 403
 
 
 # --------------------------------------------------------------------------
