@@ -26,6 +26,7 @@ Real annotations keep the dependency wired to the real Request.
 """
 
 import logging
+import math
 import threading
 import time
 from collections import OrderedDict
@@ -106,7 +107,10 @@ def _bucket(rate: Rate) -> tuple[int, int]:
     """``(window_start, seconds_until_it_rolls)`` for the window now open."""
     now = _clock()
     window_start = int(now // rate.window) * rate.window
-    return window_start, int(window_start + rate.window - now) or 1
+    # Rounded up, never down: this becomes Retry-After, and a client that
+    # waits exactly that long has to land in the next window. Truncating said
+    # 49 with 49.5 seconds left, so an obedient retry was refused again.
+    return window_start, max(1, math.ceil(window_start + rate.window - now))
 
 
 def charge(key: str, rate: Rate) -> Decision:

@@ -148,3 +148,32 @@ class TestASignatureWithANonAsciiCharacterIsRefusedNotA500:
         )
         assert response.status_code == 200
         assert response.json()["unsubscribed"] is False
+
+
+class TestRetryAfterIsLongEnough:
+    """It was the seconds left in the window *truncated*: with 49.5s to go it
+    said 49, and a client that waited exactly that long retried half a second
+    early, inside the same window, and was refused again."""
+
+    GSTIN = "/api/v1/meta/gstin/27AAPFU0939F1ZV"
+
+    def test_waiting_exactly_retry_after_seconds_is_enough(
+        self, client, rate_limited, pinned_window
+    ):
+        pinned_window(10.5)
+        for _ in range(30):
+            client.get(self.GSTIN)
+        refused = client.get(self.GSTIN)
+        assert refused.status_code == 429
+        wait = int(refused.headers["Retry-After"])
+        assert wait == 50  # 49.5 seconds left, rounded up
+
+        pinned_window(wait)
+        assert client.get(self.GSTIN).status_code == 200
+
+    def test_at_the_very_start_of_a_window_it_is_the_whole_window(
+        self, client, rate_limited, pinned_window
+    ):
+        for _ in range(30):
+            client.get(self.GSTIN)
+        assert client.get(self.GSTIN).headers["Retry-After"] == "60"
