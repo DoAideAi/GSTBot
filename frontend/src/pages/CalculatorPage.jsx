@@ -18,6 +18,9 @@ import { usePageTitle } from "../hooks/usePageTitle";
 import { calcUrl, calculate, formatINR, GST_SLABS, parseCalcParams, reverseCalculate } from "../lib/gstCalc";
 import { track } from "../lib/track";
 
+/** How long a result must stand before it counts as a calculation. */
+export const CALC_SETTLE_MS = 800;
+
 export default function CalculatorPage() {
   usePageTitle("Free GST Calculator — Calculate CGST, SGST, IGST Instantly");
   const location = useLocation();
@@ -34,6 +37,7 @@ export default function CalculatorPage() {
 
   const parsed = parseFloat(amount);
   const valid = Number.isFinite(parsed) && parsed >= 0;
+  const negative = Number.isFinite(parsed) && parsed < 0;
 
   const result = useMemo(
     () =>
@@ -45,20 +49,31 @@ export default function CalculatorPage() {
     [valid, mode, parsed, rate, interstate],
   );
 
+  // The address bar carries the *taxable* value, because that is what
+  // `?amount=` means when the page loads. In inclusive mode the field holds
+  // the total, and writing that out meant a reload (or a copied link) showed
+  // a different breakdown from the one on screen.
+  const taxable = result ? result.taxable : null;
   useEffect(() => {
-    if (valid) {
-      const url = calcUrl(parsed, rate, interstate);
+    if (taxable != null) {
+      const url = calcUrl(taxable, rate, interstate);
       if (location.search !== url.replace("/calculator", "")) {
         navigate(url, { replace: true });
       }
     }
-  }, [parsed, rate, interstate, valid, navigate, location.search]);
+  }, [taxable, rate, interstate, navigate, location.search]);
 
+  // Counted once the result has settled, not per keystroke. Typing "100"
+  // used to be three calculations — enough to raise the sign-up prompt
+  // before the visitor had finished entering their first amount — and sent
+  // an analytics event for every digit.
   useEffect(() => {
-    if (result) {
+    if (!result) return undefined;
+    const timer = setTimeout(() => {
       track("gst_calculate", { amount: result.taxable, rate });
       setCalcCount(incrementCalcCount());
-    }
+    }, CALC_SETTLE_MS);
+    return () => clearTimeout(timer);
   }, [result, rate]);
 
   return (
@@ -114,13 +129,17 @@ export default function CalculatorPage() {
           <div className="calc-card">
             <div className="calc-mode-toggle" role="group" aria-label="Calculation mode">
               <button
+                type="button"
                 className={`calc-mode-btn${mode === "exclusive" ? " active" : ""}`}
+                aria-pressed={mode === "exclusive"}
                 onClick={() => setMode("exclusive")}
               >
                 GST Exclusive
               </button>
               <button
+                type="button"
                 className={`calc-mode-btn${mode === "inclusive" ? " active" : ""}`}
+                aria-pressed={mode === "inclusive"}
                 onClick={() => setMode("inclusive")}
               >
                 GST Inclusive
@@ -139,8 +158,15 @@ export default function CalculatorPage() {
                 step="0.01"
                 inputMode="decimal"
                 autoFocus
+                aria-invalid={negative}
+                aria-describedby={negative ? "calc-amount-error" : undefined}
               />
             </label>
+            {negative && (
+              <p id="calc-amount-error" className="field-error" role="alert">
+                Enter an amount of zero or more.
+              </p>
+            )}
 
             <label className="calc-label">
               GST Rate (%)

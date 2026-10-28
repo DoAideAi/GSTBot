@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import CalculatorPage from "./CalculatorPage";
 
@@ -141,6 +141,60 @@ describe("CalculatorPage", () => {
 
     await userEvent.type(screen.getByPlaceholderText("Enter amount in ₹"), "1000");
 
-    expect(mockTrack).toHaveBeenCalledWith("gst_calculate", expect.objectContaining({ amount: 1000, rate: 18 }));
+    await waitFor(
+      () => expect(mockTrack).toHaveBeenCalledWith("gst_calculate", expect.objectContaining({ amount: 1000, rate: 18 })),
+      { timeout: 2000 },
+    );
+  });
+
+  it("counts a calculation once the amount settles, not once per keystroke", async () => {
+    mockTrack.mockClear();
+    localStorage.clear();
+    renderCalc();
+
+    await userEvent.type(screen.getByPlaceholderText("Enter amount in ₹"), "12345");
+    await waitFor(() => expect(mockTrack).toHaveBeenCalled(), { timeout: 2000 });
+
+    const calcs = mockTrack.mock.calls.filter(([name]) => name === "gst_calculate");
+    expect(calcs).toHaveLength(1);
+    expect(calcs[0][1]).toEqual({ amount: 12345, rate: 18 });
+  });
+
+  it("says which mode is active to assistive technology", async () => {
+    renderCalc();
+    const exclusive = screen.getByRole("button", { name: "GST Exclusive" });
+    const inclusive = screen.getByRole("button", { name: "GST Inclusive" });
+    expect(exclusive).toHaveAttribute("aria-pressed", "true");
+    expect(inclusive).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(inclusive);
+    expect(inclusive).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("writes the taxable value, not the inclusive total, to the address bar", async () => {
+    let search = "";
+    function Probe() {
+      search = useLocation().search;
+      return null;
+    }
+    render(
+      <MemoryRouter initialEntries={["/calculator"]}>
+        <CalculatorPage />
+        <Probe />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "GST Inclusive" }));
+    await userEvent.type(screen.getByPlaceholderText("Enter amount in ₹"), "1180");
+
+    // Reloading this URL opens in exclusive mode, so it must hold ₹1,000.
+    expect(new URLSearchParams(search).get("amount")).toBe("1000");
+  });
+
+  it("explains a negative amount instead of showing nothing", async () => {
+    renderCalc();
+    const input = screen.getByPlaceholderText("Enter amount in ₹");
+    await userEvent.type(input, "-5");
+    expect(screen.getByRole("alert")).toHaveTextContent("zero or more");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Taxable Value")).not.toBeInTheDocument();
   });
 });
