@@ -196,6 +196,10 @@ CLIENT_FACING = {
     "NoGSTR2BImported": "422 from a reconciliation run",
     "ConcurrentReconciliation": "409 when another reconciliation is already running",
     "PlanLimitExceeded": "402 on upload",
+    # Not a domain exception: an HTTPException that carries its own
+    # error.code. Raised with `detail=` as a keyword, so its message is read
+    # by the first sweep along with every other route refusal.
+    "CodedHTTPException": "403 paid_plan_required from require_paid_tier",
 }
 
 INTERNAL_ONLY = {

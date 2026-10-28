@@ -241,9 +241,11 @@ def require_paid_tier(
     # `is_paid` rather than the tier and status alone: a paid period that has
     # run out is not paid for, whatever the row's status still says.
     if sub is None or not sub.is_paid():
+        # Keywords, so the prose sweep in test_error_prose reads this detail
+        # with every other refusal's rather than skipping a positional one.
         raise CodedHTTPException(
-            status.HTTP_403_FORBIDDEN,
-            "This feature requires a paid subscription. Visit /pricing to upgrade.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This feature requires a paid subscription. Visit /pricing to upgrade.",
             code="paid_plan_required",
         )
     return sub
