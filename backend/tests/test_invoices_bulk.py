@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import event
 
 from app.models.invoice import Invoice, InvoiceStatus
@@ -151,6 +152,77 @@ class TestThePlanLimit:
         # The two that fit are the first two attempted, not a scattered subset.
         assert [item["accepted"] for item in body["items"]] == [True, True, False, False]
         assert "plan" in body["items"][2]["error"].lower()
+
+
+class TestAPaidPlanLiftsTheAllowance:
+    """Buying a plan never wrote `business.plan`, which is what the cap reads,
+    so a business that paid for Pro was still stopped at the free plan's limit
+    and told to upgrade."""
+
+    LIMITS = "free=2,pro=0,ca_bundle=0"
+
+    def _subscribe(self, db_session, business, tier, period_end):
+        from app.models.subscription import Subscription, SubscriptionStatus
+
+        db_session.add(
+            Subscription(
+                business_id=business.id,
+                tier=tier,
+                status=SubscriptionStatus.ACTIVE,
+                current_period_end=period_end,
+            )
+        )
+        db_session.commit()
+
+    @pytest.mark.parametrize("tier_name", ["PRO", "ENTERPRISE"])
+    def test_a_paid_business_is_not_held_to_the_free_cap(
+        self, auth_client, business, db_session, monkeypatch, tier_name
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from app.core.config import settings
+        from app.models.subscription import SubscriptionTier
+
+        monkeypatch.setattr(settings, "plan_monthly_invoice_limits", self.LIMITS)
+        tier = SubscriptionTier[tier_name]
+        self._subscribe(db_session, business, tier, datetime.now(UTC) + timedelta(days=20))
+        files = [(f"paid{i}.txt", _invoice_text(f"PAID-{tier_name}-{i}")) for i in range(4)]
+        response = bulk_upload(auth_client, files)
+        assert response.json()["accepted"] == 4
+
+    def test_a_lapsed_plan_is_held_to_the_stored_plan_again(
+        self, auth_client, business, db_session, monkeypatch
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from app.core.config import settings
+        from app.models.subscription import SubscriptionTier
+
+        monkeypatch.setattr(settings, "plan_monthly_invoice_limits", self.LIMITS)
+        self._subscribe(
+            db_session, business, SubscriptionTier.PRO, datetime.now(UTC) - timedelta(days=1)
+        )
+        response = bulk_upload(
+            auth_client, [(f"lapsed{i}.txt", _invoice_text(f"LAPSED-{i}")) for i in range(3)]
+        )
+        body = response.json()
+        assert body["accepted"] == 2
+        assert "plan 'free'" in body["items"][2]["error"].lower()
+
+    def test_the_usage_page_shows_the_paid_allowance(
+        self, auth_client, business, db_session, monkeypatch
+    ):
+        from datetime import UTC, datetime, timedelta
+
+        from app.core.config import settings
+        from app.models.subscription import SubscriptionTier
+
+        monkeypatch.setattr(settings, "plan_monthly_invoice_limits", self.LIMITS)
+        self._subscribe(
+            db_session, business, SubscriptionTier.PRO, datetime.now(UTC) + timedelta(days=20)
+        )
+        usage = auth_client.get("/api/v1/subscriptions/usage").json()["usage"][0]
+        assert usage["limit"] == 0  # unlimited
 
 
 class TestAuthAndTenancy:

@@ -238,7 +238,7 @@ def get_dashboard(
         input_tax_credit=credit.total_tax,
         itc_at_risk=last_run.itc_at_risk if last_run else Decimal("0.00"),
         plan_usage=PlanUsage(
-            plan=business.plan.value,
+            plan=invoice_service.effective_plan(business),
             invoices_this_month=used,
             monthly_limit=limit,
             remaining=max(0, limit - used) if limit else None,

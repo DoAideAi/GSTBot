@@ -18,7 +18,7 @@ from pathlib import Path
 
 from sqlalchemy import and_, case, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.core.config import settings
 from app.core.sanitize import safe_extension
@@ -30,6 +30,7 @@ from app.models.invoice import (
     InvoiceStatus,
     InvoiceType,
 )
+from app.models.subscription import Subscription, SubscriptionTier
 from app.models.supplier import Supplier
 from app.services import gst_calendar, jev_service
 from app.services import gstin as gstin_service
@@ -119,9 +120,31 @@ def monthly_usage(db: Session, business_id: int, period: str | None = None) -> i
     )
 
 
+# The invoice allowance a paid subscription buys, by tier. The cap is keyed
+# by `business.plan`, and buying a plan never wrote that column — so a
+# business that paid for Pro stayed capped at the free plan's fifty invoices
+# and, at fifty, was told to "upgrade to continue uploading".
+_TIER_PLAN = {SubscriptionTier.PRO: "pro", SubscriptionTier.ENTERPRISE: "ca_bundle"}
+
+
+def effective_plan(business: Business) -> str:
+    """The plan whose limits apply: a paid, unlapsed subscription's, else the business's own.
+
+    Read through the business's own session, so every caller that already has
+    the business gets the same answer as `require_paid_tier` without a new
+    argument. A lapsed period falls back to the stored plan, as the paywall does.
+    """
+    db = object_session(business)
+    if db is not None:
+        sub = db.scalar(select(Subscription).where(Subscription.business_id == business.id))
+        if sub is not None and sub.is_paid():
+            return _TIER_PLAN.get(sub.tier, business.plan.value)
+    return business.plan.value
+
+
 def plan_limit(business: Business) -> int:
     """Monthly invoice cap for this tenant's plan; 0 means unlimited."""
-    return settings.plan_limits.get(str(business.plan.value), 0)
+    return settings.plan_limits.get(effective_plan(business), 0)
 
 
 @dataclass(frozen=True)
@@ -155,7 +178,7 @@ class TenantSnapshot:
         return cls(
             id=business.id,
             gstin=business.gstin,
-            plan=business.plan.value,
+            plan=effective_plan(business),
             monthly_limit=plan_limit(business),
         )
 
