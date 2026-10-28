@@ -60,3 +60,55 @@ def test_a_value_without_nul_is_left_exactly_as_it_was(db_session, auth_client, 
     db_session.refresh(business)
     assert business.legal_name == "Umang\tTraders ‮"
     assert isinstance(db_session.get(Business, business.id), Business)
+
+
+class TestNonFiniteFloatsInJson:
+    """P16 M5: NaN and ±Infinity are the other values Postgres refuses inside
+    JSON and SQLite stores. ``json.loads`` accepts the tokens and reads ``1e400``
+    as infinity, so they arrive in a model's line items and Jev's probabilities.
+    The same hook replaces them with ``null``."""
+
+    def test_an_orm_write_replaces_them_at_any_depth(self, auth_client, db_session, business):
+        import json
+
+        invoice = Invoice(
+            business_id=business.id,
+            invoice_type=InvoiceType.PURCHASE,
+            extraction={
+                "line_items": [{"quantity": float("nan"), "amount": float("inf"), "rate": 5.5}],
+                "jev": {"probabilities": {"b2b": float("-inf")}},
+            },
+        )
+        db_session.add(invoice)
+        db_session.commit()
+        db_session.refresh(invoice)
+
+        assert invoice.extraction == {
+            "line_items": [{"quantity": None, "amount": None, "rate": 5.5}],
+            "jev": {"probabilities": {"b2b": None}},
+        }
+        json.dumps(invoice.extraction, allow_nan=False)  # what Postgres would accept
+
+    def test_a_model_reply_with_them_in_its_line_items_still_parses(
+        self, auth_client, db_session, stub_openrouter, sample_invoice_text
+    ):
+        import json
+
+        stub_openrouter.update(
+            {
+                "invoice_number": "INV-9",
+                "invoice_date": "2026-04-15",
+                "taxable_value": 100,
+                "igst": 18,
+                "total_value": 118,
+                "line_items": [{"description": "Chair", "quantity": float("nan"), "amount": 1e400}],
+            }
+        )
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("bill.txt", sample_invoice_text.encode(), "text/plain")},
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code == 201, response.text
+        invoice = db_session.get(Invoice, response.json()["invoice"]["id"])
+        json.dumps(invoice.extraction, allow_nan=False)

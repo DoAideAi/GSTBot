@@ -20,6 +20,7 @@ and real set of problems:
 """
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from typing import Any
@@ -72,6 +73,26 @@ def without_nul(value: Any) -> Any:
         return {key: without_nul(item) for key, item in value.items()}
     if isinstance(value, list):
         return [without_nul(item) for item in value]
+    return value
+
+
+def json_finite(value: Any) -> Any:
+    """*value* with every NaN and ±Infinity replaced by ``None``, recursing.
+
+    Python's ``json`` writes those floats as the bare tokens ``NaN`` and
+    ``Infinity``, which are not JSON, and PostgreSQL refuses them in a json or
+    jsonb column — a failed write. They arrive from upstream replies parsed
+    with ``json.loads``, which accepts them, and from ``1e400``, which it
+    reads as infinity: a model's line items, Jev's probabilities. SQLite
+    stores them, so the suite never noticed. ``null`` is what a figure that is
+    not a number is.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: json_finite(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_finite(item) for item in value]
     return value
 
 

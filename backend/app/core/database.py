@@ -21,7 +21,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
-from app.core.sanitize import without_nul
+from app.core.sanitize import json_finite, without_nul
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,11 @@ def _strip_nul_before_flush(session: Session, _flush_context, _instances) -> Non
 
     Only NUL, and only the values that contain one: anything else a field
     should not hold is its schema's to refuse, with a message.
+
+    JSON values also lose NaN and ±Infinity (see ``json_finite``), the other
+    thing Postgres refuses and SQLite stores. Compared by ``repr`` because
+    ``nan != nan`` would make every value holding one look changed — harmless
+    here, but the comparison should say what it means.
     """
     for obj in (*session.new, *session.dirty):
         state = inspect(obj)
@@ -112,7 +117,9 @@ def _strip_nul_before_flush(session: Session, _flush_context, _instances) -> Non
             value = state.dict.get(attr.key)
             if isinstance(value, (str, dict, list)):
                 cleaned = without_nul(value)
-                if cleaned != value:
+                if isinstance(cleaned, (dict, list)):
+                    cleaned = json_finite(cleaned)
+                if repr(cleaned) != repr(value):
                     setattr(obj, attr.key, cleaned)
 
 

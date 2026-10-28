@@ -352,3 +352,13 @@ class TestWithoutNul:
     def test_non_text_passes_through(self):
         assert without_nul(None) is None
         assert without_nul(42) == 42
+
+
+def test_json_finite_keeps_every_finite_value_and_nulls_the_rest():
+    from app.core.sanitize import json_finite
+
+    assert json_finite({"a": [1.5, float("nan"), {"b": float("inf")}], "c": "NaN", "d": 0}) == {
+        "a": [1.5, None, {"b": None}],
+        "c": "NaN",
+        "d": 0,
+    }
