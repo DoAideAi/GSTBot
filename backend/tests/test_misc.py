@@ -570,3 +570,23 @@ class TestReminderSubscribe:
             )
         for record in caplog.records:
             assert "secret-pii@example.com" not in record.getMessage()
+
+
+class TestHealthAnswersHead:
+    """P16 M7: uptime monitors and load balancers commonly probe with HEAD, and
+    the health routes were GET-only — a 405 that reads as "down" while the API
+    serves. HEAD answers with the status GET would, and no body."""
+
+    @pytest.mark.parametrize(
+        "path", ["/api/v1/health", "/api/v1/health/live", "/api/v1/health/ready"]
+    )
+    def test_head_is_200_when_healthy(self, client, dependencies, path):
+        dependencies()
+        response = client.head(path)
+        assert response.status_code == 200
+        assert response.content == b""
+
+    @pytest.mark.parametrize("path", ["/api/v1/health", "/api/v1/health/ready"])
+    def test_head_carries_the_503_too(self, client, dependencies, path):
+        dependencies(database=False)
+        assert client.head(path).status_code == client.get(path).status_code == 503

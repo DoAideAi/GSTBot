@@ -304,6 +304,15 @@ def readiness(response: Response, db: Session = Depends(get_db)) -> dict[str, An
     }
 
 
+# HEAD on the probes as well: uptime monitors and load balancers commonly use
+# it, and the GET-only routes answered 405 — which reads as "down" while the API
+# is serving. Same handlers, so the status matches GET's; kept out of the schema,
+# where a second operation per route is only noise.
+_PROBES = (("/health", health), ("/health/live", liveness), ("/health/ready", readiness))
+for _path, _probe in _PROBES:
+    router.add_api_route(_path, _probe, methods=["HEAD"], include_in_schema=False)
+
+
 @router.get(
     "/meta/states",
     summary="GST state codes",
