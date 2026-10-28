@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -42,6 +42,10 @@ _read_limit = RateLimit("feedback_read", "120/minute")
 _error_limit = RateLimit("client_error", "30/minute", by="ip")
 
 MAX_USER_AGENT = 512
+# How long an error that has stopped happening stays in the log. The table is
+# deduplicated by page and message, but a public endpoint can still be sent
+# endless distinct messages; without an end, those rows are kept forever.
+CLIENT_ERROR_RETENTION = timedelta(days=30)
 
 
 @router.post(
@@ -198,6 +202,12 @@ def report_client_error(
         db.rollback()
         return ClientErrorAck(occurrences=bump() or 1)
     logger.info("Client error recorded", extra={"page": page})
+    # Pruned on a new row only — the rare write — so a repeat of a known error,
+    # the common one, never pays for it. last_seen_at is indexed.
+    db.execute(
+        delete(ClientError).where(ClientError.last_seen_at < utcnow() - CLIENT_ERROR_RETENTION)
+    )
+    db.commit()
     return ClientErrorAck(occurrences=1)
 
 

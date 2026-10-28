@@ -335,3 +335,21 @@ class TestAdminsCanClearThings:
         send(auth_client)
         monkeypatch.setattr(settings, "admin_emails", "ops@doaide.com")
         assert auth_client.delete(f"{URL}/1").status_code == 403
+
+
+def test_an_error_that_stopped_happening_leaves_the_log_after_30_days(client, db_session):
+    from datetime import timedelta
+
+    from app.models.feedback import ClientError
+    from app.models.mixins import utcnow
+
+    report(client, message="old and fixed")
+    report(client, message="still happening")
+    db_session.query(ClientError).filter_by(message="old and fixed").update(
+        {"last_seen_at": utcnow() - timedelta(days=31)}
+    )
+    db_session.commit()
+
+    report(client, message="something new")  # a new row is what prunes
+    messages = sorted(m for (m,) in db_session.query(ClientError.message))
+    assert messages == ["something new", "still happening"]
