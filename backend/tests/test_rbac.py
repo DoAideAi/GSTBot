@@ -515,6 +515,10 @@ UNGATED_MUTATIONS = {
     # GPT Actions invoice — arithmetic over the body, like ``/itc/set-off``;
     # nothing is read or stored, and there is no session to hold a role.
     "/api/v1/gpt/invoice",
+    # Bulk GSTIN validation — gated by subscription tier, not by role. Any
+    # paid user can validate GSTINs regardless of whether they are a viewer
+    # or an owner; the gate is the subscription, not the authority.
+    "/api/v1/meta/gstin/bulk",
 }
 
 

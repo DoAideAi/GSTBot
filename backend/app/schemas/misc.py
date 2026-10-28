@@ -16,6 +16,26 @@ class SubscriberRequest(BaseModel):
     )
 
 
+class BulkGstinRequest(BaseModel):
+    gstins: list[str] = Field(..., min_length=1, max_length=100)
+
+
+class BulkGstinResult(BaseModel):
+    gstin: str
+    valid: bool
+    error: str | None = None
+    state_code: str | None = None
+    state_name: str | None = None
+    pan: str | None = None
+
+
+class BulkGstinResponse(BaseModel):
+    results: list[BulkGstinResult]
+    total: int
+    valid_count: int
+    invalid_count: int
+
+
 class FeedbackRequest(BaseModel):
     page: str = Field(..., max_length=500)
     rating: int = Field(..., ge=1, le=5)

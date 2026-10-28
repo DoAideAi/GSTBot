@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import check_database, get_db, pool_status
+from app.core.deps import require_paid_tier
 from app.core.rate_limit import RateLimit
 from app.core.redis_client import get_redis, mark_unavailable
 from app.core.redis_client import ping as redis_ping
@@ -40,7 +41,13 @@ from app.core.storage import check_upload_dir
 from app.models.business import Business
 from app.models.invoice import Invoice
 from app.models.subscriber import Subscriber
-from app.schemas.misc import FeedbackRequest, ReminderSubscribeRequest, SubscriberRequest
+from app.schemas.misc import (
+    BulkGstinRequest,
+    BulkGstinResponse,
+    FeedbackRequest,
+    ReminderSubscribeRequest,
+    SubscriberRequest,
+)
 from app.services import gstin as gstin_service
 from app.services import job_health
 from app.services.openrouter_client import is_configured
@@ -320,6 +327,52 @@ def validate_gstin(
     }
     _record_lookup(result)
     return result
+
+
+_bulk_gstin_limit = RateLimit("bulk_gstin", "30/minute")
+
+
+@router.post(
+    "/meta/gstin/bulk",
+    response_model=BulkGstinResponse,
+    summary="Validate up to 100 GSTINs at once",
+    description=(
+        "Accepts a list of GSTINs and returns validation results for each. "
+        "Requires a paid subscription (SMB or CA plan)."
+    ),
+    responses={
+        403: {"description": "No active paid subscription."},
+    },
+    dependencies=[Depends(_bulk_gstin_limit), Depends(require_paid_tier)],
+)
+def validate_gstins_bulk(
+    body: BulkGstinRequest,
+) -> BulkGstinResponse:
+    results = []
+    valid_count = 0
+    for raw in body.gstins:
+        try:
+            parts = gstin_service.parse(raw)
+            results.append({
+                "gstin": parts.gstin,
+                "valid": True,
+                "state_code": parts.state_code,
+                "state_name": parts.state_name,
+                "pan": parts.pan,
+            })
+            valid_count += 1
+        except gstin_service.InvalidGSTIN as exc:
+            results.append({
+                "gstin": gstin_service.normalize(raw),
+                "valid": False,
+                "error": str(exc),
+            })
+    return BulkGstinResponse(
+        results=results,
+        total=len(results),
+        valid_count=valid_count,
+        invalid_count=len(results) - valid_count,
+    )
 
 
 _RECENT_LOOKUPS_KEY = "gstbot:recent_lookups"

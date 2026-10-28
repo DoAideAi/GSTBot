@@ -15,6 +15,7 @@ from app.core.params import MAX_ID, MIN_ID
 from app.core.security import decode_access_token
 from app.models.business import Business
 from app.models.business_membership import BusinessMembership
+from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
 from app.models.user import User, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/login")
@@ -225,6 +226,37 @@ require_writer = RequireRole(UserRole.ACCOUNTANT)
 # exactly the bill.
 require_owner = RequireRole(UserRole.OWNER)
 
+_PAID_TIERS = frozenset({SubscriptionTier.PRO, SubscriptionTier.ENTERPRISE})
+
+
+def require_paid_tier(
+    business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+) -> Subscription:
+    """Refuse unless the business has an active paid subscription.
+
+    Returns the subscription so a handler can read the tier without a second
+    query. 403 rather than 402 — HTTP 402 is reserved and no browser handles
+    it, and the detail tells the caller what to do about it.
+    """
+    sub = db.scalar(
+        select(Subscription).where(
+            Subscription.business_id == business.id,
+            Subscription.tier.in_(_PAID_TIERS),
+            Subscription.status == SubscriptionStatus.ACTIVE,
+        )
+    )
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "This feature requires a paid subscription. "
+                "Visit /pricing to upgrade."
+            ),
+        )
+    return sub
+
+
 __all__ = [
     "ActiveTenant",
     "RequireRole",
@@ -233,5 +265,6 @@ __all__ = [
     "get_current_user",
     "oauth2_scheme",
     "require_owner",
+    "require_paid_tier",
     "require_writer",
 ]
