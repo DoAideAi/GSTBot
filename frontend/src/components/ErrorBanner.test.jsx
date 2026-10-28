@@ -54,4 +54,16 @@ describe("ErrorBanner", () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("offers the plans when the refusal is the paid tier's", () => {
+    render(
+      <ErrorBanner message="This feature requires a paid subscription. Visit /pricing to upgrade." />,
+    );
+    expect(screen.getByRole("link", { name: "See plans" })).toHaveAttribute("href", "/pricing");
+  });
+
+  it("offers no plans for any other refusal", () => {
+    render(<ErrorBanner message="You do not have access to this (403)." />);
+    expect(screen.queryByRole("link", { name: "See plans" })).not.toBeInTheDocument();
+  });
 });
