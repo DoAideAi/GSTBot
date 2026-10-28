@@ -157,6 +157,16 @@ describe("PricingPage", () => {
     }
   });
 
+  it("offers the plans again once a paid period has run out", async () => {
+    // An expired PRO row is not the plan the business is on: no Cancel, and
+    // PRO is something to buy again rather than "Current plan".
+    mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro", status: "expired" });
+    renderPage();
+
+    expect(await screen.findAllByRole("button", { name: "Subscribe" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
   it("offers downgrade to free when on a paid plan", async () => {
     mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
     renderPage();

@@ -14,7 +14,12 @@ from app.core.database import get_db
 from app.core.deps import get_current_business, get_current_user, require_owner
 from app.core.rate_limit import RateLimit
 from app.models.business import Business
-from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
+from app.models.subscription import (
+    Subscription,
+    SubscriptionStatus,
+    SubscriptionTier,
+    period_length,
+)
 from app.models.user import User
 from app.schemas.subscription import (
     CreateOrderRequest,
@@ -213,12 +218,14 @@ def verify_payment(
         )
 
     sub = usage_service.get_subscription(db, business.id)
+    period_end = _period_end_for(order, payload, sub)
     if sub is None:
         sub = Subscription(
             business_id=business.id,
             tier=payload.tier,
             status=SubscriptionStatus.ACTIVE,
             razorpay_subscription_id=payload.razorpay_payment_id,
+            current_period_end=period_end,
         )
         db.add(sub)
     else:
@@ -232,6 +239,10 @@ def verify_payment(
                     "Create a new order instead of verifying a payment against it."
                 ),
             )
+        if sub.razorpay_subscription_id != payload.razorpay_payment_id:
+            # A replayed verify of the payment already on the row must not
+            # push the end out again.
+            sub.current_period_end = period_end
         sub.tier = payload.tier
         sub.status = SubscriptionStatus.ACTIVE
         sub.razorpay_subscription_id = payload.razorpay_payment_id
@@ -247,6 +258,27 @@ def verify_payment(
         },
     )
     return SubscriptionOut.model_validate(sub)
+
+
+def _period_end_for(
+    order: dict, payload: VerifyPaymentRequest, sub: Subscription | None
+) -> datetime:
+    """When the period this payment buys ends.
+
+    Monthly or annual is read off what was actually paid — the order's amount
+    against the tier's prices, which `_require_order_matches` has already held
+    to one of the two. A renewal of the same tier while the current period is
+    still running starts where it ends, so paying a few days early does not
+    forfeit them; anything else starts now.
+    """
+    pricing = razorpay_client.TIER_PRICING[payload.tier]
+    billing = "annual" if order.get("amount") == pricing.get("price_annual") else "monthly"
+    now = datetime.now(UTC)
+    start = now
+    if sub is not None and sub.tier == payload.tier and sub.is_paid(now) and sub.current_period_end:
+        end = sub.current_period_end
+        start = end.replace(tzinfo=UTC) if end.tzinfo is None else end
+    return start + period_length(billing)
 
 
 def _order_postdates(order: dict, sub: Subscription, payment_id: str) -> bool:

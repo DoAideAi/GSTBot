@@ -1,6 +1,8 @@
 """Schemas for public endpoints that live outside the domain routers."""
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -17,7 +19,10 @@ class SubscriberRequest(BaseModel):
 
 
 class BulkGstinRequest(BaseModel):
-    gstins: list[str] = Field(..., min_length=1, max_length=100)
+    # Each entry bounded too: an invalid one is echoed back in its result, so
+    # without a cap a request could have up to a hundred strings of any length
+    # parsed and returned. 64 is the GPT lookup's bound for the same value.
+    gstins: list[Annotated[str, Field(max_length=64)]] = Field(..., min_length=1, max_length=100)
 
 
 class BulkGstinResult(BaseModel):

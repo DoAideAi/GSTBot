@@ -272,13 +272,13 @@ describe("Shell", () => {
   });
 
   describe("the premium badge", () => {
-    function signedInWithTier(tier) {
+    function signedInWithTier(tier, status = "active") {
       setToken("stored-token");
       global.fetch = vi.fn((url) => {
         const u = String(url);
         if (u.includes("/subscriptions/current")) {
           return Promise.resolve(
-            jsonResponse({ id: 1, tier, status: "active" }),
+            jsonResponse({ id: 1, tier, status }),
           );
         }
         if (u.includes("/alerts")) {
@@ -305,6 +305,16 @@ describe("Shell", () => {
       renderShell();
 
       expect(await screen.findByText("CA")).toBeInTheDocument();
+    });
+
+    it("shows no badge once the paid period has run out", async () => {
+      // The row keeps its tier; the API reports the lapse as status "expired".
+      signedInWithTier("pro", "expired");
+      renderShell();
+
+      await screen.findByRole("button", { name: "Sign out" });
+      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      expect(screen.queryByText("PRO")).not.toBeInTheDocument();
     });
 
     it("shows no badge for free users", async () => {

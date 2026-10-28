@@ -1,10 +1,11 @@
 """Subscriptions: Razorpay-backed recurring billing per business."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -22,6 +23,17 @@ class SubscriptionStatus(str, Enum):
     CANCELLED = "cancelled"
     PAST_DUE = "past_due"
     EXPIRED = "expired"
+
+
+PAID_TIERS = frozenset({SubscriptionTier.PRO, SubscriptionTier.ENTERPRISE})
+
+# How long one payment buys. Fixed day counts rather than calendar months, so
+# the end is the same instant whatever day the payment lands on.
+PERIOD_DAYS = {"monthly": 30, "annual": 365}
+
+
+def period_length(billing: str) -> timedelta:
+    return timedelta(days=PERIOD_DAYS[billing])
 
 
 class Subscription(Base, TimestampMixin):
@@ -59,6 +71,31 @@ class Subscription(Base, TimestampMixin):
     razorpay_plan_id: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )
+    # When the paid period this row was bought for ends. Checkout is a one-time
+    # Razorpay order at the monthly or annual price — there is no Razorpay
+    # subscription behind it to send ``subscription.expired`` — so without this
+    # a single monthly payment bought PRO forever. Null for rows that predate
+    # it and for grants made by hand, which stay honoured as before.
+    current_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    def lapsed(self, now: datetime | None = None) -> bool:
+        """Whether the paid period has ended. A row with no end has not."""
+        end = self.current_period_end
+        if end is None:
+            return False
+        if end.tzinfo is None:  # SQLite hands back naive UTC
+            end = end.replace(tzinfo=UTC)
+        return end <= (now or datetime.now(UTC))
+
+    def is_paid(self, now: datetime | None = None) -> bool:
+        """An active paid tier whose period has not run out."""
+        return (
+            self.tier in PAID_TIERS
+            and self.status == SubscriptionStatus.ACTIVE
+            and not self.lapsed(now)
+        )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<Subscription business_id={self.business_id} tier={self.tier.value}>"

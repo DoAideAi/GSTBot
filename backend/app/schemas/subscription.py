@@ -1,9 +1,9 @@
 """Request/response models for subscription and payment endpoints."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.subscription import SubscriptionStatus, SubscriptionTier
 
@@ -48,8 +48,27 @@ class SubscriptionOut(BaseModel):
     business_id: int
     tier: SubscriptionTier
     status: SubscriptionStatus
+    # When the paid period ends; null for a row sold without one.
+    current_period_end: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def _a_lapsed_period_reads_as_expired(self) -> SubscriptionOut:
+        """An active row whose period has run out is not active.
+
+        The row's status is only moved by Razorpay webhooks, and one-time
+        checkout orders produce none, so the stored status stays ``active``
+        after the end. Reported as ``expired`` so the app stops presenting a
+        plan the business no longer has.
+        """
+        end = self.current_period_end
+        if end is not None and self.status == SubscriptionStatus.ACTIVE:
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=UTC)
+            if end <= datetime.now(UTC):
+                self.status = SubscriptionStatus.EXPIRED
+        return self
 
 
 class UsageItem(BaseModel):

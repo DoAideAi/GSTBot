@@ -43,7 +43,9 @@ export default function Shell({ children }) {
     if (!businessId) return;
     let stale = false;
     api.currentSubscription()
-      .then((sub) => { if (!stale) setSubTier(sub?.tier ?? "free"); })
+      // Only an active plan earns the badge: a paid period that ran out comes
+      // back as status "expired" with its tier still set.
+      .then((sub) => { if (!stale) setSubTier(sub?.status === "active" ? sub.tier : "free"); })
       .catch(() => {});
     return () => { stale = true; };
   }, [businessId]);

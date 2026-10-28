@@ -153,7 +153,9 @@ export default function PricingPage() {
     );
   }
 
-  const currentTier = currentSub?.tier || "free";
+  // An expired or cancelled row keeps its tier; the plan the business is on
+  // is free until it pays again, and the page has to offer that.
+  const currentTier = currentSub?.status === "active" ? currentSub.tier : "free";
 
   return (
     <div className="pricing-page">
