@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_business, get_current_user, require_owner, require_writer
+from app.core.deps import get_current_business, get_current_user, require_owner
 from app.core.rate_limit import RateLimit
 from app.models.business import Business
 from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
@@ -103,7 +103,10 @@ def create_order(
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not create payment order. Try again, or contact support if this persists.",
+            detail=(
+                "Could not create payment order. Try again, or contact support "
+                "if this persists."
+            ),
         )
     return CreateOrderResponse(
         order_id=order["id"],
@@ -142,7 +145,10 @@ def verify_payment(
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payment verification failed. Contact support if you were charged, or try the payment again.",
+            detail=(
+                "Payment verification failed. Contact support if you were charged, "
+                "or try the payment again."
+            ),
         )
 
     sub = usage_service.get_subscription(db, business.id)
@@ -214,7 +220,10 @@ def cancel_subscription(
         if result is None:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Could not cancel subscription with payment provider. Try again, or contact support if this persists.",
+                detail=(
+                    "Could not cancel subscription with payment provider. Try again, "
+                    "or contact support if this persists."
+                ),
             )
     sub.tier = SubscriptionTier.FREE
     sub.status = SubscriptionStatus.CANCELLED
@@ -273,14 +282,25 @@ async def razorpay_webhook(
 
     try:
         payload = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError are both ValueErrors
         logger.error(
             "Razorpay webhook body is not valid JSON",
-            extra={"body_length": len(body), "body_prefix": body[:200].decode("utf-8", errors="replace")},
+            extra={
+                "body_length": len(body),
+                "body_prefix": body[:200].decode("utf-8", errors="replace"),
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Webhook body is not valid JSON.",
+        ) from exc
+    if not isinstance(payload, dict):
+        # Signed, so it came from Razorpay — but a JSON array or string here
+        # would reach the `.get` chain below and come back as a 500, which
+        # Razorpay retries for a day.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Webhook body must be a JSON object.",
         )
 
     event = payload.get("event", "")

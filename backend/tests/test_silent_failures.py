@@ -16,7 +16,6 @@ from app.core.config import settings
 from app.main import create_app
 from app.services import razorpay_client
 
-
 # ── OAuth: GitHub profile-fetch failure must redirect, not 500 ──
 
 
@@ -157,6 +156,28 @@ def test_webhook_missing_entity_id_is_logged(client, caplog):
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
     assert any("no identifiable" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    ("body", "detail"),
+    [
+        (b"{not json", "not valid JSON"),
+        (b"\xff\xfe", "not valid JSON"),
+        (b'["payment.captured"]', "must be a JSON object"),
+        (b'"payment.captured"', "must be a JSON object"),
+    ],
+)
+def test_a_signed_webhook_that_is_not_an_object_is_a_400_not_a_500(client, body, detail):
+    """Razorpay retries a 5xx for a day; a body it can never fix should be refused once."""
+    with patch.object(razorpay_client, "verify_webhook_signature", return_value=True):
+        resp = client.post(
+            "/api/v1/subscriptions/webhook",
+            content=body,
+            headers={"Content-Type": "application/json"},
+        )
+
+    assert resp.status_code == 400
+    assert detail in resp.text
 
 
 # ── OpenRouter: _retry_after_seconds logs instead of bare pass ──
