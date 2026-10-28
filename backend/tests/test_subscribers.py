@@ -8,7 +8,9 @@ class TestSubscribe:
     """POST /api/v1/subscribers — email capture from public pages."""
 
     def test_a_new_email_is_subscribed(self, client):
-        r = client.post("/api/v1/subscribers", json={"email": "new@example.com", "source": "calculator"})
+        r = client.post(
+            "/api/v1/subscribers", json={"email": "new@example.com", "source": "calculator"}
+        )
         assert r.status_code == 200
         body = r.json()
         assert body["subscribed"] is True

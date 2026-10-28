@@ -309,7 +309,7 @@ def _render_og_image(title: str, subtitle: str | None = None) -> bytes:
         title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
         subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
         watermark_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-    except (OSError, IOError):
+    except OSError:  # IOError is an alias of OSError
         title_font = ImageFont.load_default()
         subtitle_font = ImageFont.load_default()
         watermark_font = ImageFont.load_default()

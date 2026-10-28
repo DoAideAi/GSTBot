@@ -280,7 +280,12 @@ def list_imported_periods(
     ),
     responses={
         201: {"description": "Reconciled. The report is in the response."},
-        409: {"description": "No GSTR-2B imported for that period, or a reconciliation is already running."},
+        409: {
+            "description": (
+                "No GSTR-2B imported for that period, or a reconciliation is "
+                "already running."
+            )
+        },
     },
     dependencies=[Depends(_run_limit), Depends(require_writer)],
 )

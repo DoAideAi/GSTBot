@@ -155,7 +155,9 @@ def verify_webhook_signature(body: bytes, signature: str) -> bool:
     """Verify a Razorpay webhook signature."""
     secret = settings.razorpay_webhook_secret
     if not secret:
-        logger.error("Webhook signature verification skipped: RAZORPAY_WEBHOOK_SECRET not configured")
+        logger.error(
+            "Webhook signature verification skipped: RAZORPAY_WEBHOOK_SECRET not configured"
+        )
         return False
     expected = hmac.new(
         secret.encode("utf-8"),
