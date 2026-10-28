@@ -48,6 +48,9 @@ function formatMarkdown(text) {
     .replace(/\n/g, "<br />");
 }
 
+/** The API's own ceiling on prior turns sent with a question. */
+const ADVISOR_HISTORY_MAX = 50;
+
 export default function AdvisorPage() {
   usePageTitle("Free GST AI Advisor");
   const [messages, setMessages] = useState([]);
@@ -64,29 +67,28 @@ export default function AdvisorPage() {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
 
+    // The turns before this one, in the shape POST /advisor/ask takes and
+    // within its caps (50 messages, 4,000 characters each).
+    const history = messages
+      .slice(-ADVISOR_HISTORY_MAX)
+      .map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text.slice(0, 4000) }));
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
     setLoading(true);
     track("advisor_ask", { question: trimmed.slice(0, 100) });
 
     try {
+      // The API takes `message` and answers `reply`. This page sent
+      // `question` and read `answer`, so every question was a 422 and came back
+      // as an empty bubble — the chat widget (GstAdvisor) always used this shape.
       const res = await fetch("/api/v1/advisor/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmed }),
+        body: JSON.stringify({ message: trimmed, history }),
       });
-      const data = await res.json();
-      if (data.error) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", text: data.error },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", text: data.answer },
-        ]);
-      }
+      const data = res.ok ? await res.json() : null;
+      const reply = data?.reply || "Sorry, I could not answer that just now. Please try again.";
+      setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
     } catch {
       setMessages((prev) => [
         ...prev,

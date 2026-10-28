@@ -35,7 +35,7 @@ describe("AdvisorPage", () => {
   it("sends a question and displays the answer", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ answer: "GST registration requires PAN and Aadhaar.", error: null }),
+      json: () => Promise.resolve({ reply: "GST registration requires PAN and Aadhaar." }),
     });
     renderAdvisor();
     const user = userEvent.setup();
@@ -46,15 +46,15 @@ describe("AdvisorPage", () => {
     await waitFor(() => expect(screen.getByText(/GST registration requires PAN/)).toBeInTheDocument());
     expect(global.fetch).toHaveBeenCalledWith("/api/v1/advisor/ask", expect.objectContaining({
       method: "POST",
-      body: JSON.stringify({ question: "How to register?" }),
+      body: JSON.stringify({ message: "How to register?", history: [] }),
     }));
     expect(mockTrack).toHaveBeenCalledWith("advisor_ask", expect.any(Object));
   });
 
-  it("displays an error message when the API returns an error", async () => {
+  it("shows the reply the API sends when the advisor is unavailable", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ answer: "", error: "AI advisor is unavailable." }),
+      json: () => Promise.resolve({ reply: "AI advisor is unavailable." }),
     });
     renderAdvisor();
     const user = userEvent.setup();
@@ -62,6 +62,37 @@ describe("AdvisorPage", () => {
     await user.click(screen.getByRole("button", { name: "Ask" }));
 
     await waitFor(() => expect(screen.getByText(/AI advisor is unavailable/)).toBeInTheDocument());
+  });
+
+  it("explains a refused request instead of showing an empty reply", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 422, json: () => Promise.resolve({ detail: [] }) });
+    renderAdvisor();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Ask a GST question..."), "test");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(screen.getByText(/could not answer that just now/)).toBeInTheDocument());
+  });
+
+  it("sends the earlier turns as history with a follow-up", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ reply: "First answer." }) });
+    renderAdvisor();
+    const user = userEvent.setup();
+    const input = screen.getByPlaceholderText("Ask a GST question...");
+    await user.type(input, "First?");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByText("First answer.")).toBeInTheDocument());
+
+    await user.type(input, "Second?");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
+      message: "Second?",
+      history: [
+        { role: "user", text: "First?" },
+        { role: "model", text: "First answer." },
+      ],
+    });
   });
 
   it("handles fetch failure gracefully", async () => {
@@ -77,7 +108,7 @@ describe("AdvisorPage", () => {
   it("clicking a suggested question sends it", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ answer: "ITC is Input Tax Credit.", error: null }),
+      json: () => Promise.resolve({ reply: "ITC is Input Tax Credit." }),
     });
     renderAdvisor();
     const user = userEvent.setup();
@@ -85,7 +116,7 @@ describe("AdvisorPage", () => {
 
     await waitFor(() => expect(screen.getByText(/ITC is Input Tax Credit/)).toBeInTheDocument());
     expect(global.fetch).toHaveBeenCalledWith("/api/v1/advisor/ask", expect.objectContaining({
-      body: JSON.stringify({ question: "What is ITC?" }),
+      body: JSON.stringify({ message: "What is ITC?", history: [] }),
     }));
   });
 
@@ -102,7 +133,7 @@ describe("AdvisorPage", () => {
     expect(screen.getByPlaceholderText("Ask a GST question...")).toBeDisabled();
     resolvePromise({
       ok: true,
-      json: () => Promise.resolve({ answer: "Done", error: null }),
+      json: () => Promise.resolve({ reply: "Done" }),
     });
     await waitFor(() => expect(screen.getByPlaceholderText("Ask a GST question...")).not.toBeDisabled());
   });
