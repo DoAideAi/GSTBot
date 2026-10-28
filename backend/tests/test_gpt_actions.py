@@ -728,3 +728,28 @@ def test_a_common_product_resolves_to_its_gst_2_0_rate(product, rate):
     alias = hsn.find_product(product)
     assert alias is not None
     assert alias.rate == Decimal(rate)
+
+
+@pytest.mark.parametrize(
+    ("product", "rate"),
+    # An SUV is above every small-car limit, so GST 2.0's 40% slab; petrol,
+    # diesel and natural gas are not in GST at all (Article 279A — central
+    # excise and state VAT), so no GST is charged on them. The aliases said
+    # 18%, 18%, 18% and 5% — credit a buyer could not have, and a sale tax a
+    # seller must not charge. M2.
+    [("suv", 40), ("petrol", 0), ("diesel", 0), ("natural gas", 0), ("car", 18), ("lpg", 5)],
+)
+def test_a_product_outside_the_ordinary_slab_is_not_quoted_at_it(product, rate):
+    alias = hsn.find_product(product)
+    assert alias is not None
+    assert alias.rate == Decimal(rate)
+
+
+def test_a_heading_whose_rate_depends_on_the_goods_says_so():
+    """8703 and 8711 split at engine size, 2710 and 2711 between fuels outside
+    GST and products inside it. One rate per heading cannot say that; the
+    description shown beside it has to."""
+    assert "40%" in hsn.by_code("8703").description
+    assert "40%" in hsn.by_code("8711").description
+    assert "outside GST" in hsn.by_code("2710").description
+    assert "outside GST" in hsn.by_code("2711").description

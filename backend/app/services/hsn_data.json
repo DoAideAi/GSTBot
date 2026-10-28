@@ -1248,14 +1248,14 @@
   },
   {
    "code": "2710",
-   "description": "Petroleum oils (petrol, diesel, ATF)",
+   "description": "Petroleum oils and lubricants (petrol, diesel, ATF are outside GST)",
    "rate": 18,
    "category": "Fuel",
    "sac": false
   },
   {
    "code": "2711",
-   "description": "Petroleum gases (LPG, natural gas)",
+   "description": "Petroleum gases, domestic LPG (natural gas is outside GST)",
    "rate": 5,
    "category": "Fuel",
    "sac": false
@@ -4006,7 +4006,7 @@
   },
   {
    "code": "8703",
-   "description": "Motor cars and vehicles (petrol/diesel/electric)",
+   "description": "Motor cars up to 1200cc petrol / 1500cc diesel and 4m (larger cars, SUVs: 40%)",
    "rate": 18,
    "category": "Automobiles",
    "sac": false
@@ -4041,7 +4041,7 @@
   },
   {
    "code": "8711",
-   "description": "Motorcycles and cycles with auxiliary motor",
+   "description": "Motorcycles up to 350cc (above 350cc: 40%)",
    "rate": 18,
    "category": "Automobiles",
    "sac": false
@@ -5186,7 +5186,7 @@
   {
    "product": "suv",
    "hsn": "8703",
-   "rate": 18
+   "rate": 40
   },
   {
    "product": "motorcycle",
@@ -5646,12 +5646,12 @@
   {
    "product": "petrol",
    "hsn": "2710",
-   "rate": 18
+   "rate": 0
   },
   {
    "product": "diesel",
    "hsn": "2710",
-   "rate": 18
+   "rate": 0
   },
   {
    "product": "lpg",
@@ -5661,7 +5661,7 @@
   {
    "product": "natural gas",
    "hsn": "2711",
-   "rate": 5
+   "rate": 0
   },
   {
    "product": "perfume",
