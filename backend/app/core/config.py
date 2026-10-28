@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     debug: bool = True
     api_v1_prefix: str = "/api/v1"
     backend_cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    # The public origin of this deployment: canonical links, the sitemap, the
+    # GPT actions' tool links and spec, the WhatsApp replies. Was the literal
+    # https://gst.doaide.com in five modules, so a staging box advertised
+    # production in every one of them.
+    public_site_url: str = "https://gst.doaide.com"
     # Whether /docs, /redoc and /openapi.json are served. Left on by default;
     # a deployment that fronts the API with its own portal turns it off.
     docs_enabled: bool = True
@@ -279,6 +284,21 @@ class Settings(BaseSettings):
         if v <= 0:
             raise ValueError("must be positive")
         return v
+
+    @field_validator("public_site_url")
+    @classmethod
+    def _site_origin(cls, v: str) -> str:
+        url = v.strip().rstrip("/")
+        if not url.startswith(("https://", "http://")) or "/" in url.split("://", 1)[1]:
+            raise ValueError(
+                f"PUBLIC_SITE_URL must be an origin like https://gst.doaide.com, got '{v}'"
+            )
+        return url
+
+    @property
+    def public_site_host(self) -> str:
+        """The site's host name, for text that shows it without a scheme."""
+        return self.public_site_url.split("://", 1)[1]
 
     @field_validator("environment")
     @classmethod

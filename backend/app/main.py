@@ -296,7 +296,7 @@ def create_app() -> FastAPI:
         docs_url=docs_url,
         redoc_url=redoc_url,
         openapi_url=openapi_url,
-        contact={"name": "DoAide GST", "url": "https://gst.doaide.com"},
+        contact={"name": "DoAide GST", "url": settings.public_site_url},
         license_info={"name": "Proprietary"},
         # Only the code every route can really answer. 401 and 429 were here
         # too, which published them for the public allowlist and for the one

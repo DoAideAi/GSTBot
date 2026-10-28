@@ -17,6 +17,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query, Response
 from PIL import Image, ImageDraw, ImageFont
 
+from app.core.config import settings
 from app.core.rate_limit import RateLimit
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ router = APIRouter(tags=["health"])
 
 _seo_limit = RateLimit("seo_sitemap", "30/minute", by="ip")
 
-SITE = "https://gst.doaide.com"
+SITE = settings.public_site_url
 
 STATIC_PAGES = [
     "/",

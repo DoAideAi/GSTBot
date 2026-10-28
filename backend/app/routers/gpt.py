@@ -25,6 +25,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
+from app.core.config import settings
 from app.core.rate_limit import RateLimit
 from app.models.mixins import MONEY_MAX
 from app.schemas.gpt import GSTIN_INPUT_MAX, STATE_CODE_PATTERN, InvoiceRequest
@@ -36,7 +37,7 @@ router = APIRouter(prefix="/gpt", tags=["gpt"])
 
 _gpt_limit = RateLimit("gpt_actions", "600/minute", by="ip")
 
-SITE = "https://gst.doaide.com"
+SITE = settings.public_site_url
 _SPEC_FILE = FilePath(__file__).resolve().parent.parent / "gpt" / "openapi.yaml"
 
 DISCLAIMER = (
@@ -467,7 +468,9 @@ def filing_dates_for(
     dependencies=[Depends(_gpt_limit)],
 )
 def openapi_spec() -> PlainTextResponse:
-    return PlainTextResponse(_SPEC_FILE.read_text(encoding="utf-8"), media_type="application/yaml")
+    # The file names the production origin; a deployment elsewhere serves its own.
+    spec = _SPEC_FILE.read_text(encoding="utf-8").replace("https://gst.doaide.com", SITE)
+    return PlainTextResponse(spec, media_type="application/yaml")
 
 
 PRIVACY_HTML = """<!doctype html>
@@ -485,9 +488,9 @@ kept for up to 30 days for security and rate limiting. Request bodies are not
 logged.</li>
 <li>Results are informational and not legal or tax advice.</li>
 </ul>
-<p>Contact: <a href="https://gst.doaide.com">gst.doaide.com</a></p>
+<p>Contact: <a href="{SITE}">{HOST}</a></p>
 </body></html>
-"""
+""".replace("{SITE}", SITE).replace("{HOST}", settings.public_site_host)
 
 
 @router.get(

@@ -415,3 +415,38 @@ class TestSecretsNeverLeak:
         # It runs inside the startup logger; raising there loses the line that
         # would have explained the misconfiguration.
         assert redact_url("not a url at all")
+
+
+class TestThePublicSiteUrlIsOneSetting:
+    """P17 M15: the origin was a literal in five modules, so a staging box
+    advertised production in its sitemap, its GPT spec and its WhatsApp
+    replies. It is one setting now, and it has to be an origin."""
+
+    def test_a_trailing_slash_is_dropped(self):
+        assert Settings(public_site_url="https://staging.example.com/").public_site_url == (
+            "https://staging.example.com"
+        )
+
+    @pytest.mark.parametrize("bad", ["staging.example.com", "https://x.com/app", "ftp://x.com"])
+    def test_anything_but_an_origin_is_refused(self, bad):
+        with pytest.raises(ValidationError, match="PUBLIC_SITE_URL"):
+            Settings(public_site_url=bad)
+
+    def test_the_host_is_the_origin_without_its_scheme(self):
+        assert Settings(public_site_url="https://staging.example.com").public_site_host == (
+            "staging.example.com"
+        )
+
+    def test_no_module_hardcodes_the_production_origin_any_more(self):
+        from pathlib import Path
+
+        app = Path(__file__).resolve().parents[1] / "app"
+        offenders = [
+            f"{path.relative_to(app)}: {line.strip()}"
+            for path in app.rglob("*.py")
+            if path.name != "config.py"
+            for line in path.read_text().splitlines()
+            # The GPT spec file names production; its server substitutes that.
+            if "gst.doaide.com" in line and '.replace("https://gst.doaide.com"' not in line
+        ]
+        assert offenders == []

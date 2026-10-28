@@ -16,7 +16,11 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any
 
+from app.core.config import settings
 from app.services import gstin as gstin_service
+
+# Shown without a scheme, the way a person would type it into a phone.
+SITE = settings.public_site_host
 
 
 class Intent(str, Enum):
@@ -438,7 +442,7 @@ def _help_text() -> str:
         "\U0001f4b1 *Calculate GST* — calculate [amount] at [rate]%\n"
         "   _Example: calculate 50000 at 18%_\n"
         "\n"
-        "\U0001f310 Visit gst.doaide.com for more tools!"
+        f"\U0001f310 Visit {SITE} for more tools!"
     )
 
 
@@ -465,7 +469,7 @@ def _verify_gstin(gstin_str: str) -> str:
         f"\U0001f522 Entity No: {parts.entity_number}\n"
         f"✅ Check Digit: {parts.check_digit}\n"
         f"\n"
-        f"\U0001f310 Full details: gst.doaide.com/gstin/{parts.gstin}"
+        f"\U0001f310 Full details: {SITE}/gstin/{parts.gstin}"
     )
 
 
@@ -478,7 +482,7 @@ def _gst_rate(query: str) -> str:
             f"Could not find GST rate for *{query}*.\n"
             f"\n"
             f"Try a different spelling or visit:\n"
-            f"\U0001f310 gst.doaide.com/gst-rate/{query.lower().replace(' ', '-')}"
+            f"\U0001f310 {SITE}/gst-rate/{query.lower().replace(' ', '-')}"
         )
 
     code_key = "hsn" if "hsn" in product else "sac"
@@ -495,7 +499,7 @@ def _gst_rate(query: str) -> str:
         f"• SGST: {product['rate'] / 2}%\n"
         f"• IGST: {product['rate']}% _(inter-state)_\n"
         f"\n"
-        f"\U0001f310 More details: gst.doaide.com/gst-rate/{query.lower().replace(' ', '-')}"
+        f"\U0001f310 More details: {SITE}/gst-rate/{query.lower().replace(' ', '-')}"
     )
 
 
@@ -508,7 +512,7 @@ def _hsn_lookup(query: str) -> str:
             f"No codes found for *{query}*.\n"
             f"\n"
             f"Try a different search or visit:\n"
-            f"\U0001f310 gst.doaide.com/hsn-sac-finder"
+            f"\U0001f310 {SITE}/hsn-sac-finder"
         )
 
     lines = ["\U0001f4cb *HSN/SAC Code Results*\n"]
@@ -516,7 +520,7 @@ def _hsn_lookup(query: str) -> str:
         rate = item.get("rate", "N/A")
         lines.append(f"• `{item['code']}` — {item['desc']} @ *{rate}%*")
 
-    lines.append("\n\U0001f310 Search more: gst.doaide.com/hsn-sac-finder")
+    lines.append(f"\n\U0001f310 Search more: {SITE}/hsn-sac-finder")
     return "\n".join(lines)
 
 
@@ -548,7 +552,7 @@ def _gst_calculate(params: dict[str, Any]) -> str:
         f"\n"
         f"\U0001f4b0 *Total: ₹{result['total']}*\n"
         f"\n"
-        f"\U0001f310 Calculator: gst.doaide.com/calculator"
+        f"\U0001f310 Calculator: {SITE}/calculator"
         f"?amount={result['amount']}&rate={result['rate']}"
     )
 
