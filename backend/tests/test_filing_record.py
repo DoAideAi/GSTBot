@@ -182,6 +182,30 @@ class TestRecordingIsIdempotent:
         assert second.json()["arn"] == "AA270426123456Z"
         assert second.json()["id"] == first.json()["id"]
 
+    def test_losing_the_race_to_record_first_is_still_idempotent(
+        self, db_session, business, frozen_today, monkeypatch
+    ):
+        # Another request recorded the period between this one's read and its
+        # INSERT. Simulated by hiding the committed row from the first lookup.
+        first = filing_service.record_filing(
+            db_session, business, PERIOD, ReturnType.GSTR3B, arn="AA270426123456Z"
+        )
+        real_scalar = db_session.scalar
+        calls = {"n": 0}
+
+        def stale_first_read(*args, **kwargs):
+            calls["n"] += 1
+            return None if calls["n"] == 1 else real_scalar(*args, **kwargs)
+
+        monkeypatch.setattr(db_session, "scalar", stale_first_read)
+        second = filing_service.record_filing(
+            db_session, business, PERIOD, ReturnType.GSTR3B
+        )
+
+        assert second.id == first.id
+        assert second.arn == "AA270426123456Z"
+        assert db_session.query(GSTRReturn).filter_by(period=PERIOD).count() == 1
+
     def test_correcting_the_date_does_not_erase_the_arn(
         self, auth_client, business, frozen_today
     ):

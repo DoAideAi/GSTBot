@@ -33,6 +33,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.sanitize import csv_safe
@@ -615,6 +616,7 @@ def record_filing(
     # Before anything is mutated: a rejected ARN should leave the record it was
     # offered against exactly as it was, not half-updated in the session.
     supplied_arn = normalise_arn(arn)
+    requested_on = filed_on
 
     existing = db.scalar(
         select(GSTRReturn).where(
@@ -684,7 +686,21 @@ def record_filing(
         record.total_igst = _q(Decimal(totals["igst"]))
         record.total_cess = _q(Decimal(totals["cess"]))
         db.add(record)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two first recordings of one period — a double-clicked "mark filed",
+        # or the owner and their CA at once — both read no row, and the partial
+        # unique index lets one INSERT through. The loser was answered with the
+        # generic 409 "conflicts with one that already exists", for a call this
+        # endpoint promises is idempotent. The row it collided with is the
+        # filing it was trying to record, so record against that instead.
+        db.rollback()
+        if existing is not None:
+            raise
+        return record_filing(
+            db, business, period, return_type, arn=arn, filed_on=requested_on
+        )
     db.refresh(record)
     logger.info(
         "Filing recorded",
