@@ -11,6 +11,7 @@ from app.models.subscription import SubscriptionStatus, SubscriptionTier
 class TierFeatures(BaseModel):
     name: str
     price_monthly: int
+    price_annual: int = 0
     price_display: str
     features: list[str]
 
@@ -22,6 +23,7 @@ class PricingResponse(BaseModel):
 
 class CreateOrderRequest(BaseModel):
     tier: SubscriptionTier
+    billing: str = Field(default="monthly", pattern=r"^(monthly|annual)$")
 
 
 class CreateOrderResponse(BaseModel):

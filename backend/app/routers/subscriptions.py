@@ -109,8 +109,13 @@ def create_order(
         )
 
     pricing = razorpay_client.TIER_PRICING[payload.tier]
+    amount = (
+        pricing["price_annual"]
+        if payload.billing == "annual"
+        else pricing["price_monthly"]
+    )
     order = razorpay_client.create_order(
-        amount_paise=pricing["price_monthly"],
+        amount_paise=amount,
         receipt=razorpay_client.order_receipt(business.id, payload.tier),
     )
     if order is None:
@@ -279,13 +284,15 @@ def _require_order_matches(payload: VerifyPaymentRequest, business: Business) ->
                 "in a moment — if you were charged, it will not be lost."
             ),
         )
-    expected_amount = razorpay_client.TIER_PRICING[payload.tier]["price_monthly"]
+    pricing = razorpay_client.TIER_PRICING[payload.tier]
+    valid_amounts = {pricing["price_monthly"], pricing.get("price_annual", 0)} - {0}
+    order_amount = order.get("amount")
     problems = []
     if order.get("receipt") != razorpay_client.order_receipt(business.id, payload.tier):
         problems.append("receipt")
-    if order.get("amount") != expected_amount:
+    if order_amount not in valid_amounts:
         problems.append("amount")
-    if order.get("status") != "paid" or (order.get("amount_paid") or 0) < expected_amount:
+    if order.get("status") != "paid" or (order.get("amount_paid") or 0) < (order_amount or 0):
         problems.append("status")
     if problems:
         logger.warning(

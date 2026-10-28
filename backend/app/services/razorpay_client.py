@@ -191,6 +191,19 @@ def order_receipt(business_id: int, tier: SubscriptionTier) -> str:
     return f"biz_{business_id}_{tier.value}"
 
 
+# The PDF report of one reconciliation run, bought once.
+REPORT_PRICE_PAISE = 9900
+
+
+def report_receipt(business_id: int, run_id: int) -> str:
+    """The receipt a report order is created with, and checked against on verify.
+
+    Naming the run as well as the business is what makes a paid order buy one
+    report: a payment for run 7 presented against run 8 fails this comparison.
+    """
+    return f"rpt_{business_id}_{run_id}"
+
+
 def fetch_order(order_id: str) -> dict[str, Any] | None:
     """The order as Razorpay holds it, or ``None`` if it cannot be read."""
     if not is_configured():
@@ -231,10 +244,11 @@ TIER_PRICING = {
     SubscriptionTier.FREE: {
         "name": "Free",
         "price_monthly": 0,
+        "price_annual": 0,
         "price_display": "Free forever",
         "features": [
             "GST calculator",
-            "GSTIN lookup & verification",
+            "GSTIN lookup & verification (1 at a time)",
             "HSN/SAC code search",
             "GST rate finder",
             "Due dates calendar",
@@ -243,19 +257,24 @@ TIER_PRICING = {
     SubscriptionTier.PRO: {
         "name": "SMB",
         "price_monthly": 499_00,
+        "price_annual": 4999_00,
         "price_display": "₹499/month",
         "features": [
+            "Bulk GSTIN validation (up to 100)",
+            "GSTR-2B reconciliation",
+            "ITC optimization report",
+            "Export to Tally/Excel",
+            "Priority AI assistant",
+            "No ads",
             "GST filing assistance",
-            "Bulk GSTIN lookup",
             "Saved calculations & history",
             "Email reports",
-            "GSTR-2B reconciliation",
-            "ITC calculation",
         ],
     },
     SubscriptionTier.ENTERPRISE: {
         "name": "CA",
         "price_monthly": 2999_00,
+        "price_annual": 29990_00,
         "price_display": "₹2,999/month",
         "features": [
             "Everything in SMB",
