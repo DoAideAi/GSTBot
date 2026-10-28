@@ -140,6 +140,13 @@ def _provider_id(value: object) -> str:
     return str(value).strip()
 
 
+# Providers whose reported address this app cannot treat as proven. Microsoft
+# issues ``email`` and ``preferred_username`` without an ``email_verified``
+# claim and lets a tenant set either to any value; an account created from one
+# of them has an address nobody has verified.
+_UNPROVEN_EMAIL_PROVIDERS = frozenset({"microsoft"})
+
+
 def _find_or_create_oauth_user(
     db: Session,
     *,
@@ -165,6 +172,30 @@ def _find_or_create_oauth_user(
             logger.warning(
                 "OAuth link refused: provider did not verify email",
                 extra={"provider": provider, "user_id": user.id},
+            )
+            return None
+        if (
+            user.oauth_provider in _UNPROVEN_EMAIL_PROVIDERS
+            and user.oauth_provider != provider
+            and user.hashed_password is None
+        ):
+            # The other direction of the check above. This account was created
+            # by a provider that does not verify the address it reports, and
+            # has no password — so nothing has ever shown its holder owns this
+            # email. Handing it to whoever *does* prove the address is the
+            # pre-account hijack: an attacker signs in with a Microsoft account
+            # whose ``email``/``preferred_username`` claims the victim's
+            # address, the victim later signs in with Google, lands in the
+            # attacker's account, and uploads their books into a business the
+            # attacker can still open. Refused rather than merged, because
+            # either side of a merge would be someone else's data.
+            logger.warning(
+                "OAuth sign-in refused: account's email was never verified",
+                extra={
+                    "provider": provider,
+                    "account_provider": user.oauth_provider,
+                    "user_id": user.id,
+                },
             )
             return None
         if not user.oauth_provider:

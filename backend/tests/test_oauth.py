@@ -543,3 +543,90 @@ def test_a_first_oauth_sign_in_is_reported_to_the_callback_as_a_sign_up(db_sessi
         db_session, provider="github", oauth_id="new-gh", email="new@example.com", name="New"
     )
     assert "new" not in _fragment(_complete_oauth_login(again, "github"))
+
+
+# ── M6: an account whose email was never proven is not handed over ──
+
+
+def _microsoft_created(db_session, email="victim@example.com"):
+    """What an attacker leaves behind: an account Microsoft created from an
+    address it did not verify."""
+    return _find_or_create_oauth_user(
+        db_session,
+        provider="microsoft",
+        oauth_id="attacker-tenant-oid",
+        email=email,
+        name="Not The Victim",
+        email_verified=False,
+    )
+
+
+def test_a_verified_sign_in_does_not_inherit_an_account_microsoft_created(db_session):
+    squatted = _microsoft_created(db_session)
+    assert squatted is not None
+
+    result = _find_or_create_oauth_user(
+        db_session,
+        provider="google",
+        oauth_id="victim-gid",
+        email="victim@example.com",
+        name="The Victim",
+        email_verified=True,
+    )
+
+    assert result is None
+    db_session.refresh(squatted)
+    assert squatted.oauth_provider == "microsoft"
+    assert squatted.oauth_id == "attacker-tenant-oid"
+
+
+def test_the_refusal_is_logged(db_session, caplog):
+    _microsoft_created(db_session)
+
+    with caplog.at_level(logging.WARNING, logger="app.routers.oauth"):
+        _find_or_create_oauth_user(
+            db_session, provider="github", oauth_id="gh-1",
+            email="victim@example.com", name=None, email_verified=True,
+        )
+
+    assert "email was never verified" in caplog.text
+
+
+def test_the_microsoft_holder_still_signs_in_by_their_own_id(db_session):
+    squatted = _microsoft_created(db_session)
+
+    again = _find_or_create_oauth_user(
+        db_session, provider="microsoft", oauth_id="attacker-tenant-oid",
+        email="victim@example.com", name=None, email_verified=False,
+    )
+
+    assert again is not None and again.id == squatted.id
+
+
+def test_a_microsoft_account_with_a_password_can_still_be_linked(db_session):
+    # A password account proved its address through registration, so the
+    # ordinary verified-link rule applies.
+    user = _microsoft_created(db_session, email="haspw@example.com")
+    user.hashed_password = "bcrypt-hash-here"
+    db_session.commit()
+
+    result = _find_or_create_oauth_user(
+        db_session, provider="google", oauth_id="g-2",
+        email="haspw@example.com", name=None, email_verified=True,
+    )
+
+    assert result is not None and result.id == user.id
+
+
+def test_an_account_google_created_is_still_found_by_a_verified_github_sign_in(db_session):
+    first = _find_or_create_oauth_user(
+        db_session, provider="google", oauth_id="g-3",
+        email="both@example.com", name=None, email_verified=True,
+    )
+
+    result = _find_or_create_oauth_user(
+        db_session, provider="github", oauth_id="gh-3",
+        email="both@example.com", name=None, email_verified=True,
+    )
+
+    assert result is not None and result.id == first.id
