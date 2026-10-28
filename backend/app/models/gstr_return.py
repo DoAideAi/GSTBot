@@ -14,7 +14,7 @@ from app.models.mixins import (
     ZERO,
     BusinessScopedMixin,
     JSONType,
-    Money,
+    MoneyTotal,
     SoftDeleteMixin,
     TimestampMixin,
 )
@@ -79,11 +79,11 @@ class GSTRReturn(Base, BusinessScopedMixin, TimestampMixin, SoftDeleteMixin):
 
     # ---- Summary, denormalised for the dashboard ----
     invoice_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_taxable_value: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
-    total_cgst: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
-    total_sgst: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
-    total_igst: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
-    total_cess: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
+    total_taxable_value: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
+    total_cgst: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
+    total_sgst: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
+    total_igst: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
+    total_cess: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
 
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     filed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

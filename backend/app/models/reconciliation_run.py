@@ -14,7 +14,7 @@ from app.models.mixins import (
     ZERO,
     BusinessScopedMixin,
     JSONType,
-    Money,
+    MoneyTotal,
     SoftDeleteMixin,
     TimestampMixin,
 )
@@ -80,11 +80,11 @@ class ReconciliationRun(Base, BusinessScopedMixin, TimestampMixin, SoftDeleteMix
 
     # ---- ITC impact ----
     # Credit safe to claim: matched invoices from suppliers who have filed.
-    itc_eligible: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
+    itc_eligible: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
     # Credit claimed but resting on an invoice the supplier has not filed. The
     # number that decides whether to hold payment or provide against it.
-    itc_at_risk: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
-    itc_claimed: Mapped[Decimal] = mapped_column(Money, default=ZERO, nullable=False)
+    itc_at_risk: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
+    itc_claimed: Mapped[Decimal] = mapped_column(MoneyTotal, default=ZERO, nullable=False)
 
     # Per-invoice findings: ``[{"invoice_id": 1, "category": "mismatched",
     # "field": "igst", "books": "1800.00", "gstr2b": "1620.00"}, ...]``

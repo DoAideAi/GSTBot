@@ -40,6 +40,15 @@ Money = Numeric(16, 2)
 # raise, which is a 500 on a read caused by a write that answered 200.
 MONEY_MAX = Decimal("99999999999999.99")
 
+# A period's total of Money figures. ``MONEY_MAX`` bounds one invoice, not the
+# sum of a month of them: three invoices each just inside it made a filing's
+# or a reconciliation's stored total wider than ``Money`` holds, which
+# Postgres refuses with ``numeric field overflow`` — a 500 on "mark filed"
+# and a failed run, reached only through figures every field accepted. Six
+# more digits hold a million invoices at the ceiling, past what even the
+# unlimited plans upload in a month.
+MoneyTotal = Numeric(22, 2)
+
 ZERO = Decimal("0.00")
 
 
