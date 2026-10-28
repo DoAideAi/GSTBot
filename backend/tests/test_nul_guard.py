@@ -112,3 +112,40 @@ class TestNonFiniteFloatsInJson:
         assert response.status_code == 201, response.text
         invoice = db_session.get(Invoice, response.json()["invoice"]["id"])
         json.dumps(invoice.extraction, allow_nan=False)
+
+
+class TestNulNeverReachesAQueryParameter:
+    """P16 M6: psycopg refuses to bind a string holding U+0000, so a NUL in
+    anything a query compares against was a DataError and a 500 on Postgres —
+    the public sign-in first among them, whose ``username`` is matched against
+    ``users.email`` unvalidated. SQLite binds it, so the suite needs to observe
+    the stripping rather than the failure."""
+
+    def test_the_sign_in_matches_as_if_the_nul_were_not_there(self, client):
+        from tests.conftest import TEST_EMAIL, TEST_PASSWORD
+        from tests.test_end_to_end import register
+
+        register(client)
+        local, domain = TEST_EMAIL.split("@")
+        response = client.post(
+            "/api/v1/auth/login",
+            data={"username": f"{local}\x00@{domain}", "password": TEST_PASSWORD},
+        )
+        # Without the hook SQLite compares the NUL and finds nobody: a 401.
+        assert response.status_code == 200, response.text
+
+    def test_a_sign_in_that_is_only_garbage_is_refused_not_a_500(self, raw_client):
+        response = raw_client.post(
+            "/api/v1/auth/login", data={"username": "\x00\x00", "password": "x" * 12}
+        )
+        assert response.status_code in (400, 401, 422)
+
+    def test_every_parameter_shape_is_cleaned(self):
+        from app.core.database import without_nul_params
+
+        assert without_nul_params({"a": "x\x00y", "b": 1}) == {"a": "xy", "b": 1}
+        assert without_nul_params(("x\x00", b"\x00", None)) == ("x", b"\x00", None)
+        assert without_nul_params([("a\x00",), ("b",)]) == [("a",), ("b",)]
+        assert without_nul_params([{"a": "\x00"}]) == [{"a": ""}]
+        assert without_nul_params(["a\x00", 2]) == ["a", 2]
+        assert without_nul_params(None) is None

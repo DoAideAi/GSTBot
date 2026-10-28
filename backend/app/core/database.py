@@ -123,6 +123,41 @@ def _strip_nul_before_flush(session: Session, _flush_context, _instances) -> Non
                     setattr(obj, attr.key, cleaned)
 
 
+def _param_without_nul(value):
+    return value.replace("\x00", "") if isinstance(value, str) and "\x00" in value else value
+
+
+def without_nul_params(parameters):
+    """Bound parameters with NUL removed from every string, in any DBAPI shape.
+
+    The read-side half of ``_strip_nul_before_flush``. psycopg refuses to send a
+    string holding U+0000 at all — "PostgreSQL text fields cannot contain NUL"
+    — so a NUL in anything a query compares against was a ``DataError`` and a
+    500: the password sign-in, whose ``username`` is a form field matched
+    against ``users.email`` before anything validates it, on a public route.
+    No stored value can hold one (the flush hook sees to that), so removing it
+    finds exactly what the stored data could ever have matched.
+    """
+    if isinstance(parameters, dict):
+        return {key: _param_without_nul(value) for key, value in parameters.items()}
+    if isinstance(parameters, tuple):
+        return tuple(_param_without_nul(value) for value in parameters)
+    if isinstance(parameters, list):
+        # executemany's list of per-row sets, or one statement's positional
+        # values: a driver may use either.
+        return [
+            without_nul_params(item) if isinstance(item, dict | tuple | list)
+            else _param_without_nul(item)
+            for item in parameters
+        ]
+    return parameters
+
+
+@event.listens_for(Engine, "before_cursor_execute", retval=True)
+def _strip_nul_from_parameters(_conn, _cursor, statement, parameters, _context, _executemany):
+    return statement, without_nul_params(parameters)
+
+
 def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency that yields a request-scoped DB session.
 
