@@ -7,6 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -317,7 +318,17 @@ async def upload_invoice(
     content = await file.read()
     _check_file_shape(filename, file.content_type, content)
 
-    invoice, queued = _store_and_extract(
+    # Off the event loop. These handlers are ``async`` only to await the file
+    # read; everything after it is blocking — the database, the file write,
+    # and, whenever the broker is unreachable, the whole extraction inline: a
+    # synchronous model call with a ninety-second timeout and its retries.
+    # Called directly, that ran on the loop thread itself, so one upload during
+    # a Redis outage froze every request this worker was serving, for every
+    # tenant, for as long as the model took — and a fifty-file batch for
+    # minutes. FastAPI already runs a plain ``def`` route in its threadpool;
+    # this is the same, for the part that needs it.
+    invoice, queued = await run_in_threadpool(
+        _store_and_extract,
         db,
         invoice_service.TenantSnapshot.of(business),
         content=content,
@@ -395,7 +406,9 @@ async def upload_invoices_bulk(
         try:
             content = await upload.read()
             _check_file_shape(filename, upload.content_type, content)
-            invoice, queued = _store_and_extract(
+            # Off the loop for the reason ``upload_invoice`` gives.
+            invoice, queued = await run_in_threadpool(
+                _store_and_extract,
                 db,
                 tenant,
                 content=content,

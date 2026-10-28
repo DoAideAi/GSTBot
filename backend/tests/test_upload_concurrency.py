@@ -105,3 +105,65 @@ class TestTheUploadLock:
         assert invoice_service.find_duplicate(
             db_session, business.id, digest=invoice.file_hash
         ).id == invoice.id
+
+
+class TestTheBlockingHalfOfAnUploadRunsOffTheEventLoop:
+    """With the broker down an upload is extracted inline: a synchronous model
+    call that can take its full timeout. Run on the loop thread, that froze
+    every other request the worker was serving."""
+
+    @staticmethod
+    def _record_where_it_runs(monkeypatch):
+        import asyncio
+
+        from app.routers import invoices as router
+
+        real = router._store_and_extract
+        seen = []
+
+        def recording(*args, **kwargs):
+            try:
+                asyncio.get_running_loop()
+                seen.append("event loop")
+            except RuntimeError:
+                seen.append("worker thread")
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(router, "_store_and_extract", recording)
+        return seen
+
+    def test_a_single_upload(self, monkeypatch, auth_client):
+        seen = self._record_where_it_runs(monkeypatch)
+
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("bill.txt", b"Invoice No: OFF-1\nTotal: 100.00", "text/plain")},
+            data={"invoice_type": "purchase"},
+        )
+
+        assert response.status_code == 201, response.text
+        assert seen == ["worker thread"]
+
+    def test_every_file_of_a_batch(self, monkeypatch, auth_client):
+        seen = self._record_where_it_runs(monkeypatch)
+
+        response = auth_client.post(
+            "/api/v1/invoices/bulk",
+            files=[
+                ("files", (f"b{i}.txt", f"Invoice No: OFF-B{i}\nTotal: 1".encode(), "text/plain"))
+                for i in range(2)
+            ],
+            data={"invoice_type": "purchase"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert seen == ["worker thread", "worker thread"]
+
+    def test_a_refusal_raised_in_the_thread_still_reaches_the_caller(self, auth_client):
+        files = {"file": ("bill.txt", b"Invoice No: OFF-D\nTotal: 1.00", "text/plain")}
+        auth_client.post("/api/v1/invoices/upload", files=files)
+
+        again = auth_client.post("/api/v1/invoices/upload", files=files)
+
+        assert again.status_code == 409
+        assert again.json()["detail"]["invoice_id"]
