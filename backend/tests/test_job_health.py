@@ -146,7 +146,26 @@ class TestQueueStatus:
         assert result.depth is None
         # Typed, because "ConnectionError" and "TimeoutError" send an operator
         # to different places and the bare message often says neither.
-        assert result.error.startswith("ConnectionError: ")
+        assert result.error == "ConnectionError"
+
+    def test_the_brokers_message_goes_to_the_log_not_the_answer(self, monkeypatch, caplog):
+        # ``/health/jobs`` is public, and a broker's message names the host
+        # and port it could not reach. Same split as the database check.
+        monkeypatch.setattr(
+            job_health.settings, "celery_broker_url", "redis://localhost:6379/1"
+        )
+
+        class _Refusing:
+            def llen(self, _queue):
+                raise ConnectionError("Error 111 connecting to redis.internal:6380")
+
+        _install_fake_redis_module(monkeypatch, _Refusing())
+
+        with caplog.at_level("WARNING", logger="app.services.job_health"):
+            result = job_health.queue_status()
+
+        assert "redis.internal" not in result.error
+        assert "redis.internal:6380" in caplog.text
 
     def test_a_broker_url_redis_cannot_parse_is_reported_not_raised(self, monkeypatch):
         # The failure lands on ``from_url`` rather than on the command, which
@@ -185,6 +204,23 @@ class TestWorkerStatus:
         assert result.reachable is False
         assert result.workers == []
 
+    def test_a_failed_ping_is_typed_and_its_message_is_only_logged(
+        self, monkeypatch, caplog
+    ):
+        monkeypatch.setattr(job_health.settings, "celery_enabled", True)
+
+        def _inspect(timeout=1.0):
+            raise OSError("cannot reach amqp://guest@broker.internal:5672//")
+
+        monkeypatch.setattr(celery_app.control, "inspect", _inspect)
+
+        with caplog.at_level("WARNING", logger="app.services.job_health"):
+            result = job_health.worker_status()
+
+        assert result.reachable is False
+        assert result.error == "OSError"
+        assert "broker.internal" in caplog.text
+
     def test_a_replying_worker_is_named(self, monkeypatch):
         monkeypatch.setattr(job_health.settings, "celery_enabled", True)
 
@@ -208,7 +244,7 @@ class TestWorkerStatus:
 
         result = job_health.worker_status()
         assert result.reachable is False
-        assert "broker down" in result.error
+        assert result.error == "RuntimeError"
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +256,23 @@ class TestTheEndpoint:
         # No Authorization header on this client at all.
         response = client.get("/api/v1/health/jobs")
         assert response.status_code == 200
+
+    def test_an_unreachable_broker_answers_without_its_address(self, client, monkeypatch):
+        monkeypatch.setattr(
+            job_health.settings, "celery_broker_url", "redis://localhost:6379/1"
+        )
+
+        class _Refusing:
+            def llen(self, _queue):
+                raise ConnectionError("Error 111 connecting to redis.internal:6380")
+
+        _install_fake_redis_module(monkeypatch, _Refusing())
+
+        response = client.get("/api/v1/health/jobs")
+
+        assert response.status_code == 200
+        assert response.json()["queue"]["error"] == "ConnectionError"
+        assert "redis.internal" not in response.text
 
     def test_it_reports_degraded_when_nothing_is_reachable(self, client):
         # The suite's real environment: no Redis, no broker, no worker.

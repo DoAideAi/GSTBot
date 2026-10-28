@@ -142,7 +142,11 @@ def queue_status() -> QueueStatus:
         depth = client.llen(DEFAULT_QUEUE)
         return QueueStatus(reachable=True, depth=int(depth))
     except Exception as exc:  # noqa: BLE001 - reported, not raised
-        return QueueStatus(reachable=False, depth=None, error=f"{type(exc).__name__}: {exc}")
+        # The class to the public endpoint, the message to the log — as the
+        # database and storage checks do. A broker's message names its host
+        # and port, and ``/health/jobs`` answers anyone who asks.
+        logger.warning("Broker queue depth check failed: %s", exc)
+        return QueueStatus(reachable=False, depth=None, error=type(exc).__name__)
 
 
 @dataclass(frozen=True)
@@ -168,4 +172,5 @@ def worker_status(timeout: float = 1.0) -> WorkerStatus:
         replies = celery_app.control.inspect(timeout=timeout).ping() or {}
         return WorkerStatus(reachable=bool(replies), workers=sorted(replies))
     except Exception as exc:  # noqa: BLE001 - reported, not raised
-        return WorkerStatus(reachable=False, workers=[], error=f"{type(exc).__name__}: {exc}")
+        logger.warning("Worker ping failed: %s", exc)
+        return WorkerStatus(reachable=False, workers=[], error=type(exc).__name__)
