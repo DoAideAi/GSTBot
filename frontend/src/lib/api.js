@@ -297,7 +297,9 @@ function statusMessage(res) {
   if (res.status === 404) {
     return `That is not here (${code}). It may have been deleted.`;
   }
-  return `Request failed (${code}).`;
+  // Whatever else could not be read: a 400, 409 or 422 whose body an edge or
+  // proxy replaced. Not a dead end — the two things worth trying are named.
+  return `That could not be completed (${code}). Check what you entered and try again, or reload the page.`;
 }
 
 /**

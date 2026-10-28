@@ -134,7 +134,7 @@ export function gstinShapeError(value) {
   }
   // 00 is not a state and is the usual result of a leading digit being eaten.
   if (cleaned.slice(0, 2) === "00") {
-    return "00 is not a state code.";
+    return "A GSTIN starts with its state code, and 00 is not one. Check for a missing first digit.";
   }
   return "";
 }
@@ -169,7 +169,7 @@ export function amountError(value, label = "Amount") {
   }
   // Numeric(14, 2) — twelve digits before the point. A number this large is a
   // mistyped amount, not a real invoice.
-  if (num >= 1e12) return `${label} is too large.`;
+  if (num >= 1e12) return `${label} is too large; it looks like a mistyped amount. Check the digits.`;
   return "";
 }
 

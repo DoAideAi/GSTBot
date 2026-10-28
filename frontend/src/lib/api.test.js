@@ -1361,6 +1361,26 @@ describe("a refusal the API gave its own code", () => {
   });
 });
 
+describe("a refusal whose body could not be read", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn();
+  });
+
+  it("still says what to try, whatever the status", async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      statusText: "",
+      text: async () => "<html>Conflict</html>",
+    });
+    const err = await api.me().catch((e) => e);
+    expect(err.message).toBe(
+      "That could not be completed (409). Check what you entered and try again, or reload the page.",
+    );
+  });
+});
+
 describe("featurePath", () => {
   it.each([
     ["/itc?period=2026-04", "/itc"],
