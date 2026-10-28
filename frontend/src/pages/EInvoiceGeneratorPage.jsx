@@ -224,7 +224,12 @@ export default function EInvoiceGeneratorPage() {
         TotInvVal: lineItem.totalItemValue,
       },
     };
-  }, [sellerGstin, sellerName, sellerState, sellerPin, buyerGstin, buyerName, buyerState, buyerPin, supplyType, docType, docNo, docDate, itemDesc, hsnCode, gstRate, lineItem]);
+  }, [
+    sellerGstin, sellerName, sellerState, sellerPin,
+    buyerGstin, buyerName, buyerState, buyerPin,
+    supplyType, docType, docNo, docDate,
+    itemDesc, hsnCode, gstRate, qty, unitPrice, lineItem,
+  ]);
 
   const jsonText = useMemo(
     () => (jsonPayload ? JSON.stringify(jsonPayload, null, 2) : ""),

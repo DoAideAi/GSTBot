@@ -1,12 +1,24 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AuthCallbackPage from "./AuthCallbackPage";
 import HsnCodePage from "./HsnCodePage";
 import HsnWidgetPage from "./HsnWidgetPage";
 import ReferralPage from "./ReferralPage";
 
-vi.mock("../hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
+// A real hook, not a no-op: a page that calls it conditionally only fails when
+// the call registers with React, which a plain function never does.
+const titles = vi.hoisted(() => []);
+vi.mock("../hooks/usePageTitle", async () => {
+  const { useEffect } = await import("react");
+  return {
+    usePageTitle: (title) => {
+      useEffect(() => {
+        titles.push(title);
+      }, [title]);
+    },
+  };
+});
 
 const auth = vi.hoisted(() => ({ current: { user: null } }));
 vi.mock("../hooks/useAuth", () => ({ useAuth: () => auth.current }));
@@ -110,6 +122,28 @@ describe("HsnCodePage", () => {
     renderAt("8471");
     const h1 = screen.getByRole("heading", { level: 1 });
     expect(h1.textContent).toContain("8471");
+  });
+
+  it("survives moving from an unknown code to a known one on the same route", () => {
+    function GoTo({ code }) {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate(`/hsn/${code}`)}>go {code}</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/hsn/0000"]}>
+        <GoTo code="8471" />
+        <Routes>
+          <Route path="/hsn/:code" element={<HsnCodePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Not Found/);
+
+    fireEvent.click(screen.getByRole("button", { name: "go 8471" }));
+
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("8471");
+    expect(titles.at(-2)).toBe("HSN Code 0000 Not Found");
+    expect(titles.at(-1)).toMatch(/8471.*\| GST Rate \d+%$/);
   });
 
   it("tells the visitor when the code has no page", () => {

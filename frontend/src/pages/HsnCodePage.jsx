@@ -713,6 +713,15 @@ export default function HsnCodePage() {
   const hsn = getByCode(code);
   const meta = TOP_HSN_META[code];
 
+  // Before the not-found return, not after it: a hook below an early return
+  // runs on some renders and not others, and moving between an unknown and a
+  // known code on this route changed the hook count — React's "Rendered more
+  // hooks than during the previous render", and a blank page.
+  const pageTitle = hsn
+    ? `${meta?.title || `${hsn.sac ? "SAC" : "HSN"} Code ${hsn.code} — ${hsn.desc}`} | GST Rate ${hsn.rate}%`
+    : `HSN Code ${code} Not Found`;
+  usePageTitle(pageTitle);
+
   if (!hsn) {
     return (
       <div className="tool-page">
@@ -731,10 +740,6 @@ export default function HsnCodePage() {
 
   const isSac = hsn.sac;
   const codeType = isSac ? "SAC" : "HSN";
-  const title = meta?.title || `${codeType} Code ${hsn.code} — ${hsn.desc}`;
-  const pageTitle = `${title} | GST Rate ${hsn.rate}%`;
-
-  usePageTitle(pageTitle);
 
   const example = exampleCalc(hsn.rate);
 
