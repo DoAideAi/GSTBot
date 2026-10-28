@@ -362,3 +362,32 @@ def test_json_finite_keeps_every_finite_value_and_nulls_the_rest():
         "c": "NaN",
         "d": 0,
     }
+
+
+class TestContentDispositionIsSafeForAnyName:
+    """P17 M6: the plain ``filename=`` fallback carried CR/LF and non-Latin-1
+    characters through, which is header injection or a 500 the moment a caller
+    passes a name it did not build itself."""
+
+    def test_no_line_break_reaches_the_header(self):
+        from app.core.sanitize import content_disposition
+
+        value = content_disposition("report\r\nSet-Cookie: session=x.csv")
+        assert "\r" not in value and "\n" not in value
+        assert "Set-Cookie: session" in value  # still visible as text, now inert
+
+    def test_the_header_value_encodes_as_latin_1(self):
+        from app.core.sanitize import content_disposition
+
+        value = content_disposition("बिल ₹ 118.pdf")
+        value.encode("latin-1")
+        assert "filename*=UTF-8''" in value
+        assert "%E2%82%B9" in value  # the rupee sign kept in the UTF-8 name
+
+    def test_an_ordinary_name_is_unchanged(self):
+        from app.core.sanitize import content_disposition
+
+        assert content_disposition("gstr1-27AAPFU0939F1ZV-2026-04.csv") == (
+            'attachment; filename="gstr1-27AAPFU0939F1ZV-2026-04.csv"; '
+            "filename*=UTF-8''gstr1-27AAPFU0939F1ZV-2026-04.csv"
+        )

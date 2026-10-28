@@ -196,8 +196,17 @@ def content_disposition(filename: str) -> str:
     """
     from urllib.parse import quote
 
-    ascii_safe = filename.replace("\\", "\\\\").replace('"', '\\"')
-    utf8_encoded = quote(filename, safe="")
+    # The fallback has to be what its name says. A CR or LF in it is header
+    # injection if anything ever lets one through (h11 refuses it today, as a
+    # 500), and a character outside Latin-1 cannot be encoded into a header at
+    # all — also a 500. Every caller passes a GSTIN, a period and a date now;
+    # this keeps the helper safe for the next one, which is the point of a
+    # helper. The full name still travels in ``filename*``.
+    printable = "".join(
+        char if 32 <= ord(char) < 127 else "_" for char in strip_control_chars(filename)
+    )
+    ascii_safe = printable.replace("\\", "\\\\").replace('"', '\\"')
+    utf8_encoded = quote(strip_control_chars(filename), safe="")
     return (
         f'attachment; filename="{ascii_safe}"; '
         f"filename*=UTF-8''{utf8_encoded}"
