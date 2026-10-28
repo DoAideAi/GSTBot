@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import logging
-import os
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -19,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.config import settings
 from app.core.rate_limit import RateLimit
 from app.core.sanitize import visible_text
 
@@ -83,15 +83,18 @@ SYSTEM_PROMPT = (
     "and redirect to GST topics. Use simple language suited for small business owners."
 )
 
-_KEY_FILE = Path("/opt/GSTBot/keys/gemini-api-key")
-
-
 def _get_api_key() -> str | None:
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    # Through Settings, not ``os.environ``: a key in ``.env`` was invisible to a
+    # direct environment read, so the advisor answered "not set up" on a machine
+    # whose configuration said otherwise.
+    key = settings.gemini_api_key.strip()
     if key:
         return key
+    if not settings.gemini_api_key_file:
+        return None
+    key_file = Path(settings.gemini_api_key_file)
     try:
-        key = _KEY_FILE.read_text().strip()
+        key = key_file.read_text().strip()
         if key:
             return key
     except FileNotFoundError:
@@ -102,7 +105,7 @@ def _get_api_key() -> str | None:
         # and the user only ever sees "temporarily unavailable".
         logger.error(
             "Advisor key file could not be read",
-            extra={"path": str(_KEY_FILE), "error": str(exc)},
+            extra={"path": str(key_file), "error": str(exc)},
         )
     return None
 
@@ -230,7 +233,7 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
             logger.error(
                 "Advisor has no Gemini API key: every question is answered "
                 "'temporarily unavailable' (set GEMINI_API_KEY or the key file)",
-                extra={"key_file": str(_KEY_FILE)},
+                extra={"key_file": settings.gemini_api_key_file},
             )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -509,7 +512,7 @@ async def ask_advisor_stream(body: AdvisorRequest) -> StreamingResponse:
             _reported_missing_key = True
             logger.error(
                 "Advisor has no Gemini API key (stream)",
-                extra={"key_file": str(_KEY_FILE)},
+                extra={"key_file": settings.gemini_api_key_file},
             )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

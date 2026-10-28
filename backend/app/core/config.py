@@ -197,6 +197,9 @@ class Settings(BaseSettings):
 
     # ---- AI (Gemini — GST advisor chatbot) ----
     gemini_api_key: str = ""
+    # Read when GEMINI_API_KEY is empty, so the key can live outside the env
+    # file. Empty disables the fallback.
+    gemini_api_key_file: str = "/opt/GSTBot/keys/gemini-api-key"
 
     # ---- Email (filing-deadline alert digests) ----
     # Off by default: no deployment has SMTP infrastructure until it sets this,

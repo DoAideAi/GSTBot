@@ -341,13 +341,13 @@ class TestAdvisorLeavesARecord:
     def test_an_unreadable_key_file_is_an_error_and_an_absent_one_is_not(self, caplog, tmp_path):
         from app.routers import advisor
 
-        with patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
-            with patch.object(advisor, "_KEY_FILE", tmp_path / "absent"):
+        with patch.object(advisor.settings, "gemini_api_key", ""):
+            with patch.object(advisor.settings, "gemini_api_key_file", str(tmp_path / "absent")):
                 assert advisor._get_api_key() is None
             assert not [r for r in caplog.records if "could not be read" in r.getMessage()]
 
             # A directory where the file should be: exists, cannot be read as text.
-            with patch.object(advisor, "_KEY_FILE", tmp_path):
+            with patch.object(advisor.settings, "gemini_api_key_file", str(tmp_path)):
                 assert advisor._get_api_key() is None
         [line] = [r for r in caplog.records if "could not be read" in r.getMessage()]
         assert line.levelname == "ERROR"
@@ -603,3 +603,38 @@ class TestTheAdvisorBill:
         for _ in range(4):  # two answered, two refused for the address's own day
             self._ask(client, "198.51.100.1")
         assert self._ask(client, "198.51.100.2").status_code == 503
+
+
+class TestKeyComesFromSettings:
+    """M15: the key is read through Settings, so ``.env`` and the file path count."""
+
+    def test_a_key_in_settings_is_used_without_any_environment_variable(self, tmp_path):
+        from app.routers import advisor
+
+        # Settings is what reads .env; a direct os.environ lookup never saw it.
+        with (
+            patch.dict("os.environ", {}, clear=False) as env,
+            patch.object(advisor.settings, "gemini_api_key", " from-dotenv "),
+        ):
+            env.pop("GEMINI_API_KEY", None)
+            assert advisor._get_api_key() == "from-dotenv"
+
+    def test_the_key_file_path_is_configurable(self, tmp_path):
+        from app.routers import advisor
+
+        key_file = tmp_path / "gemini"
+        key_file.write_text("from-file\n")
+        with (
+            patch.object(advisor.settings, "gemini_api_key", ""),
+            patch.object(advisor.settings, "gemini_api_key_file", str(key_file)),
+        ):
+            assert advisor._get_api_key() == "from-file"
+
+    def test_an_empty_key_file_setting_disables_the_fallback(self):
+        from app.routers import advisor
+
+        with (
+            patch.object(advisor.settings, "gemini_api_key", ""),
+            patch.object(advisor.settings, "gemini_api_key_file", ""),
+        ):
+            assert advisor._get_api_key() is None
