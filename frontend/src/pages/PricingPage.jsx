@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SeoHead from "../components/SeoHead";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -117,9 +118,17 @@ export default function PricingPage() {
     }
   }
 
+  // Cancelling a paid plan took one click, with nothing in flight to stop a
+  // second: a double-click cancelled, then answered "already cancelled" as an
+  // error under the success message. It is confirmed first now, and the
+  // controls go dead while the request runs.
+  const [cancelling, setCancelling] = useState(false);
   async function handleCancel() {
+    if (cancelling) return;
+    if (!window.confirm("Cancel your paid plan and move to Free? Paid features stop straight away.")) return;
     setError(null);
     setSuccess(null);
+    setCancelling(true);
     try {
       await api.cancelSubscription();
       setSuccess("Subscription cancelled. You are now on the Free plan.");
@@ -127,6 +136,8 @@ export default function PricingPage() {
       setCurrentSub(sub);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -189,25 +200,34 @@ export default function PricingPage() {
                         <button
                           className="btn btn-danger-ghost"
                           onClick={handleCancel}
+                          disabled={cancelling}
                         >
-                          Cancel
+                          {cancelling ? "Cancelling…" : "Cancel"}
                         </button>
                       )}
                     </>
                   ) : tierKey === "free" ? (
                     currentTier !== "free" ? (
-                      <button className="btn btn-ghost" onClick={handleCancel}>
-                        Downgrade
+                      <button className="btn btn-ghost" onClick={handleCancel} disabled={cancelling}>
+                        {cancelling ? "Cancelling…" : "Downgrade"}
                       </button>
                     ) : null
                   ) : (
-                    <button
-                      className="btn btn-primary"
-                      disabled={paying || !user}
-                      onClick={() => handleSubscribe(tierKey)}
-                    >
-                      {paying ? "Processing..." : user ? "Subscribe" : "Sign in to subscribe"}
-                    </button>
+                    user ? (
+                      <button
+                        className="btn btn-primary"
+                        disabled={paying}
+                        onClick={() => handleSubscribe(tierKey)}
+                      >
+                        {paying ? "Processing..." : "Subscribe"}
+                      </button>
+                    ) : (
+                      // Was a disabled button reading "Sign in to subscribe"
+                      // that led nowhere.
+                      <Link className="btn btn-primary" to="/login">
+                        Sign in to subscribe
+                      </Link>
+                    )
                   )}
                 </div>
               </div>

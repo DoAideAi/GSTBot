@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,6 +129,20 @@ describe("PricingPage", () => {
     expect(await screen.findByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
+  it("asks before cancelling, and sends nothing when the answer is no", async () => {
+    mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      renderPage();
+      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+      expect(confirm).toHaveBeenCalledTimes(1);
+      const urls = global.fetch.mock.calls.map(([url]) => String(url));
+      expect(urls.some((u) => u.includes("/subscriptions/cancel"))).toBe(false);
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
   it("offers downgrade to free when on a paid plan", async () => {
     mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
     renderPage();
@@ -164,7 +178,7 @@ describe("PricingPage", () => {
     expect(mockTrack).toHaveBeenCalledWith("pricing_view");
   });
 
-  it("disables subscribe buttons when not signed in", async () => {
+  it("sends a signed-out visitor to sign in instead of a dead button", async () => {
     mockFetch(PRICING_RESPONSE);
     const noAuth = {
       user: null,
@@ -184,7 +198,9 @@ describe("PricingPage", () => {
       </MemoryRouter>,
     );
 
-    const buttons = await screen.findAllByRole("button", { name: "Sign in to subscribe" });
-    buttons.forEach((btn) => expect(btn).toBeDisabled());
+    const links = await screen.findAllByRole("link", { name: "Sign in to subscribe" });
+    expect(links.length).toBeGreaterThan(0);
+    links.forEach((link) => expect(link).toHaveAttribute("href", "/login"));
+    expect(screen.queryByRole("button", { name: "Sign in to subscribe" })).toBeNull();
   });
 });
