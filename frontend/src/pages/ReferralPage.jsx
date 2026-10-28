@@ -5,7 +5,7 @@ import ToolsNav from "../components/ToolsNav";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api } from "../lib/api";
-import { copyToClipboard, fullUrl, whatsappUrl } from "../lib/share";
+import { copyToClipboard, whatsappUrl } from "../lib/share";
 import { track } from "../lib/track";
 
 const SITE_URL = "https://gst.doaide.com";

@@ -11,10 +11,6 @@ import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { allProducts } from "../lib/hsnData";
 
-const OLD_RATES = {
-  0: 0, 0.1: 0.1, 0.25: 0.25, 1: 1, 1.5: 1.5, 3: 3, 5: 5, 6: 6, 7.5: 7.5, 12: 12, 18: 18, 28: 28,
-};
-
 const RATE_MIGRATION = {
   12: [5, 18],
   28: [18, 40],

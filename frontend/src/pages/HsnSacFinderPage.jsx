@@ -12,7 +12,7 @@ import SeoHead from "../components/SeoHead";
 import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { byCategory, categories, HSN_DATA, searchHSN } from "../lib/hsnData";
+import { byCategory, categories, searchHSN } from "../lib/hsnData";
 
 const TOOL_SCHEMA = {
   "@context": "https://schema.org",

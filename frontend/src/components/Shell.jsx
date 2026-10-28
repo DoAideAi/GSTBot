@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { useTheme } from "../hooks/useTheme";
 import { api } from "../lib/api";
 import BusinessSwitcher from "./BusinessSwitcher";
 import ThemeToggle from "./ThemeToggle";
