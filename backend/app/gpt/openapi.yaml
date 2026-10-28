@@ -307,7 +307,7 @@ components:
       properties:
         description: {type: string, maxLength: 300}
         hsn_code: {type: string, pattern: "^\\d{4,8}$"}
-        quantity: {type: number, exclusiveMinimum: 0}
+        quantity: {type: number, exclusiveMinimum: 0, maximum: 1000000, multipleOf: 0.001}
         unit: {type: string, maxLength: 20, description: "e.g. pcs, kg, hrs"}
         unit_price: {type: number, minimum: 0, description: Price per unit before GST.}
         gst_rate: {type: number, minimum: 0, maximum: 40, description: GST rate in percent.}

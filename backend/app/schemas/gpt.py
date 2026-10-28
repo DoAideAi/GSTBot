@@ -55,7 +55,10 @@ class InvoiceItem(BaseModel):
     description: str = Field(min_length=1, max_length=300)
     _description_has_words = field_validator("description")(_has_words)
     hsn_code: str | None = Field(default=None, pattern=HSN_PATTERN)
-    quantity: Decimal = Field(gt=0, le=QUANTITY_MAX)
+    # Three places, as the e-invoice schema takes a quantity. Unbounded, a
+    # quantity of ``1E-999999`` passed ``gt=0`` and was echoed on the invoice
+    # positionally — a megabyte per line, a hundred lines to a request.
+    quantity: Decimal = Field(gt=0, le=QUANTITY_MAX, decimal_places=3)
     unit: str | None = Field(default=None, max_length=20)
     unit_price: Decimal = Field(ge=0, le=MONEY_MAX, description="Price per unit, before GST.")
     gst_rate: Decimal = Field(ge=0, le=40, description="GST rate in percent, e.g. 18.")

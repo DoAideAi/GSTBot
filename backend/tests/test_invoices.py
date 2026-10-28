@@ -1794,6 +1794,15 @@ class TestTheSupplierSavepointHoldsOnlyTheSupplier:
 class TestCorrectionBoundaries:
     """InvoiceUpdate checked only lengths on three fields GSTR-1 exports."""
 
+    def test_an_extreme_rate_is_quoted_in_the_form_it_was_sent(self):
+        # Positionally, 1E-999999 is a million characters of refusal.
+        from pydantic import ValidationError
+
+        from app.schemas.invoice import InvoiceUpdate
+
+        with pytest.raises(ValidationError, match=r"1E-999999% is not a GST rate"):
+            InvoiceUpdate(tax_rate="1E-999999")
+
     @pytest.mark.parametrize("rate", ["17", "12.5", "100", "0.18"])
     def test_a_rate_that_is_not_a_gst_slab_is_refused(self, rate):
         from pydantic import ValidationError

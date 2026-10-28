@@ -48,11 +48,11 @@ def q(value: Decimal) -> Decimal:
 def check_rate(rate: Decimal) -> Decimal:
     if rate not in VALID_RATES:
         allowed = ", ".join(f"{r.normalize():f}" for r in sorted(VALID_RATES))
-        raise GstInputError(f"{_quoted_rate(rate)}% is not a GST rate. Use one of: {allowed}")
+        raise GstInputError(f"{quoted_rate(rate)}% is not a GST rate. Use one of: {allowed}")
     return rate
 
 
-def _quoted_rate(rate: Decimal) -> str:
+def quoted_rate(rate: Decimal) -> str:
     """The refused rate as the caller would recognise it.
 
     Positional notation spells ``1E-999999`` as a million characters, which

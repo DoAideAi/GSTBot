@@ -10,6 +10,7 @@ from app.models.invoice import InvoiceSource, InvoiceStatus, InvoiceType
 from app.models.mixins import MONEY_MAX
 from app.services import gst_calendar
 from app.services import gstin as gstin_service
+from app.services.gst_calculator import quoted_rate
 from app.services.invoice_parser import VALID_TAX_RATES
 
 
@@ -257,7 +258,7 @@ class InvoiceUpdate(BaseModel):
         if v is None or v in VALID_TAX_RATES:
             return v
         allowed = ", ".join(f"{r.normalize():f}" for r in sorted(VALID_TAX_RATES))
-        raise ValueError(f"{v.normalize():f}% is not a GST rate. Use one of: {allowed}")
+        raise ValueError(f"{quoted_rate(v)}% is not a GST rate. Use one of: {allowed}")
 
     @field_validator("hsn_code")
     @classmethod

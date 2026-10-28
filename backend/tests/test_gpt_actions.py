@@ -259,6 +259,23 @@ class TestGenerateInvoice:
         assert body["totals"]["grand_total"] == "354.00"
         assert body["totals"]["round_off"] == "0.03"
 
+
+    @pytest.mark.parametrize("quantity", ["1E-999999", "0.0001", "2.5000001"])
+    def test_a_quantity_finer_than_three_places_is_refused(self, client, quantity):
+        # 1E-999999 passed gt=0 and was echoed on the invoice positionally: a
+        # megabyte of zeros per line, a hundred lines to an anonymous request.
+        item = {"description": "Bolts", "hsn_code": "7318", "quantity": quantity,
+                "unit_price": "10", "gst_rate": 18}
+        response = _invoice(client, items=[item])
+        assert response.status_code == 422
+        assert len(response.content) < 10_000
+
+    def test_three_places_is_what_the_e_invoice_takes(self, client):
+        item = {"description": "Copper wire", "hsn_code": "7408", "quantity": "2.125",
+                "unit_price": "100", "gst_rate": 18}
+        response = _invoice(client, items=[item])
+        assert response.status_code == 200, response.text
+        assert response.json()["items"][0]["quantity"] == "2.125"
     def test_a_buyer_in_another_state_gets_igst(self, client):
         body = _invoice(client, buyer={"name": "KA Co", "gstin": KA_COMPANY}).json()
         assert body["supply_type"] == "inter_state"
