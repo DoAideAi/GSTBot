@@ -626,3 +626,84 @@ class TestTheCallerThatPassesNoTenant:
 
         assert passed.counterparty_gstin == SUPPLIER_GSTIN_OTHER_STATE
         assert passed.counterparty_name == "Them"
+
+
+class TestAFileThatCannotBeStored:
+    """A failure that is about the system, not the file: the volume is full or
+    the database dropped the connection. It must cost that file alone."""
+
+    @staticmethod
+    def _storage_fails_for(monkeypatch, failing_name):
+        from app.services import invoice_service
+
+        real = invoice_service.store_upload
+
+        def store(content, filename, business_id):
+            if filename == failing_name:
+                raise OSError(28, "No space left on device")
+            return real(content, filename, business_id)
+
+        monkeypatch.setattr(invoice_service, "store_upload", store)
+
+    def test_the_rest_of_the_batch_is_still_attempted(
+        self, monkeypatch, auth_client, db_session, business
+    ):
+        self._storage_fails_for(monkeypatch, "inv-1.txt")
+
+        response = bulk_upload(
+            auth_client, [(f"inv-{i}.txt", _invoice_text(f"BULK-F-{i}")) for i in range(3)]
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert [item["accepted"] for item in body["items"]] == [True, False, True]
+        assert body["rejected"] == 1
+        assert db_session.query(Invoice).filter_by(business_id=business.id).count() == 2
+
+    def test_the_failed_line_says_to_send_it_again_and_leaks_nothing(
+        self, monkeypatch, auth_client
+    ):
+        self._storage_fails_for(monkeypatch, "inv-0.txt")
+
+        item = bulk_upload(auth_client, [("inv-0.txt", _invoice_text("BULK-L-0"))]).json()[
+            "items"
+        ][0]
+
+        assert item["accepted"] is False
+        assert "upload it again" in item["error"]
+        assert "No space left" not in item["error"]
+        assert item["duplicate_of_invoice_id"] is None
+
+    def test_retrying_the_failed_file_is_not_called_a_duplicate(
+        self, monkeypatch, auth_client
+    ):
+        self._storage_fails_for(monkeypatch, "inv-0.txt")
+        bulk_upload(auth_client, [("inv-0.txt", _invoice_text("BULK-R-0"))])
+        monkeypatch.undo()
+
+        retry = bulk_upload(auth_client, [("inv-0.txt", _invoice_text("BULK-R-0"))]).json()
+
+        assert retry["items"][0]["accepted"] is True
+
+    def test_a_dropped_connection_on_commit_costs_that_file_alone(
+        self, monkeypatch, auth_client, db_session, business
+    ):
+        from sqlalchemy.exc import OperationalError
+
+        failed = []
+
+        @event.listens_for(db_session.get_bind(), "before_cursor_execute")
+        def drop_on_the_second_insert(conn, cursor, statement, *args):
+            if statement.lstrip().upper().startswith("INSERT INTO INVOICES"):
+                failed.append(statement)
+                if len(failed) == 2:
+                    raise OperationalError(statement, {}, Exception("server closed the connection"))
+
+        try:
+            body = bulk_upload(
+                auth_client, [(f"inv-{i}.txt", _invoice_text(f"BULK-D-{i}")) for i in range(3)]
+            ).json()
+        finally:
+            event.remove(db_session.get_bind(), "before_cursor_execute", drop_on_the_second_insert)
+
+        assert [item["accepted"] for item in body["items"]] == [True, False, True]

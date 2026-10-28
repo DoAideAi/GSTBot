@@ -420,6 +420,31 @@ async def upload_invoices_bulk(
                 )
             )
             continue
+        except Exception:  # noqa: BLE001 - one file's failure is that file's line
+            # A full volume, a dropped connection, a pool that ran dry. Raised,
+            # these ended the whole request with the files before this one
+            # already committed: the caller got a 500 and no per-file report,
+            # and the obvious retry of the folder then answered "already
+            # uploaded" for every file that had in fact gone through. The row
+            # for this file was rolled back and its bytes discarded inside
+            # ``create_pending_invoice``, so the honest line is "not stored,
+            # send it again" — and the next file still gets its attempt.
+            db.rollback()
+            logger.exception(
+                "Bulk upload could not store a file",
+                extra={"business_id": tenant.id, "upload_filename": filename},
+            )
+            items.append(
+                InvoiceBulkUploadItemOut(
+                    filename=filename,
+                    accepted=False,
+                    error=(
+                        "This file could not be stored because of a problem on our "
+                        "side. Nothing was saved for it; upload it again."
+                    ),
+                )
+            )
+            continue
 
         items.append(
             InvoiceBulkUploadItemOut(
