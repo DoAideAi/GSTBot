@@ -24,6 +24,7 @@ from app.core.middleware import (
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
     SecurityHeadersMiddleware,
+    TrailingSlashMiddleware,
 )
 from app.core.openapi import install_openapi
 from app.core.redis_client import close as redis_close
@@ -287,6 +288,11 @@ def create_app() -> FastAPI:
         openapi_tags=TAGS_METADATA,
         debug=settings.debug,
         lifespan=lifespan,
+        # A trailing slash is trimmed by ``TrailingSlashMiddleware`` rather
+        # than redirected: the redirect's absolute URL took its scheme from
+        # the proxy headers, and pointed at http:// whenever those were not
+        # trusted.
+        redirect_slashes=False,
         docs_url=docs_url,
         redoc_url=redoc_url,
         openapi_url=openapi_url,
@@ -378,6 +384,9 @@ def create_app() -> FastAPI:
     # Outermost of all, so a preflight from ChatGPT is answered before the
     # credentialed app-wide policy above can refuse an origin it does not list.
     application.add_middleware(GptActionsCorsMiddleware, prefix=f"{settings.api_v1_prefix}/gpt/")
+    # Outside even that, so the GPT prefix check, CORS and the limiter all see
+    # the path without its trailing slash.
+    application.add_middleware(TrailingSlashMiddleware)
 
     prefix = settings.api_v1_prefix
     application.include_router(advisor.router, prefix=prefix)

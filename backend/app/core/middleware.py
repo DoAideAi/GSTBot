@@ -355,6 +355,34 @@ GPT_ACTIONS_ORIGINS = frozenset(
 )
 
 
+class TrailingSlashMiddleware:
+    """Serve ``/path/`` as ``/path`` instead of redirecting to it.
+
+    Starlette's own answer to a trailing slash is a 307 to an *absolute* URL
+    built from the request's scheme — and behind the proxy that scheme is
+    whatever uvicorn was told to believe. Once Caddy's container came back on
+    a new address, ``--forwarded-allow-ips`` no longer named it and every
+    such redirect pointed at ``http://``: a downgrade that a non-browser client
+    follows without its ``Authorization`` header (requests strips it on a
+    scheme change), so a correct call answered 401 a hop later. Rewriting the
+    path makes the answer independent of the proxy's address, and costs no
+    round trip.
+
+    Pure ASGI and outermost, so the limiter, the access line and every route
+    see the one canonical path.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        path = scope.get("path", "")
+        if scope["type"] in ("http", "websocket") and len(path) > 1 and path.endswith("/"):
+            trimmed = path.rstrip("/") or "/"
+            scope = dict(scope, path=trimmed, raw_path=trimmed.encode("utf-8"))
+        await self.app(scope, receive, send)
+
+
 class GptActionsCorsMiddleware:
     """CORS for OpenAI's origins on ``/gpt/*``, and nowhere else.
 
