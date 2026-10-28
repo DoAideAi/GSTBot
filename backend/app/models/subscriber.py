@@ -13,9 +13,10 @@ from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import TimestampMixin
 
 
-class Subscriber(Base):
+class Subscriber(Base, TimestampMixin):
     __tablename__ = "subscribers"
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -80,6 +80,31 @@ class TestSubscribe:
         assert sub.unsubscribed_at is None
 
 
+    def test_resubscribing_keeps_the_first_signup_and_stamps_the_change(
+        self, client, db_session
+    ):
+        """``subscribed_at`` is rewritten on resubscribe, so it cannot say when
+        the address first signed up; ``created_at`` and ``updated_at`` can."""
+        from datetime import UTC, datetime
+
+        from app.models.mixins import utcnow
+        from app.models.subscriber import Subscriber
+
+        client.post("/api/v1/subscribers", json={"email": "returning@example.com"})
+        sub = db_session.query(Subscriber).filter_by(email="returning@example.com").one()
+        long_ago = datetime(2025, 1, 1, tzinfo=UTC)
+        sub.created_at = long_ago
+        sub.unsubscribed_at = utcnow()
+        db_session.commit()
+        sub.updated_at = long_ago  # after the commit's onupdate, so it sticks
+        db_session.commit()
+
+        client.post("/api/v1/subscribers", json={"email": "returning@example.com"})
+        db_session.refresh(sub)
+        assert sub.created_at.replace(tzinfo=UTC) == long_ago
+        assert sub.updated_at.replace(tzinfo=UTC) > long_ago
+
+
 class TestUnsubscribe:
     """GET /api/v1/subscribers/unsubscribe?email=...&token=..."""
 
