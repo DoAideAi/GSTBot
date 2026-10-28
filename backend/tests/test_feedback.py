@@ -353,3 +353,38 @@ def test_an_error_that_stopped_happening_leaves_the_log_after_30_days(client, db
     report(client, message="something new")  # a new row is what prunes
     messages = sorted(m for (m,) in db_session.query(ClientError.message))
     assert messages == ["something new", "still happening"]
+
+
+class TestTheSendersAddressIsNotKeptForever:
+    def test_feedback_older_than_the_window_loses_its_address_but_keeps_its_words(
+        self, client, db_session
+    ):
+        from datetime import timedelta
+
+        from app.models.mixins import utcnow
+        from app.routers.feedback import FEEDBACK_IP_RETENTION
+
+        old = Feedback(
+            category=FeedbackCategory.BUG,
+            message="The upload button did nothing",
+            email="old@example.com",
+            ip_address="203.0.113.7",
+            created_at=utcnow() - FEEDBACK_IP_RETENTION - timedelta(days=1),
+        )
+        recent = Feedback(
+            category=FeedbackCategory.BUG,
+            message="Still happening",
+            ip_address="203.0.113.8",
+            created_at=utcnow() - timedelta(days=2),
+        )
+        db_session.add_all([old, recent])
+        db_session.commit()
+
+        assert send(client).status_code == 201
+
+        db_session.refresh(old)
+        db_session.refresh(recent)
+        assert old.ip_address is None
+        assert old.message == "The upload button did nothing"
+        assert old.email == "old@example.com"
+        assert recent.ip_address == "203.0.113.8"

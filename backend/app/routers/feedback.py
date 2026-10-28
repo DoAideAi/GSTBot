@@ -46,6 +46,11 @@ MAX_USER_AGENT = 512
 # deduplicated by page and message, but a public endpoint can still be sent
 # endless distinct messages; without an end, those rows are kept forever.
 CLIENT_ERROR_RETENTION = timedelta(days=30)
+# How long a feedback row keeps the address it was sent from. The address is
+# for spotting a flood or an abusive sender while it is happening; a year on it
+# answers no question anyone has, and is a visitor's location kept beside their
+# email and their own words. The message itself is kept — it is the point.
+FEEDBACK_IP_RETENTION = timedelta(days=30)
 
 
 @router.post(
@@ -54,7 +59,8 @@ CLIENT_ERROR_RETENTION = timedelta(days=30)
     description=(
         "Public — no sign-in. Called from the floating feedback widget on every "
         "page. The user agent and the caller's address are recorded server-side; "
-        "the client supplies only what the visitor typed and the page they were on."
+        "the client supplies only what the visitor typed and the page they were on. "
+        "The address is cleared after 30 days; the message is kept."
     ),
     status_code=status.HTTP_201_CREATED,
     response_model=FeedbackOut,
@@ -77,6 +83,17 @@ def submit_feedback(
         ip_address=client_ip(request),
     )
     db.add(row)
+    # On the write, like the client-error pruning below: no scheduler to keep
+    # running, and created_at is indexed, so this costs one ranged update.
+    db.execute(
+        update(Feedback)
+        .where(
+            Feedback.created_at < utcnow() - FEEDBACK_IP_RETENTION,
+            Feedback.ip_address.is_not(None),
+        )
+        .values(ip_address=None)
+        .execution_options(synchronize_session=False)
+    )
     db.commit()
     db.refresh(row)
     logger.info("Feedback received", extra={"category": row.category.value})
