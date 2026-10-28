@@ -250,6 +250,22 @@ def require_paid_tier(
     return sub
 
 
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Refuse unless the signed-in user is a site operator (``ADMIN_EMAILS``).
+
+    Per-business roles do not answer this: everyone who registers owns their
+    own business, so an owner is not an operator. 403, not 404 — the route is
+    documented and its existence is not a secret, only its contents are.
+    """
+    admins = {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
+    if (user.email or "").lower() not in admins:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only site administrators can read this.",
+        )
+    return user
+
+
 __all__ = [
     "ActiveTenant",
     "RequireRole",
@@ -257,6 +273,7 @@ __all__ = [
     "get_current_business",
     "get_current_user",
     "oauth2_scheme",
+    "require_admin",
     "require_owner",
     "require_paid_tier",
     "require_writer",

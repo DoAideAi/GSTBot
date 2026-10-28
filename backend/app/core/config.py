@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     trust_proxy_headers: bool = False
     hsts_enabled: bool = False
 
+    # ---- Operators ----
+    # Comma-separated sign-in emails allowed to read site-wide data such as the
+    # feedback inbox. Empty means nobody can: there is no platform-admin role,
+    # and every registered user owns a business, so "signed in" is not enough.
+    admin_emails: str = ""
+
     # ---- Security / JWT ----
     jwt_secret: str = _DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
