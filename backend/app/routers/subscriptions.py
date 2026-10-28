@@ -203,8 +203,14 @@ def cancel_subscription(
             detail=f"Subscription is already {sub.status.value}.",
         )
     old_tier = sub.tier
-    if sub.razorpay_subscription_id and razorpay_client.is_configured():
-        result = razorpay_client.cancel_subscription(sub.razorpay_subscription_id)
+    # Only a Razorpay *subscription* has anything to cancel at the provider.
+    # Checkout is a one-time order, and ``verify_payment`` stores the payment id
+    # (``pay_…``) in this column — calling /subscriptions/pay_…/cancel was
+    # refused every time, so every paying business that tried to cancel got a
+    # 502 "try again" that no retry could ever get past.
+    provider_id = sub.razorpay_subscription_id or ""
+    if provider_id.startswith("sub_") and razorpay_client.is_configured():
+        result = razorpay_client.cancel_subscription(provider_id)
         if result is None:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

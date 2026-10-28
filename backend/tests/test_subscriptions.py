@@ -249,6 +249,30 @@ class TestCancelSubscription:
         assert data["tier"] == "free"
         assert data["status"] == "cancelled"
 
+    def test_a_one_time_payment_cancels_without_asking_razorpay(
+        self, auth_client, db_session, business
+    ):
+        """Checkout stores a payment id; there is no provider subscription to end."""
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.ACTIVE,
+            razorpay_subscription_id="pay_onetime123",
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        with (
+            patch.object(razorpay_client, "is_configured", return_value=True),
+            patch.object(razorpay_client, "cancel_subscription", return_value=None) as cancel,
+        ):
+            response = auth_client.post("/api/v1/subscriptions/cancel")
+        assert response.status_code == 200, response.text
+        cancel.assert_not_called()
+        db_session.refresh(sub)
+        assert sub.tier == SubscriptionTier.FREE
+        assert sub.status == SubscriptionStatus.CANCELLED
+
     def test_razorpay_failure_blocks_local_cancel(
         self, auth_client, db_session, business
     ):
