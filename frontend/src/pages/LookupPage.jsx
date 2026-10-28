@@ -83,11 +83,12 @@ export default function LookupPage() {
   const abortRef = useRef(null);
 
   const lookup = useCallback(
-    async (gstin) => {
+    async (gstin, { fromForm = false } = {}) => {
       const cleaned = normalizeGstin(gstin);
       if (!cleaned || cleaned.length < 2) {
         setResult(null);
-        setError("");
+        // Pressing Verify on an empty box used to do nothing at all.
+        setError(fromForm ? "Enter a 15-character GSTIN, e.g. 27AAPFU0939F1ZV." : "");
         return;
       }
 
@@ -97,6 +98,10 @@ export default function LookupPage() {
 
       setLoading(true);
       setError("");
+      // The last answer is about a different number: leaving "Valid GSTIN"
+      // up while this one is checked — or next to its error — reads as this
+      // number's verdict.
+      setResult(null);
       try {
         const data = await api.validateGstin(cleaned);
         if (controller.signal.aborted) return;
@@ -107,7 +112,12 @@ export default function LookupPage() {
         }
       } catch (err) {
         if (err?.name !== "AbortError") {
-          setError("Could not reach the server. Try again.");
+          // An HTTP refusal carries its own sentence (a rate limit says to
+          // wait); "could not reach the server" was only ever true of the
+          // request that never got an answer.
+          setError(
+            err?.status ? err.message : "Could not reach the server. Try again.",
+          );
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -122,7 +132,7 @@ export default function LookupPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    lookup(input);
+    lookup(input, { fromForm: true });
   };
 
   return (
@@ -145,7 +155,7 @@ export default function LookupPage() {
           </p>
 
           <div className="calc-card">
-            <form onSubmit={handleSubmit} className="lookup-form">
+            <form onSubmit={handleSubmit} className="lookup-form" aria-busy={loading}>
               <label className="calc-label">
                 Enter GSTIN
                 <input
@@ -167,9 +177,11 @@ export default function LookupPage() {
 
             {error && <p className="lookup-error" role="alert">{error}</p>}
 
-            {result && (
-              <div className="lookup-result" aria-live="polite">
-                {result.valid ? (
+            {/* Always in the tree: a live region that appears together with
+                its content is not announced, so the first verdict was silent
+                to a screen reader. */}
+            <div className={result ? "lookup-result" : undefined} aria-live="polite">
+              {result && (result.valid ? (
                   <>
                     <div className="lookup-badge lookup-valid">Valid GSTIN</div>
                     <dl className="lookup-details">
@@ -187,10 +199,9 @@ export default function LookupPage() {
                   </>
                 ) : (
                   <div className="lookup-badge lookup-invalid">Invalid GSTIN</div>
-                )}
-                {result.error && <p className="lookup-reason">{result.error}</p>}
-              </div>
-            )}
+                ))}
+              {result?.error && <p className="lookup-reason">{result.error}</p>}
+            </div>
           </div>
 
           <RecentLookups />
@@ -213,7 +224,7 @@ export default function LookupPage() {
             <h3>Why Verify a GSTIN?</h3>
             <p>
               A wrong GSTIN on a purchase invoice is the most common reason ITC goes unclaimed.
-              The invoice shows up as "missing at supplier's end" in GSTR-2B, and the credit
+              The invoice shows up as &ldquo;missing at supplier&rsquo;s end&rdquo; in GSTR-2B, and the credit
               you paid for never arrives. Verifying at the point of entry catches typos before
               they cost money.
             </p>

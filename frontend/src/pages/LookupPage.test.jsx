@@ -91,6 +91,56 @@ describe("LookupPage", () => {
     expect(await screen.findByText(/Could not reach the server/)).toBeInTheDocument();
   });
 
+  it("says what the server said when it refused, rather than blaming the network", async () => {
+    const refused = Object.assign(new Error("Too many requests (429). Please wait a moment and try again."), {
+      status: 429,
+    });
+    mockValidateGstin.mockRejectedValue(refused);
+    renderLookup();
+
+    await userEvent.type(screen.getByPlaceholderText(/27AAPFU0939F1ZV/), "27AAPFU0939F1ZV");
+    await userEvent.click(screen.getByText("Verify GSTIN"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/too many requests/i);
+    expect(screen.queryByText(/could not reach the server/i)).not.toBeInTheDocument();
+  });
+
+  it("asks for a GSTIN when Verify is pressed on an empty box", async () => {
+    mockValidateGstin.mockClear();
+    renderLookup();
+    await userEvent.click(screen.getByText("Verify GSTIN"));
+    expect(screen.getByRole("alert")).toHaveTextContent(/enter a 15-character gstin/i);
+    expect(mockValidateGstin).not.toHaveBeenCalled();
+  });
+
+  it("does not leave the last verdict up while, or after, checking another number", async () => {
+    mockValidateGstin.mockResolvedValueOnce({
+      valid: true,
+      gstin: "27AAPFU0939F1ZV",
+      state_code: "27",
+      state_name: "Maharashtra",
+      pan: "AAPFU0939F",
+    });
+    renderLookup();
+    const box = screen.getByPlaceholderText(/27AAPFU0939F1ZV/);
+    await userEvent.type(box, "27AAPFU0939F1ZV");
+    await userEvent.click(screen.getByText("Verify GSTIN"));
+    expect(await screen.findByText("Valid GSTIN")).toBeInTheDocument();
+
+    mockValidateGstin.mockRejectedValueOnce(new Error("offline"));
+    await userEvent.clear(box);
+    await userEvent.type(box, "29AAACB1234C1Z5");
+    await userEvent.click(screen.getByText("Verify GSTIN"));
+
+    expect(await screen.findByText(/could not reach the server/i)).toBeInTheDocument();
+    expect(screen.queryByText("Valid GSTIN")).not.toBeInTheDocument();
+  });
+
+  it("keeps the result region in the page so its first verdict is announced", () => {
+    const { container } = renderLookup();
+    expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
+  });
+
   it("renders the info section about GSTIN format", () => {
     renderLookup();
 
