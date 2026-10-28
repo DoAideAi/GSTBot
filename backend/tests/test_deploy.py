@@ -111,7 +111,7 @@ SITE = "gst.doaide.com"
 BRIDGE = "172.18.0.1"
 # The Caddy container's own address on that bridge — the only peer whose
 # X-Forwarded-* the API honours.
-EDGE = "172.18.0.6"
+EDGE = "172.18.0.13"
 
 # Where the tree lives on the server.
 INSTALL_ROOT = "/opt/GSTBot"

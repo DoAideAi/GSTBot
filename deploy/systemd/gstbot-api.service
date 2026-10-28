@@ -59,7 +59,7 @@ ExecStart=/opt/GSTBot/.venv/bin/uvicorn app.main:app \
     --host 172.18.0.1 \
     --port 3008 \
     --proxy-headers \
-    --forwarded-allow-ips=172.18.0.6 \
+    --forwarded-allow-ips=172.18.0.13 \
     --workers ${WEB_CONCURRENCY}
 
 ExecReload=/bin/kill -HUP $MAINPID
