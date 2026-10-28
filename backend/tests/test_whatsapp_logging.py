@@ -49,6 +49,9 @@ class TestInvalidSignatureLogging:
         response = client.post(
             "/api/v1/whatsapp/webhook",
             data={"From": "+911234567890", "Body": "test"},
-            headers={"X-Twilio-Signature": "bad-sig", "content-type": "application/x-www-form-urlencoded"},
+            headers={
+                "X-Twilio-Signature": "bad-sig",
+                "content-type": "application/x-www-form-urlencoded",
+            },
         )
         assert response.status_code == 403

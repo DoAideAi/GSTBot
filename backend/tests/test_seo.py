@@ -150,8 +150,10 @@ class TestOgImage:
                 raise OSError("not found")
             return _real_truetype(*args, **kwargs)
 
-        with patch("app.routers.seo.ImageFont.truetype", side_effect=_reject_dejavu):
-            with caplog.at_level(logging.WARNING, logger="app.routers.seo"):
-                png = _render_og_image("Fallback test")
+        with (
+            patch("app.routers.seo.ImageFont.truetype", side_effect=_reject_dejavu),
+            caplog.at_level(logging.WARNING, logger="app.routers.seo"),
+        ):
+            png = _render_og_image("Fallback test")
         assert isinstance(png, bytes)
         assert "DejaVu fonts not found" in caplog.text
