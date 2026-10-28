@@ -146,6 +146,86 @@ class TestReparseGuards:
         assert resp.status_code == 200
 
 
+    @staticmethod
+    def _claimed_after_the_check(monkeypatch, db, new_status):
+        """Load the row as the route does, then write a new status beneath the
+        session, so the instance the route holds is stale as it would be after
+        another request committed in the window between the read and the claim."""
+        from app.routers import invoices as router
+
+        real = router._owned_invoice
+
+        def owned_then_raced(db_, business_, invoice_id):
+            invoice = real(db_, business_, invoice_id)
+            db_.execute(
+                update(Invoice)
+                .where(Invoice.id == invoice_id)
+                .values(status=new_status)
+                .execution_options(synchronize_session=False)
+            )
+            return invoice
+
+        monkeypatch.setattr(router, "_owned_invoice", owned_then_raced)
+
+    def test_a_reparse_that_loses_the_claim_does_not_parse(
+        self, monkeypatch, auth_client, db_session, business
+    ):
+        from app.services import invoice_service
+
+        inv = _upload(db_session, business, status=InvoiceStatus.PARSED)
+        parses = []
+        monkeypatch.setattr(
+            invoice_service, "process_invoice", lambda *a, **kw: parses.append(a)
+        )
+        self._claimed_after_the_check(monkeypatch, db_session, InvoiceStatus.PROCESSING)
+
+        resp = auth_client.post(f"/api/v1/invoices/{inv.id}/reparse")
+
+        assert resp.status_code == 409
+        assert "currently being processed" in resp.text.lower()
+        assert parses == []
+
+    def test_a_row_that_moved_status_since_it_was_read_is_not_claimed(
+        self, monkeypatch, auth_client, db_session, business
+    ):
+        # The auto-parse finished between the read and the claim: the row the
+        # reviewer asked about is no longer the one they saw, so nothing is
+        # re-extracted over it.
+        from app.services import invoice_service
+
+        inv = _upload(db_session, business, status=InvoiceStatus.UPLOADED)
+        parses = []
+        monkeypatch.setattr(
+            invoice_service, "process_invoice", lambda *a, **kw: parses.append(a)
+        )
+        self._claimed_after_the_check(monkeypatch, db_session, InvoiceStatus.PARSED)
+
+        assert auth_client.post(f"/api/v1/invoices/{inv.id}/reparse").status_code == 409
+        assert parses == []
+
+    def test_a_claimed_reparse_leaves_the_queued_auto_parse_nothing_to_do(
+        self, monkeypatch, auth_client, db_session, business
+    ):
+        from app.tasks import invoice_tasks
+
+        class _Shared:
+            def __getattr__(self, name):
+                return getattr(db_session, name)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(invoice_tasks, "SessionLocal", _Shared)
+
+        inv = _upload(db_session, business, status=InvoiceStatus.UPLOADED)
+        inv.raw_text = "Invoice No: INV-SM-1\nTotal: 11800"
+        db_session.commit()
+
+        assert auth_client.post(f"/api/v1/invoices/{inv.id}/reparse").status_code == 200
+        outcome = invoice_tasks.parse_invoice_task(inv.id)
+
+        assert outcome["skipped"] is True
+
 # -----------------------------------------------------------------------
 # Correction of reconciled fields withdraws the verdict
 # -----------------------------------------------------------------------

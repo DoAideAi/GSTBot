@@ -5,7 +5,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -788,7 +788,25 @@ def reparse_invoice(
                 "GSTIN, or delete one of the two copies."
             ),
         )
-    if invoice.status == InvoiceStatus.PROCESSING:
+    # The check above is a read, and this is the claim. ``process_invoice``
+    # writes ``processing`` unconditionally, so two reparses of one row — a
+    # double-click, or the owner and their CA at once — both passed the check
+    # and both ran the model over the same file, and a reparse of a row still
+    # ``uploaded`` raced the queued auto-parse the same way. Only the request
+    # that moves the row out of the status it was read in goes on to parse
+    # it; the task's own claim then sees ``processing`` and stands down.
+    claimed = invoice.status != InvoiceStatus.PROCESSING and db.execute(
+        update(Invoice)
+        .where(
+            Invoice.id == invoice.id,
+            Invoice.status == invoice.status,
+            Invoice.deleted_at.is_(None),
+        )
+        .values(status=InvoiceStatus.PROCESSING)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    db.commit()
+    if not claimed:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
