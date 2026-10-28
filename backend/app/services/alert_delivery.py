@@ -37,10 +37,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import Row, select, update
+from sqlalchemy import Row, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
@@ -184,7 +185,48 @@ def send_pending_alerts(db: Session, *, now: datetime | None = None) -> AlertEma
     if not settings.alerts_email_enabled or not settings.smtp_host:
         return AlertEmailResult()
 
-    now = now or datetime.now(UTC)
+    with _sole_run(db) as alone:
+        if not alone:
+            logger.info("Alert email digest already running elsewhere; skipping")
+            return AlertEmailResult()
+        return _send_pending_alerts(db, now=now or datetime.now(UTC))
+
+
+# Arbitrary, and the one-argument form, so it cannot meet the two-key
+# per-business locks taken elsewhere in this database.
+_DIGEST_LOCK_KEY = 7_365_401
+
+
+@contextmanager
+def _sole_run(db: Session) -> Iterator[bool]:
+    """Yield whether this is the only digest run in progress.
+
+    The task is acks_late, so a redelivery, a retry or a run started by hand
+    can overlap one already sending. Both read the same pending alerts before
+    either stamps them, and each emailed the same digest. A per-tenant row lock
+    would close that too, but it is a read per tenant, which this module
+    deliberately has none of.
+
+    A session-level advisory lock on a connection of its own: the run commits
+    per business, and the session's connection can go back to the pool at each
+    commit, taking a lock held on it along. ``try`` rather than wait, because
+    the overlapping run is doing this run's work already. Postgres releases it
+    if the process dies. SQLite has one writer and no advisory locks.
+    """
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        yield True
+        return
+    with bind.connect() as conn:
+        acquired = bool(conn.scalar(select(func.pg_try_advisory_lock(_DIGEST_LOCK_KEY))))
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                conn.scalar(select(func.pg_advisory_unlock(_DIGEST_LOCK_KEY)))
+
+
+def _send_pending_alerts(db: Session, *, now: datetime) -> AlertEmailResult:
 
     # Which tenants have something to send, answered out of
     # ``ix_alerts_status_business`` alone — see
