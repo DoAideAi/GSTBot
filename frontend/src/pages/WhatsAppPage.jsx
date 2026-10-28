@@ -44,35 +44,16 @@ const WHATSAPP_LINK = WHATSAPP_NUMBER
   ? `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, "")}?text=hi`
   : "";
 
-function QRPlaceholder() {
+/**
+ * For a reader on a computer. This was a drawn QR icon labelled "Scan QR code
+ * to start chatting" — a picture of a code, which a phone camera cannot scan.
+ * Until a real code is generated, it says what to do instead.
+ */
+function DesktopHint({ number }) {
   return (
-    <div
-      style={{
-        width: 200,
-        height: 200,
-        border: "2px dashed var(--border-color, #d1d5db)",
-        borderRadius: 12,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexDirection: "column",
-        gap: 8,
-        color: "var(--text-muted, #6b7280)",
-        fontSize: 13,
-        textAlign: "center",
-        padding: 16,
-      }}
-    >
-      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="4" height="4" rx="0.5" />
-        <line x1="21" y1="14" x2="21" y2="21" />
-        <line x1="14" y1="21" x2="21" y2="21" />
-      </svg>
-      <span>Scan QR code<br />to start chatting</span>
-    </div>
+    <p className="whatsapp-desktop-hint" style={{ color: "var(--text-muted, #6b7280)", fontSize: 14 }}>
+      On a computer? Open WhatsApp on your phone and send <strong>hi</strong> to {number}.
+    </p>
   );
 }
 
@@ -176,7 +157,7 @@ export default function WhatsAppPage() {
                 </button>
               </div>
 
-              <QRPlaceholder />
+              <DesktopHint number={WHATSAPP_NUMBER} />
             </>
           ) : (
             <div className="card" role="status" style={{ maxWidth: 560, margin: "0 auto 48px", padding: 24 }}>

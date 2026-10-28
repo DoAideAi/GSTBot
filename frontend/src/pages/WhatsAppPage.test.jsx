@@ -81,4 +81,12 @@ describe("WhatsAppPage", () => {
       expect(screen.getByText("Copy Number")).toBeInTheDocument();
     });
   });
+
+  it("does not show a picture of a QR code that cannot be scanned", async () => {
+    await renderWith("+91 98765 43210");
+    expect(screen.queryByText(/scan qr code/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/On a computer\?/)).toHaveTextContent(
+      "On a computer? Open WhatsApp on your phone and send hi to +91 98765 43210.",
+    );
+  });
 });
