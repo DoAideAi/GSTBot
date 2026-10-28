@@ -128,6 +128,26 @@ class CorrelationIdFilter(logging.Filter):
         return True
 
 
+class AccessQueryFilter(logging.Filter):
+    """Drop the query string from uvicorn's access lines.
+
+    uvicorn logs ``full_path``, query included, and some of our URLs carry a
+    credential there: the unsubscribe link's token, Meta's
+    ``hub.verify_token`` and the OAuth callback's ``code`` and ``state``. A
+    key-based redaction cannot see inside a formatted path, so the query goes
+    entirely — the app's own access line already logs the path alone.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) >= 3:
+            path = record.args[2]
+            if isinstance(path, str) and "?" in path:
+                args = list(record.args)
+                args[2] = path.split("?", 1)[0]
+                record.args = tuple(args)
+        return True
+
+
 def _redact(key: str, value: Any) -> Any:
     return _REDACTED if key.lower() in _REDACTED_KEYS else value
 
@@ -193,6 +213,7 @@ def configure_logging(level: str = "INFO", fmt: str = "console") -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter() if fmt.lower() == "json" else ConsoleFormatter())
     handler.addFilter(CorrelationIdFilter())
+    handler.addFilter(AccessQueryFilter())
 
     root.addHandler(handler)
     root.setLevel(level.upper())

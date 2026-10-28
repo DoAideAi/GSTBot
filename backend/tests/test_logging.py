@@ -13,6 +13,7 @@ import logging
 import pytest
 
 from app.core.logging import (
+    AccessQueryFilter,
     ConsoleFormatter,
     CorrelationIdFilter,
     JsonFormatter,
@@ -333,3 +334,48 @@ class TestIdentifiersAreMaskedWhereverTheyAppear:
     )
     def test_ids_that_merely_share_the_alphabet_are_left_alone(self, text):
         assert json.loads(JsonFormatter().format(_record(note=text)))["note"] == text
+
+
+class TestAccessQueryFilter:
+    """uvicorn's access line logs the full path, and some queries are credentials."""
+
+    def _access(self, full_path: str) -> logging.LogRecord:
+        # The shape uvicorn.protocols.http emits: client, method, path, version, status.
+        return logging.LogRecord(
+            name="uvicorn.access", level=logging.INFO, pathname=__file__, lineno=1,
+            msg='%s - "%s %s HTTP/%s" %d',
+            args=("1.2.3.4:5678", "GET", full_path, "1.1", 200), exc_info=None,
+        )
+
+    @pytest.mark.parametrize(
+        "full_path",
+        [
+            "/api/v1/unsubscribe?email=a%40b.in&token=" + "f" * 64,
+            "/api/v1/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=s3cr3t&hub.challenge=1",
+            "/api/v1/auth/oauth/google/callback?code=4%2F0Abc&state=xyz",
+        ],
+    )
+    def test_the_query_is_dropped_and_the_path_kept(self, full_path):
+        record = self._access(full_path)
+        assert AccessQueryFilter().filter(record) is True
+        line = record.getMessage()
+        assert "?" not in line
+        assert full_path.split("?")[0] in line
+        for secret in ("f" * 64, "s3cr3t", "4%2F0Abc", "xyz", "a%40b.in"):
+            assert secret not in line
+
+    def test_a_path_without_a_query_is_untouched(self):
+        record = self._access("/api/v1/health")
+        AccessQueryFilter().filter(record)
+        assert record.args[2] == "/api/v1/health"
+
+    def test_other_loggers_are_left_alone(self):
+        record = _record()
+        record.args = ("a?b",)
+        AccessQueryFilter().filter(record)
+        assert record.args == ("a?b",)
+
+    def test_configure_logging_installs_it(self):
+        configure_logging("INFO", "json")
+        handler = logging.getLogger().handlers[0]
+        assert any(isinstance(f, AccessQueryFilter) for f in handler.filters)
