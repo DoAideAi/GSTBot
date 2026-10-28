@@ -1,27 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { calculateInterest, calculateLateFee } from "../../lib/gstPenalties";
 
 const RETURN_TYPES = [
-  { value: "gstr1", label: "GSTR-1", nilPerDay: 10, regularPerDay: 50, maxCap: 5000, nilMaxCap: 1000 },
-  { value: "gstr3b", label: "GSTR-3B", nilPerDay: 10, regularPerDay: 50, maxCap: 5000, nilMaxCap: 1000 },
-  { value: "gstr9", label: "GSTR-9 (Annual)", nilPerDay: 10, regularPerDay: 200, maxCap: null, nilMaxCap: null },
-  { value: "gstr4", label: "GSTR-4 (Composition)", nilPerDay: 10, regularPerDay: 50, maxCap: 2000, nilMaxCap: 500 },
+  { value: "gstr1", label: "GSTR-1" },
+  { value: "gstr3b", label: "GSTR-3B" },
+  { value: "gstr9", label: "GSTR-9 (Annual)" },
+  { value: "gstr4", label: "GSTR-4 (Composition)" },
 ];
 
-function calcPenalty(returnType, daysLate, isNil, taxableAmount) {
-  const rt = RETURN_TYPES.find((r) => r.value === returnType);
-  if (!rt || daysLate <= 0) return { lateFee: 0, interest: 0, total: 0 };
-  const perDay = isNil ? rt.nilPerDay : rt.regularPerDay;
-  let lateFee = perDay * daysLate;
-  const cap = isNil ? rt.nilMaxCap : rt.maxCap;
-  if (cap !== null && lateFee > cap) lateFee = cap;
-  if (returnType === "gstr9" && cap === null) {
-    const turnoverCap = Math.round(taxableAmount * 0.0025 * 100) / 100;
-    if (turnoverCap > 0 && lateFee > turnoverCap) lateFee = turnoverCap;
-  }
-  const interest = Math.round(taxableAmount * 0.18 * (daysLate / 365) * 100) / 100;
-  return { lateFee, interest, total: lateFee + interest };
+// The same rules as the full calculators, not a copy of them: a table kept
+// here drifted to ₹10/day nil fees and a flat ₹5,000 cap, and took the GSTR-9
+// cap from the tax amount rather than the turnover it is a share of.
+function calcPenalty(returnType, daysLate, isNil, taxAmount, turnover = 0) {
+  if (daysLate <= 0) return { lateFee: 0, interest: 0, total: 0 };
+  const { fee } = calculateLateFee(returnType, daysLate, { nil: isNil, aato: turnover });
+  // A nil return has no tax to be late with.
+  const interest = isNil ? 0 : calculateInterest(taxAmount, daysLate);
+  return { lateFee: fee, interest, total: fee + interest };
 }
 
 function MiniCalculator() {
@@ -29,8 +26,11 @@ function MiniCalculator() {
   const [daysLate, setDaysLate] = useState("");
   const [isNil, setIsNil] = useState(false);
   const [taxAmount, setTaxAmount] = useState("");
+  const [turnover, setTurnover] = useState("");
 
-  const result = calcPenalty(returnType, parseInt(daysLate) || 0, isNil, parseFloat(taxAmount) || 0);
+  const result = calcPenalty(
+    returnType, parseInt(daysLate) || 0, isNil, parseFloat(taxAmount) || 0, parseFloat(turnover) || 0,
+  );
 
   return (
     <div className="calc-card" style={{ marginTop: "1rem" }}>
@@ -49,6 +49,10 @@ function MiniCalculator() {
         <label className="calc-label">
           Unpaid Tax Amount (₹)
           <input type="number" className="calc-input" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} placeholder="For interest calculation" min="0" inputMode="decimal" />
+        </label>
+        <label className="calc-label">
+          Previous Year Turnover (₹)
+          <input type="number" className="calc-input" value={turnover} onChange={(e) => setTurnover(e.target.value)} placeholder="Sets the late fee cap" min="0" inputMode="decimal" />
         </label>
         <label className="calc-label" style={{ display: "flex", alignItems: "center", gap: "0.5rem", paddingTop: "1.5rem" }}>
           <input type="checkbox" checked={isNil} onChange={(e) => setIsNil(e.target.checked)} style={{ width: "18px", height: "18px" }} />

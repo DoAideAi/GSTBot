@@ -42,6 +42,43 @@ describe("GstLatePenaltyCalculator", () => {
     expect(results.length).toBeGreaterThan(0);
   });
 
+  const lateFee = () =>
+    [...document.querySelectorAll(".calc-result-row")]
+      .find((row) => row.textContent.startsWith("Late Fee"))
+      .querySelector("strong").textContent;
+
+  it("charges a nil return ₹20 a day, capped at ₹500", async () => {
+    renderArticle();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/Nil return/));
+    await user.type(screen.getByLabelText(/Days Late/), "20");
+    expect(lateFee()).toBe("₹400");
+    await user.clear(screen.getByLabelText(/Days Late/));
+    await user.type(screen.getByLabelText(/Days Late/), "30");
+    expect(lateFee()).toBe("₹500");
+  });
+
+  it("caps a GSTR-3B late fee by last year's turnover", async () => {
+    renderArticle();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Days Late/), "300");
+    expect(lateFee()).toBe("₹2,000");
+    await user.type(screen.getByLabelText(/Turnover/), "40000000");
+    expect(lateFee()).toBe("₹5,000");
+    await user.clear(screen.getByLabelText(/Turnover/));
+    await user.type(screen.getByLabelText(/Turnover/), "60000000");
+    expect(lateFee()).toBe("₹10,000");
+  });
+
+  it("charges no interest on a nil return", async () => {
+    renderArticle();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Unpaid Tax/), "100000");
+    await user.click(screen.getByLabelText(/Nil return/));
+    await user.type(screen.getByLabelText(/Days Late/), "10");
+    expect(document.querySelector(".calc-result .calc-total strong").textContent).toBe("₹200.00");
+  });
+
   it("renders FAQ section", () => {
     renderArticle();
     expect(screen.getByText("Frequently Asked Questions")).toBeInTheDocument();
