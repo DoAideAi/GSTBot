@@ -26,14 +26,15 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, Path, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy import func as sa_func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import metrics
 from app.core.config import settings
 from app.core.database import check_database, get_db, pool_status
-from app.core.deps import get_current_business, require_paid_tier
+from app.core.deps import get_current_business, require_admin, require_paid_tier
 from app.core.rate_limit import RateLimit
 from app.core.redis_client import get_redis, mark_unavailable
 from app.core.redis_client import ping as redis_ping
@@ -191,6 +192,34 @@ def health(response: Response, db: Session = Depends(get_db)) -> dict[str, Any]:
 )
 def liveness() -> dict[str, str]:
     return {"status": "alive", "app": settings.app_name, "version": settings.app_version}
+
+
+@router.get(
+    "/health/metrics",
+    summary="Request volume, error rate and latency per hour (admins only)",
+    description=(
+        "Counts for every answered request except health probes, across all "
+        "API workers, for the last `hours` UTC hours (oldest first) and in "
+        "total: requests by status class, requests slower than one second, "
+        "the 5xx error rate and the average response time. Kept for 48 hours.\n\n"
+        "Restricted to `ADMIN_EMAILS`: traffic volume is business information. "
+        "A 503 means Redis, where the counters live, cannot be reached."
+    ),
+    responses={
+        401: {"description": "Not signed in."},
+        403: {"description": "Signed in, but not a site administrator."},
+        503: {"description": "Redis is unavailable, so there are no counters to read."},
+    },
+    dependencies=[Depends(_ops_limit), Depends(require_admin)],
+)
+def request_metrics(hours: int = Query(default=24, ge=1, le=48)) -> dict[str, Any]:
+    result = metrics.summary(hours)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Request metrics are unavailable right now. Try again in a minute.",
+        )
+    return result
 
 
 @router.get(

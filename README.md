@@ -136,7 +136,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-90 routes under `/api/v1`. The generated reference is the authority — start the
+91 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -173,7 +173,7 @@ The surface, by area:
 | `gpt` | 7 | GPT Actions for ChatGPT: GSTIN, HSN, calculator, invoice data, filing dates, spec, privacy |
 | `whatsapp` | 2 | The WhatsApp bot's webhook and its verification handshake |
 | `seo` | 3 | `robots.txt`, the sitemap, share images |
-| `health` | 4 | `live`, `ready`, `/health`, `/health/jobs` |
+| `health` | 5 | `live`, `ready`, `/health`, `/health/jobs`; request metrics per hour (admins only) |
 
 Every response — a 404 from a route, a 422 from validation, a constraint
 violation from Postgres, or a bug — has one shape:

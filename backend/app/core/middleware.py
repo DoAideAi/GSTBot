@@ -16,6 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from app.core import metrics
 from app.core.config import settings
 from app.core.errors import error_body
 from app.core.headers import security_headers
@@ -126,6 +127,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
                 "%s %s failed", request.method, request.url.path,
                 extra=_line_fields(request, 500, duration_ms),
             )
+            metrics.record(500, duration_ms)
             raise
 
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
@@ -139,6 +141,9 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
 
         if request.url.path in _QUIET_PATHS and response.status_code < 400:
             return response
+        # After the quiet-path return, so a probe every few seconds does not
+        # dilute the error rate and average latency of real traffic.
+        metrics.record(response.status_code, duration_ms)
 
         level = logging.INFO
         if response.status_code >= 500:
