@@ -422,6 +422,17 @@ def cancel_subscription(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Subscription is already {sub.status.value}.",
         )
+    # A paid period that has run out is not a paid subscription. The DB still
+    # says ACTIVE/PRO because nothing wrote EXPIRED (one-time orders produce no
+    # Razorpay webhook to do it), and the schema validator synthesises "expired"
+    # for the API response. Cancelling it would move the row from ACTIVE to
+    # CANCELLED, making resubscription harder (_order_postdates) for something
+    # the business no longer has.
+    if sub.lapsed():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active paid subscription to cancel.",
+        )
     old_tier = sub.tier
     # Only a Razorpay *subscription* has anything to cancel at the provider.
     # Checkout is a one-time order, and ``verify_payment`` stores the payment id
