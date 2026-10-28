@@ -119,7 +119,16 @@ def _configured_client(provider: str) -> Any:
 async def _start_login(request: Request, provider: str) -> Any:
     """Redirect to *provider*'s consent screen."""
     client = _configured_client(provider)
-    return await client.authorize_redirect(request, _callback_url(provider))
+    # Google and Microsoft are registered by discovery URL, so building this
+    # redirect fetches the provider's metadata first. With the provider (or
+    # this box's outbound network) unreachable that raised out of here as a
+    # bare JSON 500 in the browser tab, where the callbacks already send the
+    # user back to the login page. Same treatment here.
+    try:
+        return await client.authorize_redirect(request, _callback_url(provider))
+    except Exception:
+        logger.exception("OAuth sign-in could not start", extra={"provider": provider})
+        return _login_error(f"{provider}_auth_failed")
 
 
 def _login_error(code: str) -> RedirectResponse:
