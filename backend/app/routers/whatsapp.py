@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 from typing import Any
 from urllib.parse import urljoin
 
@@ -27,6 +28,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.core.config import settings
 from app.core.rate_limit import RateLimit
+from app.core.sanitize import strip_control_chars
 from app.services.whatsapp import format_response, parse_message
 
 logger = logging.getLogger(__name__)
@@ -203,7 +205,12 @@ async def receive_message(request: Request) -> Response:
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    if not body:
+    # What the user typed is echoed back in the reply ("No codes found for
+    # *...*"). Control characters in it made the TwiML invalid XML, and a long
+    # message made a reply Twilio refuses (1,600 characters at most) — either
+    # way the user got nothing back. Neither has any meaning to the parser.
+    body = strip_control_chars(body, keep_newlines=True)[:MAX_INBOUND_CHARS]
+    if not body.strip():
         body = "hi"
 
     parsed = parse_message(body)
@@ -216,7 +223,7 @@ async def receive_message(request: Request) -> Response:
         },
     )
 
-    reply_text = format_response(parsed)
+    reply_text = _fit(format_response(parsed))
 
     if is_twilio:
         # Twilio expects TwiML.
@@ -235,7 +242,28 @@ async def receive_message(request: Request) -> Response:
     )
 
 
+# Longest inbound text worth reading: any real query is a few words, and the
+# reply echoes it back.
+MAX_INBOUND_CHARS = 1000
+
+# Twilio refuses a WhatsApp message body over 1,600 characters, so a longer
+# reply is not delivered at all.
+MAX_REPLY_CHARS = 1600
+
+# Characters XML 1.0 does not allow in a document at all, escaped or not.
+_XML_ILLEGAL = re.compile("[^\t\n\r\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+
+
+def _fit(reply: str) -> str:
+    if len(reply) <= MAX_REPLY_CHARS:
+        return reply
+    return reply[: MAX_REPLY_CHARS - 1].rstrip() + "…"
+
+
 def _escape_xml(text: str) -> str:
+    # Dropped before escaping: entity-escaping cannot make these legal, and one
+    # of them leaves Twilio a document it cannot parse.
+    text = _XML_ILLEGAL.sub("", text)
     return (
         text.replace("&", "&amp;")
         .replace("<", "&lt;")
