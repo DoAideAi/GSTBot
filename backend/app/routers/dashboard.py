@@ -23,6 +23,7 @@ from app.schemas.dashboard import (
     TaxBucket,
 )
 from app.services import gst_calendar, invoice_service, reconciliation
+from app.services import itc as itc_service
 from app.services import late_fee as late_fee_service
 from app.services.gst_calendar import gstr1_due_date, gstr3b_due_date
 
@@ -66,19 +67,24 @@ def _net_liability(sales: TaxBucket, credit: TaxBucket) -> NetLiability:
     never charged — and the shortfall landed on the one figure the landing
     screen exists to give: how much has to be paid this month.
 
-    Floored because a head where credit exceeds liability produces a carried-
-    forward balance, not a refund the business can spend — showing it as a
-    negative "liability" would read as money coming back this month.
+    Never negative, because credit beyond liability is carried forward, not
+    a refund the business can spend this month.
+
+    Set off in the statutory order rather than head against head. Credit
+    crosses heads — IGST settles CGST and SGST, and each of those settles
+    IGST — so netting each head on its own reported ₹2,000 to pay against
+    ₹1,000 each of CGST and SGST liability when ₹2,000 of IGST credit settles
+    all of it. :func:`app.services.itc.set_off` is the order GSTR-3B pays in.
     """
+    def heads(bucket: TaxBucket) -> itc_service.TaxHeads:
+        return itc_service.TaxHeads(
+            igst=bucket.igst, cgst=bucket.cgst, sgst=bucket.sgst, cess=bucket.cess
+        )
 
-    def _net(out_tax: Decimal, in_tax: Decimal) -> Decimal:
-        return max(Decimal("0.00"), out_tax - in_tax)
-
-    cgst = _net(sales.cgst, credit.cgst)
-    sgst = _net(sales.sgst, credit.sgst)
-    igst = _net(sales.igst, credit.igst)
-    cess = _net(sales.cess, credit.cess)
-    return NetLiability(cgst=cgst, sgst=sgst, igst=igst, cess=cess, total=cgst + sgst + igst + cess)
+    cash = itc_service.set_off(heads(credit), heads(sales)).cash_payable
+    return NetLiability(
+        cgst=cash.cgst, sgst=cash.sgst, igst=cash.igst, cess=cash.cess, total=cash.total
+    )
 
 
 @router.get(

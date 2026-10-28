@@ -6,7 +6,8 @@ from decimal import Decimal
 
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.reconciliation_run import ReconciliationRun, ReconciliationStatus
-from app.routers.dashboard import _previous_periods
+from app.routers.dashboard import _net_liability, _previous_periods
+from app.schemas.dashboard import TaxBucket
 from tests.conftest import BUSINESS_GSTIN, SUPPLIER_GSTIN_OTHER_STATE
 
 
@@ -800,3 +801,21 @@ class TestTaxSummariesAgreesWithTaxSummary:
         batched = invoice_service.tax_summaries(db_session, business.id, ["2026-04"])
 
         assert batched["2026-04"]["sales"]["count"] == 0
+
+
+def test_the_net_liability_card_sets_credit_off_across_heads():
+    """IGST credit settles CGST and SGST; head-by-head netting said ₹2,000 to pay."""
+    sales = TaxBucket(cgst=Decimal("1000"), sgst=Decimal("1000"))
+    credit = TaxBucket(igst=Decimal("2000"))
+
+    net = _net_liability(sales, credit)
+
+    assert net.total == Decimal("0.00")
+    assert (net.cgst, net.sgst, net.igst) == (Decimal("0.00"),) * 3
+
+
+def test_the_net_liability_card_never_lets_cgst_credit_pay_sgst():
+    net = _net_liability(TaxBucket(sgst=Decimal("1000")), TaxBucket(cgst=Decimal("1000")))
+
+    assert net.sgst == Decimal("1000.00")
+    assert net.total == Decimal("1000.00")

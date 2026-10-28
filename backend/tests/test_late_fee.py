@@ -298,14 +298,12 @@ class TestEstimate:
             Decimal("9000.00"), result.days_late
         )
 
-    def test_credit_on_one_head_does_not_wipe_out_the_liability_on_another(
+    def test_cgst_and_sgst_credit_settle_igst_liability_before_interest(
         self, db_session, business, frozen_today
     ):
-        # Netting is per head and floored there, not over the total: a head
-        # where credit exceeds liability carries the excess forward rather
-        # than offsetting a different head. Summing first and flooring once
-        # would read this period as owing ₹8,000 in cash when the IGST due is
-        # ₹18,000 and the CGST/SGST credit is not available against it here.
+        # s.49(5)(b) and (c): CGST and SGST credit each settle IGST once their
+        # own head is clear. Netting head against head said this period paid
+        # ₹18,000 in cash and charged interest on it; the ledger pays ₹8,000.
         sale(db_session, business.id)  # IGST 18,000 out, nothing on CGST/SGST
         buy(
             db_session,
@@ -318,7 +316,17 @@ class TestEstimate:
         result = late_fee_service.estimate(
             db_session, business, PERIOD, ReturnType.GSTR3B
         )
-        assert result.net_tax_liability == Decimal("18000.00")
+        assert result.net_tax_liability == Decimal("8000.00")
+
+    def test_igst_credit_settles_cgst_and_sgst_liability_before_interest(self):
+        sales = {"igst": "0", "cgst": "1000", "sgst": "1000", "cess": "0"}
+        credit = {"igst": "2000", "cgst": "0", "sgst": "0", "cess": "0"}
+        assert late_fee_service._net_cash_liability(sales, credit) == Decimal("0.00")
+
+    def test_cgst_credit_still_cannot_pay_sgst(self):
+        sales = {"igst": "0", "cgst": "0", "sgst": "1000", "cess": "0"}
+        credit = {"igst": "0", "cgst": "1000", "sgst": "0", "cess": "0"}
+        assert late_fee_service._net_cash_liability(sales, credit) == Decimal("1000.00")
 
     def test_gstr1_carries_no_interest(self, db_session, business, frozen_today):
         sale(db_session, business.id)

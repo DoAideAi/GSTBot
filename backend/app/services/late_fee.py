@@ -37,6 +37,7 @@ from app.models.gstr_return import ReturnType
 from app.models.mixins import ZERO
 from app.services import filing as filing_service
 from app.services import gst_calendar, invoice_service
+from app.services import itc as itc_service
 
 # Section 50(1): 18% per annum, simple interest, on the tax paid late.
 INTEREST_RATE_PA = Decimal("0.18")
@@ -158,19 +159,22 @@ def late_fee(
 
 
 def _net_cash_liability(sales: dict, credit: dict) -> Decimal:
-    """Output tax less eligible credit, per head, floored at zero — then summed.
+    """What the period's GSTR-3B pays in cash: output tax after set-off.
 
     The same definition the dashboard's net-liability card uses (see
-    :func:`app.routers.dashboard._net_liability`): a head where credit exceeds
-    liability carries the excess forward rather than offsetting another head,
-    so flooring before the sum is load-bearing, not cosmetic. Interest is
-    charged on what was actually paid in cash, and that is this figure, not
-    output tax alone.
+    :func:`app.routers.dashboard._net_liability`), and both go through
+    :func:`app.services.itc.set_off`. Interest is charged on what was actually
+    paid in cash, so credit has to cross heads the way the ledger lets it:
+    IGST credit settles CGST and SGST, and each of those settles IGST. Netting
+    head against head charged 18% on ₹2,000 of CGST and SGST that ₹2,000 of
+    IGST credit had already paid.
     """
-    total = ZERO
-    for field in ("cgst", "sgst", "igst", "cess"):
-        total += max(ZERO, Decimal(sales[field]) - Decimal(credit[field]))
-    return total
+    def heads(bucket: dict) -> itc_service.TaxHeads:
+        return itc_service.TaxHeads(
+            **{head: Decimal(bucket[head]) for head in ("igst", "cgst", "sgst", "cess")}
+        )
+
+    return itc_service.set_off(heads(credit), heads(sales)).total_cash
 
 
 @dataclass(frozen=True)
