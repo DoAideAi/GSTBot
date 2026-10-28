@@ -14,6 +14,9 @@ and real set of problems:
   header, and neither should ever see ``../``.
 * **Spreadsheet formulas.** A field that starts with ``=`` is a formula to
   Excel, not a trade name, and the CSV exports are opened in Excel by design.
+* **Unpaired surrogates.** JSON may spell half a UTF-16 pair, and Python
+  parses it as written. UTF-8 cannot encode it, so one stored in a row breaks
+  every response that serialises the row, and Postgres refuses the INSERT.
 """
 from __future__ import annotations
 
@@ -159,3 +162,25 @@ def safe_extension(filename: str | None, *, max_length: int = 10) -> str:
         return ""
     suffix = filename.rsplit(".", 1)[-1][:max_length]
     return f".{suffix.lower()}" if suffix.isalnum() else ""
+
+
+def encodable(value):
+    """*value* with every unpaired UTF-16 surrogate replaced by U+FFFD.
+
+    Recurses through dicts and lists, so a whole parsed JSON document can be
+    passed. A valid pair is joined and kept; only the half that cannot be
+    written is replaced. Request bodies do not need this — pydantic refuses a
+    lone surrogate in a validated string — but JSON read out of a *file* or an
+    upstream reply never meets pydantic before it is stored.
+    """
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            return value.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+        return value
+    if isinstance(value, dict):
+        return {encodable(key): encodable(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [encodable(item) for item in value]
+    return value

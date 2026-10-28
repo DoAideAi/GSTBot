@@ -35,6 +35,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.core.logging import get_correlation_id
+from app.core.sanitize import encodable
 
 logger = logging.getLogger(__name__)
 
@@ -85,31 +86,9 @@ def error_body(
     }
     if fields:
         body["error"]["fields"] = fields
-    return _encodable(body)
-
-
-def _encodable(value: Any) -> Any:
-    """*value* with every unpaired UTF-16 surrogate replaced by U+FFFD.
-
-    JSON may spell ``"\\ud800"`` and Python parses it to a lone surrogate,
-    which UTF-8 cannot encode. An error body quotes what the caller sent — the
-    422's ``input``, a detail naming the period or file — and ``JSONResponse``
-    encodes to UTF-8 on the way out, so one escaped half-pair in any string
-    field turned the refusal of that field into a 500, on every route. Scrubbed
-    here because every handler's body is built here; a valid pair is joined
-    and kept, only the half that cannot be written is replaced.
-    """
-    if isinstance(value, str):
-        try:
-            value.encode("utf-8")
-        except UnicodeEncodeError:
-            return value.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
-        return value
-    if isinstance(value, dict):
-        return {_encodable(key): _encodable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_encodable(item) for item in value]
-    return value
+    # An error body quotes what the caller sent, and JSONResponse encodes to
+    # UTF-8: one escaped half-pair in a refused field was a 500 on every route.
+    return encodable(body)
 
 
 def _summarise(detail: Any) -> str:

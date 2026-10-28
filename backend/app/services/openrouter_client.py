@@ -44,6 +44,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.core.sanitize import encodable
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +133,11 @@ def extract_json_object(raw: str) -> dict[str, Any] | None:
         return None
     try:
         parsed = json.loads(text[start : end + 1])
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
         return None
-    return parsed if isinstance(parsed, dict) else None
+    # The reply echoes the uploaded document, so a half-pair escape in it is
+    # the document's, and would be stored on the invoice as written.
+    return encodable(parsed) if isinstance(parsed, dict) else None
 
 
 def image_data_url(content: bytes, content_type: str = "image/jpeg") -> str:

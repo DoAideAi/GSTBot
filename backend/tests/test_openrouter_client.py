@@ -204,6 +204,17 @@ class TestExtractJsonObject:
 # image_data_url
 # --------------------------------------------------------------------------
 
+class TestAReplyThatCannotBeStoredAsWritten:
+    def test_a_half_pair_escape_is_replaced_before_it_reaches_a_row(self):
+        # The reply echoes the uploaded document; stored as written, the lone
+        # surrogate broke every response that serialised the invoice.
+        parsed = extract_json_object('{"invoice_number": "A\\ud800B", "items": ["\\udc00"]}')
+        assert parsed == {"invoice_number": "A\ufffdB", "items": ["\ufffd"]}
+
+    def test_a_reply_nested_past_the_recursion_limit_is_no_object(self):
+        assert extract_json_object('{"a":' + "[" * 50_000 + "]" * 50_000 + "}") is None
+
+
 class TestImageDataUrl:
     def test_builds_a_data_url(self):
         assert image_data_url(b"abc", "image/png") == "data:image/png;base64,YWJj"

@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
+from app.core.sanitize import encodable
 from app.models.mixins import MONEY_MAX
 from app.services import gst_calendar
 from app.services import gstin as gstin_service
@@ -435,6 +436,9 @@ def parse_json(payload: dict | str | bytes) -> list[GSTR2BRecord]:
             "This file is not a GSTR-2B download. Upload the unmodified "
             "file from the GST portal."
         )
+    # An escaped half-pair in an invoice number or trade name was stored as
+    # written, and every later response that serialised the row was a 500.
+    payload = encodable(payload)
 
     docdata = _unwrap_docdata(payload)
     fallback_period = _statement_period(payload)

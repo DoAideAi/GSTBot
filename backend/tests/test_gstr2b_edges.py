@@ -729,3 +729,25 @@ class TestAFileThatIsNotAStatementIsRefusedNotCrashedOn:
 
     def test_the_addressee_check_survives_it_too(self):
         assert gstr2b.recipient_gstin(b"[" * 100_000, "x.json") is None
+
+
+class TestAHalfPairInTheFileIsNotStoredAsWritten:
+    """JSON may spell half a UTF-16 pair. Stored in an invoice number it made
+    every later response that serialised the row a 500 — reconciliation, the
+    invoice list — and on Postgres the import itself."""
+
+    def test_the_import_keeps_the_rest_of_the_value(self, auth_client):
+        payload = portal_json()
+        payload["data"]["docdata"]["b2b"][0]["inv"][0]["inum"] = "INV-\ud800-42"
+        response = upload_2b(auth_client, content=json.dumps(payload).encode())
+        assert response.status_code == 201, response.text
+        records = gstr2b.parse_json(json.dumps(payload))
+        assert records[0].invoice_number == "INV-\ufffd-42"
+
+    def test_reconciliation_still_runs_afterwards(self, auth_client):
+        payload = portal_json()
+        payload["data"]["docdata"]["b2b"][0]["trdnm"] = "Northwind \udfff"
+        payload["data"]["docdata"]["b2b"][0]["inv"][0]["inum"] = "INV-\ud800"
+        assert upload_2b(auth_client, content=json.dumps(payload).encode()).status_code == 201
+        run = auth_client.post("/api/v1/reconciliation/run", json={"period": PERIOD})
+        assert run.status_code == 201, run.text
