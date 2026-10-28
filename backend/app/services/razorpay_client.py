@@ -99,7 +99,8 @@ def verify_payment_signature(
     """Verify the Razorpay payment signature using HMAC-SHA256."""
     if not settings.razorpay_key_secret:
         logger.error(
-            "Payment signature verification skipped: RAZORPAY_KEY_SECRET not configured",
+            "Payment refused: RAZORPAY_KEY_SECRET is not configured, "
+            "so its signature cannot be checked",
             extra={"order_id": order_id},
         )
         return False
@@ -129,7 +130,8 @@ def verify_webhook_signature(body: bytes, signature: str) -> bool:
     secret = settings.razorpay_webhook_secret
     if not secret:
         logger.error(
-            "Webhook signature verification skipped: RAZORPAY_WEBHOOK_SECRET not configured"
+            "Webhook refused: RAZORPAY_WEBHOOK_SECRET is not configured, "
+            "so its signature cannot be checked"
         )
         return False
     expected = hmac.new(
