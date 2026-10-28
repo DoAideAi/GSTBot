@@ -84,6 +84,10 @@ class GSTR2BRecord:
     # invoice's own period: a 2B carries late filings from earlier months. Only
     # the portal JSON declares it; a CSV export does not carry it.
     statement_period: str | None = None
+    # On an amendment (b2ba, cdnra), the number of the document it amends.
+    # The buyer booked the original; when the supplier's correction changes
+    # the number, this is the only thing that ties the two together.
+    original_invoice_number: str | None = None
 
     def __post_init__(self) -> None:
         # A credit note's direction is its document type, not its sign — see
@@ -132,6 +136,7 @@ class GSTR2BRecord:
             "itc_available": self.itc_available,
             "reverse_charge": self.reverse_charge,
             "document_type": self.document_type,
+            "original_invoice_number": self.original_invoice_number,
             "supplier_filing_date": (
                 self.supplier_filing_date.isoformat() if self.supplier_filing_date else None
             ),
@@ -393,6 +398,12 @@ def _record_from_document(
         supplier_filing_date=to_date(supplier.get("supfildt")),
         supplier_filing_period=period_from_portal(supplier.get("supprd")),
         statement_period=fallback_period,
+        # ``oinum`` on an amended invoice, ``ontnum``/``ont_num`` on an amended
+        # note; absent everywhere else.
+        original_invoice_number=str(
+            document.get("oinum") or document.get("ontnum") or document.get("ont_num") or ""
+        ).strip()
+        or None,
     )
 
     for item in items:

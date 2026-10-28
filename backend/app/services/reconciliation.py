@@ -139,7 +139,7 @@ class Finding:
     invoice: Invoice | None = None
     record: GSTR2BRecord | None = None
     differences: list[Difference] = field(default_factory=list)
-    matched_on: str | None = None  # "exact" or "normalized"
+    matched_on: str | None = None  # "exact", "normalized" or "amended"
     note: str | None = None
     # True when the invoice was booked under a different period from the one
     # being reconciled, and this statement declares it late. Reported so the
@@ -374,6 +374,12 @@ def _carried_invoices(
     numbers: set[str] = set()
     gstins: set[str] = set()
     for record in records:
+        # An amendment names a document from an earlier month whatever its own
+        # date says — that is what amending is — so its original number is
+        # looked for even when the amended row itself is dated this period.
+        if record.original_invoice_number and record.supplier_gstin:
+            numbers.add(record.original_invoice_number.strip().upper())
+            gstins.add(record.supplier_gstin.upper())
         if record.period and record.period == period:
             continue
         if record.invoice_number:
@@ -498,6 +504,33 @@ def match(
         found = _take(loose_index, (gstin, normalize_invoice_number(invoice.invoice_number)))
         if found is not None:
             paired[index] = (invoice, found, "normalized")
+
+    # Last, the amendments: a b2ba row carries the supplier's corrected number
+    # and names the original in ``oinum``. A buyer who booked the original had
+    # no number to match it by, so the one invoice was reported twice — the
+    # booked original "missing in 2B", the amendment "missing in books". Tried
+    # only after every invoice has had its own-number attempts, so an original
+    # number can never take a row a booked invoice matches directly.
+    amended_exact: dict[tuple[str, str], list[GSTR2BRecord]] = {}
+    amended_loose: dict[tuple[str, str], list[GSTR2BRecord]] = {}
+    for record in records:
+        if record.original_invoice_number:
+            gstin = (record.supplier_gstin or "").upper()
+            original = record.original_invoice_number
+            amended_exact.setdefault((gstin, original.strip().upper()), []).append(record)
+            amended_loose.setdefault((gstin, normalize_invoice_number(original)), []).append(
+                record
+            )
+    if amended_exact:
+        for index, (invoice, record, _) in enumerate(paired):
+            if record is not None:
+                continue
+            gstin = (invoice.counterparty_gstin or "").upper()
+            found = _take(
+                amended_exact, (gstin, (invoice.invoice_number or "").strip().upper())
+            ) or _take(amended_loose, (gstin, normalize_invoice_number(invoice.invoice_number)))
+            if found is not None:
+                paired[index] = (invoice, found, "amended")
 
     # A carried invoice that found nothing was only ever a guess at what the
     # statement's out-of-period rows might be. Dropped rather than reported:
@@ -988,6 +1021,7 @@ def records_from_return(gstr_return: GSTRReturn) -> list[GSTR2BRecord]:
                 supplier_filing_date=to_date(row.get("supplier_filing_date")),
                 supplier_filing_period=row.get("supplier_filing_period"),
                 rate_items=row.get("rate_items") or [],
+                original_invoice_number=row.get("original_invoice_number"),
             )
         )
     return records

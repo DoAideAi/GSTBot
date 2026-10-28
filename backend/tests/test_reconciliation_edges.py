@@ -1467,3 +1467,82 @@ class TestAFailedRunsErrorLeaksNothingAboutTheServer:
 
         assert run.status is ReconciliationStatus.FAILED
         assert run.error == DATABASE_FAILURE_REASON
+
+
+class TestASupplierAmendmentFindsTheInvoiceItAmends:
+    """P17 M2: a b2ba row is a supplier's correction of an invoice from an
+    earlier month, with the original number in ``oinum``. The import dropped
+    that field, so when the correction changed the number the one invoice was
+    reported twice — the booked original "missing in 2B", the amendment
+    "missing in books"."""
+
+    def test_the_import_keeps_the_original_number(self):
+        import json
+
+        from app.services import gstr2b
+
+        statement = {
+            "data": {
+                "rtnprd": "042026",
+                "docdata": {
+                    "b2ba": [
+                        {
+                            "ctin": SUPPLIER_GSTIN_OTHER_STATE,
+                            "inv": [
+                                {
+                                    "oinum": "INV-OLD-7",
+                                    "oidt": "10-03-2026",
+                                    "inum": "INV-NEW-7",
+                                    "dt": "10-04-2026",
+                                    "val": 118,
+                                    "items": [{"rt": 18, "txval": 100, "igst": 18}],
+                                }
+                            ],
+                        }
+                    ]
+                },
+            }
+        }
+        (record,) = gstr2b.parse_json(json.dumps(statement))
+        assert record.invoice_number == "INV-NEW-7"
+        assert record.original_invoice_number == "INV-OLD-7"
+        assert record.as_dict()["original_invoice_number"] == "INV-OLD-7"
+
+    def test_a_renumbered_amendment_matches_the_booked_original(self):
+        result = reconciliation.match(
+            [book(invoice_number="INV-OLD-7")],
+            [portal(invoice_number="INV-NEW-7", original_invoice_number="INV-OLD-7")],
+            period=PERIOD,
+        )
+        assert categories(result) == [MatchCategory.MATCHED]
+        assert result.findings[0].matched_on == "amended"
+
+    def test_an_invoice_matching_its_own_number_keeps_its_row(self):
+        # The original number is the last thing tried, so it cannot take a row
+        # that a booked invoice matches directly.
+        result = reconciliation.match(
+            [book(id=1, invoice_number="INV-NEW-7"), book(id=2, invoice_number="INV-OLD-7")],
+            [portal(invoice_number="INV-NEW-7", original_invoice_number="INV-OLD-7")],
+            period=PERIOD,
+        )
+        by_number = {f.invoice.invoice_number: (f.category, f.matched_on) for f in result.findings}
+        assert by_number["INV-NEW-7"] == (MatchCategory.MATCHED, "exact")
+        assert by_number["INV-OLD-7"][0] == MatchCategory.MISSING_IN_2B
+
+    def test_the_original_booked_in_an_earlier_month_is_found_by_the_run(
+        self, db_session, business
+    ):
+        save(
+            db_session,
+            business.id,
+            invoice_number="INV-OLD-7",
+            invoice_date=date(2026, 3, 10),
+            period="2026-03",
+        )
+        import_2b(
+            db_session,
+            business.id,
+            [portal(invoice_number="INV-NEW-7", original_invoice_number="INV-OLD-7")],
+        )
+        run = reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+        assert run.missing_in_books_count == 0
