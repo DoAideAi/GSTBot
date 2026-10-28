@@ -21,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from app.core.config import settings
-from app.core.sanitize import safe_extension
+from app.core.sanitize import clean_text, safe_extension, strip_control_chars, without_nul
 from app.models.business import Business
 from app.models.invoice import (
     UNCOUNTABLE_STATUSES,
@@ -502,8 +502,16 @@ def apply_parsed(
             counterparty_name = parsed.supplier_name
 
     invoice.counterparty_gstin = counterparty
-    invoice.counterparty_name = counterparty_name
-    invoice.invoice_number = parsed.invoice_number
+    # Cleaned as the registration form cleans a name, because these come out
+    # of a document rather than a form: a PDF's text can carry NUL (which
+    # PostgreSQL refuses, failing the whole save) and bidi overrides (which
+    # make a name render as something other than what was approved).
+    invoice.counterparty_name = clean_text(counterparty_name, max_length=255)
+    invoice.invoice_number = (
+        strip_control_chars(parsed.invoice_number).strip()[:64] or None
+        if parsed.invoice_number
+        else None
+    )
     invoice.invoice_date = parsed.invoice_date
     invoice.period = parsed.period
     invoice.place_of_supply = parsed.place_of_supply
@@ -516,9 +524,9 @@ def apply_parsed(
     invoice.total_value = parsed.total_value
     invoice.tax_rate = parsed.tax_rate
     invoice.reverse_charge = parsed.reverse_charge
-    invoice.line_items = parsed.line_items or None
-    invoice.raw_text = parsed.raw_text or None
-    invoice.extraction = parsed.as_dict()
+    invoice.line_items = without_nul(parsed.line_items) or None
+    invoice.raw_text = without_nul(parsed.raw_text) or None
+    invoice.extraction = without_nul(parsed.as_dict())
     invoice.parsed_with = parsed.parsed_with
     invoice.extraction_confidence = parsed.confidence
     invoice.parse_error = None

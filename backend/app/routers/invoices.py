@@ -95,9 +95,11 @@ ALLOWED_CONTENT_TYPES = {
     "text/plain", "text/csv", "application/csv",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    # Browsers send this for a file they cannot type; the extension decides.
-    "application/octet-stream",
 }
+# application/octet-stream is deliberately absent. Browsers send it for a file
+# they cannot type, and then the extension has to decide — which is what the
+# check below does for any type not listed. Listing it made it a pass on its
+# own, so bill.exe, sent untyped, was stored as an invoice.
 ALLOWED_EXTENSIONS = (
     ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic",
     ".txt", ".csv", ".xlsx", ".xlsm", ".xls",

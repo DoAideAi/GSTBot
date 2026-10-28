@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.sanitize import clean_text, strip_control_chars
 from app.models.invoice import InvoiceSource, InvoiceStatus, InvoiceType
 from app.models.mixins import MONEY_MAX
 from app.services import gst_calendar
@@ -181,12 +182,15 @@ class InvoiceUpdate(BaseModel):
     # GSTR-3B preview all 500ing on a read, because of a write that had said it
     # was fine. ``MONEY_MAX`` is what ``Numeric(16, 2)`` actually holds, so the
     # refusal happens next to the box the figure was typed into.
-    taxable_value: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
-    cgst: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
-    sgst: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
-    igst: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
-    cess: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
-    total_value: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX)
+    # decimal_places=2: rupees and paise. Anything finer was accepted and then
+    # rounded by the column, so 1.005 was stored as a figure nobody entered;
+    # the form already refuses it, and now so does the API.
+    taxable_value: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX, decimal_places=2)
+    cgst: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX, decimal_places=2)
+    sgst: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX, decimal_places=2)
+    igst: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX, decimal_places=2)
+    cess: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX, decimal_places=2)
+    total_value: Decimal | None = Field(default=None, ge=0, le=MONEY_MAX, decimal_places=2)
     tax_rate: Decimal | None = Field(default=None, ge=0, le=100)
     itc_eligible: bool | None = None
     reverse_charge: bool | None = None
@@ -277,6 +281,14 @@ class InvoiceUpdate(BaseModel):
             raise ValueError("An HSN/SAC code is 4 to 8 digits")
         return digits
 
+    @field_validator("counterparty_name")
+    @classmethod
+    def _clean_name(cls, v: str | None) -> str | None:
+        # The cleaning registration gives a business name, for the same
+        # reasons: a NUL is a failed write on PostgreSQL, and a bidi override
+        # makes a supplier's name render as something it is not. Blank clears.
+        return clean_text(v, max_length=255)
+
     @field_validator("invoice_number")
     @classmethod
     def _invoice_number_not_blank(cls, v: str | None) -> str | None:
@@ -287,7 +299,7 @@ class InvoiceUpdate(BaseModel):
         """
         if v is None:
             return None
-        return v.strip() or None
+        return strip_control_chars(v).strip() or None
 
     @field_validator("counterparty_gstin")
     @classmethod

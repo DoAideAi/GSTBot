@@ -1,6 +1,7 @@
 """The invoice API: upload, tenancy, dedup, plan limits, review."""
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -1893,3 +1894,79 @@ def test_blanking_an_amount_is_refused_in_words_the_form_can_show(
     [field] = response.json()["error"]["fields"]
     assert "taxable_value" not in field["message"]
     assert "Enter 0" in field["message"]
+
+
+class TestBoundaryInputsReachTheDatabaseInAFormItAccepts:
+    """SQLite stores a NUL character happily and PostgreSQL refuses it outright,
+    in text columns and inside JSON — so on the database production runs, each
+    of these was a failed write, and on the suite's database nothing showed."""
+
+    def test_an_edited_name_and_number_are_stored_without_nul_or_bidi_overrides(
+        self, auth_client, sample_invoice_text, db_session
+    ):
+        invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+
+        response = auth_client.patch(
+            f"/api/v1/invoices/{invoice_id}",
+            json={"counterparty_name": "Acme\x00 ‮Traders", "invoice_number": " INV\x00-7 "},
+        )
+
+        assert response.status_code == 200
+        row = db_session.get(Invoice, invoice_id)
+        db_session.refresh(row)
+        assert row.counterparty_name == "Acme Traders"
+        assert row.invoice_number == "INV-7"
+
+    def test_text_read_out_of_a_document_is_stored_without_nul(
+        self, auth_client, sample_invoice_text, db_session
+    ):
+        # pypdf emits NUL for glyphs it cannot map; a text upload carries it
+        # through the same parse-and-store path.
+        text = sample_invoice_text.replace("Invoice", "Inv\x00oice", 1) + "\nNote: a\x00b\n"
+        invoice_id = upload(auth_client, text).json()["invoice"]["id"]
+
+        row = db_session.get(Invoice, invoice_id)
+        assert row.raw_text and "\x00" not in row.raw_text
+        assert "\x00" not in json.dumps(row.extraction or {})
+        assert "\x00" not in json.dumps(row.line_items or [])
+        assert "\x00" not in (row.counterparty_name or "")
+
+    def test_an_untyped_file_is_judged_by_its_extension(self, auth_client):
+        """application/octet-stream is what a browser sends when it cannot
+        type a file. It used to be an accepted type on its own, so a .exe sent
+        untyped was stored as an invoice."""
+        refused = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("bill.exe", b"MZ\x90\x00", "application/octet-stream")},
+            data={"invoice_type": "purchase"},
+        )
+        assert refused.status_code == 415
+
+        accepted = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={
+                "file": ("bill.txt", b"Invoice No: OCT-1\nTotal: 1180", "application/octet-stream")
+            },
+            data={"invoice_type": "purchase"},
+        )
+        assert accepted.status_code == 201
+
+    @pytest.mark.parametrize("value", ["1.234", "1.005", "0.001"])
+    def test_an_amount_finer_than_paise_is_refused_rather_than_rounded(
+        self, auth_client, sample_invoice_text, value
+    ):
+        invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+        response = auth_client.patch(
+            f"/api/v1/invoices/{invoice_id}", json={"taxable_value": value}
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize("value", ["1.23", "1.230", "0", "999999999.99"])
+    def test_an_amount_in_rupees_and_paise_is_accepted(
+        self, auth_client, sample_invoice_text, value
+    ):
+        invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+        response = auth_client.patch(
+            f"/api/v1/invoices/{invoice_id}", json={"taxable_value": value}
+        )
+        assert response.status_code == 200

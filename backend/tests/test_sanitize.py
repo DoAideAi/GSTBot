@@ -22,6 +22,7 @@ from app.core.sanitize import (
     safe_filename,
     search_pattern,
     strip_control_chars,
+    without_nul,
 )
 
 
@@ -336,3 +337,18 @@ class TestContentDisposition:
         hdr = content_disposition("report.csv")
         assert "filename=" in hdr
         assert "filename*=" in hdr
+
+
+class TestWithoutNul:
+    """PostgreSQL refuses U+0000 in text and in JSON; nothing else is touched."""
+
+    def test_nul_is_removed_from_a_string_and_nothing_else_is(self):
+        assert without_nul("a\x00b\tc\n\u202e") == "ab\tc\n\u202e"
+
+    def test_it_reaches_into_nested_json(self):
+        doc = {"items": [{"description": "Ch\x00air", "qty": 2}], "note": None}
+        assert without_nul(doc) == {"items": [{"description": "Chair", "qty": 2}], "note": None}
+
+    def test_non_text_passes_through(self):
+        assert without_nul(None) is None
+        assert without_nul(42) == 42

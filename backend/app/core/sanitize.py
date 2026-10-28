@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from typing import Any
 
 # Everything in the Unicode "C" (control/format/surrogate/unassigned) classes,
 # minus the whitespace that is legitimately typed into a text field.
@@ -42,6 +43,25 @@ def strip_control_chars(value: str, *, keep_newlines: bool = False) -> str:
     return "".join(
         ch for ch in value if ch in keep or unicodedata.category(ch) not in ("Cc", "Cf", "Cs", "Co")
     )
+
+
+def without_nul(value: Any) -> Any:
+    """*value* with every NUL character removed, recursing into dicts and lists.
+
+    PostgreSQL refuses U+0000 outright — in a text column and inside JSON
+    alike — so a single NUL in a string bound for the database is a failed
+    write, not a stored oddity. SQLite stores it happily, which is why nothing
+    in the suite noticed. Text a PDF hands back is where it comes from: pypdf
+    emits NUL for glyphs it cannot map. Only NUL, so the document text the
+    parser reads again on a reparse is otherwise exactly as extracted.
+    """
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, dict):
+        return {key: without_nul(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [without_nul(item) for item in value]
+    return value
 
 
 def clean_text(value: str | None, *, max_length: int = 500) -> str | None:
