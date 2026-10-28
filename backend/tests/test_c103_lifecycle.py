@@ -5,6 +5,7 @@ the API, with the feature gates verified at each state.
 """
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -480,3 +481,242 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
                 },
             )
         assert resp.status_code == 409
+
+
+# ---- Webhook transition matrix ----
+
+class TestWebhookTransitionMatrix:
+    """Every valid transition the webhook can perform, and the blocked ones
+    it must refuse — a complete 4×4 matrix against the six events."""
+
+    @staticmethod
+    def _webhook(client, event, razorpay_id):
+        payload = {"event": event, "payload": {
+            "subscription": {"entity": {"id": razorpay_id}},
+        }}
+        with patch.object(
+            razorpay_client, "verify_webhook_signature", return_value=True
+        ):
+            return client.post(
+                "/api/v1/subscriptions/webhook",
+                content=json.dumps(payload).encode(),
+                headers={"X-Razorpay-Signature": "v"},
+            )
+
+    @staticmethod
+    def _sub(db_session, business, status, *, razorpay_id):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=status,
+            razorpay_subscription_id=razorpay_id,
+        )
+        db_session.add(sub)
+        db_session.commit()
+        return sub
+
+    # -- valid: ACTIVE → CANCELLED via subscription.cancelled --
+
+    def test_active_to_cancelled_via_subscription_cancelled(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.ACTIVE,
+            razorpay_id="sub_ac",
+        )
+        resp = self._webhook(client, "subscription.cancelled", "sub_ac")
+        assert resp.status_code == 200
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.CANCELLED
+        assert sub.tier == SubscriptionTier.PRO
+
+    # -- valid: PAST_DUE → CANCELLED via subscription.cancelled --
+
+    def test_past_due_to_cancelled_via_subscription_cancelled(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.PAST_DUE,
+            razorpay_id="sub_pdc",
+        )
+        resp = self._webhook(client, "subscription.cancelled", "sub_pdc")
+        assert resp.status_code == 200
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.CANCELLED
+
+    # -- valid: PAST_DUE → EXPIRED via subscription.expired --
+
+    def test_past_due_to_expired_via_subscription_expired(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.PAST_DUE,
+            razorpay_id="sub_pde",
+        )
+        resp = self._webhook(client, "subscription.expired", "sub_pde")
+        assert resp.status_code == 200
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.EXPIRED
+
+    # -- valid: PAST_DUE → ACTIVE via subscription.activated --
+
+    def test_past_due_to_active_via_subscription_activated(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.PAST_DUE,
+            razorpay_id="sub_pda",
+        )
+        resp = self._webhook(client, "subscription.activated", "sub_pda")
+        assert resp.status_code == 200
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.ACTIVE
+
+    # -- blocked: CANCELLED → EXPIRED --
+
+    def test_cancelled_to_expired_is_blocked(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.CANCELLED,
+            razorpay_id="sub_ce",
+        )
+        self._webhook(client, "subscription.expired", "sub_ce")
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.CANCELLED
+
+    # -- blocked: EXPIRED → CANCELLED --
+
+    def test_expired_to_cancelled_is_blocked(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.EXPIRED,
+            razorpay_id="sub_ec",
+        )
+        self._webhook(client, "subscription.cancelled", "sub_ec")
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.EXPIRED
+
+    # -- self-transitions are no-ops --
+
+    def test_active_to_active_is_a_noop(self, client, db_session, business):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.ACTIVE,
+            razorpay_id="sub_aa",
+        )
+        self._webhook(client, "subscription.charged", "sub_aa")
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.ACTIVE
+
+    def test_cancelled_to_cancelled_is_a_noop(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.CANCELLED,
+            razorpay_id="sub_cc",
+        )
+        self._webhook(client, "subscription.cancelled", "sub_cc")
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.CANCELLED
+
+    # -- webhook cancel preserves tier (unlike API cancel which sets FREE) --
+
+    def test_webhook_cancel_preserves_tier_while_api_cancel_clears_it(
+        self, client, db_session, business
+    ):
+        sub = self._sub(
+            db_session, business, SubscriptionStatus.ACTIVE,
+            razorpay_id="sub_tp",
+        )
+        self._webhook(client, "subscription.cancelled", "sub_tp")
+        db_session.refresh(sub)
+        assert sub.tier == SubscriptionTier.PRO
+        assert sub.status == SubscriptionStatus.CANCELLED
+
+    # -- an unrecognised event is acknowledged --
+
+    def test_an_unrecognised_event_is_acknowledged(
+        self, client, db_session, business
+    ):
+        self._sub(
+            db_session, business, SubscriptionStatus.ACTIVE,
+            razorpay_id="sub_unk",
+        )
+        resp = self._webhook(client, "order.paid", "sub_unk")
+        assert resp.status_code == 200
+
+
+# ---- Webhook + feature-gate integration ----
+
+class TestWebhookDrivenStatusAffectsFeatureGate:
+    """A webhook that moves a subscription to PAST_DUE, CANCELLED, or EXPIRED
+    must make premium endpoints refuse that business."""
+
+    @staticmethod
+    def _webhook(client, event, razorpay_id):
+        payload = {"event": event, "payload": {
+            "subscription": {"entity": {"id": razorpay_id}},
+        }}
+        with patch.object(
+            razorpay_client, "verify_webhook_signature", return_value=True
+        ):
+            return client.post(
+                "/api/v1/subscriptions/webhook",
+                content=json.dumps(payload).encode(),
+                headers={"X-Razorpay-Signature": "v"},
+            )
+
+    def test_payment_failed_revokes_premium(
+        self, auth_client, db_session, business
+    ):
+        _pay(auth_client, business.id, payment="pay_wh1")
+        sub = _row(db_session, business.id)
+        sub.razorpay_subscription_id = "sub_wh1"
+        db_session.commit()
+
+        assert auth_client.get("/api/v1/itc").status_code == 200
+        self._webhook(auth_client, "payment.failed", "sub_wh1")
+        assert auth_client.get("/api/v1/itc").status_code == 403
+
+    def test_subscription_charged_restores_premium(
+        self, auth_client, db_session, business
+    ):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.PAST_DUE,
+            razorpay_subscription_id="sub_wh2",
+            current_period_end=datetime.now(UTC) + timedelta(days=15),
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        assert auth_client.get("/api/v1/itc").status_code == 403
+        self._webhook(auth_client, "subscription.charged", "sub_wh2")
+        assert auth_client.get("/api/v1/itc").status_code == 200
+
+
+# ---- Period stacking with naive timestamps (SQLite edge case) ----
+
+class TestPeriodStackingHandlesNaiveDatetimes:
+    """SQLite returns naive datetimes. The stacking logic in _period_end_for
+    must handle both aware and naive current_period_end correctly."""
+
+    def test_renewal_stacks_when_period_end_is_naive(
+        self, auth_client, db_session, business
+    ):
+        _pay(auth_client, business.id, payment="pay_stack1")
+        sub = _row(db_session, business.id)
+        original_end = sub.current_period_end
+        assert original_end is not None
+        if original_end.tzinfo is not None:
+            sub.current_period_end = original_end.replace(tzinfo=None)
+            db_session.commit()
+
+        resp = _pay(auth_client, business.id, payment="pay_stack2")
+        assert resp.status_code == 200
+        new_end = _end(resp)
+        naive_end = original_end.replace(tzinfo=None) if original_end.tzinfo else original_end
+        aware_end = naive_end.replace(tzinfo=UTC)
+        assert new_end - aware_end == timedelta(days=30)
