@@ -258,6 +258,18 @@ class TestVerifyingThePayment:
         run = _run(db_session, business)
         assert _buy(auth_client, business, run, **overrides).status_code == 400
 
+    @pytest.mark.parametrize(
+        "overrides",
+        [{"amount_paid": str(PRICE)}, {"amount_paid": [PRICE]}, {"amount": str(PRICE)}],
+    )
+    def test_an_order_field_of_the_wrong_type_is_refused_not_a_500(
+        self, auth_client, db_session, business, overrides
+    ):
+        # P16 M5: compared with ``<`` against the price, a string raised.
+        run = _run(db_session, business)
+        assert _buy(auth_client, business, run, **overrides).status_code == 400
+        assert db_session.scalar(select(ReportPurchase)) is None
+
     def test_razorpay_unreachable_is_a_retryable_502(self, auth_client, db_session, business):
         run = _run(db_session, business)
         with patch.object(razorpay_client, "fetch_order", return_value=None):

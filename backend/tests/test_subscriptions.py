@@ -1625,3 +1625,61 @@ class TestTwoPaymentsVerifiedAtOnce:
         one = datetime.fromisoformat(first["current_period_end"])
         two = datetime.fromisoformat(second["current_period_end"])
         assert (two - one).days >= 28
+
+
+class TestAMalformedOrderIsRefusedNotA500:
+    """P16 M5: Razorpay's order passes ``_object`` (it is a JSON object with an
+    id) but carries a field of the wrong type. Each of these reached ``<`` or
+    ``datetime.fromtimestamp`` and answered a paying customer with a 500."""
+
+    _BODY = {
+        "razorpay_order_id": "order_test",
+        "razorpay_payment_id": "pay_test",
+        "razorpay_signature": "sig",
+        "tier": "pro",
+    }
+
+    def _verify(self, client, order):
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(razorpay_client, "fetch_order", return_value=order):
+            return client.post("/api/v1/subscriptions/verify-payment", json=self._BODY)
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"amount_paid": "49900"},
+            {"amount_paid": [49900]},
+            {"amount_paid": {"value": 49900}},
+            {"amount_paid": True},
+            {"amount": "49900"},
+            {"amount": None},
+        ],
+    )
+    def test_a_field_of_the_wrong_type_is_a_mismatch(
+        self, auth_client, db_session, business, overrides
+    ):
+        response = self._verify(auth_client, {**_paid_order(business.id, "pro"), **overrides})
+        assert response.status_code == 400
+        assert usage_service.get_subscription(db_session, business.id) is None
+
+    @pytest.mark.parametrize("created_at", [1e20, float("nan"), -1e18])
+    def test_an_unrepresentable_created_at_cannot_revive_a_cancelled_subscription(
+        self, auth_client, db_session, business, created_at
+    ):
+        from tests.conftest import make_paid
+
+        make_paid(db_session, business.id)
+        sub = usage_service.get_subscription(db_session, business.id)
+        sub.status = SubscriptionStatus.CANCELLED
+        db_session.commit()
+
+        order = {**_paid_order(business.id, "pro"), "created_at": created_at}
+        assert self._verify(auth_client, order).status_code == 409
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.CANCELLED
+
+    def test_paise_accepts_only_a_real_integer(self):
+        assert razorpay_client.paise(49900) == 49900
+        for junk in ("49900", 499.0, None, True, [1], {"a": 1}):
+            assert razorpay_client.paise(junk) is None

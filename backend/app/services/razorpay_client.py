@@ -60,6 +60,20 @@ def _object(resp: httpx.Response, *required: str) -> dict[str, Any]:
     return body
 
 
+def paise(value: object) -> int | None:
+    """*value* as an amount in paise, or ``None`` when it is not one.
+
+    ``_object`` checks that an order is an object, not what is in it. A proxy
+    or a degraded upstream answering ``"amount_paid": "49900"`` (or a list, or
+    an object) reached ``<`` against an int in the verify routes and answered a
+    paying customer with a 500. ``bool`` is excluded: it is an ``int`` to Python
+    and ``True`` is not one paisa.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
 def create_order(
     amount_paise: int,
     currency: str = "INR",

@@ -724,9 +724,10 @@ def verify_report_payment(
     problems = []
     if order.get("receipt") != razorpay_client.report_receipt(business.id, run.id):
         problems.append("receipt")
-    if order.get("amount") != price:
+    if razorpay_client.paise(order.get("amount")) != price:
         problems.append("amount")
-    if order.get("status") != "paid" or (order.get("amount_paid") or 0) < price:
+    amount_paid = razorpay_client.paise(order.get("amount_paid"))
+    if order.get("status") != "paid" or amount_paid is None or amount_paid < price:
         problems.append("status")
     if problems:
         logger.warning(

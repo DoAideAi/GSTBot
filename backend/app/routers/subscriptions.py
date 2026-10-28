@@ -435,10 +435,16 @@ def _order_postdates(order: dict, sub: Subscription, payment_id: str) -> bool:
     ended = sub.updated_at
     if ended.tzinfo is None:  # SQLite hands back naive UTC
         ended = ended.replace(tzinfo=UTC)
+    try:
+        ordered = datetime.fromtimestamp(created, tz=UTC)
+    except (OverflowError, OSError, ValueError):
+        # NaN, or a timestamp outside what a datetime holds: not a date the
+        # order can be shown to postdate anything by, so it stays refused.
+        return False
     # >= rather than >: a cancel-then-resubscribe in the same wall-clock
     # second is a fresh purchase, and the payment_id check above already
     # prevents the old payment from being replayed.
-    return datetime.fromtimestamp(created, tz=UTC) >= ended
+    return ordered >= ended
 
 
 def _require_order_matches(payload: VerifyPaymentRequest, business: Business) -> dict:
@@ -455,13 +461,21 @@ def _require_order_matches(payload: VerifyPaymentRequest, business: Business) ->
         )
     pricing = razorpay_client.TIER_PRICING[payload.tier]
     valid_amounts = {pricing["price_monthly"], pricing.get("price_annual", 0)} - {0}
-    order_amount = order.get("amount")
+    # Read through ``paise``: a string or a list here is a malformed order, to
+    # be refused like any other mismatch rather than compared and 500ed on.
+    order_amount = razorpay_client.paise(order.get("amount"))
+    amount_paid = razorpay_client.paise(order.get("amount_paid"))
     problems = []
     if order.get("receipt") != razorpay_client.order_receipt(business.id, payload.tier):
         problems.append("receipt")
     if order_amount not in valid_amounts:
         problems.append("amount")
-    if order.get("status") != "paid" or (order.get("amount_paid") or 0) < (order_amount or 0):
+    if (
+        order.get("status") != "paid"
+        or amount_paid is None
+        or order_amount is None
+        or amount_paid < order_amount
+    ):
         problems.append("status")
     if problems:
         logger.warning(
