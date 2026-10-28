@@ -423,6 +423,44 @@ class TestRupees:
         assert rupees(value) == "Rs. 0.00"
 
 
+class TestASoftDeletedPurchaseStillEntitles:
+    """The model says 'a payment that has been redeemed once stays redeemed,
+    whatever later happens to the row'. A soft-deleted purchase must still
+    count as an entitlement — the business must not be charged twice."""
+
+    def test_a_soft_deleted_purchase_still_allows_download(
+        self, auth_client, db_session, business
+    ):
+        from app.models.mixins import utcnow
+
+        run = _run(db_session, business)
+        assert _buy(auth_client, business, run).status_code == 200
+        purchase = db_session.scalar(select(ReportPurchase).where(ReportPurchase.run_id == run.id))
+        purchase.deleted_at = utcnow()
+        db_session.commit()
+
+        r = auth_client.get(f"/api/v1/reconciliation/{run.id}/report.pdf")
+        assert r.status_code == 200
+
+    def test_a_soft_deleted_purchase_is_not_charged_again(
+        self, auth_client, db_session, business
+    ):
+        from app.models.mixins import utcnow
+
+        run = _run(db_session, business)
+        assert _buy(auth_client, business, run).status_code == 200
+        purchase = db_session.scalar(select(ReportPurchase).where(ReportPurchase.run_id == run.id))
+        purchase.deleted_at = utcnow()
+        db_session.commit()
+
+        with patch.object(razorpay_client, "create_order") as create:
+            r = auth_client.post(
+                "/api/v1/reconciliation/report/purchase", json={"run_id": run.id}
+            )
+        create.assert_not_called()
+        assert r.json()["already_purchased"] is True
+
+
 def test_every_match_category_has_a_section_in_the_report():
     """A category without one would be counted in the summary and its rows
     left out of the report the customer paid for."""

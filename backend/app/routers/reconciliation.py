@@ -527,11 +527,12 @@ def _reportable_run(db: Session, business: Business, run_id: int) -> Reconciliat
 
 
 def _purchase_for(db: Session, business_id: int, run_id: int) -> ReportPurchase | None:
+    # No deleted_at filter: a payment that has been redeemed once stays
+    # redeemed, whatever later happens to the row.
     return db.scalar(
         select(ReportPurchase).where(
             ReportPurchase.business_id == business_id,
             ReportPurchase.run_id == run_id,
-            ReportPurchase.deleted_at.is_(None),
         ).limit(1)
     )
 
