@@ -17,9 +17,10 @@ from pathlib import Path
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.rate_limit import RateLimit
+from app.core.sanitize import visible_text
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,16 @@ class HistoryMessage(BaseModel):
 class AdvisorRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     history: list[HistoryMessage] = Field(default_factory=list, max_length=50)
+
+    # Refused here rather than sent: every question is a paid model call, and
+    # one of spaces or zero-width characters bought an answer to nothing.
+    @field_validator("message")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        stripped = visible_text(value)
+        if not stripped:
+            raise ValueError("Type a question for the advisor to answer.")
+        return stripped
 
 
 def _build_contents(history: list[HistoryMessage], message: str) -> list[dict]:

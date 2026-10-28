@@ -45,6 +45,17 @@ def strip_control_chars(value: str, *, keep_newlines: bool = False) -> str:
     )
 
 
+def visible_text(value: str, *, keep_newlines: bool = True) -> str:
+    """*value* without control or format characters, trimmed.
+
+    The test for "did they actually type something". ``str.strip`` alone
+    answers it wrongly: a zero-width space, a BOM or a bidi override is not
+    whitespace, so a message of nothing but those passed every ``not
+    value.strip()`` check in the product and was stored as an invisible row.
+    """
+    return strip_control_chars(value, keep_newlines=keep_newlines).strip()
+
+
 def without_nul(value: Any) -> Any:
     """*value* with every NUL character removed, recursing into dicts and lists.
 

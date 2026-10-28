@@ -113,3 +113,78 @@ class TestBlankUploadsAreRefused:
     def test_a_file_with_text_after_leading_blank_lines_is_accepted(self, auth_client):
         response = _upload(auth_client, b"\n\n   Invoice No: INV-8\nTotal: 118.00\n")
         assert response.status_code == 201, response.text
+
+
+# -----------------------------------------------------------------------
+# Text made only of invisible characters is blank
+# -----------------------------------------------------------------------
+
+# Each is a format character (Unicode Cf), so none is whitespace to
+# ``str.strip`` and every one passed a ``not value.strip()`` check.
+INVISIBLE = [
+    "​​​",  # zero-width space
+    "﻿",  # byte-order mark
+    "‮‭",  # bidi overrides
+    " ‍ ⁠ ",  # joiner and word joiner between spaces
+]
+
+
+class TestInvisibleTextIsBlank:
+    @pytest.mark.parametrize("message", INVISIBLE)
+    def test_feedback_of_only_invisible_characters_is_refused(
+        self, client, db_session, message
+    ):
+        from app.models.feedback import Feedback
+        response = client.post("/api/v1/feedback", json={"message": message})
+        assert response.status_code == 422, response.text
+        assert "Feedback cannot be blank" in response.text
+        assert db_session.query(Feedback).count() == 0
+
+    def test_feedback_keeps_its_text_and_loses_the_invisible_characters(
+        self, client, db_session
+    ):
+        from app.models.feedback import Feedback
+        response = client.post(
+            "/api/v1/feedback", json={"message": "​Export‮ is slow\non Fridays"}
+        )
+        assert response.status_code == 201, response.text
+        assert db_session.query(Feedback).one().message == "Export is slow\non Fridays"
+
+    @pytest.mark.parametrize("field", ["page", "message"])
+    @pytest.mark.parametrize("value", ["   ", *INVISIBLE])
+    def test_an_error_report_with_a_blank_field_is_refused(
+        self, client, db_session, field, value
+    ):
+        from app.models.feedback import ClientError
+        body = {"page": "https://gst.doaide.com/x", "message": "TypeError: boom", field: value}
+        response = client.post("/api/v1/feedback/error", json=body)
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"][0]["loc"] == ["body", field]
+        assert db_session.query(ClientError).count() == 0
+
+    def test_blank_variants_of_one_error_no_longer_mint_distinct_rows(
+        self, client, db_session
+    ):
+        # Trimmed before the fingerprint, so padding is the same error.
+        from app.models.feedback import ClientError
+        for message in ("TypeError: boom", "  TypeError: boom  ", "​TypeError: boom"):
+            assert client.post(
+                "/api/v1/feedback/error",
+                json={"page": "https://gst.doaide.com/x", "message": message},
+            ).status_code == 200
+        assert db_session.query(ClientError).count() == 1
+
+    @pytest.mark.parametrize("message", ["     ", *INVISIBLE])
+    @pytest.mark.parametrize("path", ["/api/v1/advisor/ask", "/api/v1/advisor/ask/stream"])
+    def test_a_blank_advisor_question_never_reaches_the_model(self, client, path, message):
+        from unittest.mock import AsyncMock, patch
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock) as model,
+            patch("httpx.AsyncClient.stream") as stream,
+        ):
+            response = client.post(path, json={"message": message})
+        assert response.status_code == 422, response.text
+        assert "Type a question" in response.text
+        model.assert_not_called()
+        stream.assert_not_called()

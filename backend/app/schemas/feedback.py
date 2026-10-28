@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.sanitize import visible_text
 from app.models.feedback import FeedbackCategory
 
 MAX_MESSAGE = 5000
@@ -54,7 +55,9 @@ class FeedbackCreate(BaseModel):
     @field_validator("message")
     @classmethod
     def _not_blank(cls, value: str) -> str:
-        stripped = value.strip()
+        # Invisible characters dropped as well as spaces: a message of
+        # zero-width spaces reached the admin inbox as a row with nothing in it.
+        stripped = visible_text(value)
         if not stripped:
             raise ValueError("Feedback cannot be blank.")
         return stripped
@@ -93,6 +96,22 @@ class ClientErrorCreate(BaseModel):
     page: str = Field(..., min_length=1, max_length=MAX_PAGE_URL)
     message: str = Field(..., min_length=1, max_length=2000)
     stack: str | None = Field(default=None, max_length=10_000)
+
+    # The endpoint is public, and each distinct (page, message) is a new row.
+    # A blank one is no error anyone can act on, and " ", "  " and a run of
+    # zero-width spaces were each a distinct row of nothing.
+    @field_validator("page", "message")
+    @classmethod
+    def _not_blank(cls, value: str, info) -> str:
+        stripped = visible_text(value, keep_newlines=info.field_name == "message")
+        if not stripped:
+            raise ValueError(f"The error report needs a {info.field_name}.")
+        return stripped
+
+    @field_validator("stack")
+    @classmethod
+    def _stack_without_controls(cls, value: str | None) -> str | None:
+        return visible_text(value) or None if value is not None else None
 
 
 class ClientErrorAck(BaseModel):
