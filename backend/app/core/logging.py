@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import uuid
 from contextvars import ContextVar
@@ -48,6 +49,27 @@ _REDACTED_KEYS = frozenset(
     }
 )
 _REDACTED = "[redacted]"
+
+# Redacting by key misses a value that travels somewhere else — and a GSTIN
+# travels in URL paths: /meta/gstin/{gstin} and /gpt/gstin/{gstin} are public
+# lookups of anyone's registration, so the access line, every "Request
+# rejected" line and uvicorn's own access log all carried a third party's
+# GSTIN. Characters 3-12 of a GSTIN are a PAN, which ``pan`` above already
+# says may not be logged. So the formatted line itself is masked, whichever
+# key, message or traceback the identifier arrived in.
+#
+# A GSTIN keeps its state code and last three characters, which is enough to
+# tell two lines apart and identifies nobody. A bare PAN is masked whole; its
+# fourth character is the holder type, which keeps the pattern from matching
+# the random ids (correlation, Razorpay) that share its alphabet.
+_GSTIN_RE = re.compile(r"\b(\d{2})[A-Z]{5}\d{4}[A-Z]([1-9A-Z]Z[0-9A-Z])\b", re.IGNORECASE)
+_PAN_RE = re.compile(r"\b[A-Z]{3}[ABCFGHJLPT][A-Z]\d{4}[A-Z]\b")
+
+
+def mask_identifiers(text: str) -> str:
+    """*text* with every GSTIN's PAN and every bare PAN masked."""
+    text = _GSTIN_RE.sub(lambda m: f"{m.group(1)}{'*' * 10}{m.group(2)}", text)
+    return _PAN_RE.sub("*" * 10, text)
 
 
 def new_correlation_id() -> str:
@@ -142,7 +164,7 @@ class JsonFormatter(logging.Formatter):
         if record.stack_info:
             payload["stack"] = self.formatStack(record.stack_info)
 
-        return json.dumps(payload, default=str, ensure_ascii=False)
+        return mask_identifiers(json.dumps(payload, default=str, ensure_ascii=False))
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -153,6 +175,9 @@ class ConsoleFormatter(logging.Formatter):
             fmt="%(asctime)s %(levelname)-7s [%(correlation_id)s] %(name)s: %(message)s",
             datefmt="%H:%M:%S",
         )
+
+    def format(self, record: logging.LogRecord) -> str:
+        return mask_identifiers(super().format(record))
 
 
 def configure_logging(level: str = "INFO", fmt: str = "console") -> None:

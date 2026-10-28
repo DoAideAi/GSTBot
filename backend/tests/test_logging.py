@@ -278,3 +278,58 @@ class TestCorrelationIdFilterLeavesAnExplicitIdAlone:
         CorrelationIdFilter().filter(record)
 
         assert record.correlation_id == "from-the-publisher"
+
+
+class TestIdentifiersAreMaskedWhereverTheyAppear:
+    """Key redaction misses a value that travels somewhere else — a GSTIN in a
+    URL path above all, since the public lookups take one there."""
+
+    GSTIN = "27AAPFU0939F1ZV"
+
+    def test_a_gstin_in_the_message_keeps_its_state_and_check_characters(self):
+        record = _record()
+        record.msg = "GET /api/v1/meta/gstin/%s 200"
+        record.args = (self.GSTIN,)
+        line = JsonFormatter().format(record)
+        assert "AAPFU0939F" not in line
+        assert "/meta/gstin/27**********1ZV" in json.loads(line)["message"]
+
+    def test_a_gstin_under_an_unlisted_key_is_masked_too(self):
+        line = JsonFormatter().format(_record(http_path=f"/api/v1/gpt/gstin/{self.GSTIN}"))
+        assert json.loads(line)["http_path"] == "/api/v1/gpt/gstin/27**********1ZV"
+
+    def test_a_lower_case_gstin_is_still_one(self):
+        line = JsonFormatter().format(_record(http_path="/api/v1/meta/gstin/27aapfu0939f1zv"))
+        assert "aapfu0939f" not in line.lower()
+
+    def test_a_bare_pan_is_masked_whole(self):
+        line = JsonFormatter().format(_record(note="holder AAPFU0939F filed"))
+        assert json.loads(line)["note"] == "holder ********** filed"
+
+    def test_the_console_format_is_masked_as_well(self):
+        record = _record(correlation_id="-")
+        record.msg = "lookup %s"
+        record.args = (self.GSTIN,)
+        assert "AAPFU0939F" not in ConsoleFormatter().format(record)
+
+    def test_a_traceback_is_masked_as_well(self):
+        try:
+            raise ValueError(f"bad GSTIN {self.GSTIN}")
+        except ValueError:
+            import sys
+
+            record = _record()
+            record.exc_info = sys.exc_info()
+        assert "AAPFU0939F" not in JsonFormatter().format(record)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "correlation 4f1c2a9b8e7d6c5b",
+            "payment pay_NxABCDE1234FzQ",  # inside a longer id: no word boundary
+            "order receipt rpt_12_34",
+            "INV-2026-0042",
+        ],
+    )
+    def test_ids_that_merely_share_the_alphabet_are_left_alone(self, text):
+        assert json.loads(JsonFormatter().format(_record(note=text)))["note"] == text
