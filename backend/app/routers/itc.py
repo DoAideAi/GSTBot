@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_business
+from app.core.deps import get_current_business, require_paid_tier
 from app.core.rate_limit import RateLimit
 from app.models.business import Business
 from app.models.mixins import MONEY_MAX
@@ -46,7 +46,7 @@ _setoff_limit = RateLimit("itc_setoff", "240/minute")
         "`as_of` exists for the same reason a CA asks 'where did this stand at "
         "year end' — the 180-day clock has a different answer on every date."
     ),
-    dependencies=[Depends(_read_limit)],
+    dependencies=[Depends(_read_limit), Depends(require_paid_tier)],
 )
 def get_itc_summary(
     period: str | None = Query(default=None, pattern=gst_calendar.PERIOD_PATTERN),
@@ -95,7 +95,7 @@ def get_itc_summary(
         "Deliberately *not* scoped to a period: the invoice that crosses 180 days "
         "is one from eight months ago, and a period filter would never surface it."
     ),
-    dependencies=[Depends(_read_limit)],
+    dependencies=[Depends(_read_limit), Depends(require_paid_tier)],
 )
 def get_rule_37(
     as_of: date | None = Query(default=None),
@@ -125,7 +125,7 @@ def get_rule_37(
         "Years whose deadline has already passed are included, and flagged "
         "`expired`. A lapsed year is the most important row here, not the least."
     ),
-    dependencies=[Depends(_read_limit)],
+    dependencies=[Depends(_read_limit), Depends(require_paid_tier)],
 )
 def get_lapsing_credit(
     as_of: date | None = Query(

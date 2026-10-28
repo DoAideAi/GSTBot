@@ -31,7 +31,12 @@ from app.models.business import Business
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.services import alerting, gst_calendar, itc_deadline
-from tests.conftest import BUSINESS_GSTIN, SUPPLIER_GSTIN_OTHER_STATE
+from tests.conftest import (
+    BUSINESS_GSTIN,
+    SUPPLIER_GSTIN_OTHER_STATE,
+    SUPPLIER_GSTIN_SAME_STATE,
+    make_paid,
+)
 
 # The near year: an invoice from June 2025, whose credit lapses on 30 Nov 2026.
 NEAR_DATE = date(2025, 6, 10)
@@ -842,8 +847,9 @@ def test_the_s_16_4_pass_runs_even_when_the_filing_window_is_empty(db_session):
 # ---------------------------------------------------------------------------
 
 def test_the_lapsing_endpoint_reports_the_years_and_their_totals(
-    auth_client, db_session, business
+    auth_client, db_session, paid_business
 ):
+    business = paid_business
     save_purchase(db_session, business.id)
 
     response = auth_client.get(f"/api/v1/itc/lapsing?as_of={AS_OF.isoformat()}")
@@ -862,8 +868,9 @@ def test_the_lapsing_endpoint_reports_the_years_and_their_totals(
 
 
 def test_the_endpoint_separates_what_is_lost_from_what_is_still_savable(
-    auth_client, db_session, business
+    auth_client, db_session, paid_business
 ):
+    business = paid_business
     save_purchase(db_session, business.id)
     save_purchase(
         db_session, business.id, invoice_number="INV-2",
@@ -878,8 +885,9 @@ def test_the_endpoint_separates_what_is_lost_from_what_is_still_savable(
 
 
 def test_the_endpoint_shows_years_from_before_signup_that_the_alerting_withholds(
-    auth_client, db_session, business
+    auth_client, db_session, paid_business
 ):
+    business = paid_business
     """Nobody is being interrupted here — the business asked."""
     save_purchase(db_session, business.id, invoice_date=date(2019, 6, 10), period="2019-06")
 
@@ -888,7 +896,7 @@ def test_the_endpoint_shows_years_from_before_signup_that_the_alerting_withholds
     assert [y["financial_year"] for y in response.json()["years"]] == ["2019-20"]
 
 
-def test_the_endpoint_says_nothing_is_at_risk_rather_than_failing(auth_client):
+def test_the_endpoint_says_nothing_is_at_risk_rather_than_failing(auth_client, paid_business):
     response = auth_client.get("/api/v1/itc/lapsing")
 
     assert response.status_code == 200
@@ -900,7 +908,7 @@ def test_the_endpoint_says_nothing_is_at_risk_rather_than_failing(auth_client):
     }
 
 
-def test_the_lapsing_endpoint_refuses_an_unparseable_as_of(auth_client):
+def test_the_lapsing_endpoint_refuses_an_unparseable_as_of(auth_client, paid_business):
     assert auth_client.get("/api/v1/itc/lapsing?as_of=never").status_code == 422
 
 
@@ -908,6 +916,9 @@ def test_one_tenant_cannot_read_anothers_lapsing_credit(
     auth_client, db_session, business, other_tenant
 ):
     save_purchase(db_session, business.id)
+    # The rival is paid too, so the empty answer is the isolation, not the paywall.
+    rival = db_session.query(Business).filter_by(gstin=SUPPLIER_GSTIN_SAME_STATE).one()
+    make_paid(db_session, rival.id)
 
     auth_client.headers.update({"Authorization": f"Bearer {other_tenant}"})
     response = auth_client.get(f"/api/v1/itc/lapsing?as_of={AS_OF.isoformat()}")

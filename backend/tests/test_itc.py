@@ -5,15 +5,35 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select as sa_select
 
+from app.models.business import Business
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.reconciliation_run import ReconciliationRun, ReconciliationStatus
+from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
 from app.services import filing, gst_calendar, reconciliation
 from app.services import itc as itc_service
 from app.services.gstr2b import GSTR2BRecord
 from tests.conftest import SUPPLIER_GSTIN_OTHER_STATE, SUPPLIER_GSTIN_SAME_STATE
 
 PERIOD = "2026-04"
+
+
+def _activate_pro(db_session, business_id: int) -> None:
+    sub = db_session.scalar(
+        sa_select(Subscription).where(Subscription.business_id == business_id)
+    )
+    if sub is None:
+        sub = Subscription(
+            business_id=business_id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.ACTIVE,
+        )
+        db_session.add(sub)
+    else:
+        sub.tier = SubscriptionTier.PRO
+        sub.status = SubscriptionStatus.ACTIVE
+    db_session.commit()
 
 
 def heads(igst="0", cgst="0", sgst="0", cess="0") -> itc_service.TaxHeads:
@@ -1498,6 +1518,7 @@ class TestRule37GivesTheCreditBackWhenTheSupplierIsPaid:
         assert summary.net_available.igst == Decimal("18000.00")
 
     def test_the_endpoint_reports_it(self, auth_client, db_session, business):
+        _activate_pro(db_session, business.id)
         self.lapsed_and_paid(db_session, business, date(2026, 9, 15))
 
         body = auth_client.get("/api/v1/itc?period=2026-09").json()
@@ -1978,6 +1999,7 @@ def test_summary_set_off_uses_the_net_credit(db_session, business):
 # ---------------------------------------------------------------------------
 
 def test_itc_endpoint_returns_the_period_position(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="A-1")
 
     response = auth_client.get(f"/api/v1/itc?period={PERIOD}")
@@ -1991,6 +2013,7 @@ def test_itc_endpoint_returns_the_period_position(auth_client, db_session, busin
 
 def test_itc_endpoint_accepts_a_turnover_override(auth_client, db_session, business):
     """A business with exempt supplies it does not invoice here knows better."""
+    _activate_pro(db_session, business.id)
     save(db_session, business.id, invoice_number="A-1")
 
     response = auth_client.get(
@@ -2003,6 +2026,7 @@ def test_itc_endpoint_accepts_a_turnover_override(auth_client, db_session, busin
 
 
 def test_rule37_endpoint_reports_overdue_credit(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
     save(
         db_session,
         business.id,
@@ -2040,6 +2064,12 @@ def test_itc_endpoints_require_authentication(client):
 
 def test_itc_does_not_leak_across_tenants(auth_client, db_session, business, other_tenant):
     save(db_session, business.id, invoice_number="A-1")
+    # Both tenants paid, so the answer is the isolation and not the paywall.
+    _activate_pro(db_session, business.id)
+    rival = db_session.scalar(
+        sa_select(Business).where(Business.gstin == SUPPLIER_GSTIN_SAME_STATE)
+    )
+    _activate_pro(db_session, rival.id)
 
     response = auth_client.get(
         f"/api/v1/itc?period={PERIOD}",
@@ -2050,8 +2080,36 @@ def test_itc_does_not_leak_across_tenants(auth_client, db_session, business, oth
 
 
 @pytest.mark.parametrize("bad", ["2026-4", "202604", "april"])
-def test_itc_rejects_a_malformed_period(auth_client, bad):
+def test_itc_rejects_a_malformed_period(auth_client, db_session, business, bad):
+    _activate_pro(db_session, business.id)
     assert auth_client.get(f"/api/v1/itc?period={bad}").status_code == 422
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/v1/itc?period=2026-04", "/api/v1/itc/rule37", "/api/v1/itc/lapsing"]
+)
+def test_itc_optimisation_is_a_paid_feature(auth_client, path):
+    response = auth_client.get(path)
+    assert response.status_code == 403
+    assert "paid subscription" in response.json()["detail"].lower()
+
+
+def test_a_lapsed_subscription_loses_itc_optimisation(auth_client, db_session, business):
+    _activate_pro(db_session, business.id)
+    assert auth_client.get("/api/v1/itc/rule37").status_code == 200
+
+    sub = db_session.scalar(sa_select(Subscription).where(Subscription.business_id == business.id))
+    sub.status = SubscriptionStatus.CANCELLED
+    db_session.commit()
+
+    assert auth_client.get("/api/v1/itc/rule37").status_code == 403
+
+
+def test_the_set_off_calculator_stays_free(auth_client):
+    # A stateless calculator over figures the caller supplies — not a read of
+    # the business's credit position, so not part of the paid tier.
+    response = auth_client.post("/api/v1/itc/set-off", json={})
+    assert response.status_code != 403
 
 
 # ---------------------------------------------------------------------------
