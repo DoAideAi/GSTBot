@@ -394,3 +394,30 @@ class TestDeliverySuccessIsLogged:
         delivered = [r for r in caplog.records if "Email delivered" in r.message]
         assert len(delivered) == 1
         assert delivered[0].attempt == 2
+
+
+class TestNoAddressReachesTheLog:
+    """A refused recipient renders as ``{'owner@example.com': (450, ...)}``, and a
+    4xx is retried — so the address was in the retry log line and in the error
+    every caller logs. The log redacts by field name; message text never
+    passes through that."""
+
+    def test_the_retry_line_and_the_final_error_name_no_address(self, monkeypatch, caplog):
+        _relay(
+            monkeypatch,
+            failures=99,
+            error=smtplib.SMTPRecipientsRefused({"owner@example.com": (451, b"try later")}),
+        )
+        with (
+            caplog.at_level(logging.INFO, logger="app.services.email_sender"),
+            pytest.raises(EmailSendError) as raised,
+        ):
+            send_email(to="owner@example.com", subject="s", body="b")
+
+        assert "owner@example.com" not in str(raised.value)
+        assert "[address]" in str(raised.value)
+        retries = [r.getMessage() for r in caplog.records if "retrying" in r.getMessage()]
+        assert retries
+        assert not any("owner@example.com" in line for line in retries)
+        # The relay's code survives, which is the part worth reading.
+        assert "451" in retries[0]

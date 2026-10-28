@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import smtplib
 import time
 from email.message import EmailMessage
@@ -51,6 +52,20 @@ class EmailSendError(Exception):
 # reply is prose, and the delay some relays name in it is not a field.
 _BACKOFF_BASE_SECONDS = 1.0
 
+
+
+_ADDRESS = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def _without_addresses(exc: BaseException) -> str:
+    """The relay's words with every email address taken out.
+
+    ``SMTPRecipientsRefused`` renders as ``{'user@example.com': (450, ...)}``,
+    and a 4xx refusal is retried — so the recipient's address went into the
+    retry log line and into the error every caller logs. The log redacts by
+    field name, which a message's own text never passes through.
+    """
+    return _ADDRESS.sub("[address]", str(exc))
 
 def _sleep(seconds: float) -> None:
     """Indirection so tests can assert the schedule without living through it."""
@@ -171,7 +186,7 @@ def send_email(*, to: str, subject: str, body: str) -> None:
             _deliver(message)
         except (smtplib.SMTPException, OSError) as exc:
             failure = EmailSendError(
-                f"email delivery failed after {attempt} attempt(s): {exc}"
+                f"email delivery failed after {attempt} attempt(s): {_without_addresses(exc)}"
             )
             failure.__cause__ = exc
             if attempt == attempts or not _is_transient(exc):
@@ -201,7 +216,7 @@ def send_email(*, to: str, subject: str, body: str) -> None:
                 attempt,
                 attempts,
                 delay,
-                exc,
+                _without_addresses(exc),
                 extra={"attempt": attempt, "attempts": attempts},
             )
             _sleep(delay)
