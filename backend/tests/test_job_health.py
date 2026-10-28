@@ -307,3 +307,37 @@ class TestTheEndpoint:
         response = client.get("/api/v1/health/jobs")
         assert response.status_code == 200
         assert response.json()["celery_enabled"] is False
+
+
+class TestEveryScheduledJobIsWatched:
+    """P16 M11: /health/jobs reports only the jobs ``JOB_STALE_AFTER_SECONDS``
+    names. A job added to the beat schedule without an entry there — or whose
+    task never stamps one — would stop silently with the health check green."""
+
+    def test_the_watched_jobs_are_exactly_the_scheduled_ones(self):
+        from app.celery_app import celery_app
+
+        assert set(celery_app.conf.beat_schedule) == set(job_health.JOB_STALE_AFTER_SECONDS)
+
+    def test_each_job_is_judged_stale_only_after_it_has_had_time_to_run(self):
+        from app.celery_app import celery_app
+
+        for name, entry in celery_app.conf.beat_schedule.items():
+            schedule = entry["schedule"]
+            # Every job here runs at one minute past some set of hours, every
+            # day; anything else needs this test to learn how to read it.
+            assert len(schedule.minute) == 1, name
+            assert len(schedule.day_of_week) == 7 and len(schedule.day_of_month) == 31, name
+            period = 86_400 / len(schedule.hour)
+            assert job_health.JOB_STALE_AFTER_SECONDS[name] > period, name
+
+    def test_each_job_s_task_stamps_its_own_heartbeat(self):
+        from pathlib import Path
+
+        from app.celery_app import celery_app
+
+        tasks_source = "".join(
+            p.read_text() for p in (Path(job_health.__file__).parents[1] / "tasks").glob("*.py")
+        )
+        for name in celery_app.conf.beat_schedule:
+            assert f'record_heartbeat("{name}")' in tasks_source, name
