@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,6 +54,12 @@ class ReconciliationRun(Base, BusinessScopedMixin, TimestampMixin, SoftDeleteMix
     __table_args__ = (
         Index("ix_reconciliation_runs_business_created", "business_id", "created_at"),
         Index("ix_reconciliation_runs_business_period", "business_id", "period"),
+        Index(
+            "ix_reconciliation_runs_business_period_completed",
+            "business_id", "period", "created_at",
+            sqlite_where=text("deleted_at IS NULL AND status = 'completed'"),
+            postgresql_where=text("deleted_at IS NULL AND status = 'completed'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

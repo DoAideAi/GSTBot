@@ -175,11 +175,12 @@ class TenantSnapshot:
     @classmethod
     def of(cls, business: Business) -> TenantSnapshot:
         """Take the snapshot. Call once per request, outside any loop."""
+        plan = effective_plan(business)
         return cls(
             id=business.id,
             gstin=business.gstin,
-            plan=effective_plan(business),
-            monthly_limit=plan_limit(business),
+            plan=plan,
+            monthly_limit=settings.plan_limits.get(plan, 0),
         )
 
 

@@ -21,6 +21,7 @@ their hand.
 """
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 
@@ -124,6 +125,7 @@ def compute_check_digit(first14: str) -> str:
     return _ALPHABET[(36 - total % 36) % 36]
 
 
+@functools.lru_cache(maxsize=2048)
 def is_valid(gstin: str) -> bool:
     """True when *gstin* is well-formed, in a known state, and checksums."""
     try:
@@ -155,6 +157,7 @@ def parse(gstin: str) -> GSTINParts:
     )
 
 
+@functools.lru_cache(maxsize=2048)
 def state_code_of(gstin: str) -> str | None:
     """The state code of a valid GSTIN, or ``None`` if it does not validate."""
     try:
