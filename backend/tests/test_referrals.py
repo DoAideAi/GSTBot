@@ -268,3 +268,16 @@ class TestTheVisitorKeyIsNotTheAddress:
             client = type("C", (), {"host": "172.18.0.13"})()
 
         assert visitor_ip(_Req()) == "198.51.100.9"
+
+
+def test_the_conversion_lookup_has_an_index_that_leads_with_the_visitor():
+    # P17 M8: record_conversion runs on every sign-up and filters by visitor,
+    # ordered by time. The unique (code, visitor) index leads with the code and
+    # cannot serve that, so each sign-up scanned a publicly-grown table.
+    from app.models.referral import Referral
+
+    leading = {
+        tuple(column.name for column in index.columns)[:2]
+        for index in Referral.__table__.indexes
+    }
+    assert ("visitor_ip_hash", "created_at") in leading

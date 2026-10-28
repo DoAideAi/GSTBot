@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -24,6 +24,8 @@ class Referral(Base):
         UniqueConstraint(
             "referral_code", "visitor_ip_hash", name="uq_referrals_code_visitor"
         ),
+        # The sign-up conversion lookup: a visitor's latest visit (0023).
+        Index("ix_referrals_visitor_created", "visitor_ip_hash", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
