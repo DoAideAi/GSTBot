@@ -2085,3 +2085,53 @@ def test_a_spreadsheet_that_breaks_partway_fails_with_a_reason_a_person_can_use(
     assert response.status_code in (200, 201, 202), response.text
     invoice = response.json()["invoice"]
     assert "index out of range" not in (invoice["parse_error"] or "")
+
+
+class TestAFullUploadVolume:
+    """P16 M10: production's disk runs near full. A write that fails partway
+    left the truncated file behind — an orphan on the volume that had just run
+    out — and the single upload answered a generic 500. Now the partial file is
+    removed and the caller gets a retryable 503 saying nothing was kept."""
+
+    @pytest.fixture()
+    def full_disk(self, monkeypatch, tmp_path):
+        import errno
+        from pathlib import Path
+
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+
+        def half_then_enospc(self, data):
+            with open(self, "wb") as handle:
+                handle.write(data[: len(data) // 2])
+            raise OSError(errno.ENOSPC, "No space left on device", str(self))
+
+        monkeypatch.setattr(Path, "write_bytes", half_then_enospc)
+        return tmp_path
+
+    def _files(self, root):
+        return [p for p in root.rglob("*") if p.is_file()]
+
+    def test_the_single_upload_is_a_retryable_503_and_leaves_nothing(
+        self, auth_client, db_session, sample_invoice_text, full_disk
+    ):
+        response = upload(auth_client, sample_invoice_text)
+        assert response.status_code == 503
+        assert response.headers["Retry-After"] == "120"
+        assert "Nothing was saved" in response.json()["detail"]
+        assert self._files(full_disk) == []
+        assert db_session.query(Invoice).count() == 0
+
+    def test_a_batch_reports_the_file_and_leaves_nothing(
+        self, auth_client, db_session, sample_invoice_text, full_disk
+    ):
+        response = auth_client.post(
+            "/api/v1/invoices/bulk",
+            files=[("files", ("b.txt", sample_invoice_text.encode(), "text/plain"))],
+            data={"invoice_type": "purchase"},
+        )
+        (item,) = response.json()["items"]
+        assert item["accepted"] is False
+        assert "Nothing was saved" in item["error"]
+        assert self._files(full_disk) == []

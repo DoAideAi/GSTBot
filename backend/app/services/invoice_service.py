@@ -71,6 +71,10 @@ class DuplicateInvoice(RuntimeError):
         self.invoice_id = invoice_id
 
 
+class UploadNotStored(RuntimeError):
+    """The upload volume refused the file: full, read-only, or gone."""
+
+
 def month_of(moment: datetime | None = None) -> str:
     """The current filing period as ``YYYY-MM``, in India.
 
@@ -237,7 +241,15 @@ def store_upload(content: bytes, filename: str, business_id: int) -> str:
     # `safe_extension` was written for exactly this and never called.
     suffix = safe_extension(filename)
     path = directory / f"{uuid.uuid4().hex}{suffix}"
-    path.write_bytes(content)
+    try:
+        path.write_bytes(content)
+    except OSError as exc:
+        # A full disk fails partway through the write, and the half-written
+        # file stayed behind: an orphan no row names, taking space on exactly
+        # the volume that just ran out of it, while the caller was told
+        # "nothing was saved". Removed here, the one place that knows the path.
+        _discard_upload(str(path))
+        raise UploadNotStored(str(exc.strerror or exc)) from exc
     return str(path)
 
 
@@ -475,7 +487,11 @@ def create_pending_invoice(
         db.rollback()
         raise
 
-    stored = store_upload(content, filename, tenant.id)
+    try:
+        stored = store_upload(content, filename, tenant.id)
+    except UploadNotStored:
+        db.rollback()  # Ends the transaction and the upload lock with it.
+        raise
     invoice = Invoice(
         business_id=tenant.id,
         invoice_type=invoice_type,

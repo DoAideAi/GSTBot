@@ -260,6 +260,18 @@ def _store_and_extract(
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": str(exc), "invoice_id": exc.invoice_id},
         ) from exc
+    except invoice_service.UploadNotStored as exc:
+        # A 503 the caller can retry, not the generic 500: the file was refused
+        # by storage, nothing of it was kept, and sending it again later is
+        # exactly the right move.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"{filename} could not be stored right now. Nothing was saved for "
+                "it; try again in a few minutes."
+            ),
+            headers={"Retry-After": "120"},
+        ) from exc
 
     queued = False
     if settings.celery_enabled:
