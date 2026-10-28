@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.main import create_app
 from app.models.business import Business, BusinessPlan
 from app.models.user import User, UserRole
-from app.routers.oauth import _find_or_create_oauth_user, _complete_oauth_login
+from app.routers.oauth import _complete_oauth_login, _find_or_create_oauth_user
 
 
 @pytest.fixture
@@ -212,8 +212,8 @@ def test_complete_oauth_login_does_not_log_for_deactivated(caplog):
 
 def test_oauth_callback_routes_have_rate_limit_dependency():
     """Every OAuth callback route must declare a rate limit dependency."""
-    from app.core.routes import collect_api_routes, dependency_calls
     from app.core.rate_limit import RateLimit
+    from app.core.routes import collect_api_routes, dependency_calls
     from app.main import app as main_app
 
     callback_paths = [
@@ -265,8 +265,8 @@ def test_oauth_token_uses_fragment_not_query_param(db_session):
 
 def test_oauth_initiation_routes_have_rate_limit_dependency():
     """Every OAuth initiation route must declare a rate limit dependency."""
-    from app.core.routes import collect_api_routes, dependency_calls
     from app.core.rate_limit import RateLimit
+    from app.core.routes import collect_api_routes, dependency_calls
     from app.main import app as main_app
 
     initiation_paths = [

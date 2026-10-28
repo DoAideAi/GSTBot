@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import logging
-import secrets
+from typing import Any
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from starlette.config import Config
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -59,8 +58,38 @@ _oauth_initiate_limit = RateLimit("oauth_initiate", "30/minute", by="ip")
 _oauth_callback_limit = RateLimit("oauth_callback", "30/minute", by="ip")
 
 
+#: How each provider is named in an error the user or a log reader sees.
+_PROVIDER_LABELS = {"google": "Google", "github": "GitHub", "microsoft": "Microsoft"}
+
+
 def _callback_url(provider: str) -> str:
     return f"{settings.oauth_redirect_base}{settings.api_v1_prefix}/auth/{provider}/callback"
+
+
+def _configured_client(provider: str) -> Any:
+    """The registered authlib client for *provider*, or a 501 if it has no client id.
+
+    Read from settings on every call rather than once at import, so a
+    deployment (or a test) that sets the id later is honoured the same way the
+    three hand-written copies of this check honoured it.
+    """
+    if not getattr(settings, f"{provider}_client_id"):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"{_PROVIDER_LABELS[provider]} OAuth not configured",
+        )
+    return oauth.create_client(provider)
+
+
+async def _start_login(request: Request, provider: str) -> Any:
+    """Redirect to *provider*'s consent screen."""
+    client = _configured_client(provider)
+    return await client.authorize_redirect(request, _callback_url(provider))
+
+
+def _login_error(code: str) -> RedirectResponse:
+    """Send the browser back to the login page with *code* for it to explain."""
+    return RedirectResponse(f"{FRONTEND_URL}/login?error={code}")
 
 
 def _find_or_create_oauth_user(
@@ -134,7 +163,7 @@ def _find_or_create_oauth_user(
 
 def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
     if user is None:
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=account_deactivated")
+        return _login_error("account_deactivated")
     logger.info(
         "OAuth login",
         extra={"user_id": user.id, "business_id": user.business_id, "provider": provider},
@@ -146,12 +175,13 @@ def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
 
 # ── Google ────────────────────────────────────────────────
 
-@router.get("/google", summary="Initiate Google OAuth login", dependencies=[Depends(_oauth_initiate_limit)])
+@router.get(
+    "/google",
+    summary="Initiate Google OAuth login",
+    dependencies=[Depends(_oauth_initiate_limit)],
+)
 async def google_login(request: Request):
-    if not settings.google_client_id:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Google OAuth not configured")
-    redirect_uri = _callback_url("google")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    return await _start_login(request, "google")
 
 
 @router.get(
@@ -160,18 +190,17 @@ async def google_login(request: Request):
     dependencies=[Depends(_oauth_callback_limit)],
 )
 async def google_callback(request: Request, db: Session = Depends(get_db)):
-    if not settings.google_client_id:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Google OAuth not configured")
+    client = _configured_client("google")
     try:
-        token = await oauth.google.authorize_access_token(request)
+        token = await client.authorize_access_token(request)
     except Exception:
         logger.exception("Google OAuth callback failed")
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=google_auth_failed")
+        return _login_error("google_auth_failed")
 
     userinfo = token.get("userinfo", {})
     email = userinfo.get("email")
     if not email:
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=no_email")
+        return _login_error("no_email")
 
     user = _find_or_create_oauth_user(
         db,
@@ -186,12 +215,13 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
 # ── GitHub ────────────────────────────────────────────────
 
-@router.get("/github", summary="Initiate GitHub OAuth login", dependencies=[Depends(_oauth_initiate_limit)])
+@router.get(
+    "/github",
+    summary="Initiate GitHub OAuth login",
+    dependencies=[Depends(_oauth_initiate_limit)],
+)
 async def github_login(request: Request):
-    if not settings.github_client_id:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="GitHub OAuth not configured")
-    redirect_uri = _callback_url("github")
-    return await oauth.github.authorize_redirect(request, redirect_uri)
+    return await _start_login(request, "github")
 
 
 @router.get(
@@ -200,35 +230,34 @@ async def github_login(request: Request):
     dependencies=[Depends(_oauth_callback_limit)],
 )
 async def github_callback(request: Request, db: Session = Depends(get_db)):
-    if not settings.github_client_id:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="GitHub OAuth not configured")
+    client = _configured_client("github")
     try:
-        token = await oauth.github.authorize_access_token(request)
+        token = await client.authorize_access_token(request)
     except Exception:
         logger.exception("GitHub OAuth callback failed")
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=github_auth_failed")
+        return _login_error("github_auth_failed")
 
     try:
-        resp = await oauth.github.get("user", token=token)
+        resp = await client.get("user", token=token)
         profile = resp.json()
     except Exception:
         logger.exception("GitHub user profile fetch failed")
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=github_auth_failed")
+        return _login_error("github_auth_failed")
 
     email = profile.get("email")
     if not email:
         try:
-            emails_resp = await oauth.github.get("user/emails", token=token)
+            emails_resp = await client.get("user/emails", token=token)
             for e in emails_resp.json():
                 if e.get("primary") and e.get("verified"):
                     email = e["email"]
                     break
         except Exception:
             logger.exception("GitHub user emails fetch failed")
-            return RedirectResponse(f"{FRONTEND_URL}/login?error=github_auth_failed")
+            return _login_error("github_auth_failed")
 
     if not email:
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=no_email")
+        return _login_error("no_email")
 
     user = _find_or_create_oauth_user(
         db,
@@ -243,12 +272,13 @@ async def github_callback(request: Request, db: Session = Depends(get_db)):
 
 # ── Microsoft ─────────────────────────────────────────────
 
-@router.get("/microsoft", summary="Initiate Microsoft OAuth login", dependencies=[Depends(_oauth_initiate_limit)])
+@router.get(
+    "/microsoft",
+    summary="Initiate Microsoft OAuth login",
+    dependencies=[Depends(_oauth_initiate_limit)],
+)
 async def microsoft_login(request: Request):
-    if not settings.microsoft_client_id:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Microsoft OAuth not configured")
-    redirect_uri = _callback_url("microsoft")
-    return await oauth.microsoft.authorize_redirect(request, redirect_uri)
+    return await _start_login(request, "microsoft")
 
 
 @router.get(
@@ -257,18 +287,17 @@ async def microsoft_login(request: Request):
     dependencies=[Depends(_oauth_callback_limit)],
 )
 async def microsoft_callback(request: Request, db: Session = Depends(get_db)):
-    if not settings.microsoft_client_id:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Microsoft OAuth not configured")
+    client = _configured_client("microsoft")
     try:
-        token = await oauth.microsoft.authorize_access_token(request)
+        token = await client.authorize_access_token(request)
     except Exception:
         logger.exception("Microsoft OAuth callback failed")
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=microsoft_auth_failed")
+        return _login_error("microsoft_auth_failed")
 
     userinfo = token.get("userinfo", {})
     email = userinfo.get("email") or userinfo.get("preferred_username")
     if not email:
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=no_email")
+        return _login_error("no_email")
 
     user = _find_or_create_oauth_user(
         db,
