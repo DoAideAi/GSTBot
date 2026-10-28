@@ -87,6 +87,28 @@ class TestProductionRefusesToStart:
         # Development and the suite are the whole reason the setting exists.
         assert Settings(environment="development", bcrypt_rounds=4).bcrypt_rounds == 4
 
+    def test_an_oauth_provider_with_the_localhost_redirect_base_is_fatal(self):
+        # M15: the default callback base is a laptop; every sign-in would land there.
+        with pytest.raises(ValidationError, match="OAUTH_REDIRECT_BASE"):
+            Settings(**prod(google_client_id="gid", google_client_secret="gs"))
+
+    def test_an_oauth_provider_with_an_https_redirect_base_builds(self):
+        s = Settings(
+            **prod(
+                github_client_id="gid",
+                github_client_secret="gs",
+                oauth_redirect_base="https://gst.example.com",
+            )
+        )
+        assert s.oauth_providers_configured == ["github"]
+
+    def test_no_oauth_provider_leaves_the_redirect_base_unchecked(self):
+        # Production today: no client ids, OAUTH_REDIRECT_BASE unset.
+        assert Settings(**prod()).oauth_providers_configured == []
+
+    def test_a_localhost_redirect_base_outside_production_is_fine(self):
+        assert Settings(environment="development", google_client_id="gid").is_production is False
+
     def test_a_valid_production_config_builds(self):
         # The negative tests above are only meaningful if this one passes.
         assert Settings(**prod()).is_production
@@ -285,6 +307,36 @@ class TestStartupWarnings:
             Settings(**prod(alerts_email_enabled=True, smtp_host="smtp.example.com"))
         )
         assert not any("SMTP_HOST" in w for w in warnings)
+
+    def test_a_razorpay_key_id_without_its_secret_warns(self):
+        warnings = validate_startup_config(Settings(**prod(razorpay_key_id="rzp_live_x")))
+        assert any("RAZORPAY_KEY_SECRET" in w for w in warnings)
+
+    def test_razorpay_without_a_webhook_secret_warns(self):
+        warnings = validate_startup_config(
+            Settings(**prod(razorpay_key_id="rzp_live_x", razorpay_key_secret="s"))
+        )
+        assert any("RAZORPAY_WEBHOOK_SECRET" in w for w in warnings)
+
+    def test_fully_configured_razorpay_warns_about_nothing(self):
+        warnings = validate_startup_config(
+            Settings(
+                **prod(
+                    razorpay_key_id="rzp_live_x",
+                    razorpay_key_secret="s",
+                    razorpay_webhook_secret="w",
+                )
+            )
+        )
+        assert not any("RAZORPAY" in w for w in warnings)
+
+    def test_an_oauth_client_id_without_its_secret_warns(self):
+        warnings = validate_startup_config(
+            Settings(
+                **prod(microsoft_client_id="mid", oauth_redirect_base="https://gst.example.com")
+            )
+        )
+        assert any("MICROSOFT_CLIENT_SECRET" in w for w in warnings)
 
     def test_production_with_console_logs_warns(self):
         warnings = validate_startup_config(Settings(**prod(log_format="console")))

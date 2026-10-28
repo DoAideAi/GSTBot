@@ -404,6 +404,19 @@ class Settings(BaseSettings):
             raise ValueError(
                 "BACKEND_CORS_ORIGINS must use https in production; got " + ", ".join(insecure)
             )
+
+        # The callback each provider is sent back to is built from this. Its
+        # default is a developer's laptop, so a production box that added a
+        # client id and forgot this sent every sign-in to localhost — a page
+        # that does not load, after the user has already consented. Checked
+        # only once a provider is configured: with none, nothing reads it.
+        if self.oauth_providers_configured and not self.oauth_redirect_base.startswith(
+            "https://"
+        ):
+            raise ValueError(
+                "OAUTH_REDIRECT_BASE must be the public https origin when a sign-in "
+                f"provider is configured in production (got '{self.oauth_redirect_base}')."
+            )
         return self
 
     # ------------------------------------------------------------------
@@ -413,6 +426,19 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment in _PRODUCTION_LIKE
+
+    @property
+    def oauth_providers_configured(self) -> list[str]:
+        """The sign-in providers with a client id set, i.e. the ones offered."""
+        return [
+            name
+            for name, client_id in (
+                ("google", self.google_client_id),
+                ("github", self.github_client_id),
+                ("microsoft", self.microsoft_client_id),
+            )
+            if client_id
+        ]
 
     @property
     def cors_origins(self) -> list[str]:
@@ -571,6 +597,31 @@ def validate_startup_config(settings_obj: Settings | None = None) -> list[str]:
             "SMTP_USERNAME is set but SMTP_PASSWORD is not — the alert email digest "
             "will fail to authenticate."
         )
+
+    # Half-configured integrations. Each one looks switched on from the outside
+    # and fails only when a customer reaches it.
+    if current.razorpay_key_id and not current.razorpay_key_secret:
+        found.append(
+            "RAZORPAY_KEY_ID is set but RAZORPAY_KEY_SECRET is not — checkout "
+            "answers 503 until both are set."
+        )
+    razorpay_on = current.razorpay_key_id and current.razorpay_key_secret
+    if razorpay_on and not current.razorpay_webhook_secret:
+        found.append(
+            "RAZORPAY_WEBHOOK_SECRET is not set — every Razorpay webhook is refused, so "
+            "renewals and cancellations made outside the app never reach a subscription."
+        )
+    secrets = {
+        "google": current.google_client_secret,
+        "github": current.github_client_secret,
+        "microsoft": current.microsoft_client_secret,
+    }
+    for provider in current.oauth_providers_configured:
+        if not secrets[provider]:
+            found.append(
+                f"{provider.upper()}_CLIENT_ID is set but {provider.upper()}_CLIENT_SECRET "
+                f"is not — {provider} sign-in is offered and fails at the callback."
+            )
 
     if current.is_production:
         if not current.rate_limit_enabled:
