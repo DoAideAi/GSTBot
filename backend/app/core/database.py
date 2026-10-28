@@ -15,12 +15,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
+from app.core.sanitize import without_nul
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,30 @@ def _make_engine(url: str) -> Engine:
 
 engine = _make_engine(settings.database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+
+@event.listens_for(Session, "before_flush")
+def _strip_nul_before_flush(session: Session, _flush_context, _instances) -> None:
+    """Remove U+0000 from every string and JSON value about to be written.
+
+    PostgreSQL refuses NUL in a text column and inside JSON, so one in any
+    value is a failed flush — a 500, on whatever route was writing. SQLite
+    stores it, so the suite never sees the failure. Values reach the database
+    from forms, uploaded documents, imported GSTR-2B files, the public
+    feedback widget and the parser, and guarding each schema is a list that
+    the next field falls off. Every ORM write passes through here instead.
+
+    Only NUL, and only the values that contain one: anything else a field
+    should not hold is its schema's to refuse, with a message.
+    """
+    for obj in (*session.new, *session.dirty):
+        state = inspect(obj)
+        for attr in state.mapper.column_attrs:
+            value = state.dict.get(attr.key)
+            if isinstance(value, (str, dict, list)):
+                cleaned = without_nul(value)
+                if cleaned != value:
+                    setattr(obj, attr.key, cleaned)
 
 
 def get_db() -> Generator[Session, None, None]:
