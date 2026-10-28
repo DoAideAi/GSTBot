@@ -24,7 +24,7 @@ from app.models.invoice import InvoiceStatus
 from app.models.reconciliation_run import MatchCategory, ReconciliationRun, ReconciliationStatus
 from app.models.supplier import Supplier
 from app.services import reconciliation
-from tests.conftest import SUPPLIER_GSTIN_OTHER_STATE
+from tests.conftest import SUPPLIER_GSTIN_OTHER_STATE, SUPPLIER_GSTIN_SAME_STATE
 from tests.test_reconciliation import PERIOD, book, categories, import_2b, portal, save
 
 # ---------------------------------------------------------------------------
@@ -1181,6 +1181,60 @@ class TestWhenTheSupplierFiled:
 
         assert supplier.last_seen_at == date(2026, 5, 18)
         assert supplier.last_filed_period == PERIOD
+
+    # -- M2: "Last filed" is a filing, not a reconciliation ------------------
+
+    def _run_period(self, db_session, business, period, *, filed, filed_on=None):
+        """Reconcile *period* with one book invoice from the supplier, which
+        the 2B carries when *filed* and leaves out when not."""
+        year, month = (int(part) for part in period.split("-"))
+        dated = date(year, month, 10)
+        number = f"P-{period}"
+        save(db_session, business.id, invoice_number=number, invoice_date=dated, period=period)
+        records = [
+            portal(
+                invoice_number=number if filed else f"OTHER-{period}",
+                supplier_gstin=SUPPLIER_GSTIN_OTHER_STATE if filed else SUPPLIER_GSTIN_SAME_STATE,
+                invoice_date=dated,
+                period=period,
+                supplier_filing_date=filed_on,
+            )
+        ]
+        import_2b(db_session, business.id, records, period=period)
+        reconciliation.run_reconciliation(db_session, business.id, period)
+        return self._reload(db_session)
+
+    def test_a_month_the_supplier_filed_nothing_is_not_their_last_filing(
+        self, db_session, business
+    ):
+        """Every invoice "never filed" this month used to read "Last filed:
+        this month" — the opposite of the warning the column exists for."""
+        self._supplier(db_session, business)
+        supplier = self._run_period(db_session, business, "2026-04", filed=False)
+
+        assert supplier.missing_invoices == 1
+        assert supplier.last_filed_period is None
+
+    def test_the_last_filing_survives_a_later_month_with_none(self, db_session, business):
+        self._supplier(db_session, business)
+        self._run_period(db_session, business, "2026-04", filed=True)
+        supplier = self._run_period(db_session, business, "2026-05", filed=False)
+
+        assert supplier.last_filed_period == "2026-04"
+
+    def test_re_running_an_older_month_does_not_walk_the_date_backwards(
+        self, db_session, business
+    ):
+        self._supplier(db_session, business)
+        self._run_period(
+            db_session, business, "2026-05", filed=True, filed_on=date(2026, 6, 10)
+        )
+        supplier = self._run_period(
+            db_session, business, "2026-04", filed=True, filed_on=date(2026, 5, 10)
+        )
+
+        assert supplier.last_filed_period == "2026-05"
+        assert supplier.last_seen_at == date(2026, 6, 10)
 
 
 # ---------------------------------------------------------------------------

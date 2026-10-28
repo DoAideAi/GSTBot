@@ -810,8 +810,22 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
 
         score = supplier_score.score_supplier(supplier, as_of_period=result.period)
         supplier_score.apply_score(supplier, score)
-        supplier.last_filed_period = result.period
-        if filed_on is not None:
+        # "Last filed" on the Suppliers page, so read off the history the way
+        # the score's recency reads it: a period counts only if the supplier's
+        # GSTR-1 put at least one invoice in the 2B. This was the period of the
+        # run instead, so a supplier whose every invoice was missing this month
+        # read "Last filed: this month" — the opposite of the warning the
+        # column exists to give — and re-running an older month walked the
+        # date backwards past filings already seen.
+        filed_periods = [
+            e["period"]
+            for e in supplier.filing_history
+            if int(e.get("matched") or 0) or int(e.get("mismatched") or 0)
+        ]
+        supplier.last_filed_period = max(filed_periods) if filed_periods else None
+        if filed_on is not None and (
+            supplier.last_seen_at is None or filed_on > supplier.last_seen_at
+        ):
             supplier.last_seen_at = filed_on
 
         summary[gstin] = {
