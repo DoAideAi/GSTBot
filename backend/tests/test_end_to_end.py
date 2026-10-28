@@ -1739,3 +1739,104 @@ class TestABusinessPaysAndThenCancels:
         assert cancelled.status_code == 200, cancelled.text
         assert paywalled() == 403
         assert allowance() == 50
+
+
+class TestABusinessThatGetsEachStepWrongFirst:
+    """P16 M20: the error path as one journey.
+
+    Every refusal below is followed by the corrected request succeeding, and
+    each has to say what to do — the journey a first-time user actually takes
+    is mostly this one. A step that is refused with nothing actionable, or that
+    leaves state behind so the corrected request then fails too, breaks it.
+    """
+
+    def test_every_refusal_is_recoverable(self, client, db_session, stub_openrouter):
+        def detail(response) -> str:
+            body = response.json()
+            assert body["error"]["message"], body  # always something to show
+            return body["error"]["message"]
+
+        # --- Sign-up with a mistyped GSTIN, then the right one -------------
+        bad = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": TEST_EMAIL,
+                "password": TEST_PASSWORD,
+                "gstin": BUSINESS_GSTIN[:-1] + ("A" if BUSINESS_GSTIN[-1] != "A" else "B"),
+                "legal_name": "Umang Traders Private Limited",
+            },
+        )
+        assert bad.status_code == 422
+        assert "gstin" in detail(bad).lower()
+        token = register(client)  # the refused attempt left nothing in the way
+
+        # --- Signing up twice is refused; signing in works ----------------
+        again = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": TEST_EMAIL,
+                "password": TEST_PASSWORD,
+                "gstin": BUSINESS_GSTIN,
+                "legal_name": "Umang Traders Private Limited",
+            },
+        )
+        assert again.status_code in (400, 409)
+        detail(again)
+        wrong = client.post(
+            "/api/v1/auth/login", data={"username": TEST_EMAIL, "password": "not-the-password"}
+        )
+        assert wrong.status_code == 401
+        assert detail(wrong) == "Incorrect email or password"
+        client.headers.update({"Authorization": f"Bearer {token}"})
+
+        # --- A file that is not an invoice, then the invoice, then it twice --
+        exe = client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("bill.exe", b"MZ\x90\x00", "application/x-msdownload")},
+            data={"invoice_type": "purchase"},
+        )
+        assert exe.status_code == 415
+        assert "Accepted:" in detail(exe)
+        purchase = upload(
+            client,
+            stub_openrouter,
+            text=PURCHASE_TEXT,
+            extraction=PURCHASE_EXTRACTION,
+            invoice_type="purchase",
+            name="northwind-0042.txt",
+        )
+        twice = client.post(
+            "/api/v1/invoices/upload",
+            files={
+                "file": ("northwind-0042.txt", io.BytesIO(PURCHASE_TEXT.encode()), "text/plain")
+            },
+            data={"invoice_type": "purchase"},
+        )
+        assert twice.status_code == 409
+        assert str(purchase["id"]) in detail(twice)
+
+        # --- A paid feature on the free plan, then after paying ------------
+        assert client.post("/api/v1/reconciliation/run", json={"period": PERIOD}).status_code == 403
+        takes_the_pro_plan(db_session)
+        no_2b = client.post("/api/v1/reconciliation/run", json={"period": PERIOD})
+        assert no_2b.status_code == 409
+        assert "Import one" in detail(no_2b)
+        import_2b(client, portal_2b())
+        assert reconcile(client, PERIOD)["matched_count"] == 1
+
+        # --- A filing dated in the future, then the real date --------------
+        future = client.post(
+            "/api/v1/filing/gstr1/filed", json={"period": PERIOD, "filed_on": "2099-01-01"}
+        )
+        assert future.status_code == 422
+        detail(future)
+        filed = client.post(
+            "/api/v1/filing/gstr1/filed", json={"period": PERIOD, "filed_on": "2026-05-10"}
+        )
+        assert filed.status_code == 201, filed.text
+
+        # --- Deleting twice: the second says it is already gone ------------
+        assert client.delete(f"/api/v1/invoices/{purchase['id']}").status_code == 204
+        gone = client.delete(f"/api/v1/invoices/{purchase['id']}")
+        assert gone.status_code == 404
+        assert "deleted" in detail(gone).lower()
