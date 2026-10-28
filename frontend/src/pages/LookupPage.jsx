@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
@@ -203,6 +203,11 @@ export default function LookupPage() {
               {result?.error && <p className="lookup-reason">{result.error}</p>}
             </div>
           </div>
+
+          <p className="bulk-gstin-pointer muted">
+            Checking a whole supplier list? <Link to="/bulk-gstin">Validate up to 100 GSTINs at once</Link>{" "}
+            on a paid plan.
+          </p>
 
           <RecentLookups />
 

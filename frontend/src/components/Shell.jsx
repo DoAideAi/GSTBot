@@ -13,6 +13,7 @@ const LINKS = [
   { to: "/itc", label: "ITC" },
   { to: "/filing", label: "Filing" },
   { to: "/suppliers", label: "Suppliers" },
+  { to: "/bulk-gstin", label: "Bulk GSTIN" },
   { to: "/alerts", label: "Alerts", badge: true },
   { to: "/pricing", label: "Pricing" },
   { to: "/usage", label: "Usage" },

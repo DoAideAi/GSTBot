@@ -3180,6 +3180,25 @@ a:focus-visible {
 .feedback-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .feedback-thanks p { margin: 0 0 8px; }
 
+/* Bulk GSTIN validation */
+.bulk-gstin-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+.bulk-gstin-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bulk-gstin-summary p { margin: 0; }
+.bulk-gstin-pointer { margin: 16px 0; font-size: 14px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
 /* Admin feedback inbox */
 .feedback-admin-table td { vertical-align: top; }
 .feedback-admin-message {

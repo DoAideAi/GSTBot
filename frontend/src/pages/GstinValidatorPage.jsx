@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
 import CrossProductLinks from "../components/CrossProductLinks";
@@ -353,6 +354,10 @@ export default function GstinValidatorPage() {
           </section>
 
           <InlineCTA variant="save" />
+          <p className="bulk-gstin-pointer muted">
+            Checking a whole supplier list? <Link to="/bulk-gstin">Validate up to 100 GSTINs at once</Link>{" "}
+            on a paid plan.
+          </p>
           <RelatedTools current="/gstin-validator" />
           <CrossProductLinks page="gstin-validator" />
         </div>

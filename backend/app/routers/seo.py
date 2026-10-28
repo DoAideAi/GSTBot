@@ -253,6 +253,7 @@ Disallow: /reconcile
 Disallow: /itc$
 Disallow: /filing$
 Disallow: /suppliers
+Disallow: /bulk-gstin
 Disallow: /alerts
 Disallow: /usage
 Disallow: /status

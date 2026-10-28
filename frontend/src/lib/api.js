@@ -424,6 +424,9 @@ export const api = {
   // ---- Meta (public) ----
   validateGstin: (gstin) =>
     request(`/meta/gstin/${encodeURIComponent(gstin)}`, { auth: false }),
+  // Paid plans only; a free business gets a 403 the page turns into an offer.
+  validateGstinBulk: (gstins) =>
+    request("/meta/gstin/bulk", { method: "POST", body: { gstins } }),
   states: () => request("/meta/states", { auth: false }),
   /**
    * Every dependency with its latency. Read by the status page.
