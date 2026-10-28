@@ -88,6 +88,9 @@ class FeedbackOut(BaseModel):
 class FeedbackListOut(BaseModel):
     items: list[FeedbackOut]
     total: int
+    # Echoed like every other paginated list, so one client helper pages them all.
+    limit: int
+    offset: int
 
 
 class ClientErrorCreate(BaseModel):
@@ -134,3 +137,6 @@ class ClientErrorOut(BaseModel):
 class ClientErrorListOut(BaseModel):
     items: list[ClientErrorOut]
     total: int
+    # Echoed like every other paginated list, so one client helper pages them all.
+    limit: int
+    offset: int

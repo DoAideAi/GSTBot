@@ -148,7 +148,10 @@ def list_feedback(
         .offset(offset)
     ).all()
     return FeedbackListOut(
-        items=[FeedbackOut.model_validate(r) for r in rows], total=total
+        items=[FeedbackOut.model_validate(r) for r in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -262,7 +265,12 @@ def list_client_errors(
         .limit(limit)
         .offset(offset)
     ).all()
-    return ClientErrorListOut(items=[ClientErrorOut.model_validate(r) for r in rows], total=total)
+    return ClientErrorListOut(
+        items=[ClientErrorOut.model_validate(r) for r in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.delete(
