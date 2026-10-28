@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { track } from "../lib/track";
@@ -18,6 +18,7 @@ function wasDismissed() {
 export default function ExitIntentPopup() {
   const { user } = useAuth();
   const [visible, setVisible] = useState(false);
+  const closeRef = useRef(null);
 
   useEffect(() => {
     if (user || wasDismissed()) return;
@@ -36,6 +37,19 @@ export default function ExitIntentPopup() {
     return () => document.removeEventListener("mouseout", onMouseLeave);
   }, [user]);
 
+  // A modal dialog has to be reachable and escapable from the keyboard. It
+  // declared aria-modal but took no focus and ignored Escape, so a keyboard
+  // user was left behind it with no way to close it but tabbing to the ×.
+  useEffect(() => {
+    if (!visible) return undefined;
+    closeRef.current?.focus();
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") dismiss();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [visible]);
+
   if (!visible) return null;
 
   const dismiss = () => {
@@ -46,7 +60,7 @@ export default function ExitIntentPopup() {
   return (
     <div className="exit-popup-overlay" onClick={dismiss} role="dialog" aria-modal="true" aria-label="Filing reminder signup">
       <div className="exit-popup" onClick={(e) => e.stopPropagation()}>
-        <button className="exit-popup-close" onClick={dismiss} aria-label="Close">×</button>
+        <button ref={closeRef} className="exit-popup-close" onClick={dismiss} aria-label="Close">×</button>
         <div className="exit-popup-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 106 8c0 7-3 9-3 9h18s-3-2-3-9" />

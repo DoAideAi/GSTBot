@@ -38,6 +38,13 @@ describe("Gstr9HelperPage", () => {
     expect(screen.getByText("March")).toBeInTheDocument();
   });
 
+  it("names each month's inputs, which sit in a table with no labels", () => {
+    renderPage();
+    expect(screen.getByLabelText("April: Outward supplies (₹)")).toBeInTheDocument();
+    expect(screen.getByLabelText("March: ITC claimed (₹)")).toBeInTheDocument();
+    expect(screen.getByLabelText("June: Tax paid (₹)")).toBeInTheDocument();
+  });
+
   it("calculates summary when month data is entered", async () => {
     renderPage();
     const outwardInputs = screen.getAllByPlaceholderText("0");

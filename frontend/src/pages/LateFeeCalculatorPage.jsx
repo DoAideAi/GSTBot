@@ -137,8 +137,8 @@ export default function LateFeeCalculatorPage() {
           <div className="calc-card">
             <div className="calc-grid">
               <div className="field">
-                <label>Return Type</label>
-                <select value={returnType} onChange={(e) => setReturnType(e.target.value)}>
+                <label htmlFor="late-fee-return-type">Return Type</label>
+                <select id="late-fee-return-type" value={returnType} onChange={(e) => setReturnType(e.target.value)}>
                   {RETURN_TYPES.map((r) => (
                     <option key={r.key} value={r.key}>{r.label}</option>
                   ))}
@@ -164,19 +164,20 @@ export default function LateFeeCalculatorPage() {
               )}
 
               <div className="field">
-                <label>Due Date</label>
-                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                <label htmlFor="late-fee-due-date">Due Date</label>
+                <input id="late-fee-due-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
 
               <div className="field">
-                <label>Filing Date</label>
-                <input type="date" value={filingDate} onChange={(e) => setFilingDate(e.target.value)} />
+                <label htmlFor="late-fee-filing-date">Filing Date</label>
+                <input id="late-fee-filing-date" type="date" value={filingDate} onChange={(e) => setFilingDate(e.target.value)} />
               </div>
 
               {returnType === "gstr9" && (
                 <div className="field">
-                  <label>Annual State Turnover (₹)</label>
+                  <label htmlFor="late-fee-turnover">Annual State Turnover (₹)</label>
                   <input
+                    id="late-fee-turnover"
                     type="number"
                     min="0"
                     placeholder="e.g. 5000000"

@@ -28,6 +28,12 @@ describe("GstAdvisor", () => {
     expect(screen.getByPlaceholderText("Ask a GST question...")).toBeInTheDocument();
   });
 
+  it("names the question box for a screen reader, not only with a placeholder", async () => {
+    renderAdvisor();
+    await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));
+    expect(screen.getByRole("textbox", { name: "Your GST question" })).toBeInTheDocument();
+  });
+
   it("shows the welcome message when no messages exist", async () => {
     renderAdvisor();
     await userEvent.click(screen.getByLabelText("Open GST AI Advisor"));

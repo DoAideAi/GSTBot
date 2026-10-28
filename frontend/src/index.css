@@ -8,8 +8,11 @@
   --ink: #E5E7EB;
   --ink-soft: #9CA3AF;
   --ink-strong: #fff;
-  --ink-faint: rgba(255, 255, 255, 0.35);
-  --ink-muted: rgba(255, 255, 255, 0.45);
+  /* Both carry real text (sign-in labels and tabs, subtitles). At 0.35 and
+     0.45 they measured 3.1:1 and 4.47:1 on the surface — under WCAG AA's
+     4.5:1. Faint stays lighter than muted. */
+  --ink-faint: rgba(255, 255, 255, 0.5);
+  --ink-muted: rgba(255, 255, 255, 0.55);
   --line: #2A2A2D;
   --surface: #1A1A1D;
   --canvas: #0A0A0B;
@@ -42,16 +45,21 @@
   --ink: #1A1A1D;
   --ink-soft: #52525B;
   --ink-strong: #0A0A0B;
-  --ink-faint: rgba(0, 0, 0, 0.4);
-  --ink-muted: rgba(0, 0, 0, 0.5);
+  /* 0.4 and 0.5 measured 2.8:1 and 3.9:1; these clear 4.5:1 on all three
+     light grounds. */
+  --ink-faint: rgba(0, 0, 0, 0.55);
+  --ink-muted: rgba(0, 0, 0, 0.6);
   --line: #E4E4E7;
   --surface: #F4F4F5;
   --canvas: #FAFAFA;
-  --brand-text: #fff;
+  /* The gold does not change between themes, so neither can the ink on it:
+     white on #F0B429 is 1.9:1. The dark-theme ink is 10.6:1. */
+  --brand-text: #0A0A0B;
   --brand-hover: #D4A017;
-  --good: #059669;
-  --warn: #D97706;
-  --bad: #DC2626;
+  /* Tailwind's 700s: the 600s were 3.6, 3.1 and 4.4:1 on the light grounds. */
+  --good: #047857;
+  --warn: #B45309;
+  --bad: #B91C1C;
   --good-bg: rgba(5, 150, 105, 0.08);
   --warn-bg: rgba(217, 119, 6, 0.08);
   --bad-bg: rgba(220, 38, 38, 0.08);

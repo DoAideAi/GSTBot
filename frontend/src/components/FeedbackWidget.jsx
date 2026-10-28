@@ -119,6 +119,7 @@ export default function FeedbackWidget() {
                 </div>
                 <textarea
                   className="feedback-comment"
+                  aria-label="Your feedback (optional)"
                   placeholder="Tell us what you think..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}

@@ -34,6 +34,19 @@ describe("ExitIntentPopup", () => {
     expect(screen.queryByText("Never Miss a GST Filing Deadline")).not.toBeInTheDocument();
   });
 
+  it("takes focus when it opens, so a keyboard user is in the dialog", () => {
+    renderPopup();
+    fireEvent.mouseOut(document, { clientY: -1 });
+    expect(screen.getByLabelText("Close")).toHaveFocus();
+  });
+
+  it("closes on Escape", () => {
+    renderPopup();
+    fireEvent.mouseOut(document, { clientY: -1 });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByText("Never Miss a GST Filing Deadline")).not.toBeInTheDocument();
+  });
+
   it("dismisses when skip text is clicked", () => {
     renderPopup();
     fireEvent.mouseOut(document, { clientY: -1 });

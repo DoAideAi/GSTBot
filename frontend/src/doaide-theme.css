@@ -4,7 +4,7 @@
   --doaide-surface-hover: #222225; --doaide-border: #2A2A2D; --doaide-border-light: #333336;
   --doaide-gold: #F0B429; --doaide-gold-hover: #D4A017; --doaide-gold-light: #F7CC5F;
   --doaide-gold-dim: #8B6914; --doaide-gold-bg: rgba(240,180,41,0.1);
-  --doaide-text: #E5E7EB; --doaide-text-secondary: #9CA3AF; --doaide-text-muted: #6B7280;
+  --doaide-text: #E5E7EB; --doaide-text-secondary: #9CA3AF; --doaide-text-muted: #8B919C; /* #6B7280 was 3.6:1 on the surface (AA is 4.5) */
   --doaide-text-on-gold: #0A0A0B;
   --doaide-success: #34D399; --doaide-error: #F87171; --doaide-warning: #FBBF24; --doaide-info: #60A5FA;
   --doaide-font: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
@@ -46,10 +46,13 @@ nav, [class*="sidebar"], [class*="nav-"] { background-color: var(--doaide-bg) !i
 [data-theme="light"] {
   --doaide-bg: #FAFAFA; --doaide-bg-alt: #F4F4F5; --doaide-surface: #FFFFFF;
   --doaide-surface-hover: #F0F0F1; --doaide-border: #E4E4E7; --doaide-border-light: #D4D4D8;
-  --doaide-gold-dim: #B8860B;
-  --doaide-text: #1A1A1D; --doaide-text-secondary: #52525B; --doaide-text-muted: #71717A;
-  --doaide-text-on-gold: #fff;
-  --doaide-success: #059669; --doaide-error: #DC2626; --doaide-warning: #D97706; --doaide-info: #2563EB;
+  /* WCAG AA (4.5:1) on all three light grounds. Each was below it: gold-dim
+     #B8860B 3.0, text-muted #71717A 4.4, success #059669 3.4, warning #D97706
+     2.9, error #DC2626 4.4 — and white on gold 1.9, every primary button. */
+  --doaide-gold-dim: #8B6914;
+  --doaide-text: #1A1A1D; --doaide-text-secondary: #52525B; --doaide-text-muted: #63636B;
+  --doaide-text-on-gold: #0A0A0B;
+  --doaide-success: #047857; --doaide-error: #B91C1C; --doaide-warning: #B45309; --doaide-info: #2563EB;
   --doaide-shadow-sm: 0 1px 2px rgba(0,0,0,0.06); --doaide-shadow-md: 0 4px 6px rgba(0,0,0,0.08);
   --doaide-shadow-lg: 0 10px 15px rgba(0,0,0,0.1); --doaide-shadow-gold: 0 0 20px rgba(240,180,41,0.1);
 }

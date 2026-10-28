@@ -38,6 +38,11 @@ describe("BlogLayout", () => {
 
     expect(screen.getByText("Test article")).toBeInTheDocument();
   });
+
+  it("puts the article inside the page's main landmark", () => {
+    renderBlog("/blog/test");
+    expect(screen.getByRole("main")).toContainElement(screen.getByText("Test article"));
+  });
 });
 
 describe("BlogIndex", () => {

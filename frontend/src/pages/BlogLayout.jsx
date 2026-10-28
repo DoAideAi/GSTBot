@@ -210,7 +210,10 @@ export default function BlogLayout() {
         <h1 className="blog-title">DoAide GST Blog</h1>
         <p className="blog-subtitle">Guides and resources for GST compliance in India</p>
       </header>
-      <Outlet />
+      {/* The landmark a screen reader jumps to; the articles had none. */}
+      <main>
+        <Outlet />
+      </main>
     </div>
   );
 }

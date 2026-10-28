@@ -195,6 +195,7 @@ export default function Gstr9HelperPage() {
                           style={{ margin: 0, padding: "0.35rem 0.5rem", textAlign: "right" }}
                           value={m.outward}
                           onChange={(e) => updateMonth(i, "outward", e.target.value)}
+                          aria-label={`${m.month}: Outward supplies (₹)`}
                           placeholder="0"
                           min="0"
                           inputMode="numeric"
@@ -207,6 +208,7 @@ export default function Gstr9HelperPage() {
                           style={{ margin: 0, padding: "0.35rem 0.5rem", textAlign: "right" }}
                           value={m.inward}
                           onChange={(e) => updateMonth(i, "inward", e.target.value)}
+                          aria-label={`${m.month}: ITC claimed (₹)`}
                           placeholder="0"
                           min="0"
                           inputMode="numeric"
@@ -219,6 +221,7 @@ export default function Gstr9HelperPage() {
                           style={{ margin: 0, padding: "0.35rem 0.5rem", textAlign: "right" }}
                           value={m.taxPaid}
                           onChange={(e) => updateMonth(i, "taxPaid", e.target.value)}
+                          aria-label={`${m.month}: Tax paid (₹)`}
                           placeholder="0"
                           min="0"
                           inputMode="numeric"

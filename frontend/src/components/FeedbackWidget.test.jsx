@@ -37,6 +37,12 @@ describe("FeedbackWidget", () => {
     expect(screen.getByPlaceholderText("Tell us what you think...")).toBeInTheDocument();
   });
 
+  it("names the comment box for a screen reader, not only with a placeholder", async () => {
+    renderWidget();
+    await userEvent.click(screen.getByLabelText("Send feedback"));
+    expect(screen.getByRole("textbox", { name: "Your feedback (optional)" })).toBeInTheDocument();
+  });
+
   it("closes the modal when the close button is clicked", async () => {
     renderWidget();
     await userEvent.click(screen.getByLabelText("Send feedback"));

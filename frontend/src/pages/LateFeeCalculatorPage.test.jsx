@@ -68,6 +68,16 @@ describe("LateFeeCalculatorPage", () => {
     expect(screen.getByText(/Annual State Turnover/)).toBeInTheDocument();
   });
 
+  it("ties every label to its control", () => {
+    // These four labels had no htmlFor, so each control was announced unnamed.
+    renderPage();
+    expect(screen.getByLabelText("Return Type")).toBeInTheDocument();
+    expect(screen.getByLabelText("Due Date")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filing Date")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Return Type"), { target: { value: "gstr9" } });
+    expect(screen.getByLabelText("Annual State Turnover (₹)")).toBeInTheDocument();
+  });
+
   it("caps GSTR-3B late fee at ₹2,000 for turnover up to ₹1.5 crore", () => {
     renderPage();
     const dates = document.querySelectorAll('input[type="date"]');

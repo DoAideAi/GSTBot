@@ -172,6 +172,7 @@ export default function GstAdvisor() {
           <div className="advisor-footer">
             <textarea
               className="advisor-input"
+              aria-label="Your GST question"
               placeholder="Ask a GST question..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
