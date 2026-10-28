@@ -630,3 +630,39 @@ def test_an_account_google_created_is_still_found_by_a_verified_github_sign_in(d
     )
 
     assert result is not None and result.id == first.id
+
+
+@pytest.mark.parametrize("claim", [True, "true", None])
+def test_microsoft_is_never_believed_about_email_verification(client, claim):
+    """A tenant chooses the claims it signs; ``email_verified`` included."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    userinfo = {"sub": "attacker-oid", "email": "victim@example.com", "name": "x"}
+    if claim is not None:
+        userinfo["email_verified"] = claim
+    oauth_client = MagicMock()
+    oauth_client.authorize_access_token = AsyncMock(return_value={"userinfo": userinfo})
+    with (
+        patch("app.routers.oauth._configured_client", return_value=oauth_client),
+        patch("app.routers.oauth._find_or_create_oauth_user", return_value=None) as find,
+    ):
+        client.get("/api/v1/auth/microsoft/callback?code=c&state=s", follow_redirects=False)
+
+    find.assert_called_once()
+    assert find.call_args.kwargs["email_verified"] is False
+
+
+def test_a_microsoft_sign_in_cannot_link_into_an_existing_google_account(db_session):
+    owner = _find_or_create_oauth_user(
+        db_session, provider="google", oauth_id="victim-gid",
+        email="victim@example.com", name="The Victim", email_verified=True,
+    )
+
+    result = _find_or_create_oauth_user(
+        db_session, provider="microsoft", oauth_id="attacker-oid",
+        email="victim@example.com", name=None, email_verified=False,
+    )
+
+    assert result is None
+    db_session.refresh(owner)
+    assert (owner.oauth_provider, owner.oauth_id) == ("google", "victim-gid")

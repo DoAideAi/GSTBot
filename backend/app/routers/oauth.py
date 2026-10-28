@@ -438,6 +438,12 @@ async def microsoft_callback(request: Request, db: Session = Depends(get_db)):
         oauth_id=oauth_id,
         email=email.lower(),
         name=userinfo.get("name"),
-        email_verified=bool(userinfo.get("email_verified")),
+        # Never taken from the token. Microsoft does not issue this claim, and
+        # what arrives in its place comes from the signing tenant — which, on
+        # the ``common`` endpoint, is whoever set up the account. A tenant
+        # that emitted ``email_verified: true`` beside a victim's address
+        # would otherwise be linked straight into the victim's existing
+        # account; see ``_UNPROVEN_EMAIL_PROVIDERS`` for the other direction.
+        email_verified=False,
     )
     return _complete_oauth_login(user, "microsoft")
