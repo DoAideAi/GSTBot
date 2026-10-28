@@ -17,6 +17,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import settings
+from app.core.errors import error_body
+from app.core.headers import security_headers
 from app.core.logging import (
     bind_correlation_id,
     get_correlation_id,
@@ -24,6 +26,7 @@ from app.core.logging import (
     sanitize_correlation_id,
     set_correlation_id,
 )
+from app.core.rate_limit import check_global, client_ip
 
 logger = logging.getLogger("app.access")
 
@@ -157,23 +160,10 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Response headers that cost nothing and close off whole bug classes.
 
-    The CSP is strict because this is an API: nothing it serves should ever be
-    rendered, and ``default-src 'none'`` means a stored value reflected into an
-    error page cannot execute. The docs pages are exempt — Swagger UI loads its
-    own bundle — and they are only mounted when enabled.
+    The set itself lives in ``app.core.headers``, which the unhandled-500
+    handler shares. The docs pages are exempt from the CSP — Swagger UI loads
+    its own bundle — and they are only mounted when enabled.
     """
-
-    _BASE = {
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "Referrer-Policy": "no-referrer",
-        "Cross-Origin-Opener-Policy": "same-origin",
-        "Permissions-Policy": (
-            "geolocation=(), microphone=(), camera=(), payment=(), "
-            "interest-cohort=(), browsing-topics=()"
-        ),
-        "Cache-Control": "no-store",
-    }
 
     def __init__(self, app, docs_paths: tuple[str, ...] = ()) -> None:
         super().__init__(app)
@@ -181,21 +171,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
-        for header, value in self._BASE.items():
+        for header, value in security_headers(
+            csp=request.url.path not in self._docs_paths
+        ).items():
             response.headers.setdefault(header, value)
-
-        if request.url.path not in self._docs_paths:
-            response.headers.setdefault(
-                "Content-Security-Policy",
-                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-            )
-
-        # HSTS only where TLS is actually terminated in front of us; sending it
-        # from a plain-HTTP dev server would pin a developer's browser.
-        if settings.hsts_enabled:
-            response.headers.setdefault(
-                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
-            )
         return response
 
 
@@ -227,8 +206,6 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
     _BODIED_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        from app.core.errors import error_body
-
         if request.method not in self._BODIED_METHODS:
             return await call_next(request)
 
@@ -270,9 +247,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        from app.core.errors import error_body
-        from app.core.rate_limit import check_global
-
         if request.method == "OPTIONS" or request.url.path in _UNLIMITED_PATHS:
             # A CORS preflight is not a request the caller chose to make, and
             # rejecting one turns a rate limit into an opaque browser error.
@@ -354,8 +328,6 @@ def _actor_fields(request: Request) -> dict[str, object]:
 
 
 def _client_ip(request: Request) -> str:
-    from app.core.rate_limit import client_ip
-
     return client_ip(request)
 
 

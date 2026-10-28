@@ -34,6 +34,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
+from app.core.headers import security_headers
 from app.core.logging import get_correlation_id
 from app.core.sanitize import encodable
 
@@ -340,8 +341,6 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "exception_type": type(exc).__name__,
             },
         )
-        from app.core.middleware import SecurityHeadersMiddleware
-
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_body(500, _opaque_message(), code="internal_error"),
@@ -356,10 +355,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             headers={
                 "X-Request-ID": get_correlation_id() or "-",
                 "X-Correlation-ID": get_correlation_id() or "-",
-                **SecurityHeadersMiddleware._BASE,
-                "Content-Security-Policy": (
-                    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-                ),
+                **security_headers(),
             },
         )
 

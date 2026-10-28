@@ -841,3 +841,21 @@ class TestSecretsAreNotEchoed:
             "/api/v1/auth/register", json={"email": "nope", "password": "longenough1"}
         )
         assert response.json()["detail"][0]["input"] == "nope"
+
+
+def test_an_unhandled_500_carries_the_same_security_headers_as_any_response(
+    raw_client, monkeypatch
+):
+    """The bare-Exception handler runs outside the user middleware, so it sets
+    the headers itself. It used to copy the middleware's private dict and add
+    its own CSP, and left HSTS off — the one response it most mattered on."""
+    from app.core.config import settings
+    from app.core.headers import security_headers
+
+    monkeypatch.setattr(settings, "hsts_enabled", True)
+    response = raw_client.get("/_test_errors/unhandled")
+
+    assert response.status_code == 500
+    for header, value in security_headers().items():
+        assert response.headers.get(header) == value, header
+    assert "Strict-Transport-Security" in response.headers

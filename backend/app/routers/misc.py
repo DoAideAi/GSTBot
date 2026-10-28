@@ -40,6 +40,7 @@ from app.core.redis_client import ping as redis_ping
 from app.core.storage import check_upload_dir
 from app.models.business import Business
 from app.models.invoice import Invoice
+from app.models.mixins import utcnow
 from app.models.subscriber import Subscriber
 from app.schemas.misc import (
     BulkGstinRequest,
@@ -556,7 +557,6 @@ def _upsert_subscriber(db: Session, email: str, source: str) -> bool:
     if existing is not None:
         if existing.unsubscribed_at is not None:
             existing.unsubscribed_at = None
-            from app.models.mixins import utcnow
             existing.subscribed_at = utcnow()
             existing.source = source
             db.commit()
@@ -636,7 +636,6 @@ def unsubscribe(
     if subscriber.unsubscribed_at is not None:
         return {"unsubscribed": True, "message": "Already unsubscribed."}
 
-    from app.models.mixins import utcnow
     subscriber.unsubscribed_at = utcnow()
     db.commit()
     logger.info(
