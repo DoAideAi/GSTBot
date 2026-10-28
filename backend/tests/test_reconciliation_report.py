@@ -468,3 +468,58 @@ def test_every_match_category_has_a_section_in_the_report():
     from app.services.reconciliation_report import SECTIONS
 
     assert {section[0] for section in SECTIONS} == set(MatchCategory)
+
+
+class TestALargeReportBuildsInLinearTime:
+    """C103 M8: 10,000 findings took about 6s (and 30s with long names) — every
+    cell a Paragraph line-broken twice, all in one table re-measured at every
+    page split. Short cells are plain strings now, and the findings are cut
+    into tables of a few hundred rows, which made it 1.2s."""
+
+    def test_a_short_value_is_a_plain_string_and_a_long_one_still_wraps(self):
+        from reportlab.platypus import Paragraph
+
+        from app.services.reconciliation_report import _cell
+
+        assert _cell("27AAPFU0939F1ZV", 36 * 2.835) == "27AAPFU0939F1ZV"
+        assert _cell(None, 100) == "-"
+        assert isinstance(_cell("A very long supplier name " * 6, 52 * 2.835), Paragraph)
+        assert isinstance(_cell("two\nlines", 200), Paragraph)
+
+    def test_findings_are_cut_into_tables_and_no_row_is_lost_at_a_cut(self, db_session, business):
+        from io import BytesIO
+
+        from pypdf import PdfReader
+
+        from app.services.reconciliation_report import (
+            _ROWS_PER_TABLE,
+            _findings_tables,
+            build_pdf,
+        )
+
+        n = _ROWS_PER_TABLE * 2 + 3
+        findings = [
+            {"category": "matched", "invoice_number": f"CUT-{i:04d}", "supplier_name": "S"}
+            for i in range(n)
+        ]
+        assert len(_findings_tables(findings)) == 3
+
+        run = _run(db_session, business)
+        run.report = {"findings": findings}
+        pages = PdfReader(BytesIO(build_pdf(run, business))).pages
+        text = "".join(page.extract_text() for page in pages)
+        for i in (0, _ROWS_PER_TABLE - 1, _ROWS_PER_TABLE, _ROWS_PER_TABLE * 2, n - 1):
+            assert f"CUT-{i:04d}" in text
+
+    def test_markup_in_a_plain_cell_is_still_printed_as_text(self, db_session, business):
+        from io import BytesIO
+
+        from pypdf import PdfReader
+
+        from app.services.reconciliation_report import build_pdf
+
+        run = _run(db_session, business)
+        run.report = {"findings": [{"category": "matched", "invoice_number": "<b>A&B</b>"}]}
+        pages = PdfReader(BytesIO(build_pdf(run, business))).pages
+        text = "".join(page.extract_text() for page in pages)
+        assert "<b>A&B</b>" in text

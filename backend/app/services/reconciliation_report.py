@@ -17,6 +17,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.models.business import Business
@@ -53,8 +54,13 @@ _GRID = TableStyle(
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        # The font a plain-string cell is drawn in — the same face, size and
+        # leading as _CELL, so it reads identically to a Paragraph beside it.
+        ("FONT", (0, 1), (-1, -1), _CELL.fontName, _CELL.fontSize, _CELL.leading),
     ]
 )
+# Table's default left + right padding, in points.
+_PADDING = 12
 
 
 def rupees(value: object) -> str:
@@ -106,6 +112,21 @@ def _p(text: object, style=_CELL) -> Paragraph:
     return Paragraph(escape("" if text is None else str(text)), style)
 
 
+def _cell(text: object, width: float) -> str | Paragraph:
+    """A plain string when *text* fits *width* on one line, else a wrapping Paragraph.
+
+    Line-breaking a Paragraph is most of what a large report costs to build —
+    every cell measured word by word, twice (once to size the row, once to
+    draw it) — and most cells here are a GSTIN, a date or an amount that never
+    wraps. A plain string is measured once and drawn as-is, and needs no
+    escaping because a Table does not parse it as markup.
+    """
+    value = "-" if text is None or text == "" else str(text)
+    if "\n" not in value and stringWidth(value, _CELL.fontName, _CELL.fontSize) <= width - _PADDING:
+        return value
+    return _p(value)
+
+
 def _tax(side: object) -> str:
     if not isinstance(side, dict):
         return "-"
@@ -127,21 +148,36 @@ def _note(finding: dict) -> str:
     return "; ".join(parts)
 
 
+# Rows per table. One table holding every finding is split again at each page
+# break, and each split re-measures everything left below it, so a large run
+# cost more than linearly; tables of this size keep each split small. Each one
+# carries the header row, so a reader meets it at least every few pages.
+_ROWS_PER_TABLE = 250
+
+
+def _findings_tables(findings: list[dict]) -> list[Table]:
+    return [
+        _findings_table(findings[start : start + _ROWS_PER_TABLE])
+        for start in range(0, len(findings), _ROWS_PER_TABLE)
+    ]
+
+
 def _findings_table(findings: list[dict]) -> Table:
     header = ["Invoice no.", "Supplier", "Supplier GSTIN", "Date", "Tax (books)",
               "Tax (2B)", "Notes"]
+    widths = [x * mm for x in (32, 52, 36, 22, 28, 28, 70)]
     rows = [[_p(h, _HEAD) for h in header]]
     for finding in findings:
-        rows.append([
-            _p(finding.get("invoice_number") or "-"),
-            _p(finding.get("supplier_name") or "-"),
-            _p(finding.get("supplier_gstin") or "-"),
-            _p(finding.get("invoice_date") or "-"),
-            _p(_tax(finding.get("books"))),
-            _p(_tax(finding.get("gstr2b"))),
-            _p(_note(finding)),
-        ])
-    widths = [x * mm for x in (32, 52, 36, 22, 28, 28, 70)]
+        values = (
+            finding.get("invoice_number"),
+            finding.get("supplier_name"),
+            finding.get("supplier_gstin"),
+            finding.get("invoice_date"),
+            _tax(finding.get("books")),
+            _tax(finding.get("gstr2b")),
+            _note(finding),
+        )
+        rows.append([_cell(value, width) for value, width in zip(values, widths, strict=True)])
     table = Table(rows, colWidths=widths, repeatRows=1)
     table.setStyle(_GRID)
     return table
@@ -206,7 +242,7 @@ def build_pdf(run: ReconciliationRun, business: Business) -> bytes:
             _p(explanation),
             Spacer(1, 2 * mm),
         ]
-        story.append(_findings_table(rows) if rows else _p("None."))
+        story.extend(_findings_tables(rows) if rows else [_p("None.")])
 
     story += [
         Spacer(1, 8 * mm),
