@@ -21,6 +21,7 @@ from app.models.invoice import (
     InvoiceSource,
     InvoiceStatus,
     InvoiceType,
+    without_document,
 )
 from app.schemas.invoice import (
     InvoiceBulkUploadItemOut,
@@ -500,8 +501,11 @@ def list_invoices(
     # the next, and a row could appear on both pages of the same query or on
     # neither.
     order = (*_SORTS.get(sort, ()), Invoice.created_at.desc(), Invoice.id.desc())
+    # The register prints figures; the document behind each row is the detail
+    # screen's business, and a page of 200 scanned PDFs is megabytes of it.
     rows = db.scalars(
         select(Invoice)
+        .options(*without_document())
         .where(*conditions)
         .order_by(*order)
         .limit(limit)

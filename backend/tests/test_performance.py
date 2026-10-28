@@ -5,8 +5,14 @@ wall-clock time, which is unstable in CI.
 """
 from __future__ import annotations
 
+import re
+from datetime import date
+from decimal import Decimal
 from unittest.mock import patch
 
+from sqlalchemy import event
+
+from app.models.invoice import Invoice, InvoiceSource, InvoiceStatus, InvoiceType
 from app.services import gstin as gstin_service
 from app.services.invoice_service import TenantSnapshot, effective_plan
 
@@ -174,3 +180,216 @@ class TestFilingPreviewReadsInvoicesOnce:
             f"_unreadable_invoices called "
             f"{calls['_unreadable_invoices']} times; should be 1"
         )
+
+
+# -----------------------------------------------------------------------
+# Bulk invoice reads leave the extracted document behind
+# -----------------------------------------------------------------------
+
+_DOCUMENT_COLUMNS = ("raw_text", "extraction", "line_items")
+
+
+def _selects_column(statement: str, column: str) -> bool:
+    # Bounded, because ``extraction`` is a prefix of ``extraction_confidence``,
+    # which every read does and should select.
+    return re.search(rf"\binvoices\.{column}\b", statement) is not None
+
+
+def _invoice_selects(session, run) -> list[str]:
+    """Every SELECT against ``invoices`` that *run* issues, lower-cased."""
+    seen: list[str] = []
+
+    def _record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        normalised = " ".join(statement.split()).lower()
+        if normalised.startswith("select") and "from invoices" in normalised:
+            seen.append(normalised)
+
+    bind = session.get_bind()
+    event.listen(bind, "before_cursor_execute", _record)
+    try:
+        run()
+    finally:
+        event.remove(bind, "before_cursor_execute", _record)
+    return seen
+
+
+def _bulk_selects(selects: list[str]) -> list[str]:
+    # The register read is the one selecting the row's figures; a COUNT or a
+    # SUM issued alongside it never carries the document either way.
+    return [s for s in selects if "invoices.taxable_value" in s and "count(" not in s]
+
+
+def _seed_scanned_purchases(db_session, business, *, period="2026-04", count=3):
+    """Parsed purchases carrying the kind of document an OCR'd PDF leaves."""
+    for index in range(count):
+        db_session.add(
+            Invoice(
+                business_id=business.id,
+                invoice_type=InvoiceType.PURCHASE,
+                period=period,
+                status=InvoiceStatus.PARSED,
+                source=InvoiceSource.UPLOAD,
+                counterparty_gstin="29AAGCR4375J1ZU",
+                counterparty_name=f"Supplier {index}",
+                invoice_number=f"P-{index:04d}",
+                invoice_date=date(2026, 4, 1 + index),
+                taxable_value=Decimal("1000.00"),
+                igst=Decimal("180.00"),
+                total_value=Decimal("1180.00"),
+                tax_rate=Decimal("18.00"),
+                itc_eligible=True,
+                raw_text="OCR " * 20_000,
+                extraction={"warnings": ["low contrast scan"], "blob": "x" * 5_000},
+                line_items=[{"description": "Widget", "hsn": "8471", "amount": "1000.00"}],
+            )
+        )
+    db_session.commit()
+    db_session.expire_all()
+
+
+class TestBulkInvoiceReadsDeferTheDocument:
+    """raw_text and extraction are the whole uploaded document and the model's
+    answer about it; no screen that lists or totals invoices reads them.
+    """
+
+    def test_the_register_page_does_not_select_the_document(
+        self, db_session, auth_client, business
+    ):
+        _seed_scanned_purchases(db_session, business)
+        responses = []
+        selects = _invoice_selects(
+            db_session, lambda: responses.append(auth_client.get("/api/v1/invoices"))
+        )
+        assert responses[0].status_code == 200
+        assert len(responses[0].json()["items"]) == 3
+        reads = _bulk_selects(selects)
+        assert reads, "the register read was not observed"
+        for column in _DOCUMENT_COLUMNS:
+            assert not any(_selects_column(s, column) for s in reads), column
+
+    def test_the_register_page_still_serves_every_figure(
+        self, db_session, auth_client, business
+    ):
+        _seed_scanned_purchases(db_session, business, count=1)
+        item = auth_client.get("/api/v1/invoices").json()["items"][0]
+        assert item["invoice_number"] == "P-0000"
+        assert Decimal(item["invoice_value"]) == Decimal("1180.00")
+
+    def test_the_detail_screen_still_gets_the_document(
+        self, db_session, auth_client, business
+    ):
+        _seed_scanned_purchases(db_session, business, count=1)
+        invoice_id = auth_client.get("/api/v1/invoices").json()["items"][0]["id"]
+        detail = auth_client.get(f"/api/v1/invoices/{invoice_id}").json()
+        assert detail["warnings"] == ["low contrast scan"]
+        assert detail["line_items"][0]["hsn"] == "8471"
+
+    def test_the_itc_register_does_not_select_the_document(self, db_session, business):
+        from app.services import itc
+        _seed_scanned_purchases(db_session, business)
+        rows = []
+        selects = _invoice_selects(
+            db_session,
+            lambda: rows.extend(itc.purchase_invoices(db_session, business.id, "2026-04")),
+        )
+        assert len(rows) == 3
+        for column in _DOCUMENT_COLUMNS:
+            assert not any(_selects_column(s, column) for s in selects), column
+
+    def test_the_reconciliation_books_do_not_select_the_document(
+        self, db_session, business
+    ):
+        from app.services import reconciliation
+        _seed_scanned_purchases(db_session, business)
+        rows = []
+        selects = _invoice_selects(
+            db_session,
+            lambda: rows.extend(
+                reconciliation._book_invoices(db_session, business.id, "2026-04")
+            ),
+        )
+        assert len(rows) == 3
+        for column in _DOCUMENT_COLUMNS:
+            assert not any(_selects_column(s, column) for s in selects), column
+
+    def test_invoices_carried_from_another_period_do_not_select_the_document(
+        self, db_session, business
+    ):
+        from app.services import reconciliation
+        from app.services.gstr2b import GSTR2BRecord
+        _seed_scanned_purchases(db_session, business, period="2026-03", count=1)
+        record = GSTR2BRecord(
+            supplier_gstin="29AAGCR4375J1ZU",
+            invoice_number="P-0000",
+            period="2026-03",
+        )
+        rows = []
+        selects = _invoice_selects(
+            db_session,
+            lambda: rows.extend(
+                reconciliation._carried_invoices(
+                    db_session, business.id, [record], "2026-04"
+                )
+            ),
+        )
+        assert [row.invoice_number for row in rows] == ["P-0000"]
+        for column in _DOCUMENT_COLUMNS:
+            assert not any(_selects_column(s, column) for s in selects), column
+
+    def test_filing_keeps_line_items_for_the_hsn_summary_but_not_the_text(
+        self, db_session, business
+    ):
+        from app.services import filing
+        _seed_scanned_purchases(db_session, business)
+        rows = []
+        selects = _invoice_selects(
+            db_session,
+            lambda: rows.extend(
+                filing._invoices(db_session, business.id, "2026-04", InvoiceType.PURCHASE)
+            ),
+        )
+        assert len(rows) == 3
+        assert selects and all(_selects_column(s, "line_items") for s in selects)
+        assert not any(_selects_column(s, "raw_text") for s in selects)
+        assert not any(_selects_column(s, "extraction") for s in selects)
+
+    def test_unreadable_rows_named_by_validation_do_not_select_the_document(
+        self, db_session, business
+    ):
+        from app.services import filing
+        db_session.add(
+            Invoice(
+                business_id=business.id,
+                invoice_type=InvoiceType.SALES,
+                period="2026-04",
+                status=InvoiceStatus.FAILED,
+                source=InvoiceSource.UPLOAD,
+                invoice_number="BAD-1",
+                raw_text="unreadable " * 5_000,
+            )
+        )
+        db_session.commit()
+        db_session.expire_all()
+        rows = []
+        selects = _invoice_selects(
+            db_session,
+            lambda: rows.extend(
+                filing._unreadable_invoices(
+                    db_session, business.id, "2026-04", InvoiceType.SALES
+                )
+            ),
+        )
+        assert [row.invoice_number for row in rows] == ["BAD-1"]
+        for column in _DOCUMENT_COLUMNS:
+            assert not any(_selects_column(s, column) for s in selects), column
+
+    def test_a_deferred_column_still_loads_when_a_caller_reaches_for_it(
+        self, db_session, business
+    ):
+        # Deferred, not dropped: the rare caller that needs the text pays one
+        # lazy load for it rather than meeting an AttributeError.
+        from app.services import itc
+        _seed_scanned_purchases(db_session, business, count=1)
+        (row,) = itc.purchase_invoices(db_session, business.id, "2026-04")
+        assert row.raw_text.startswith("OCR ")
+        assert row.extraction["warnings"] == ["low contrast scan"]

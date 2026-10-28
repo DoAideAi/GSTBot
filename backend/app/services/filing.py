@@ -44,6 +44,7 @@ from app.models.invoice import (
     Invoice,
     InvoiceStatus,
     InvoiceType,
+    without_document,
 )
 from app.services import gst_calendar, invoice_parser, invoice_service
 from app.services import gstin as gstin_service
@@ -828,7 +829,9 @@ def _invoices(
     """
     return list(
         db.scalars(
+            # line_items stays: the HSN summary is built from it.
             select(Invoice)
+            .options(*without_document(keep_line_items=True))
             .where(
                 Invoice.business_id == business_id,
                 Invoice.deleted_at.is_(None),
@@ -848,6 +851,7 @@ def _unreadable_invoices(
     return list(
         db.scalars(
             select(Invoice)
+            .options(*without_document())
             .where(
                 Invoice.business_id == business_id,
                 Invoice.deleted_at.is_(None),

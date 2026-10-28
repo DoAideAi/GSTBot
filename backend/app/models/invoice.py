@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SAEnum,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, defer, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.mixins import (
@@ -310,3 +310,23 @@ class Invoice(Base, BusinessScopedMixin, TimestampMixin, SoftDeleteMixin):
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<Invoice {self.invoice_type} {self.invoice_number} {self.total_value}>"
+
+
+def without_document(*, keep_line_items: bool = False) -> tuple:
+    """Loader options that leave the extracted document out of a bulk read.
+
+    ``raw_text`` is the whole text of the uploaded file and ``extraction`` the
+    model's full answer about it — tens of kilobytes a row on a scanned PDF,
+    against a few hundred bytes for every figure a return, a reconciliation or
+    the register is computed from. A period's purchases read whole for the ITC
+    summary hauled a megabyte of OCR off the database to add up four columns.
+
+    Deferred rather than excluded, so a caller that does reach for one still
+    gets it with a lazy load instead of an ``AttributeError``; the cost moves
+    to the rare row that needs it. ``line_items`` is optional because GSTR-1's
+    HSN summary is built from it and nothing else reads it in bulk.
+    """
+    options = [defer(Invoice.raw_text), defer(Invoice.extraction)]
+    if not keep_line_items:
+        options.append(defer(Invoice.line_items))
+    return tuple(options)

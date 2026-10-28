@@ -33,7 +33,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.invoice import UNCOUNTABLE_STATUSES, Invoice, InvoiceType
+from app.models.invoice import UNCOUNTABLE_STATUSES, Invoice, InvoiceType, without_document
 from app.services import gst_calendar, reconciliation
 
 ZERO = Decimal("0.00")
@@ -767,6 +767,7 @@ def _purchases(
     return list(
         db.scalars(
             select(Invoice)
+            .options(*without_document())
             .where(*conditions)
             .order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
         ).all()

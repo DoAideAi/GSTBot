@@ -48,6 +48,7 @@ from app.models.invoice import (
     Invoice,
     InvoiceStatus,
     InvoiceType,
+    without_document,
 )
 from app.models.reconciliation_run import (
     MatchCategory,
@@ -324,6 +325,7 @@ def _book_invoices(db: Session, business_id: int, period: str) -> list[Invoice]:
     return list(
         db.scalars(
             select(Invoice)
+            .options(*without_document())
             .where(
                 Invoice.business_id == business_id,
                 Invoice.deleted_at.is_(None),
@@ -379,7 +381,7 @@ def _carried_invoices(
     for start in range(0, len(ordered_gstins), _SUPPLIER_LOOKUP_CHUNK):
         rows.extend(
             db.scalars(
-                select(Invoice).where(
+                select(Invoice).options(*without_document()).where(
                     Invoice.business_id == business_id,
                     Invoice.deleted_at.is_(None),
                     Invoice.invoice_type == InvoiceType.PURCHASE,
