@@ -1521,3 +1521,221 @@ class TestASupplierWhoCreditedPartOfWhatTheyBilled:
 
         dashboard = client.get("/api/v1/dashboard", params={"period": PERIOD}).json()
         assert money(dashboard["purchase"]["igst"]) == Decimal("81000.00")
+
+
+class TestAPurchaseRemovedAfterItWasReconciled:
+    """M20: a delete has to reach every screen that counted the invoice, and no
+    record that was already made from it.
+
+    The later run is what the books say now; the earlier run is what they said
+    when it ran, and a reconciliation report a business has already shown its
+    accountant cannot change underneath them.
+    """
+
+    @pytest.fixture()
+    def reconciled(self, signed_in, db_session, stub_openrouter):
+        takes_the_pro_plan(db_session)
+        purchase = upload(
+            signed_in,
+            stub_openrouter,
+            text=PURCHASE_TEXT,
+            extraction=PURCHASE_EXTRACTION,
+            invoice_type="purchase",
+            name="northwind-0042.txt",
+        )
+        import_2b(signed_in, portal_2b())
+        first = reconcile(signed_in, PERIOD)
+        assert first["matched_count"] == 1
+        response = signed_in.delete(f"/api/v1/invoices/{purchase['id']}")
+        assert response.status_code == 204
+        return signed_in, first
+
+    def test_the_next_run_reports_the_portal_invoice_missing_from_the_books(self, reconciled):
+        client, _ = reconciled
+        second = reconcile(client, PERIOD)
+        assert second["matched_count"] == 0
+        assert second["missing_in_books_count"] == 1
+        assert money(second["itc_claimed"]) == Decimal("0.00")
+
+    def test_the_earlier_run_is_left_as_it_was(self, reconciled):
+        client, first = reconciled
+        reconcile(client, PERIOD)
+        again = client.get(f"/api/v1/reconciliation/{first['id']}")
+        assert again.status_code == 200
+        assert again.json()["matched_count"] == 1
+        assert money(again.json()["itc_claimed"]) == Decimal("81000.00")
+
+    def test_the_return_stops_claiming_its_credit(self, reconciled):
+        client, _ = reconciled
+        document = client.get("/api/v1/filing/gstr3b", params={"period": PERIOD}).json()["document"]
+        assert money(document["itc_elg"]["itc_net"]["iamt"]) == Decimal("0.00")
+        dashboard = client.get("/api/v1/dashboard", params={"period": PERIOD}).json()
+        assert money(dashboard["purchase"]["igst"]) == Decimal("0.00")
+
+
+class TestABusinessRemovedFromTheDatabase:
+    """M20: deleting a business row takes every row it owns with it.
+
+    There is no endpoint for this; it is what an operator erasing a tenant
+    runs, and the database's ``ON DELETE CASCADE`` is the only thing doing it.
+    The tables are found by their ``business_id`` column rather than listed,
+    so a table added later is covered without anyone remembering to add it.
+    """
+
+    def test_every_owned_row_goes_and_the_neighbour_keeps_everything(
+        self, client, db_session, stub_openrouter, other_tenant
+    ):
+        from datetime import date
+
+        from sqlalchemy import inspect, text
+
+        from app.models.alert import Alert, AlertType
+        from app.models.business import Business
+        from app.models.user import User
+
+        client.headers.update({"Authorization": f"Bearer {register(client)}"})
+        takes_the_pro_plan(db_session)
+        upload(
+            client,
+            stub_openrouter,
+            text=PURCHASE_TEXT,
+            extraction=PURCHASE_EXTRACTION,
+            invoice_type="purchase",
+            name="northwind-0042.txt",
+        )
+        upload(
+            client,
+            stub_openrouter,
+            text=SALES_TEXT,
+            extraction=SALES_EXTRACTION,
+            invoice_type="sales",
+            name="sale-0101.txt",
+        )
+        import_2b(client, portal_2b())
+        reconcile(client, PERIOD)
+        filed = client.post(
+            "/api/v1/filing/gstr1/filed", json={"period": PERIOD, "filed_on": "2026-05-10"}
+        )
+        assert filed.status_code == 201, filed.text
+
+        gone = db_session.query(Business).filter_by(gstin=BUSINESS_GSTIN).one()
+        gone_id = gone.id
+        neighbour = db_session.query(Business).filter(Business.id != gone_id).one()
+        neighbour_id = neighbour.id
+        gone_user = db_session.query(User).filter_by(business_id=gone_id).one()
+        neighbour_user = db_session.query(User).filter_by(business_id=neighbour_id).one()
+        db_session.add_all(
+            [
+                Alert(
+                    business_id=gone_id,
+                    alert_type=AlertType.FILING_DEADLINE,
+                    title="GSTR-3B due",
+                    message="Due on the 20th.",
+                    due_date=date(2026, 5, 20),
+                ),
+                # Both directions: their login into the neighbour, and the
+                # neighbour's login into theirs.
+                BusinessMembership(
+                    user_id=gone_user.id, business_id=neighbour_id, role=MembershipRole.VIEWER
+                ),
+                BusinessMembership(
+                    user_id=neighbour_user.id, business_id=gone_id, role=MembershipRole.VIEWER
+                ),
+            ]
+        )
+        db_session.commit()
+
+        inspector = inspect(db_session.bind)
+        owned = [
+            table
+            for table in inspector.get_table_names()
+            if any(column["name"] == "business_id" for column in inspector.get_columns(table))
+        ]
+
+        def count(table: str, op: str, business_id: int) -> int:
+            return db_session.execute(
+                text(f"SELECT count(*) FROM {table} WHERE business_id {op} :b"),
+                {"b": business_id},
+            ).scalar_one()
+
+        before = {table: count(table, "=", gone_id) for table in owned}
+        # The journey has to have written the tables that matter, or "all
+        # zero afterwards" proves nothing.
+        for table in ("invoices", "suppliers", "reconciliation_runs", "gstr_returns",
+                      "alerts", "subscriptions", "users", "business_memberships"):
+            assert before[table] > 0, table
+        neighbour_rows = {table: count(table, "<>", gone_id) for table in owned}
+
+        db_session.execute(text("DELETE FROM businesses WHERE id = :b"), {"b": gone_id})
+        db_session.commit()
+        db_session.expire_all()
+
+        assert {table: count(table, "=", gone_id) for table in owned} == dict.fromkeys(owned, 0)
+        # The neighbour loses exactly one row: the membership the erased
+        # business's login held into it, which went with that login.
+        expected = {**neighbour_rows}
+        expected["business_memberships"] -= 1
+        assert {table: count(table, "<>", gone_id) for table in owned} == expected
+        assert db_session.get(User, neighbour_user.id) is not None
+
+
+class TestABusinessPaysAndThenCancels:
+    """M20: the paywall, the payment and the cancellation as one journey.
+
+    ``test_subscriptions`` drives each step on its own and every other journey
+    here stands in for payment with ``make_paid``; this is the handoff between
+    them — the subscription the payment writes is the one the paywall and the
+    upload allowance read.
+    """
+
+    def test_the_paid_features_open_and_close_with_the_subscription(
+        self, signed_in, db_session
+    ):
+        from unittest.mock import patch
+
+        from app.models.business import Business
+        from app.services import razorpay_client
+        from tests.test_subscriptions import _paid_order
+
+        client = signed_in
+        business_id = db_session.query(Business).filter_by(gstin=BUSINESS_GSTIN).one().id
+
+        def paywalled() -> int:
+            return client.post("/api/v1/reconciliation/run", json={"period": PERIOD}).status_code
+
+        def allowance() -> int:
+            (row,) = client.get("/api/v1/subscriptions/usage").json()["usage"]
+            return row["limit"]
+
+        assert paywalled() == 403
+        assert allowance() == 50
+
+        payment = {
+            "razorpay_order_id": "order_test",
+            "razorpay_payment_id": "pay_test",
+            "razorpay_signature": "sig",
+            "tier": "pro",
+        }
+        with (
+            patch.object(razorpay_client, "verify_payment_signature", return_value=True),
+            patch.object(
+                razorpay_client, "fetch_order", return_value=_paid_order(business_id, "pro")
+            ),
+        ):
+            paid = client.post("/api/v1/subscriptions/verify-payment", json=payment)
+            assert paid.status_code == 200, paid.text
+            # The checkout callback can fire twice; the second must not buy a
+            # second month.
+            replay = client.post("/api/v1/subscriptions/verify-payment", json=payment)
+        assert replay.status_code == 200
+        assert replay.json()["current_period_end"] == paid.json()["current_period_end"]
+
+        # Past the paywall: refused for want of a 2B now, not for want of a plan.
+        assert paywalled() == 409
+        assert allowance() == 0  # unlimited
+        assert client.get("/api/v1/subscriptions/current").json()["tier"] == "pro"
+
+        cancelled = client.post("/api/v1/subscriptions/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert paywalled() == 403
+        assert allowance() == 50
