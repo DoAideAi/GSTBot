@@ -84,6 +84,7 @@ class TestCounting:
             "status_4xx": 0,
             "status_5xx": 1,
             "slow": 0,
+            "over_budget": 0,
             "error_rate": 0.25,
             "avg_ms": 200.0,
         }
@@ -93,7 +94,7 @@ class TestCounting:
     def test_an_empty_hour_is_zeros_not_a_division_by_zero(self, fake):
         assert metrics.summary(1, now=NOW)["totals"] == {
             "requests": 0, "status_4xx": 0, "status_5xx": 0, "slow": 0,
-            "error_rate": 0.0, "avg_ms": 0.0,
+            "over_budget": 0, "error_rate": 0.0, "avg_ms": 0.0,
         }
 
     def test_without_redis_nothing_is_recorded_and_nothing_raises(self, monkeypatch):
@@ -143,3 +144,47 @@ class TestTheEndpoint:
     def test_the_window_is_bounded(self, auth_client, fake, monkeypatch, hours):
         monkeypatch.setattr(settings, "admin_emails", TEST_EMAIL)
         assert auth_client.get(URL, params={"hours": hours}).status_code == 422
+
+
+class TestPerformanceBudgets:
+    """A per-route allowance, so "slow" means slow for that route."""
+
+    def test_a_request_over_its_budget_is_counted_with_its_route(self, fake):
+        metrics.record(200, 900, now=NOW, route="GET /dashboard", budget_ms=500)
+        metrics.record(200, 400, now=NOW, route="GET /dashboard", budget_ms=500)
+        metrics.record(200, 4000, now=NOW, route="POST /reconciliation/run", budget_ms=5000)
+
+        assert fake.hashes["gstbot:metrics:2026102814"]["over_budget"] == 1
+        assert fake.hashes["gstbot:metrics:over:2026102814"] == {"GET /dashboard": 1}
+
+    def test_the_flat_slow_line_and_the_budget_disagree_on_purpose(self, fake):
+        """A 4-second run is within its budget but over the old one-second
+        line; a 900 ms dashboard is the other way round."""
+        metrics.record(200, 4000, now=NOW, route="POST /reconciliation/run", budget_ms=5000)
+        metrics.record(200, 900, now=NOW, route="GET /dashboard", budget_ms=500)
+        bucket = fake.hashes["gstbot:metrics:2026102814"]
+        assert (bucket["slow"], bucket["over_budget"]) == (1, 1)
+
+    def test_the_summary_names_the_routes_missing_their_budget_worst_first(self, fake):
+        for _ in range(3):
+            metrics.record(200, 900, now=NOW, route="GET /dashboard", budget_ms=500)
+        metrics.record(
+            200, 2000, now=datetime(2026, 10, 28, 13, 5, tzinfo=UTC),
+            route="GET /invoices", budget_ms=500,
+        )
+
+        body = metrics.summary(2, now=NOW)
+        assert body["totals"]["over_budget"] == 4
+        assert body["over_budget_routes"] == {"GET /dashboard": 3, "GET /invoices": 1}
+
+    def test_the_middleware_charges_a_request_to_its_route_template(
+        self, client, fake, monkeypatch
+    ):
+        from app.core import budgets
+
+        monkeypatch.setattr(budgets, "READ_MS", -1)
+        client.get("/api/v1/meta/states")
+        client.get("/api/v1/meta/gstin/27AAPFU0939F1ZV")
+
+        hour = next(k for k in fake.hashes if k.startswith("gstbot:metrics:over:"))
+        assert fake.hashes[hour] == {"GET /meta/states": 1, "GET /meta/gstin/{gstin}": 1}

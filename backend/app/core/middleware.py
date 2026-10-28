@@ -16,7 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from app.core import metrics
+from app.core import budgets, metrics
 from app.core.config import settings
 from app.core.errors import error_body
 from app.core.headers import security_headers
@@ -141,9 +141,16 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
 
         if request.url.path in _QUIET_PATHS and response.status_code < 400:
             return response
+        # The template the router matched, so every id shares one budget; an
+        # unrouted path has none and falls back on its method's.
+        template = getattr(request.scope.get("route"), "path", None)
+        budget_ms = budgets.budget_for(request.method, template)
+        route_label = f"{request.method} {template}" if template else None
         # After the quiet-path return, so a probe every few seconds does not
         # dilute the error rate and average latency of real traffic.
-        metrics.record(response.status_code, duration_ms)
+        metrics.record(
+            response.status_code, duration_ms, route=route_label, budget_ms=budget_ms
+        )
 
         level = logging.INFO
         if response.status_code >= 500:
@@ -157,7 +164,11 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
             request.method,
             request.url.path,
             response.status_code,
-            extra=_line_fields(request, response.status_code, duration_ms),
+            extra={
+                **_line_fields(request, response.status_code, duration_ms),
+                "budget_ms": budget_ms,
+                "over_budget": duration_ms > budget_ms,
+            },
         )
         return response
 

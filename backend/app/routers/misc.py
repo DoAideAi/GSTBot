@@ -201,7 +201,10 @@ def liveness() -> dict[str, str]:
         "Counts for every answered request except health probes, across all "
         "API workers, for the last `hours` UTC hours (oldest first) and in "
         "total: requests by status class, requests slower than one second, "
-        "the 5xx error rate and the average response time. Kept for 48 hours.\n\n"
+        "requests over their route's performance budget (see "
+        "`app/core/budgets.py`) with the routes that missed it most in "
+        "`over_budget_routes`, the 5xx error rate and the average response "
+        "time. Kept for 48 hours.\n\n"
         "Restricted to `ADMIN_EMAILS`: traffic volume is business information. "
         "A 503 means Redis, where the counters live, cannot be reached."
     ),
