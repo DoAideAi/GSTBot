@@ -19,6 +19,75 @@ The other rule here: an unexpected exception is logged in full and answered
 with a generic message. A stack trace, a failing SQL statement or a connection
 string in an HTTP response is a gift to whoever is probing the service, and the
 correlation id is what lets support find the real error without publishing it.
+
+Error code catalog
+------------------
+Branch on ``error.code``, not on ``detail`` (which is prose and may change).
+
+``bad_request`` (400)
+    The request is structurally wrong — a body where the route expects none, or
+    a content type the route does not accept. Fix the request, do not retry.
+
+``unauthorized`` (401)
+    No valid bearer token. The token is missing, expired or malformed. Re-
+    authenticate and retry with a fresh ``Authorization: Bearer <token>`` header.
+
+``payment_required`` (402)
+    The business's subscription does not cover this action — typically an
+    invoice upload above the plan's monthly limit. Upgrade the plan or wait for
+    the next billing period.
+
+``forbidden`` (403)
+    The caller is authenticated but lacks the required role. ``detail`` names
+    the role held and who to ask for elevation. A viewer hitting a write route
+    always sees this; owners and accountants never do.
+
+``not_found`` (404)
+    The resource does not exist **or belongs to another tenant**. Cross-tenant
+    reads deliberately answer 404, not 403, to avoid confirming that the id
+    exists. Check the id and the ``X-Business-Id`` header.
+
+``method_not_allowed`` (405)
+    The HTTP method is wrong for this path — e.g. POST to a GET-only route.
+
+``conflict`` (409)
+    A database uniqueness constraint was violated — typically a duplicate GSTIN,
+    email, or invoice number within the same business. The response does not
+    name the constraint (that would leak schema); ``detail`` says what collided.
+
+``payload_too_large`` (413)
+    The upload exceeds ``MAX_UPLOAD_MB`` (default 15 MB). Compress or split
+    the file before retrying.
+
+``unsupported_media_type`` (415)
+    The uploaded file's MIME type is not one the endpoint accepts. Check the
+    route's documentation for the accepted types.
+
+``validation_error`` (422)
+    One or more fields failed Pydantic validation. ``error.fields`` is a list
+    of ``{field, message, type}`` entries pinpointing each failure. The rejected
+    value is echoed (truncated at 200 characters) unless the field looks like a
+    secret (password, token, api_key), which is redacted.
+
+``rate_limited`` (429)
+    Too many requests. The ``Retry-After`` header says how many seconds to wait.
+    Per-route buckets are documented in each route's OpenAPI spec; a global
+    per-address counter of 300/minute underlies all of them.
+
+``internal_error`` (500)
+    An unhandled exception. The real error is in the server log, keyed by the
+    ``correlation_id`` in the response. Retrying may help if it was transient.
+
+``upstream_error`` (502)
+    A dependency (OpenRouter, Razorpay, SMTP) returned an unexpected response.
+    The request may succeed on retry.
+
+``service_unavailable`` (503)
+    The database or a required service is temporarily unreachable. The
+    ``Retry-After`` header is set. Safe to retry after the indicated delay.
+
+``upstream_timeout`` (504)
+    A dependency did not respond in time. Retry after a short delay.
 """
 from __future__ import annotations
 

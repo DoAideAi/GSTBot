@@ -531,6 +531,8 @@ class TestEveryGuardedRouteRefusesInTheSameShape:
     PATH_VALUES = {
         "alert_id": "1",
         "business_id": "1",
+        "error_id": "1",
+        "feedback_id": "1",
         "invoice_id": "1",
         "run_id": "1",
         "supplier_id": "1",
