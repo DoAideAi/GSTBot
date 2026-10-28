@@ -271,6 +271,52 @@ describe("Shell", () => {
     });
   });
 
+  describe("the premium badge", () => {
+    function signedInWithTier(tier) {
+      setToken("stored-token");
+      global.fetch = vi.fn((url) => {
+        const u = String(url);
+        if (u.includes("/subscriptions/current")) {
+          return Promise.resolve(
+            jsonResponse({ id: 1, tier, status: "active" }),
+          );
+        }
+        if (u.includes("/alerts")) {
+          return Promise.resolve(
+            jsonResponse({ items: [], total: 0, open_total: 0, limit: 1, offset: 0 }),
+          );
+        }
+        return Promise.resolve(
+          jsonResponse({ id: 1, email: "owner@acme.in", business: { id: 1, legal_name: "Acme" } }),
+        );
+      });
+    }
+
+    it("shows PRO when the user has a pro subscription", async () => {
+      signedInWithTier("pro");
+      renderShell();
+
+      expect(await screen.findByText("PRO")).toBeInTheDocument();
+      expect(screen.getByText("PRO").closest("a")).toHaveAttribute("href", "/pricing");
+    });
+
+    it("shows CA when the user has an enterprise subscription", async () => {
+      signedInWithTier("enterprise");
+      renderShell();
+
+      expect(await screen.findByText("CA")).toBeInTheDocument();
+    });
+
+    it("shows no badge for free users", async () => {
+      signedInWithTier("free");
+      renderShell();
+
+      await screen.findByRole("button", { name: "Sign out" });
+      expect(screen.queryByText("PRO")).not.toBeInTheDocument();
+      expect(screen.queryByText("CA")).not.toBeInTheDocument();
+    });
+  });
+
   describe("signing out", () => {
     it("drops the token and leaves for the login page", async () => {
       setToken("stored-token");

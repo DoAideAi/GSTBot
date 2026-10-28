@@ -18,12 +18,15 @@ const LINKS = [
   { to: "/usage", label: "Usage" },
 ];
 
+const TIER_BADGE = { pro: "PRO", enterprise: "CA" };
+
 export default function Shell({ children }) {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
+  const [subTier, setSubTier] = useState(null);
   const toggleRef = useRef(null);
 
   const businessId = user?.business?.id;
@@ -34,6 +37,15 @@ export default function Shell({ children }) {
       .then((res) => setAlertCount(res.open_total ?? 0))
       .catch(() => {});
     return () => ctrl.abort();
+  }, [businessId]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    let stale = false;
+    api.currentSubscription()
+      .then((sub) => { if (!stale) setSubTier(sub?.tier ?? "free"); })
+      .catch(() => {});
+    return () => { stale = true; };
   }, [businessId]);
 
   useEffect(() => fetchAlertCount(), [fetchAlertCount]);
@@ -137,6 +149,11 @@ export default function Shell({ children }) {
         </nav>
 
         <div className="shell-user">
+          {TIER_BADGE[subTier] && (
+            <NavLink to="/pricing" className="tier-badge" title="Premium plan active">
+              {TIER_BADGE[subTier]}
+            </NavLink>
+          )}
           <BusinessSwitcher />
           <ThemeToggle />
           <button type="button" className="btn btn-ghost" onClick={handleLogout}>
