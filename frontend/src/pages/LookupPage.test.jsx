@@ -162,7 +162,8 @@ describe("LookupPage", () => {
     await userEvent.click(screen.getByText("Verify GSTIN"));
 
     await waitFor(() => {
-      expect(mockTrack).toHaveBeenCalledWith("gstin_lookup", { gstin: "27AAPFU0939F1ZV" });
+      expect(mockTrack).toHaveBeenCalledWith("gstin_lookup", { state: "27", valid: true });
+      expect(JSON.stringify(mockTrack.mock.calls)).not.toContain("AAPFU0939F");
     });
   });
 });

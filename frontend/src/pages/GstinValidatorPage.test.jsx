@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { track } from "../lib/track";
 import GstinValidatorPage from "./GstinValidatorPage";
 
 vi.mock("../hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
@@ -27,6 +28,13 @@ function renderPage() {
 }
 
 describe("GstinValidatorPage", () => {
+  it("reports a checked GSTIN to analytics by its state alone, never the PAN in it", async () => {
+    renderPage();
+    await userEvent.type(screen.getByPlaceholderText(/27AAPFU0939F1ZV/), "27AAPFU0939F1ZV");
+    expect(track).toHaveBeenCalledWith("gstin_validate", { state: "27" });
+    expect(JSON.stringify(track.mock.calls)).not.toContain("AAPFU0939F");
+  });
+
   it("renders the title and subtitle", () => {
     renderPage();
     expect(screen.getByRole("heading", { name: "GSTIN Validator" })).toBeInTheDocument();

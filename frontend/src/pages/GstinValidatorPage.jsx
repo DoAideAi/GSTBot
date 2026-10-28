@@ -173,7 +173,8 @@ export default function GstinValidatorPage() {
   const handleChange = (e) => {
     setInput(e.target.value);
     const v = e.target.value.trim();
-    if (v.length === 15) track("gstin_validate", { gstin: v.toUpperCase() });
+    // The state code only — the rest of a GSTIN is a PAN; see LookupPage.
+    if (v.length === 15) track("gstin_validate", { state: v.slice(0, 2) });
   };
 
   return (

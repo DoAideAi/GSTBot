@@ -59,7 +59,10 @@ export default function AdvisorPage() {
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
     setLoading(true);
-    track("advisor_ask", { question: trimmed.slice(0, 100) });
+    // The length, not the words: a GST question is typed by the user and
+    // routinely carries a name, a GSTIN or an amount, none of which belongs
+    // in a third-party analytics store.
+    track("advisor_ask", { chars: trimmed.length });
 
     try {
       let added = false;

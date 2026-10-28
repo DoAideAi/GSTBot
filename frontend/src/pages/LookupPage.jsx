@@ -106,7 +106,10 @@ export default function LookupPage() {
         const data = await api.validateGstin(cleaned);
         if (controller.signal.aborted) return;
         setResult(data);
-        track("gstin_lookup", { gstin: cleaned });
+        // Never the GSTIN itself: characters 3-12 are a PAN — for a
+        // proprietorship the owner's personal one — and Umami is a third-party
+        // store. The state and the verdict are what the usage question needs.
+        track("gstin_lookup", { state: cleaned.slice(0, 2), valid: Boolean(data.valid) });
         if (data.valid) {
           navigate(`/gstin/${cleaned}`, { replace: true });
         }

@@ -62,7 +62,8 @@ describe("AdvisorPage", () => {
       method: "POST",
       body: JSON.stringify({ message: "How to register?", history: [] }),
     }));
-    expect(mockTrack).toHaveBeenCalledWith("advisor_ask", expect.any(Object));
+    expect(mockTrack).toHaveBeenCalledWith("advisor_ask", { chars: 16 });
+    expect(JSON.stringify(mockTrack.mock.calls)).not.toContain("register");
   });
 
   it("shows the reply the API sends when the advisor is unavailable", async () => {
