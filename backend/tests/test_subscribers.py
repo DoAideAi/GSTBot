@@ -23,6 +23,29 @@ class TestSubscribe:
         assert r.json()["new"] is False
         assert r.json()["subscribed"] is True
 
+    def test_a_double_submit_that_loses_the_race_is_a_duplicate_not_a_409(
+        self, client, monkeypatch
+    ):
+        """Both requests of a double click can pass the read-first check; the
+        unique index on ``email`` rejects the second commit."""
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.orm import Session
+
+        real_commit = Session.commit
+        calls = {"n": 0}
+
+        def commit_that_loses_once(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise IntegrityError("INSERT INTO subscribers", {}, Exception("unique"))
+            return real_commit(self)
+
+        monkeypatch.setattr(Session, "commit", commit_that_loses_once)
+        r = client.post("/api/v1/subscribers", json={"email": "twice@example.com"})
+        assert r.status_code == 200
+        assert r.json()["subscribed"] is True
+        assert r.json()["new"] is False
+
     def test_email_is_normalised_to_lowercase(self, client):
         client.post("/api/v1/subscribers", json={"email": "Upper@Example.COM"})
         r = client.post("/api/v1/subscribers", json={"email": "upper@example.com"})

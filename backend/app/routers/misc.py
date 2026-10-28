@@ -28,6 +28,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Response, status
 from sqlalchemy import func as sa_func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -474,8 +475,8 @@ def make_unsubscribe_token(email: str) -> str:
     ).hexdigest()
 
 
-def _upsert_subscriber(db: Session, email: str, source: str) -> tuple[bool, Subscriber]:
-    """Insert or resubscribe. Returns (is_new, subscriber)."""
+def _upsert_subscriber(db: Session, email: str, source: str) -> bool:
+    """Insert or resubscribe. Returns whether the email is newly subscribed."""
     normalised = email.lower().strip()
     existing = db.query(Subscriber).filter_by(email=normalised).first()
     if existing is not None:
@@ -485,13 +486,21 @@ def _upsert_subscriber(db: Session, email: str, source: str) -> tuple[bool, Subs
             existing.subscribed_at = utcnow()
             existing.source = source
             db.commit()
-            return True, existing
-        return False, existing
-    subscriber = Subscriber(email=normalised, source=source)
-    db.add(subscriber)
-    db.commit()
-    db.refresh(subscriber)
-    return True, subscriber
+            return True
+        return False
+    db.add(Subscriber(email=normalised, source=source))
+    try:
+        db.commit()
+    except IntegrityError:
+        # A double-clicked form sends the same email twice, and both requests
+        # can pass the read above before either commits. The unique index on
+        # ``email`` keeps the second row out; uncaught, that surfaced as the
+        # generic 409 "conflicts with one that already exists" from an endpoint
+        # that promises duplicates are accepted. The other request subscribed
+        # this address, so this one is the duplicate.
+        db.rollback()
+        return False
+    return True
 
 
 @router.post(
@@ -509,7 +518,7 @@ def subscribe(
     body: SubscriberRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    is_new, subscriber = _upsert_subscriber(db, body.email, body.source)
+    is_new = _upsert_subscriber(db, body.email, body.source)
     logger.info(
         "Subscriber %s",
         "added" if is_new else "already subscribed",
