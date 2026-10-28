@@ -73,12 +73,30 @@ class TestNumbersAnOcrPassProduces:
         # OCR routinely joins columns: "18% 9,000.00 1,620.00".
         assert to_decimal("18% 9,000.00 1,620.00") == Decimal("18")
 
+    def test_a_third_decimal_is_kept_not_cut(self):
+        """The pattern stopped at two decimals and handed back the front."""
+        assert to_decimal("12.345") == Decimal("12.345")
+        assert to_decimal("0.005") == Decimal("0.005")
+
+    @pytest.mark.parametrize(
+        "text, slab",
+        [("0.015", Decimal("1.5")), ("0.001", Decimal("0.1")), ("0.075", Decimal("7.5"))],
+    )
+    def test_a_quoted_fractional_rate_lands_on_its_own_slab(self, text, slab):
+        """``"0.015"`` was cut to 0.01 and filed at 1%; ``"0.001"`` became nil-rated."""
+        assert invoice_parser.normalize_rate(text) == slab
+
+    @pytest.mark.parametrize("text", ["1.234,56", "1.234.567", "₹ 2.500,00"])
+    def test_a_number_with_a_second_separator_group_is_refused_not_shrunk(self, text):
+        """₹1,234.56 written the European way read as ₹1.23."""
+        assert to_decimal(text, default=None) is None
+
     def test_a_match_that_decimal_refuses_falls_back_instead_of_raising(
         self, monkeypatch
     ):
         """The pattern and the constructor are allowed to disagree.
 
-        Today they cannot. ``_NUMBER_PATTERN`` yields ``-?\\d[\\d,]*(\\.\\d{1,2})?``
+        Today they cannot. ``_FULL_NUMBER`` yields ``-?\\d[\\d,]*(\\.\\d+)?``
         and, once the commas come out, every string of that shape is a Decimal
         literal — including the Devanagari case above, since ``\\d`` and
         ``Decimal`` accept the same Unicode digits. So the ``except`` branch is
@@ -93,7 +111,7 @@ class TestNumbersAnOcrPassProduces:
         whatever a model or an OCR pass produced.
         """
         monkeypatch.setattr(
-            invoice_parser, "_NUMBER_PATTERN", re.compile(r"[\d.,-]+")
+            invoice_parser, "_FULL_NUMBER", re.compile(r"[\d.,-]+")
         )
 
         assert to_decimal("1.2.3") == Decimal("0.00")

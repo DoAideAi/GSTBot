@@ -158,6 +158,25 @@ def _money_figures_in(text: str) -> list[str]:
 # figure nobody has any reason to look at twice.
 _EXPONENT_SUFFIX = re.compile(r"[eE][+-]?\d")
 
+# The number :func:`to_decimal` reads: :data:`_NUMBER_PATTERN` with every
+# decimal digit rather than at most two.
+#
+# The two-digit cap is the same prefix problem as the exponent above, reached
+# through the decimals. ``"12.345"`` came back as ``12.34`` — cut, not rounded —
+# and :func:`normalize_rate` reads a value below one as a fraction, so a model
+# that quoted ``"0.015"`` for the 1.5% slab had it cut to ``0.01`` and filed at
+# 1%, and ``"0.001"`` (the 0.1% merchant-export rate) was cut to zero and filed
+# as nil-rated. Line scanning keeps the narrower pattern; this is only the
+# coercion of one value.
+_FULL_NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+
+# A further ``.digit`` or ``,digit`` straight after such a match: a second
+# decimal point (``1.234.567``) or a decimal comma (``1.234,56``, the European
+# spelling of ₹1,234.56). Neither is a figure this product can read with any
+# confidence, and reading the front of it is what turned ₹1,234.56 into ₹1.23.
+# Refused for the reason the exponent is.
+_TRAILING_GROUP = re.compile(r"[.,]\d")
+
 _EXTRACTION_SCHEMA = """{
   "supplier_gstin": "15-char GSTIN of the party who issued the invoice, or null",
   "supplier_name": "legal or trade name of the issuer, or null",
@@ -284,12 +303,12 @@ def to_decimal(value: object, default: Decimal | None = Decimal("0.00")) -> Deci
     # Match the number rather than stripping non-digits: stripping leaves the
     # full stop in "Rs. 1000.50" behind, and ".1000.50" is not a Decimal.
     text = str(value)
-    match = _NUMBER_PATTERN.search(text)
+    match = _FULL_NUMBER.search(text)
     if match is None:
         return default
-    # Only the mantissa of a scientific-notation number was matched, so the
-    # digits in hand are not the figure. See :data:`_EXPONENT_SUFFIX`.
-    if _EXPONENT_SUFFIX.match(text, match.end()):
+    # Only the front of a longer number was matched, so the digits in hand are
+    # not the figure. See :data:`_EXPONENT_SUFFIX` and :data:`_TRAILING_GROUP`.
+    if _EXPONENT_SUFFIX.match(text, match.end()) or _TRAILING_GROUP.match(text, match.end()):
         return default
     try:
         return Decimal(match.group(0).replace(",", ""))
