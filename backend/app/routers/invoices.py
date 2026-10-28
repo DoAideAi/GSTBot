@@ -168,6 +168,19 @@ def _check_file_shape(filename: str, content_type: str | None, content: bytes) -
             # placeholder rather than a file anyone meant to send.
             detail=f"{filename} is empty (0 bytes). It may still be downloading.",
         )
+    # Bytes, but nothing in them: a text export of spaces and newlines, or a
+    # placeholder padded with NULs. No PDF or image is ever only this, so the
+    # check costs real documents nothing. Let through, it was "parsed" into a
+    # row of zeros with no number and no date — an invoice nobody can find
+    # again, counted on the dashboard as one.
+    if not content.lstrip(b"\xef\xbb\xbf").strip(b" \t\r\n\x0b\x0c\x00"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"{filename} has no text in it, only blank space. Export the "
+                "invoice again, or upload the PDF or photo of it instead."
+            ),
+        )
     max_bytes = settings.max_upload_mb * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(
