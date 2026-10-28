@@ -3180,6 +3180,13 @@ a:focus-visible {
 .feedback-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .feedback-thanks p { margin: 0 0 8px; }
 
+.pricing-period {
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.pricing-period-soon { color: var(--warn); font-weight: 600; }
+
 /* Bulk GSTIN validation */
 .bulk-gstin-input {
   width: 100%;

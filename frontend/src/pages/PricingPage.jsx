@@ -6,6 +6,9 @@ import { usePageTitle } from "../hooks/usePageTitle";
 import { api } from "../lib/api";
 import { track } from "../lib/track";
 
+/** How close to the end of a paid period the renewal is called out. */
+const RENEWAL_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
+
 const TIER_ORDER = ["free", "pro", "enterprise"];
 const TIER_LABELS = { free: "Free Tools", pro: "SMB", enterprise: "CA" };
 const HIGHLIGHT_TIER = "pro";
@@ -156,6 +159,14 @@ export default function PricingPage() {
   // An expired or cancelled row keeps its tier; the plan the business is on
   // is free until it pays again, and the page has to offer that.
   const currentTier = currentSub?.status === "active" ? currentSub.tier : "free";
+  // Plans are one-time orders, not auto-renewing mandates: when the period
+  // ends the business drops to Free with nothing charged and, until now,
+  // nothing said. The date is shown, and renewing early extends from it.
+  const paidUntil =
+    currentTier !== "free" && currentSub?.current_period_end
+      ? new Date(currentSub.current_period_end)
+      : null;
+  const endsSoon = paidUntil && paidUntil.getTime() - Date.now() <= RENEWAL_WARNING_MS;
 
   return (
     <div className="pricing-page">
@@ -242,6 +253,26 @@ export default function PricingPage() {
                       <button className="btn btn-ghost" disabled>
                         Current plan
                       </button>
+                      {tierKey !== "free" && paidUntil && (
+                        <p className={endsSoon ? "pricing-period pricing-period-soon" : "pricing-period"}>
+                          Paid until{" "}
+                          {paidUntil.toLocaleDateString("en-IN", { dateStyle: "medium" })}.{" "}
+                          {endsSoon
+                            ? "It does not renew on its own — extend it to keep your paid features."
+                            : "It does not renew on its own."}
+                        </p>
+                      )}
+                      {tierKey !== "free" && paidUntil && (
+                        <button
+                          className={endsSoon ? "btn btn-primary" : "btn btn-ghost"}
+                          disabled={paying}
+                          onClick={() => handleSubscribe(tierKey)}
+                        >
+                          {paying
+                            ? "Processing..."
+                            : `Extend by a ${billing === "annual" ? "year" : "month"}`}
+                        </button>
+                      )}
                       {tierKey !== "free" && (
                         <button
                           className="btn btn-danger-ghost"

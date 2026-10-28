@@ -167,6 +167,31 @@ describe("PricingPage", () => {
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 
+  it("says when a paid plan ends, and that it does not renew on its own", async () => {
+    const end = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+    mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro", current_period_end: end });
+    renderPage();
+
+    expect(await screen.findByText(/Paid until/)).toHaveTextContent("It does not renew on its own.");
+    expect(screen.getByRole("button", { name: "Extend by a month" })).toHaveClass("btn-ghost");
+  });
+
+  it("calls out the renewal in the last week", async () => {
+    const end = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString();
+    mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro", current_period_end: end });
+    renderPage();
+
+    expect(await screen.findByText(/Paid until/)).toHaveTextContent(/extend it to keep your paid features/);
+    expect(screen.getByRole("button", { name: "Extend by a month" })).toHaveClass("btn-primary");
+  });
+
+  it("says nothing about an end date for a plan sold without one", async () => {
+    mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
+    renderPage();
+    await screen.findByRole("button", { name: "Cancel" });
+    expect(screen.queryByText(/Paid until/)).not.toBeInTheDocument();
+  });
+
   it("offers downgrade to free when on a paid plan", async () => {
     mockFetch(PRICING_RESPONSE, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
     renderPage();
