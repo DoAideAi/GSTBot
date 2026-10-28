@@ -175,3 +175,53 @@ describe("parseCalcParams", () => {
     expect(p.interstate).toBe(false);
   });
 });
+
+// Expected figures are the backend's own: app.services.gst_calculator's
+// on_taxable and from_inclusive, run on the same inputs. The calculator page
+// and the invoice the backend builds must agree to the paisa.
+describe("parity with the backend calculator", () => {
+  it.each([
+    [0.5, 18, 0.5, 0.05, 0.6],
+    [1.005, 18, 1.01, 0.09, 1.19],
+    [12.35, 5, 12.35, 0.31, 12.97],
+    [99.99, 28, 99.99, 14, 127.99],
+    [0.1, 0.25, 0.1, 0, 0.1],
+    [10.03, 7.5, 10.03, 0.38, 10.79],
+    [1, 3, 1, 0.02, 1.04],
+  ])("taxes %s at %s%% as taxable %s, each head %s, total %s", (amount, rate, taxable, head, total) => {
+    const r = calculate(amount, rate);
+    expect(r.taxable).toBe(taxable);
+    expect(r.cgst).toBe(head);
+    expect(r.sgst).toBe(head);
+    expect(r.total).toBe(total);
+  });
+
+  it("never splits a rounded total into unequal heads", () => {
+    // 18% of ₹0.50 is ₹0.09; halving that gave CGST ₹0.05 and SGST ₹0.04.
+    for (let paise = 1; paise <= 2000; paise += 1) {
+      for (const rate of [0.25, 3, 5, 7.5, 18, 28, 40]) {
+        const r = calculate(paise / 100, rate);
+        expect(r.cgst).toBe(r.sgst);
+      }
+    }
+  });
+
+  it.each([
+    [100, 18, 84.74, 7.63, 84.75, 15.25],
+    [99.99, 5, 95.23, 2.38, 95.23, 4.76],
+    [1, 18, 0.84, 0.08, 0.85, 0.15],
+    [10.01, 12, 8.93, 0.54, 8.94, 1.07],
+    [1234.56, 28, 964.5, 135.03, 964.5, 270.06],
+  ])("backs %s at %s%% out to the amount typed", (gross, rate, taxable, head, igstTaxable, igst) => {
+    const intra = reverseCalculate(gross, rate);
+    expect(intra.taxable).toBe(taxable);
+    expect(intra.cgst).toBe(head);
+    expect(intra.sgst).toBe(head);
+    expect(intra.total).toBe(gross);
+
+    const inter = reverseCalculate(gross, rate, { interstate: true });
+    expect(inter.taxable).toBe(igstTaxable);
+    expect(inter.igst).toBe(igst);
+    expect(inter.total).toBe(gross);
+  });
+});
