@@ -625,7 +625,8 @@ def unsubscribe(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     expected = make_unsubscribe_token(email)
-    if not hmac.compare_digest(token, expected):
+    # Bytes, not str: a non-ASCII token made compare_digest raise (a 500).
+    if not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
         return {"unsubscribed": False, "error": "Invalid or expired link."}
 
     normalised = email.lower().strip()

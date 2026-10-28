@@ -90,7 +90,19 @@ def verify_payment_signature(
         message.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return _same(expected, signature)
+
+
+def _same(expected: str, presented: str) -> bool:
+    """Constant-time equality that cannot raise.
+
+    ``hmac.compare_digest`` on two ``str`` raises ``TypeError`` when either
+    holds a non-ASCII character, and the presented signature is whatever the
+    client sent — so a signature with an accent in it was a 500 from
+    verify-payment, the report verify and the webhook, rather than the refusal
+    a wrong signature is. Compared as UTF-8 bytes it is simply unequal.
+    """
+    return hmac.compare_digest(expected.encode("utf-8"), presented.encode("utf-8"))
 
 
 def verify_webhook_signature(body: bytes, signature: str) -> bool:
@@ -106,7 +118,7 @@ def verify_webhook_signature(body: bytes, signature: str) -> bool:
         body,
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return _same(expected, signature)
 
 
 def cancel_subscription(subscription_id: str) -> dict[str, Any] | None:

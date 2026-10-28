@@ -74,7 +74,8 @@ def _verify_twilio_signature(
     import base64
 
     expected_b64 = base64.b64encode(expected).decode()
-    return hmac.compare_digest(signature, expected_b64)
+    # Bytes, not str: a non-ASCII header made compare_digest raise (a 500).
+    return hmac.compare_digest(signature.encode("utf-8"), expected_b64.encode("utf-8"))
 
 
 @router.get(
@@ -98,7 +99,9 @@ def verify_webhook(
 ) -> dict[str, Any] | Response:
     verify_token = settings.whatsapp_verify_token
     if hub_mode == "subscribe" and hub_token and hub_challenge:
-        if verify_token and hmac.compare_digest(hub_token, verify_token):
+        if verify_token and hmac.compare_digest(
+            hub_token.encode("utf-8"), verify_token.encode("utf-8")
+        ):
             return Response(content=hub_challenge, media_type="text/plain")
         response.status_code = status.HTTP_403_FORBIDDEN
         return {"error": "Token mismatch"}

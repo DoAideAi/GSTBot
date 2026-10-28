@@ -81,3 +81,70 @@ def _aware(moment):
     from datetime import UTC
 
     return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment
+
+
+class TestASignatureWithANonAsciiCharacterIsRefusedNotA500:
+    """``hmac.compare_digest`` on two ``str`` raises ``TypeError`` when either
+    holds a non-ASCII character, and every one of these compared a value the
+    client sent. The default TestClient re-raises an unhandled exception, so a
+    crash here fails the test rather than reading as a status."""
+
+    SIG = "é" * 64
+
+    def test_razorpay_signatures_are_simply_unequal(self, monkeypatch):
+        from app.core.config import settings
+        from app.services import razorpay_client
+
+        monkeypatch.setattr(settings, "razorpay_key_secret", "secret")
+        monkeypatch.setattr(settings, "razorpay_webhook_secret", "hook-secret")
+        assert razorpay_client.verify_payment_signature("order_1", "pay_1", self.SIG) is False
+        assert razorpay_client.verify_webhook_signature(b"{}", self.SIG) is False
+
+    def test_verify_payment_answers_400(self, auth_client, business, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "razorpay_key_secret", "secret")
+        response = auth_client.post(
+            "/api/v1/subscriptions/verify-payment",
+            json={
+                "razorpay_order_id": "order_1",
+                "razorpay_payment_id": "pay_1",
+                "razorpay_signature": self.SIG,
+                "tier": "pro",
+            },
+        )
+        assert response.status_code == 400
+
+    def test_the_razorpay_webhook_refuses_it(self, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "razorpay_webhook_secret", "hook-secret")
+        response = client.post(
+            "/api/v1/subscriptions/webhook",
+            content=b"{}",
+            # Raw latin-1 bytes: the test client will not encode a non-ASCII
+            # str header, and the server decodes headers as latin-1 anyway.
+            headers={
+                "X-Razorpay-Signature": ("é" * 10).encode("latin-1"),
+                "content-type": "application/json",
+            },
+        )
+        assert 400 <= response.status_code < 500
+
+    def test_the_whatsapp_handshake_answers_403(self, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "whatsapp_verify_token", "the-token")
+        response = client.get(
+            "/api/v1/whatsapp/webhook",
+            params={"hub.mode": "subscribe", "hub.verify_token": "é", "hub.challenge": "1"},
+        )
+        assert response.status_code == 403
+
+    def test_an_unsubscribe_link_with_a_mangled_token_is_refused(self, client):
+        response = client.get(
+            "/api/v1/subscribers/unsubscribe",
+            params={"email": "a@example.com", "token": "é" * 64},
+        )
+        assert response.status_code == 200
+        assert response.json()["unsubscribed"] is False
