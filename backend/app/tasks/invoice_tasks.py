@@ -28,6 +28,7 @@ def parse_invoice_task(self, invoice_id: int) -> dict:
     when the task started.
     """
     db = SessionLocal()
+    claimed = 0
     try:
         invoice = db.get(Invoice, invoice_id)
         if invoice is None or invoice.deleted_at is not None:
@@ -86,9 +87,56 @@ def parse_invoice_task(self, invoice_id: int) -> dict:
                 "retry": self.request.retries,
             },
         )
+        if claimed:
+            _release_claim(db, invoice_id, final=self.request.retries >= self.max_retries)
         raise self.retry(exc=exc) from exc
     finally:
         db.close()
+
+
+# Shown on a row whose every attempt died below ``process_invoice``.
+GAVE_UP_MESSAGE = (
+    "Extraction could not be completed after several attempts. The file is "
+    "stored; use reparse to try again."
+)
+
+
+def _release_claim(db, invoice_id: int, *, final: bool) -> None:
+    """Undo this attempt's claim so that the retry it is about to schedule can run.
+
+    The claim moved the row to ``processing`` and was committed; whatever raised
+    after it did so before ``process_invoice`` could write an outcome. Left
+    there, the retry was dead on arrival: its guard skips anything not
+    ``uploaded``, so it logged "already processing" and returned, and the row
+    sat on a spinner until the stall sweep failed it hours later — the exact
+    case (a database that blinked) the retry exists for.
+
+    So the row goes back to ``uploaded`` while attempts remain, and the retry
+    claims it afresh. On the last attempt it goes to ``failed`` instead: back
+    to ``uploaded`` with no task left to pick it up would be a row nothing ever
+    reads again. Both conditional on ``processing``, so an outcome some other
+    writer recorded is never undone. Best effort: if the database is what
+    failed this may fail too, and the stall sweep is still behind it.
+    """
+    try:
+        db.rollback()
+        values = (
+            {"status": InvoiceStatus.FAILED, "parse_error": GAVE_UP_MESSAGE}
+            if final
+            else {"status": InvoiceStatus.UPLOADED}
+        )
+        db.execute(
+            update(Invoice)
+            .where(Invoice.id == invoice_id, Invoice.status == InvoiceStatus.PROCESSING)
+            .values(**values)
+            .execution_options(synchronize_session=False)
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001 - the retry being raised matters more
+        logger.warning(
+            "Could not release the parse claim on invoice %s", invoice_id,
+            extra={"invoice_id": invoice_id}, exc_info=True,
+        )
 
 
 @celery_app.task(name="invoices.reap_stalled", bind=True, max_retries=2, default_retry_delay=300)

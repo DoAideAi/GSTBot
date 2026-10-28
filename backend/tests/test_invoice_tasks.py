@@ -392,3 +392,131 @@ def test_a_row_moved_out_of_uploaded_after_the_check_is_not_reparsed(
     assert result["skipped"] is True
     db_session.refresh(invoice)
     assert invoice.status is InvoiceStatus.PARSED
+
+
+class TestARetryCanActuallyRunAgain:
+    """The claim is committed before ``process_invoice`` runs. A failure below
+    it used to leave the row ``processing``, which the retry's own guard then
+    skipped — so the retry never parsed anything."""
+
+    @staticmethod
+    def _fail_once(monkeypatch):
+        real = invoice_service.process_invoice
+        calls = []
+
+        def flaky(db, row, **kw):
+            calls.append(row.id)
+            if len(calls) == 1:
+                raise OSError("server closed the connection unexpectedly")
+            return real(db, row, **kw)
+
+        monkeypatch.setattr(invoice_service, "process_invoice", flaky)
+        return calls
+
+    def test_the_row_goes_back_to_uploaded_for_the_retry(
+        self, monkeypatch, task, sessions, db_session, business
+    ):
+        invoice = _store_invoice(db_session, business)
+        self._fail_once(monkeypatch)
+
+        with pytest.raises(_Retry):
+            parse_invoice_task(invoice.id)
+
+        db_session.refresh(invoice)
+        assert invoice.status is InvoiceStatus.UPLOADED
+
+    def test_the_retry_then_parses_it(self, monkeypatch, task, sessions, db_session, business):
+        invoice = _store_invoice(db_session, business)
+        calls = self._fail_once(monkeypatch)
+
+        with pytest.raises(_Retry):
+            parse_invoice_task(invoice.id)
+        result = parse_invoice_task(invoice.id)
+
+        assert len(calls) == 2
+        assert "skipped" not in result
+        db_session.refresh(invoice)
+        assert invoice.status not in (InvoiceStatus.UPLOADED, InvoiceStatus.PROCESSING)
+
+    def test_the_last_attempt_fails_the_row_instead(
+        self, monkeypatch, task, sessions, db_session, business
+    ):
+        from app.tasks import invoice_tasks
+
+        invoice = _store_invoice(db_session, business)
+        monkeypatch.setattr(
+            invoice_service, "process_invoice",
+            lambda db, row, **kw: (_ for _ in ()).throw(OSError("still down")),
+        )
+        parse_invoice_task.push_request(retries=parse_invoice_task.max_retries)
+        try:
+            with pytest.raises(_Retry):
+                parse_invoice_task(invoice.id)
+        finally:
+            parse_invoice_task.pop_request()
+
+        db_session.refresh(invoice)
+        assert invoice.status is InvoiceStatus.FAILED
+        assert invoice.parse_error == invoice_tasks.GAVE_UP_MESSAGE
+
+    def test_an_outcome_another_writer_recorded_is_not_undone(
+        self, monkeypatch, task, sessions, db_session, business
+    ):
+        invoice = _store_invoice(db_session, business)
+
+        def parsed_elsewhere_then_raise(db, row, **kw):
+            db.connection().execute(
+                Invoice.__table__.update()
+                .where(Invoice.__table__.c.id == row.id)
+                .values(status=InvoiceStatus.PARSED)
+            )
+            db.commit()
+            raise OSError("lost the connection after another writer finished")
+
+        monkeypatch.setattr(invoice_service, "process_invoice", parsed_elsewhere_then_raise)
+
+        with pytest.raises(_Retry):
+            parse_invoice_task(invoice.id)
+
+        db_session.refresh(invoice)
+        assert invoice.status is InvoiceStatus.PARSED
+
+    def test_a_failure_before_the_claim_releases_nothing(
+        self, monkeypatch, task, sessions, db_session, business
+    ):
+        from app.tasks import invoice_tasks
+
+        released = []
+        monkeypatch.setattr(invoice_tasks, "_release_claim", lambda *a, **kw: released.append(a))
+        invoice = _store_invoice(db_session, business, status=InvoiceStatus.PARSED)
+        monkeypatch.setattr(
+            db_session, "get", lambda *a, **kw: (_ for _ in ()).throw(OSError("db down"))
+        )
+
+        with pytest.raises(_Retry):
+            parse_invoice_task(invoice.id)
+
+        assert released == []
+
+    def test_a_release_that_cannot_reach_the_database_still_retries(
+        self, monkeypatch, task, sessions, db_session, business
+    ):
+        invoice = _store_invoice(db_session, business)
+        monkeypatch.setattr(
+            invoice_service, "process_invoice",
+            lambda db, row, **kw: (_ for _ in ()).throw(OSError("down")),
+        )
+        real_commit = db_session.commit
+        commits = []
+
+        def commit_fails_after_the_claim():
+            commits.append(1)
+            if len(commits) > 1:
+                raise OSError("still down")
+            return real_commit()
+
+        monkeypatch.setattr(db_session, "commit", commit_fails_after_the_claim)
+
+        with pytest.raises(_Retry):
+            parse_invoice_task(invoice.id)
+        assert len(task.retries) == 1
