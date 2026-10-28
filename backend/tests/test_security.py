@@ -435,3 +435,37 @@ class TestSessionKeyDerivation:
                 break
         else:
             pytest.fail("SessionMiddleware not found in middleware stack")
+
+    def test_session_cookie_has_same_site_lax(self):
+        from starlette.middleware.sessions import SessionMiddleware
+
+        from app.main import create_app
+
+        application = create_app()
+        for mw in application.user_middleware:
+            if mw.cls is SessionMiddleware:
+                assert mw.kwargs.get("same_site") == "lax"
+                break
+        else:
+            pytest.fail("SessionMiddleware not found in middleware stack")
+
+    def test_session_cookie_max_age_is_bounded(self):
+        from starlette.middleware.sessions import SessionMiddleware
+
+        from app.main import create_app
+
+        application = create_app()
+        for mw in application.user_middleware:
+            if mw.cls is SessionMiddleware:
+                assert mw.kwargs["max_age"] <= 14400
+                break
+        else:
+            pytest.fail("SessionMiddleware not found in middleware stack")
+
+
+class TestGstinLookupRateLimit:
+    def test_gstin_lookup_is_capped_against_scraping(self):
+        from app.routers.misc import _gstin_limit
+
+        assert _gstin_limit.spec == "30/minute"
+        assert _gstin_limit.by == "ip"

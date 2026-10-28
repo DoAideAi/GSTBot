@@ -369,6 +369,9 @@ def create_app() -> FastAPI:
     application.add_middleware(
         SessionMiddleware,
         secret_key=derive_session_key(settings.jwt_secret),
+        https_only=settings.is_production,
+        same_site="lax",
+        max_age=14400,
     )
 
     # Outermost of all, so a preflight from ChatGPT is answered before the

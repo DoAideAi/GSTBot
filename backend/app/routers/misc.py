@@ -58,7 +58,7 @@ router = APIRouter(tags=["health"])
 
 # These are public, so they are limited by address rather than by identity —
 # there is no identity to key on before a caller has signed in.
-_gstin_limit = RateLimit("gstin_lookup", "120/minute", by="ip")
+_gstin_limit = RateLimit("gstin_lookup", "30/minute", by="ip")
 
 # Longest input the GSTIN lookup will look at. A GSTIN is 15 characters; this
 # leaves room for the spaces and hyphens people paste out of PDFs, which
