@@ -162,6 +162,11 @@ def _paid_order(business_id: int, tier: str) -> dict:
     }
 
 
+def _aware(moment):
+    """SQLite hands timestamps back naive; they are UTC."""
+    return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment
+
+
 class TestVerifyPayment:
     def test_invalid_signature_is_refused(self, auth_client):
         with patch.object(
@@ -957,7 +962,7 @@ class TestVerifyPaymentTransitionGuards:
         db_session.add(sub)
         db_session.commit()
         db_session.refresh(sub)
-        ended = sub.updated_at.replace(tzinfo=UTC) if sub.updated_at.tzinfo is None else sub.updated_at
+        ended = _aware(sub.updated_at)
         fresh = {**_paid_order(business.id, "pro"), "created_at": int(ended.timestamp()) + 60}
 
         with patch.object(
@@ -989,7 +994,7 @@ class TestVerifyPaymentTransitionGuards:
         db_session.add(sub)
         db_session.commit()
         db_session.refresh(sub)
-        ended = sub.updated_at.replace(tzinfo=UTC) if sub.updated_at.tzinfo is None else sub.updated_at
+        ended = _aware(sub.updated_at)
         stale = {**_paid_order(business.id, "pro"), "created_at": int(ended.timestamp()) - 3600}
 
         with patch.object(
