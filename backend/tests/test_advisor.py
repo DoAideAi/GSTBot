@@ -182,3 +182,87 @@ class TestAdvisorAsk:
         assert "secret-key" not in call.args[0]
         assert "params" not in call.kwargs
         assert call.kwargs["headers"]["x-goog-api-key"] == "secret-key"
+
+
+class TestAdvisorLatency:
+    """The two things that made each reply slower than it had to be."""
+
+    def _ok(self):
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+    def test_one_pooled_client_serves_every_question(self, client):
+        """A client per request was a fresh TCP + TLS handshake to Google each time."""
+        from app.routers import advisor
+
+        seen = []
+
+        ok = self._ok()
+
+        async def fake_post(self, *args, **kwargs):
+            seen.append(id(self))
+            return ok
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new=fake_post),
+        ):
+            for _ in range(3):
+                assert client.post("/api/v1/advisor/ask", json={"message": "Hi"}).status_code == 200
+        assert len(seen) == 3
+        assert len(set(seen)) == 1
+        assert advisor._clients
+
+    def test_only_the_recent_turns_are_forwarded(self, client):
+        from app.routers.advisor import HISTORY_TURNS_SENT
+
+        history = [
+            {"role": "user" if i % 2 == 0 else "model", "text": f"turn {i}"} for i in range(50)
+        ]
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch(
+                "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=self._ok()
+            ) as post,
+        ):
+            response = client.post(
+                "/api/v1/advisor/ask", json={"message": "latest", "history": history}
+            )
+        assert response.status_code == 200
+        contents = post.call_args.kwargs["json"]["contents"]
+        texts = [c["parts"][0]["text"] for c in contents]
+        # System prompt + its acknowledgement, the recent turns, then the question.
+        assert len(contents) == 2 + HISTORY_TURNS_SENT + 1
+        assert texts[2] == f"turn {50 - HISTORY_TURNS_SENT}"
+        assert texts[-2] == "turn 49"
+        assert texts[-1] == "latest"
+        assert "turn 0" not in texts
+
+    def test_shutdown_closes_the_pooled_clients(self):
+        import asyncio
+
+        from app.routers import advisor
+
+        async def run():
+            created = advisor._client()
+            assert advisor._client() is created
+            await advisor.close_clients()
+            assert created.is_closed
+            assert advisor._clients == {}
+
+        asyncio.run(run())
+
+    def test_a_client_that_fails_to_close_does_not_fail_shutdown(self):
+        import asyncio
+
+        from app.routers import advisor
+
+        class Broken:
+            async def aclose(self):
+                raise RuntimeError("socket already gone")
+
+        async def run():
+            advisor._clients[asyncio.get_running_loop()] = Broken()
+            await advisor.close_clients()
+            assert advisor._clients == {}
+
+        asyncio.run(run())

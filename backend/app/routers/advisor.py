@@ -6,6 +6,7 @@ the browser.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -61,6 +62,43 @@ def _get_api_key() -> str | None:
     return None
 
 
+#: How many earlier messages are forwarded with a question. The widget sends
+#: the whole conversation, and every one of up to fifty 4,000-character turns
+#: was prompt the model had to read before it could start answering — the long
+#: tail of a chat made each reply slower than the last. A dozen turns is more
+#: context than a follow-up question needs.
+HISTORY_TURNS_SENT = 12
+
+#: One pooled client per event loop. A client per request meant a new TCP
+#: connection and TLS handshake to Google on every question, which is most of a
+#: second before the model sees anything on a cold path. Keyed by loop because
+#: an httpx client is bound to the loop it first ran on.
+_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
+
+
+def _client() -> httpx.AsyncClient:
+    loop = asyncio.get_running_loop()
+    client = _clients.get(loop)
+    if client is None or client.is_closed:
+        client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(max_keepalive_connections=10, keepalive_expiry=60.0),
+        )
+        _clients[loop] = client
+    return client
+
+
+async def close_clients() -> None:
+    """Close every pooled client. Called from the app's lifespan shutdown."""
+    clients = list(_clients.values())
+    _clients.clear()
+    for client in clients:
+        try:
+            await client.aclose()
+        except Exception as exc:  # noqa: BLE001 - shutdown is not a place to fail
+            logger.warning("Advisor HTTP client did not close cleanly: %s", exc)
+
+
 class HistoryMessage(BaseModel):
     role: str = Field(max_length=20)
     text: str = Field(max_length=4000)
@@ -76,7 +114,7 @@ def _build_contents(history: list[HistoryMessage], message: str) -> list[dict]:
         {"role": "user", "parts": [{"text": SYSTEM_PROMPT}]},
         {"role": "model", "parts": [{"text": "Understood. I'm your GST advisor. How can I help?"}]},
     ]
-    for m in history:
+    for m in history[-HISTORY_TURNS_SENT:]:
         contents.append({
             "role": "user" if m.role == "user" else "model",
             "parts": [{"text": m.text}],
@@ -107,23 +145,23 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for model in _GEMINI_MODELS:
-                response = await client.post(
-                    _GEMINI_URL.format(model=model),
-                    headers={"x-goog-api-key": api_key},
-                    json=payload,
-                )
-                if response.status_code == 200:
-                    return {"reply": _reply_text(response.json())}
-                logger.warning(
-                    "Gemini %s returned %d: %s",
-                    model,
-                    response.status_code,
-                    response.text[:200],
-                )
-                if response.status_code not in _RETRYABLE:
-                    break
+        client = _client()
+        for model in _GEMINI_MODELS:
+            response = await client.post(
+                _GEMINI_URL.format(model=model),
+                headers={"x-goog-api-key": api_key},
+                json=payload,
+            )
+            if response.status_code == 200:
+                return {"reply": _reply_text(response.json())}
+            logger.warning(
+                "Gemini %s returned %d: %s",
+                model,
+                response.status_code,
+                response.text[:200],
+            )
+            if response.status_code not in _RETRYABLE:
+                break
         return {"reply": _NO_REPLY}
 
     except httpx.TimeoutException:

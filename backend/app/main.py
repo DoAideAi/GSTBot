@@ -249,6 +249,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # and which makes an ordinary deploy look like a crash.
     logger.info("Shutting down %s", settings.app_name)
 
+    await advisor.close_clients()
+
     try:
         redis_close()
     except Exception as exc:  # noqa: BLE001 - shutdown is not a place to fail
