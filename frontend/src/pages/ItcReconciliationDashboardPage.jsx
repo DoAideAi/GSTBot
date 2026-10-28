@@ -15,6 +15,7 @@ import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
 import { buildItcDashboard, emptyItcMonths } from "../lib/itcDashboard";
+import { todayInIndia } from "../lib/returnDueDates";
 
 const PATH = "/itc-reconciliation-dashboard";
 const DRAFT_KEY = "gst.itc-dashboard.draft";
@@ -107,7 +108,7 @@ export default function ItcReconciliationDashboardPage() {
   const [fy, setFy] = useState(draft?.fy || FY_OPTIONS[0]);
   const [months, setMonths] = useState(draft?.months || emptyItcMonths);
   const [suppliers, setSuppliers] = useState(draft?.suppliers?.length ? draft.suppliers : [EMPTY_SUPPLIER]);
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayInIndia(), []);
 
   useEffect(() => {
     try {

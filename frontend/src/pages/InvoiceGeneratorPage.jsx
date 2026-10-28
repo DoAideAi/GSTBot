@@ -11,6 +11,7 @@ import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
 import { gstinShapeError } from "../lib/validate";
+import { todayInIndia } from "../lib/returnDueDates";
 
 const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28];
 
@@ -154,7 +155,7 @@ export default function InvoiceGeneratorPage() {
     name: "", address: "", gstin: "", state: "", phone: "", email: "", unregistered: false,
   });
   const [invoiceNo, setInvoiceNo] = useState(generateInvoiceNo);
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
+  const [invoiceDate, setInvoiceDate] = useState(todayInIndia);
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState([{ ...emptyItem }]);
   const [notes, setNotes] = useState("");

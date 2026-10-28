@@ -14,6 +14,7 @@ import { ewayBillRequired, KM_PER_DAY, looksLikeVehicleNumber, validityDays, val
 import { calculate, formatINR, GST_SLABS } from "../lib/gstCalc";
 import { STATE_CODES, stateForGstin } from "../lib/stateCodes";
 import { gstinShapeError } from "../lib/validate";
+import { todayInIndia } from "../lib/returnDueDates";
 
 /*
  * Prepares the contents of Form GST EWB-01 — Part A (parties, document, goods)
@@ -37,7 +38,7 @@ const DOC_TYPES = ["Tax Invoice", "Bill of Supply", "Delivery Challan", "Bill of
 const emptyParty = { name: "", gstin: "", address: "", state: "", unregistered: false };
 const emptyItem = { description: "", hsn: "", qty: "1", unit: "NOS", value: "", gstRate: "18" };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayInIndia();
 
 const TOOL_SCHEMA = {
   "@context": "https://schema.org",

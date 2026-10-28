@@ -14,6 +14,7 @@ import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
 import { emptyMonths, parsePastedMonths, summarizeGstr9 } from "../lib/gstr9Summary";
+import { todayInIndia } from "../lib/returnDueDates";
 
 const PATH = "/gstr9-summary";
 const DRAFT_KEY = "gst.gstr9-summary.draft";
@@ -90,7 +91,7 @@ export default function Gstr9SummaryPage() {
   const [itc2b, setItc2b] = useState(draft?.itc2b ?? "");
   const [itcReversed, setItcReversed] = useState(draft?.itcReversed ?? "");
   const [exempt, setExempt] = useState(draft?.exempt ?? "");
-  const [payOn, setPayOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payOn, setPayOn] = useState(() => todayInIndia());
   const [paste, setPaste] = useState("");
   const [pasteMsg, setPasteMsg] = useState("");
 

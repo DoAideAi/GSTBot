@@ -26,6 +26,18 @@ function renderPage() {
 }
 
 describe("InvoiceGeneratorPage", () => {
+  it("dates a new invoice today in India, not today in UTC", () => {
+    // 01:00 IST on 28 October is still 27 October in UTC.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-27T19:30:00Z"));
+    try {
+      renderPage();
+      expect(screen.getByLabelText("Invoice Date")).toHaveValue("2026-10-28");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders the page title and subtitle", () => {
     renderPage();
     expect(screen.getByRole("heading", { name: "GST Invoice Generator" })).toBeInTheDocument();

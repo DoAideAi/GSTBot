@@ -9,6 +9,7 @@ import ShareButtons from "../components/ShareButtons";
 import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatDay, itcClaimWindow } from "../lib/itcTimeLimits";
+import { todayInIndia } from "../lib/returnDueDates";
 
 const PATH = "/itc-time-limit";
 
@@ -64,7 +65,7 @@ export default function ItcTimeLimitPage() {
   usePageTitle("ITC Time Limit Checker — Last Date to Claim ITC under Section 16(4)");
   const [documentDate, setDocumentDate] = useState("");
   const [annualReturnDate, setAnnualReturnDate] = useState("");
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayInIndia(), []);
 
   // Date inputs hand back "" for anything that is not a real date, so a null
   // window only ever means the invoice date is still empty.

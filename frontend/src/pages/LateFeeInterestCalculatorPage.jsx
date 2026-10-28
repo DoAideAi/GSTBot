@@ -18,6 +18,7 @@ import {
   LATE_FEE_RETURNS,
   LATE_FEE_TABLE,
 } from "../lib/gstPenalties";
+import { todayInIndia } from "../lib/returnDueDates";
 
 const PATH = "/gst-late-fee-interest-calculator";
 
@@ -56,7 +57,7 @@ const BREADCRUMBS = [
 ];
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayInIndia();
 }
 
 export default function LateFeeInterestCalculatorPage() {

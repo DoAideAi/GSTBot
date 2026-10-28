@@ -10,6 +10,7 @@ import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { formatINR } from "../lib/gstCalc";
 import { formatDay, rule37Reversal } from "../lib/itcTimeLimits";
+import { todayInIndia } from "../lib/returnDueDates";
 
 const PATH = "/itc-180-day-rule";
 
@@ -60,7 +61,7 @@ const FAQS = [
 export default function Itc180DayRulePage() {
   usePageTitle("180-Day ITC Reversal Calculator — Rule 37 Unpaid Supplier Invoices");
   const [form, setForm] = useState({ invoiceDate: "", invoiceValue: "", itc: "", paidWithin: "", utilisedDate: "" });
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayInIndia(), []);
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const ready = form.invoiceDate && form.invoiceValue !== "" && form.itc !== "";
