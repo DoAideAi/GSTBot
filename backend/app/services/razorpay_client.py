@@ -186,6 +186,27 @@ def cancel_subscription(subscription_id: str) -> dict[str, Any] | None:
         return None
 
 
+def order_receipt(business_id: int, tier: SubscriptionTier) -> str:
+    """The receipt an order is created with, and checked against on verify."""
+    return f"biz_{business_id}_{tier.value}"
+
+
+def fetch_order(order_id: str) -> dict[str, Any] | None:
+    """The order as Razorpay holds it, or ``None`` if it cannot be read."""
+    if not is_configured():
+        return None
+    try:
+        resp = httpx.get(f"{_BASE_URL}/orders/{order_id}", auth=_auth(), timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        logger.exception(
+            "Razorpay fetch_order failed",
+            extra=_exc_context(exc, "fetch_order", order_id=order_id),
+        )
+        return None
+
+
 def fetch_subscription(subscription_id: str) -> dict[str, Any] | None:
     if not is_configured():
         return None

@@ -148,6 +148,19 @@ class TestCreateOrder:
 # Verify payment
 # --------------------------------------------------------------------------
 
+def _paid_order(business_id: int, tier: str) -> dict:
+    """The order Razorpay returns for a checkout this business paid for."""
+    t = SubscriptionTier(tier)
+    amount = razorpay_client.TIER_PRICING[t]["price_monthly"]
+    return {
+        "id": "order_test",
+        "receipt": razorpay_client.order_receipt(business_id, t),
+        "amount": amount,
+        "amount_paid": amount,
+        "status": "paid",
+    }
+
+
 class TestVerifyPayment:
     def test_invalid_signature_is_refused(self, auth_client):
         with patch.object(
@@ -167,6 +180,8 @@ class TestVerifyPayment:
     def test_valid_payment_creates_subscription(self, auth_client, db_session, business):
         with patch.object(
             razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
         ):
             response = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
@@ -196,6 +211,8 @@ class TestVerifyPayment:
 
         with patch.object(
             razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "enterprise")
         ):
             response = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
@@ -878,6 +895,8 @@ class TestVerifyPaymentTransitionGuards:
 
         with patch.object(
             razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "enterprise")
         ):
             response = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
@@ -906,6 +925,8 @@ class TestVerifyPaymentTransitionGuards:
 
         with patch.object(
             razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
         ):
             response = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
@@ -933,6 +954,8 @@ class TestVerifyPaymentTransitionGuards:
 
         with patch.object(
             razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
         ):
             response = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
@@ -1194,3 +1217,72 @@ class TestPaymentPathLeavesARecord:
         assert resp.status_code == 503
         [line] = [r for r in caplog.records if "Razorpay is not configured" in r.getMessage()]
         assert line.levelname == "ERROR"
+
+
+class TestVerifyPaymentIsBoundToTheOrder:
+    """GB083: the signature covers order_id|payment_id only, so the tier and the
+    business have to be checked against the order itself."""
+
+    def _verify(self, auth_client, order, tier, payment_id="pay_bound"):
+        with patch.object(razorpay_client, "verify_payment_signature", return_value=True), \
+                patch.object(razorpay_client, "fetch_order", return_value=order):
+            return auth_client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_x",
+                    "razorpay_payment_id": payment_id,
+                    "razorpay_signature": "valid_sig",
+                    "tier": tier,
+                },
+            )
+
+    def test_paying_for_one_tier_and_claiming_another_is_refused(
+        self, auth_client, db_session, business
+    ):
+        cheapest_paid = min(
+            (t for t in SubscriptionTier if t != SubscriptionTier.FREE),
+            key=lambda t: razorpay_client.TIER_PRICING[t]["price_monthly"],
+        )
+        resp = self._verify(
+            auth_client, _paid_order(business.id, cheapest_paid.value), "enterprise"
+        )
+        assert resp.status_code == 400
+        assert usage_service.get_tier(db_session, business.id) != SubscriptionTier.ENTERPRISE
+
+    def test_another_businesss_paid_order_is_refused(self, auth_client, db_session, business):
+        resp = self._verify(auth_client, _paid_order(business.id + 999, "pro"), "pro")
+        assert resp.status_code == 400
+
+    def test_an_order_that_is_not_paid_is_refused(self, auth_client, business):
+        order = {**_paid_order(business.id, "pro"), "status": "attempted", "amount_paid": 0}
+        assert self._verify(auth_client, order, "pro").status_code == 400
+
+    def test_an_order_that_cannot_be_read_is_not_granted(self, auth_client, business):
+        assert self._verify(auth_client, None, "pro").status_code == 502
+
+    def test_a_payment_redeemed_by_another_business_is_refused(
+        self, auth_client, db_session, business
+    ):
+        from app.models.business import Business, BusinessPlan
+
+        other = Business(legal_name="Elsewhere Pvt Ltd", plan=BusinessPlan.FREE, is_active=True)
+        db_session.add(other)
+        db_session.flush()
+        db_session.add(
+            Subscription(
+                business_id=other.id,
+                tier=SubscriptionTier.PRO,
+                status=SubscriptionStatus.ACTIVE,
+                razorpay_subscription_id="pay_shared",
+            )
+        )
+        db_session.commit()
+        resp = self._verify(
+            auth_client, _paid_order(business.id, "pro"), "pro", payment_id="pay_shared"
+        )
+        assert resp.status_code == 409
+
+    def test_a_matching_paid_order_still_activates(self, auth_client, business):
+        resp = self._verify(auth_client, _paid_order(business.id, "pro"), "pro")
+        assert resp.status_code == 200
+        assert resp.json()["tier"] == "pro"

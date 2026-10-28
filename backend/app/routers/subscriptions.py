@@ -105,7 +105,7 @@ def create_order(
     pricing = razorpay_client.TIER_PRICING[payload.tier]
     order = razorpay_client.create_order(
         amount_paise=pricing["price_monthly"],
-        receipt=f"biz_{business.id}_{payload.tier.value}",
+        receipt=razorpay_client.order_receipt(business.id, payload.tier),
     )
     if order is None:
         raise HTTPException(
@@ -158,6 +158,34 @@ def verify_payment(
             ),
         )
 
+    # The signature covers "order_id|payment_id" and nothing else, so on its own
+    # it proves only that *some* order was paid. The tier came from the request
+    # body and the business from the session, and neither was checked against
+    # the order: pay for the cheapest paid tier and verify as the dearest, or
+    # submit another business's paid order, and either became an active
+    # subscription. The order says what was bought and for whom — its receipt
+    # was written by create_order — so it is what decides.
+    _require_order_matches(payload, business)
+    holder = db.scalar(
+        select(Subscription).where(
+            Subscription.razorpay_subscription_id == payload.razorpay_payment_id,
+            Subscription.business_id != business.id,
+        )
+    )
+    if holder is not None:
+        logger.warning(
+            "Payment already redeemed by another business",
+            extra={
+                "business_id": business.id,
+                "holder_business_id": holder.business_id,
+                "razorpay_payment_id": payload.razorpay_payment_id,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This payment has already been applied to another account.",
+        )
+
     sub = usage_service.get_subscription(db, business.id)
     if sub is None:
         sub = Subscription(
@@ -191,6 +219,47 @@ def verify_payment(
         },
     )
     return SubscriptionOut.model_validate(sub)
+
+
+def _require_order_matches(payload: VerifyPaymentRequest, business: Business) -> None:
+    """Refuse unless the order was created for this business and tier, at the
+    tier's price, and has been paid in full."""
+    order = razorpay_client.fetch_order(payload.razorpay_order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Could not confirm the payment with the payment provider. Try again "
+                "in a moment — if you were charged, it will not be lost."
+            ),
+        )
+    expected_amount = razorpay_client.TIER_PRICING[payload.tier]["price_monthly"]
+    problems = []
+    if order.get("receipt") != razorpay_client.order_receipt(business.id, payload.tier):
+        problems.append("receipt")
+    if order.get("amount") != expected_amount:
+        problems.append("amount")
+    if order.get("status") != "paid" or (order.get("amount_paid") or 0) < expected_amount:
+        problems.append("status")
+    if problems:
+        logger.warning(
+            "Payment verification refused: order does not match the request",
+            extra={
+                "business_id": business.id,
+                "razorpay_order_id": payload.razorpay_order_id,
+                "tier": payload.tier.value,
+                "mismatch": problems,
+                "order_receipt": order.get("receipt"),
+                "order_status": order.get("status"),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This payment does not match the plan it is being applied to. "
+                "Contact support if you were charged."
+            ),
+        )
 
 
 @router.post(
