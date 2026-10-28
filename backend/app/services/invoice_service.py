@@ -382,6 +382,36 @@ def get_or_create_supplier(
     return supplier
 
 
+# The second key of the per-tenant upload lock. Reconciliation takes the same
+# two-integer advisory space keyed on (business, YYYYMM); no period is 0, so the
+# two can never contend.
+_UPLOAD_LOCK_KEY = 0
+
+
+def _serialise_uploads(db: Session, business_id: int) -> None:
+    """Hold this tenant's uploads to one at a time until the row is committed.
+
+    Both refusals an upload can meet are a read followed by a write. The plan
+    allowance counts this month's rows and the duplicate check looks for the
+    file's hash, and neither has a constraint behind it — there is no unique
+    index on ``file_hash`` and none could express "at most N this month". So
+    two requests at once (a double-clicked upload, the owner and their CA each
+    dropping the same folder) both read "not on file" and "under the limit",
+    and both inserted: the same document twice, which the number index only
+    catches when the extraction found a number, and an allowance overrun by as
+    many files as were in flight.
+
+    A transaction-scoped advisory lock rather than a row lock, because what is
+    being serialised is the absence of a row. It is released by the commit
+    that records the upload, before any parsing — so it is held for one
+    INSERT and a file write, never for a model call. SQLite has no concurrent
+    writers to keep apart.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.execute(select(func.pg_advisory_xact_lock(business_id, _UPLOAD_LOCK_KEY)))
+
+
 def create_pending_invoice(
     db: Session,
     tenant: TenantSnapshot,
@@ -402,14 +432,21 @@ def create_pending_invoice(
     function commits, and a caller looping over a batch would pay a reload of
     that row on every file after the first. See the snapshot's own docstring.
     """
-    check_plan_limit(db, tenant)
-
+    _serialise_uploads(db, tenant.id)
     digest = file_hash(content)
-    duplicate = find_duplicate(db, tenant.id, digest=digest)
-    if duplicate is not None:
-        raise DuplicateInvoice(
-            f"This file was already uploaded as invoice {duplicate.id}", duplicate.id
-        )
+    try:
+        check_plan_limit(db, tenant)
+        duplicate = find_duplicate(db, tenant.id, digest=digest)
+        if duplicate is not None:
+            raise DuplicateInvoice(
+                f"This file was already uploaded as invoice {duplicate.id}", duplicate.id
+            )
+    except (PlanLimitExceeded, DuplicateInvoice):
+        # Ends the transaction, and with it the lock: a refused file in a batch
+        # must not keep the tenant's other uploads waiting while the rest of
+        # the batch is parsed inline.
+        db.rollback()
+        raise
 
     stored = store_upload(content, filename, tenant.id)
     invoice = Invoice(
