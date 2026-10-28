@@ -152,6 +152,59 @@ def test_igst_is_exhausted_before_cgst_credit_is_used():
     assert result.credit_carried_forward.cgst == Decimal("10000.00")
 
 
+def test_igst_goes_where_the_heads_own_credit_cannot_reach():
+    """Rule 88A lets the taxpayer split IGST between CGST and SGST.
+
+    ₹10,000 IGST and ₹10,000 CGST credit against ₹10,000 each of CGST and SGST
+    settles in full only if the IGST covers the SGST — CGST credit can never
+    reach it. Sending the IGST to CGST first, as this used to, reported
+    ₹10,000 of SGST payable in cash with ₹10,000 of CGST credit stranded.
+    """
+    result = itc_service.set_off(
+        heads(igst="10000", cgst="10000"), heads(cgst="10000", sgst="10000")
+    )
+
+    assert result.total_cash == Decimal("0.00")
+    assert [(s.credit_head, s.liability_head, s.amount) for s in result.steps] == [
+        ("igst", "sgst", Decimal("10000.00")),
+        ("cgst", "cgst", Decimal("10000.00")),
+    ]
+    assert result.credit_carried_forward.total == Decimal("0.00")
+
+
+def test_the_mirror_case_sends_igst_to_cgst():
+    result = itc_service.set_off(
+        heads(igst="6000", sgst="10000"), heads(cgst="6000", sgst="10000")
+    )
+
+    assert result.total_cash == Decimal("0.00")
+    assert result.credit_used.igst == Decimal("6000.00")
+    assert result.credit_used.sgst == Decimal("10000.00")
+
+
+def test_igst_beyond_the_shortfalls_is_still_spent_before_other_credit():
+    """s.49A: leftover IGST settles the rest of either head before own credit."""
+    result = itc_service.set_off(
+        heads(igst="15000", cgst="10000"), heads(cgst="10000", sgst="10000")
+    )
+
+    assert result.total_cash == Decimal("0.00")
+    # 10,000 to the SGST nothing else could pay, the other 5,000 onto CGST.
+    assert [(s.credit_head, s.liability_head, s.amount) for s in result.steps] == [
+        ("igst", "cgst", Decimal("5000.00")),
+        ("igst", "sgst", Decimal("10000.00")),
+        ("cgst", "cgst", Decimal("5000.00")),
+    ]
+    assert result.credit_carried_forward.cgst == Decimal("5000.00")
+
+
+def test_igst_short_of_both_shortfalls_leaves_the_same_cash_either_way():
+    result = itc_service.set_off(heads(igst="4000"), heads(cgst="5000", sgst="5000"))
+
+    assert result.total_cash == Decimal("6000.00")
+    assert result.credit_used.igst == Decimal("4000.00")
+
+
 def test_insufficient_credit_leaves_the_balance_payable_in_cash():
     result = itc_service.set_off(heads(igst="3000"), heads(igst="10000"))
 

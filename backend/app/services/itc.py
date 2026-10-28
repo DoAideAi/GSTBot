@@ -162,9 +162,16 @@ def set_off(credit: TaxHeads, liability: TaxHeads) -> SetOffResult:
     carries the CGST forward. Reporting anything else would understate the cash
     a business has to find this month.
 
-    Within step 1, IGST is spread across CGST and SGST in whatever order the
-    taxpayer chooses; this applies it to CGST first, which is the portal's own
-    default and keeps the answer reproducible.
+    Within step 1, IGST is spread across CGST and SGST in whatever proportion
+    the taxpayer chooses (rule 88A), and the choice matters, because the CGST
+    and SGST credit behind it cannot cross. Applying IGST to CGST first, as
+    this used to, turned ₹100 IGST + ₹100 CGST credit against ₹100 CGST +
+    ₹100 SGST liability into ₹100 of SGST paid in cash with the CGST credit
+    stranded — when pointing the IGST at SGST settles both. So the IGST goes
+    first to the part of each head its own credit cannot cover, and only then
+    to what is left of either; within each of those, CGST before SGST, which
+    is the portal's default and keeps the answer reproducible. IGST is still
+    exhausted before any other credit is touched.
     """
     remaining_credit = TaxHeads(
         igst=max(ZERO, credit.igst),
@@ -181,10 +188,10 @@ def set_off(credit: TaxHeads, liability: TaxHeads) -> SetOffResult:
     result = SetOffResult()
     used = {head: ZERO for head in HEADS}
 
-    def apply(credit_head: str, liability_head: str) -> None:
+    def apply(credit_head: str, liability_head: str, cap: Decimal | None = None) -> None:
         available = getattr(remaining_credit, credit_head)
         owed = getattr(remaining_liability, liability_head)
-        amount = min(available, owed)
+        amount = min(available, owed) if cap is None else min(available, owed, cap)
         if amount <= ZERO:
             return
         setattr(remaining_credit, credit_head, available - amount)
@@ -198,8 +205,15 @@ def set_off(credit: TaxHeads, liability: TaxHeads) -> SetOffResult:
 
     # 1. IGST first, and completely — s.49A.
     apply("igst", "igst")
-    apply("igst", "cgst")
-    apply("igst", "sgst")
+    igst_left = remaining_credit.igst
+    to_cgst = min(igst_left, max(ZERO, remaining_liability.cgst - remaining_credit.cgst))
+    to_sgst = min(igst_left - to_cgst, max(ZERO, remaining_liability.sgst - remaining_credit.sgst))
+    spare = igst_left - to_cgst - to_sgst
+    extra_cgst = min(spare, remaining_liability.cgst - to_cgst)
+    to_cgst += extra_cgst
+    to_sgst += min(spare - extra_cgst, remaining_liability.sgst - to_sgst)
+    apply("igst", "cgst", to_cgst)
+    apply("igst", "sgst", to_sgst)
     # 2 and 3. Own head first, then IGST. Never each other's.
     apply("cgst", "cgst")
     apply("cgst", "igst")
