@@ -443,6 +443,18 @@ def create_pending_invoice(
         _discard_upload(stored)
         raise
     db.refresh(invoice)
+    # One line per stored document. A bulk upload's access line names no
+    # invoice — its path has no id — so without this nothing said which rows a
+    # batch created, or by which route they arrived.
+    logger.info(
+        "Invoice stored",
+        extra={
+            "business_id": invoice.business_id,
+            "invoice_id": invoice.id,
+            "invoice_type": invoice.invoice_type.value,
+            "source": invoice.source.value,
+        },
+    )
     return invoice
 
 

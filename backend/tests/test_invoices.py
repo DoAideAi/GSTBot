@@ -1840,3 +1840,41 @@ class TestCorrectionBoundaries:
 
         assert InvoiceUpdate(invoice_number=" INV-1 ").invoice_number == "INV-1"
         assert InvoiceUpdate(invoice_number="   ").invoice_number is None
+
+
+class TestTheAuditTrailOfAnInvoice:
+    """The access line says who touched which invoice; these say what."""
+
+    def test_an_edit_names_the_fields_it_touched_but_not_their_values(
+        self, auth_client, sample_invoice_text, caplog
+    ):
+        import logging
+
+        invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+        with caplog.at_level(logging.INFO, logger="app.routers.invoices"):
+            auth_client.patch(
+                f"/api/v1/invoices/{invoice_id}",
+                json={"taxable_value": "450000.00", "paid_at": "2026-05-01"},
+            )
+
+        [line] = [r for r in caplog.records if r.getMessage() == "Invoice edited"]
+        assert line.invoice_id == invoice_id
+        assert line.corrected_fields == ["taxable_value"]
+        assert line.ledger_fields == ["paid_at"]
+        assert "450000" not in str(vars(line))
+
+    def test_each_invoice_a_batch_stores_is_named(self, auth_client, caplog):
+        import logging
+
+        files = [
+            ("files", (f"bill{n}.txt", f"Invoice No: B-{n}\nTotal: 1180".encode(), "text/plain"))
+            for n in range(2)
+        ]
+        with caplog.at_level(logging.INFO, logger="app.services.invoice_service"):
+            response = auth_client.post("/api/v1/invoices/bulk", files=files)
+        assert response.status_code == 200
+
+        stored = [r for r in caplog.records if r.getMessage() == "Invoice stored"]
+        created = [item["invoice"]["id"] for item in response.json()["items"] if item["accepted"]]
+        assert sorted(r.invoice_id for r in stored) == sorted(created)
+        assert all(r.source == "upload" for r in stored)

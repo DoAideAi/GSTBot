@@ -709,6 +709,20 @@ def update_invoice(
 
     db.commit()
     db.refresh(invoice)
+    # The audit line for an edit. The access line beside it (same correlation
+    # id) says who and which invoice; this says what was touched, which is the
+    # question an assessment asks of a corrected taxable value or tax amount.
+    # Field names, not values: the figures are in the database, and the log
+    # is the lower-trust store.
+    logger.info(
+        "Invoice edited",
+        extra={
+            "business_id": business.id,
+            "invoice_id": invoice.id,
+            "corrected_fields": sorted(corrections),
+            "ledger_fields": sorted(set(changes) & LEDGER_FIELDS),
+        },
+    )
     return InvoiceDetailOut.from_invoice(invoice)
 
 
