@@ -16,7 +16,9 @@ describe("FeedbackWidget", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
-    global.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("{}") }),
+    );
   });
 
   afterEach(() => {
@@ -55,16 +57,12 @@ describe("FeedbackWidget", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/v1/feedback",
-      expect.objectContaining({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }),
+      expect.objectContaining({ method: "POST" }),
     );
     const body = JSON.parse(global.fetch.mock.calls[0][1].body);
     expect(body.page).toBe("/calculator");
     expect(body.rating).toBe(4);
     expect(body.comment).toBe("Great tool!");
-    expect(body.timestamp).toBeTruthy();
 
     expect(screen.getByText("Thanks for your feedback!")).toBeInTheDocument();
   });

@@ -443,6 +443,9 @@ export const api = {
   stats: () =>
     request("/meta/stats", { auth: false }),
 
+  feedback: (payload) =>
+    request("/feedback", { method: "POST", body: payload }),
+
   // ---- Invoices ----
   uploadInvoice(file, invoiceType = "purchase") {
     const form = new FormData();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { api } from "../lib/api";
 
 const STORAGE_KEY = "gstbot_feedback_pages";
 
@@ -47,16 +48,7 @@ export default function FeedbackWidget() {
   const handleSubmit = useCallback(async () => {
     if (rating === 0) return;
     try {
-      await fetch("/api/v1/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          page,
-          rating,
-          comment,
-          timestamp: new Date().toISOString(),
-        }),
-      });
+      await api.feedback({ page, rating, comment });
     } catch {
       // Best-effort — don't block the UI on a failed submission.
     }
