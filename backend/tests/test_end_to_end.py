@@ -1840,3 +1840,155 @@ class TestABusinessThatGetsEachStepWrongFirst:
         gone = client.delete(f"/api/v1/invoices/{purchase['id']}")
         assert gone.status_code == 404
         assert "deleted" in detail(gone).lower()
+
+
+class TestACAsLinkBringsInAClient:
+    """P17 M20: the referral journey, end to end — share, visit, sign up, see it.
+
+    Each step is a different caller: the CA signed in, an anonymous visitor,
+    the same visitor registering, then the CA again. The handoff under test is
+    that the sign-up is credited to the visit the link recorded.
+    """
+
+    def test_the_ca_sees_the_visit_and_the_signup(self, client):
+        ca_token = register(client)
+        ca = {"Authorization": f"Bearer {ca_token}"}
+
+        code = client.get("/api/v1/referrals/my-code", headers=ca).json()["referral_code"]
+        assert code.startswith("CA-")
+
+        # An anonymous visitor follows the link. A second visit is not a
+        # second count, and a made-up code is refused rather than recorded.
+        assert client.post("/api/v1/referrals/track", json={"referral_code": code}).json() == {
+            "tracked": True
+        }
+        assert client.post("/api/v1/referrals/track", json={"referral_code": code}).json()[
+            "reason"
+        ] == "already_tracked"
+        assert client.post(
+            "/api/v1/referrals/track", json={"referral_code": "CA-nobody"}
+        ).json()["reason"] == "unknown_code"
+
+        # The visitor becomes a client.
+        joined = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "client@example.com",
+                "password": "a-long-passphrase",
+                "gstin": SUPPLIER_GSTIN_SAME_STATE,
+                "legal_name": "Mehta Electricals",
+            },
+        )
+        assert joined.status_code == 201, joined.text
+
+        stats = client.get("/api/v1/referrals/my-stats", headers=ca).json()
+        assert stats == {"referral_code": code, "total_visits": 1, "conversions": 1}
+        leaders = client.get("/api/v1/referrals/leaderboard").json()["leaders"]
+        assert [leader["referral_count"] for leader in leaders] == [1]
+
+        # The new client's own link starts from nothing.
+        newcomer = {"Authorization": f"Bearer {joined.json()['access_token']}"}
+        assert client.get("/api/v1/referrals/my-stats", headers=newcomer).json()[
+            "total_visits"
+        ] == 0
+
+
+class TestASupplierRenumbersLastMonthsInvoice:
+    """P17 M20: a supplier corrects an invoice from March and the correction
+    carries a new number. April's GSTR-2B lists it under ``b2ba`` with the
+    original in ``oinum``. The business's books still hold the March number.
+
+    Before amendments were matched, April reported the correction as missing
+    from the books and March's invoice stayed missing from 2B — a supplier
+    chased for a filing they had made.
+    """
+
+    def test_the_correction_is_matched_to_the_booked_original(
+        self, signed_in, db_session, stub_openrouter
+    ):
+        client = signed_in
+        takes_the_pro_plan(db_session)
+        march = dict(PURCHASE_EXTRACTION, invoice_date="2026-03-15")
+        booked = upload(
+            client,
+            stub_openrouter,
+            text=PURCHASE_TEXT.replace("15/04/2026", "15/03/2026"),
+            extraction=march,
+            invoice_type="purchase",
+            name="northwind-march.txt",
+        )
+        assert booked["period"] == "2026-03"
+
+        statement = {
+            "data": {
+                "rtnprd": "042026",
+                "docdata": {
+                    "b2ba": [
+                        {
+                            "ctin": SUPPLIER_GSTIN_OTHER_STATE,
+                            "inv": [
+                                {
+                                    "oinum": "INV-2026-0042",
+                                    "oidt": "15-03-2026",
+                                    "inum": "INV-2026-0042-R1",
+                                    "dt": "15-04-2026",
+                                    "val": 531000,
+                                    "itcavl": "Y",
+                                    "items": [{"rt": 18, "txval": 450000, "igst": 81000}],
+                                }
+                            ],
+                        }
+                    ]
+                },
+            }
+        }
+        import_2b(client, json.dumps(statement).encode())
+        run = reconcile(client, PERIOD)
+        assert run["missing_in_books_count"] == 0
+
+        findings = client.get(f"/api/v1/reconciliation/{run['id']}").json()["report"]["findings"]
+        (finding,) = findings
+        assert finding["category"] == "matched"
+        assert finding["matched_on"] == "amended"
+        assert "INV-2026-0042-R1" in finding["note"]
+        # March counted this credit; April must not count it again.
+        assert money(run["itc_claimed"]) == Decimal("0.00")
+
+
+class TestALockedPdfThenTheUnlockedCopy:
+    """P17 M20: a business uploads a password-protected PDF, is told why it
+    could not be read, and uploads the unlocked copy. The locked attempt must
+    not block the real one, and the real one must read normally."""
+
+    def test_the_user_is_told_and_the_unlocked_copy_goes_through(self, signed_in, db_session):
+        from app.models.invoice import Invoice
+        from app.services.invoice_parser import PASSWORD_PROTECTED_WARNING
+        from tests.test_invoices import _pdf_locked
+
+        client = signed_in
+
+        def send(content, name):
+            return client.post(
+                "/api/v1/invoices/upload",
+                files={"file": (name, content, "application/pdf")},
+                data={"invoice_type": "purchase"},
+            )
+
+        locked = send(_pdf_locked("secret"), "bill.pdf")
+        assert locked.status_code == 201
+        locked_id = locked.json()["invoice"]["id"]
+        assert db_session.get(Invoice, locked_id).extraction["warnings"][0] == (
+            PASSWORD_PROTECTED_WARNING
+        )
+
+        # Same document, saved again without the password: different bytes, so
+        # not the "already uploaded" refusal, and readable this time.
+        unlocked = send(_pdf_locked(""), "bill-unlocked.pdf")
+        assert unlocked.status_code == 201, unlocked.text
+        row = db_session.get(Invoice, unlocked.json()["invoice"]["id"])
+        assert "LOCK-1" in (row.raw_text or "")
+
+        # The unreadable attempt is cleared away like any mistaken upload.
+        assert client.delete(f"/api/v1/invoices/{locked_id}").status_code == 204
+        listed = [item["id"] for item in client.get("/api/v1/invoices").json()["items"]]
+        assert listed == [row.id]
