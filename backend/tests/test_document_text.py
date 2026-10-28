@@ -267,6 +267,22 @@ def _full_grid_xlsx() -> bytes:
     return buffer.getvalue()
 
 
+class TestAPdfOfBlankPagesIsNotWalkedToTheEnd:
+    """M6: blank pages add no text, so the text ceiling never stopped them."""
+
+    def test_pages_past_the_budget_are_not_read(self, monkeypatch, caplog):
+        monkeypatch.setattr(document_text, "MAX_PDF_PAGES", 2)
+        filler = "Tax invoice INV-77 from Bharat Supplies, total 531000. " * 2
+        with caplog.at_level("WARNING"):
+            text = document_text.from_pdf(make_pdf(filler, filler, "PAGE-THREE-ONLY " * 5))
+        assert "PAGE-THREE-ONLY" not in text
+        assert "INV-77" in text
+        assert "stopped at 2 pages" in caplog.text
+
+    def test_a_long_register_is_inside_the_budget(self):
+        assert document_text.MAX_PDF_PAGES >= 1_000
+
+
 class TestASpreadsheetCannotOutlastItsRead:
     """Two ways a sheet escaped the bounds the read already had (M6)."""
 

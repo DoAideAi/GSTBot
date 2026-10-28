@@ -59,6 +59,13 @@ MAX_TEXT_CHARS = 2_000_000
 # thousand lines by fifty columns — is a tenth of this.
 MAX_CELLS = 5_000_000
 
+# The most PDF pages a read will open. The same gap on the PDF side: a blank
+# page adds nothing to the text, so ``MAX_TEXT_CHARS`` never stopped a file of
+# them, and twenty thousand blank pages fit in 2.5 MB and cost 3 seconds to
+# walk — a 15 MB upload of them is the better part of a request timeout spent
+# producing nothing. Well past any invoice or monthly register.
+MAX_PDF_PAGES = 2_000
+
 
 class _TextLimitReached(Exception):
     """Internal: break out of a nested sheet/row walk once the cap is hit."""
@@ -85,7 +92,10 @@ def from_pdf(content: bytes) -> str:
         reader = PdfReader(io.BytesIO(content))
         pages: list[str] = []
         size = 0
-        for page in reader.pages:
+        for number, page in enumerate(reader.pages):
+            if number >= MAX_PDF_PAGES:
+                logger.warning("PDF text stopped at %s pages", MAX_PDF_PAGES)
+                break
             pages.append(page.extract_text() or "")
             size += len(pages[-1]) + 1
             if size >= MAX_TEXT_CHARS:
