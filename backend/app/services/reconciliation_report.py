@@ -9,7 +9,7 @@ business gets a report of the books as they are now.
 from __future__ import annotations
 
 import calendar
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from io import BytesIO
 from xml.sax.saxutils import escape
 
@@ -64,8 +64,18 @@ def rupees(value: object) -> str:
     glyph for it, and embedding a font to get one would triple the file for a
     single character.
     """
+    # Half-up, as every other money figure in the app is rounded: the default
+    # context rounds half-even, so 0.005 printed as 0.00 here and as 0.01 on
+    # the screen the report was bought from. And a non-finite value (a "NaN"
+    # in the stored report) is unreadable like any other, not a crash: the
+    # sign test below raises on NaN, which took the whole download down.
     try:
-        amount = Decimal(str(value)).quantize(Decimal("0.01"))
+        parsed = Decimal(str(value))
+        amount = (
+            parsed.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if parsed.is_finite()
+            else Decimal("0.00")
+        )
     except (InvalidOperation, ValueError):
         amount = Decimal("0.00")
     sign = "-" if amount < 0 else ""

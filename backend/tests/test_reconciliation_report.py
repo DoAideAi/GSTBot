@@ -407,3 +407,26 @@ class TestRupees:
     )
     def test_amounts_use_indian_grouping(self, value, printed):
         assert rupees(value) == printed
+
+    @pytest.mark.parametrize(
+        ("value", "printed"),
+        [("0.005", "Rs. 0.01"), ("0.015", "Rs. 0.02"), ("1234.565", "Rs. 1,234.57")],
+    )
+    def test_a_half_paisa_rounds_up_like_every_other_figure_in_the_app(self, value, printed):
+        """The default context rounds half-even, so 0.005 printed as 0.00 —
+        a different paisa from the screen the report was bought from."""
+        assert rupees(value) == printed
+
+    @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "sNaN"])
+    def test_a_non_finite_amount_is_unreadable_not_a_crash(self, value):
+        """The sign test raised on NaN, which took the whole PDF download down."""
+        assert rupees(value) == "Rs. 0.00"
+
+
+def test_every_match_category_has_a_section_in_the_report():
+    """A category without one would be counted in the summary and its rows
+    left out of the report the customer paid for."""
+    from app.services.reconciliation import MatchCategory
+    from app.services.reconciliation_report import SECTIONS
+
+    assert {section[0] for section in SECTIONS} == set(MatchCategory)
