@@ -194,3 +194,33 @@ class TestTheCleanupItselfIsBestEffort:
 
     def test_no_path_is_not_an_error(self):
         invoice_service._discard_upload(None)
+
+
+class TestStoredExtension:
+    """``store_upload`` keeps only a plain alphanumeric extension.
+
+    It took the client's suffix as-is, so ``shell.php;jpg`` was written as
+    ``<uuid>.php;jpg``. ``safe_extension`` was written for this and unused.
+    """
+
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("invoice.PDF", ".pdf"),
+            ("shell.php;jpg", ""),
+            ("x.p df", ""),
+            ("no-extension", ""),
+            ("", ""),
+        ],
+    )
+    def test_the_stored_name_carries_a_sanitised_extension(
+        self, monkeypatch, tmp_path, filename, expected
+    ):
+        from app.services.invoice_service import store_upload
+
+        monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+        stored = Path(store_upload(b"%PDF-1.4", filename, business_id=7))
+
+        assert stored.parent == tmp_path / "7"
+        assert stored.suffix == expected
+        assert len(stored.stem) == 32  # the UUID, never the client's name

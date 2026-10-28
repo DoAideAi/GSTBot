@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.sanitize import safe_extension
 from app.models.business import Business
 from app.models.invoice import (
     UNCOUNTABLE_STATUSES,
@@ -187,7 +188,10 @@ def store_upload(content: bytes, filename: str, business_id: int) -> str:
     """
     directory = Path(settings.upload_dir) / str(business_id)
     directory.mkdir(parents=True, exist_ok=True)
-    suffix = Path(filename or "").suffix[:10]
+    # Only a plain alphanumeric extension survives. This took the client's
+    # suffix as-is, so "shell.php;jpg" was stored as "<uuid>.php;jpg";
+    # `safe_extension` was written for exactly this and never called.
+    suffix = safe_extension(filename)
     path = directory / f"{uuid.uuid4().hex}{suffix}"
     path.write_bytes(content)
     return str(path)
