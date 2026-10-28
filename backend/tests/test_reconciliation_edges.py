@@ -1203,6 +1203,26 @@ class TestConcurrentReconciliationGuard:
         with pytest.raises(reconciliation.ConcurrentReconciliation):
             reconciliation.run_reconciliation(db_session, business.id, PERIOD)
 
+    def test_a_period_claimed_by_another_session_is_refused(
+        self, db_session, business, monkeypatch
+    ):
+        """What a concurrent run looks like in production.
+
+        Its RUNNING row is flushed and never committed, so the check above can
+        never see it from another session; the advisory claim is what can.
+        """
+        import_2b(db_session, business.id, [portal()])
+        monkeypatch.setattr(reconciliation, "_claim_period", lambda *_: False)
+
+        with pytest.raises(reconciliation.ConcurrentReconciliation):
+            reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+        db_session.rollback()
+
+        assert db_session.query(ReconciliationRun).filter_by(business_id=business.id).count() == 0
+
+    def test_sqlite_always_gets_the_claim(self, db_session, business):
+        assert reconciliation._claim_period(db_session, business.id, PERIOD) is True
+
     def test_completed_run_does_not_block(self, db_session, business):
         import_2b(db_session, business.id, [portal()])
         done = ReconciliationRun(

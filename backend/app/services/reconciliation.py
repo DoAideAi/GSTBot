@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
@@ -946,6 +946,25 @@ class ConcurrentReconciliation(RuntimeError):
     """A reconciliation is already running for this business and period."""
 
 
+def _claim_period(db: Session, business_id: int, period: str) -> bool:
+    """Take this transaction's claim on (*business_id*, *period*), or say it is held.
+
+    The RUNNING row cannot do this on its own: it is flushed, never committed
+    until it has become COMPLETED, and a failed run rolls it back — so no other
+    session can ever see it, and two "Reconcile" clicks both passed that check
+    and rewrote the same invoices' verdicts and suppliers' scores side by side.
+
+    A transaction-scoped advisory lock is visible across sessions the moment it
+    is taken and goes away with the commit or rollback that ends the run. Keyed
+    on the two integers the run is about; the period's ``YYYYMM`` fits an int4.
+    SQLite has no concurrent writers to keep apart, so it always gets the claim.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return True
+    key = int(period.replace("-", ""))
+    return bool(db.scalar(select(func.pg_try_advisory_xact_lock(business_id, key))))
+
+
 def run_reconciliation(
     db: Session,
     business_id: int,
@@ -964,6 +983,12 @@ def run_reconciliation(
     if gstr_return is None:
         raise NoGSTR2BImported(
             f"No GSTR-2B has been imported for {period}. Import one before reconciling."
+        )
+
+    if not _claim_period(db, business_id, period):
+        raise ConcurrentReconciliation(
+            f"A reconciliation is already running for {period}. "
+            "Wait for it to finish before starting another."
         )
 
     already_running = db.scalar(
