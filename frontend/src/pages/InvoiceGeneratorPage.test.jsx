@@ -143,6 +143,22 @@ describe("InvoiceGeneratorPage", () => {
     expect(written[0]).not.toContain("<img src=x onerror");
   });
 
+  it("offers GST 2.0 rates today, and the retired 12% and 28% only for an earlier invoice", async () => {
+    renderPage();
+    const rateOptions = () =>
+      Array.from(document.querySelectorAll("select option")).map((o) => o.textContent);
+
+    expect(rateOptions()).toContain("40%");
+    expect(rateOptions()).not.toContain("12%");
+    expect(rateOptions()).not.toContain("28%");
+
+    const date = screen.getByLabelText("Invoice Date");
+    await userEvent.clear(date);
+    await userEvent.type(date, "2025-06-01");
+    expect(rateOptions()).toContain("12%");
+    expect(rateOptions()).toContain("28%");
+  });
+
   it("renders FAQ section", () => {
     renderPage();
     expect(screen.getByText("Frequently Asked Questions")).toBeInTheDocument();

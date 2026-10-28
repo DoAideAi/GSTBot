@@ -19,7 +19,26 @@ import { todayInIndia } from "../lib/returnDueDates";
 const escapeHtml = (value) =>
   String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28];
+// GST 2.0 (from 22 September 2025) folded the 12% and 28% slabs away and added
+// 40%. This list was the old one: an invoice at 40% could not be made, and 12%
+// and 28% were offered as if they were still current. They remain available
+// for an invoice dated before the change, which is a real thing to be issuing.
+const GST2_START = "2025-09-22";
+const GST_RATES = [0, 0.25, 3, 5, 18, 40];
+const PRE_GST2_RATES = [12, 28];
+
+/** The rates a line may carry on an invoice dated `date`, plus its own. */
+function gstRatesFor(date, current) {
+  const rates = new Set(date && date < GST2_START ? [...GST_RATES, ...PRE_GST2_RATES] : GST_RATES);
+  // Never drop the rate a line already has: a select whose value is not among
+  // its options shows the first option while the totals use the hidden one.
+  const own = parseFloat(current);
+  if (Number.isFinite(own)) rates.add(own);
+  return [...rates].sort((a, b) => a - b);
+}
+
+const rateLabel = (r, date) =>
+  PRE_GST2_RATES.includes(r) && !(date && date < GST2_START) ? `${r}% (before 22 Sep 2025)` : `${r}%`;
 
 const STATE_CODES = [
   "01-Jammu & Kashmir", "02-Himachal Pradesh", "03-Punjab", "04-Chandigarh",
@@ -411,7 +430,7 @@ ${invoiceRef.current.innerHTML}
                   <label className="calc-label" style={{ margin: 0 }}>
                     {i === 0 && "GST %"}
                     <select className="calc-select" value={item.gstRate} onChange={(e) => updateItem(i, "gstRate", e.target.value)}>
-                      {GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                      {gstRatesFor(invoiceDate, item.gstRate).map((r) => <option key={r} value={r}>{rateLabel(r, invoiceDate)}</option>)}
                     </select>
                   </label>
                   <button
