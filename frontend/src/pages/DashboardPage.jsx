@@ -415,23 +415,27 @@ export default function DashboardPage() {
               label="Output tax"
               value={rupees(data.output_tax)}
               sub={`${data.sales.count} sales invoices`}
+              to="/invoices?type=sales"
             />
             <StatCard
               label="Input tax credit"
               value={rupees(data.input_tax_credit)}
               sub={`${data.purchase.count} purchase invoices`}
+              to="/itc"
             />
             <StatCard
               label="Net liability"
               value={rupees(data.net_liability.total)}
               sub={periodLabel(data.period)}
               tone={Number(data.net_liability.total) > 0 ? "warn" : "good"}
+              to="/filing"
             />
             <StatCard
               label="ITC at risk"
               value={rupees(data.itc_at_risk)}
               sub="Suppliers who have not filed"
               tone={Number(data.itc_at_risk) > 0 ? "bad" : "good"}
+              to="/suppliers"
             />
           </section>
 
