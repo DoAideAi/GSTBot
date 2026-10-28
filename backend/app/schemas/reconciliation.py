@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.params import MAX_ID, MIN_ID
 from app.models.gstr_return import ReturnStatus, ReturnType
 from app.models.reconciliation_run import ReconciliationStatus
 from app.services import gst_calendar
@@ -97,7 +98,10 @@ class ReconcileRequest(BaseModel):
 class ReportOrderRequest(BaseModel):
     """Which run's PDF report to buy."""
 
-    run_id: int = Field(ge=1)
+    # Bounded at both ends like every path id (``app.core.params``): a body
+    # id is looked up the same way, and one wider than the column raised
+    # ``OverflowError`` out of the driver — a 500 from a JSON field.
+    run_id: int = Field(ge=MIN_ID, le=MAX_ID)
 
 
 class ReportOrderOut(BaseModel):
@@ -121,7 +125,7 @@ class ReportOrderOut(BaseModel):
 class ReportVerifyRequest(BaseModel):
     """What Razorpay Checkout hands the browser after a successful payment."""
 
-    run_id: int = Field(ge=1)
+    run_id: int = Field(ge=MIN_ID, le=MAX_ID)
     # Shaped like Razorpay's ids. The order id is put into the path of a
     # request made with this server's credentials (``fetch_order``), so a
     # "/" or "." in it could aim that request at another Razorpay endpoint.
