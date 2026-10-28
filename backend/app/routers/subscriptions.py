@@ -364,6 +364,14 @@ def usage_summary(
     )
 
 
+def _dig(document: dict, *keys: str) -> dict:
+    """``document[k1][k2]…`` when every step is a dict, else ``{}``."""
+    node: object = document
+    for key in keys:
+        node = node.get(key) if isinstance(node, dict) else None
+    return node if isinstance(node, dict) else {}
+
+
 @router.post(
     "/webhook",
     status_code=status.HTTP_200_OK,
@@ -396,7 +404,9 @@ async def razorpay_webhook(
 
     try:
         payload = json.loads(body)
-    except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError are both ValueErrors
+    # JSONDecodeError and UnicodeDecodeError are both ValueErrors; a body nested
+    # past the recursion limit is the one way json.loads fails without one.
+    except (ValueError, RecursionError) as exc:
         logger.error(
             "Razorpay webhook body is not valid JSON",
             extra={
@@ -417,10 +427,20 @@ async def razorpay_webhook(
             detail="Webhook body must be a JSON object.",
         )
 
-    event = payload.get("event", "")
-    entity = (payload.get("payload", {}).get("payment", {}).get("entity", {})
-              or payload.get("payload", {}).get("subscription", {}).get("entity", {}))
+    # The same reasoning one level down. Only the top level was checked, so a
+    # signed body whose ``payload``, ``payment`` or ``entity`` was a list, a
+    # string or null — or whose id was not a string — raised in this chain and
+    # was a 500 Razorpay retries for a day. Walked as dicts only; anything else
+    # reads as absent and lands in the "no identifiable id" acknowledgement.
+    event = payload.get("event")
+    if not isinstance(event, str):
+        event = ""
+    entity = _dig(payload, "payload", "payment", "entity") or _dig(
+        payload, "payload", "subscription", "entity"
+    )
     razorpay_id = entity.get("id") or entity.get("subscription_id")
+    if not isinstance(razorpay_id, str):
+        razorpay_id = None
 
     if not razorpay_id:
         logger.warning(

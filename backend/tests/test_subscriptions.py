@@ -1358,3 +1358,41 @@ class TestVerifyPaymentIsBoundToTheOrder:
         resp = self._verify(auth_client, _paid_order(business.id, "pro"), "pro")
         assert resp.status_code == 200
         assert resp.json()["tier"] == "pro"
+
+
+class TestASignedBodyOfTheWrongShapeIsNotA500:
+    """Only the top level was checked for being an object. A signed body whose
+    ``payload``, ``payment`` or ``entity`` was a list, a string or null — or
+    whose id was not a string — raised in the lookup chain, and a 500 is what
+    Razorpay retries for a day."""
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b'{"event":"payment.failed","payload":[]}',
+            b'{"event":"payment.failed","payload":"x"}',
+            b'{"event":"payment.failed","payload":{"payment":[]}}',
+            b'{"event":"payment.failed","payload":{"payment":null,"subscription":{"entity":"s"}}}',
+            b'{"event":"payment.failed","payload":{"subscription":"x"}}',
+            b'{"event":"payment.failed","payload":{"payment":{"entity":{"id":{"a":1}}}}}',
+            b'{"event":["x"],"payload":{"payment":{"entity":{"id":"pay_1"}}}}',
+        ],
+    )
+    def test_it_is_acknowledged_and_changes_nothing(self, client, body):
+        with patch.object(razorpay_client, "verify_webhook_signature", return_value=True):
+            response = client.post(
+                "/api/v1/subscriptions/webhook",
+                content=body,
+                headers={"X-Razorpay-Signature": "good"},
+            )
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+    def test_a_body_nested_past_the_recursion_limit_is_not_json(self, client):
+        with patch.object(razorpay_client, "verify_webhook_signature", return_value=True):
+            response = client.post(
+                "/api/v1/subscriptions/webhook",
+                content=b"[" * 50_000 + b"]" * 50_000,
+                headers={"X-Razorpay-Signature": "good"},
+            )
+        assert response.status_code == 400
