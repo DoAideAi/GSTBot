@@ -140,6 +140,36 @@ class TestGstr3bOutputTax:
         assert sup["camt"] == 2700.0
         assert sup["samt"] == 2700.0
 
+    def test_a_reverse_charge_sale_is_not_this_business_s_liability(self, db_session, business):
+        """P16 M2: under s.9(3)/9(4) the recipient pays the tax on this supply.
+
+        It counted as output tax, so 3.1(a) declared it, the set-off paid it and
+        the customer paid it again at their own 3.1(d). The supplier reports
+        the value with the supplies it pays no tax on, at 3.1(c).
+        """
+        _sale(db_session, business, number="S-1", taxable="10000",
+              cgst="900", sgst="900", total="11800")
+        _sale(db_session, business, number="S-RCM", taxable="50000",
+              cgst="4500", sgst="4500", total="59000", rc=True)
+
+        doc = filing_service.build_gstr3b(db_session, business, PERIOD)
+
+        sup = doc["sup_details"]["osup_det"]
+        assert sup["txval"] == 10000.0
+        assert sup["camt"] == 900.0
+        assert sup["samt"] == 900.0
+        assert doc["sup_details"]["osup_nil_exmp"]["txval"] == 50000.0
+        assert doc["gstbot_cash_payable"] == "1800.00"
+
+    def test_gstr1_still_lists_the_reverse_charge_sale_flagged(self, db_session, business):
+        # The document is the recipient's evidence; only the 3B liability moves.
+        _sale(db_session, business, number="S-RCM", taxable="50000",
+              cgst="4500", sgst="4500", total="59000", rc=True)
+        doc = filing_service.build_gstr1(db_session, business, PERIOD)
+        (party,) = doc["b2b"]
+        (inv,) = party["inv"]
+        assert inv["rchrg"] == "Y"
+
     def test_nil_rated_sales_go_to_exempt_block(self, db_session, business):
         _sale(db_session, business, taxable="10000", cgst="0", sgst="0",
               igst="0", total="10000", rate="0")

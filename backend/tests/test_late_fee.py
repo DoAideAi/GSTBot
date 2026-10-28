@@ -277,6 +277,19 @@ class TestEstimate:
         assert result.fee.total == Decimal("1300.00")  # 26 * 50, under every cap
         assert result.interest_amount > Decimal("0.00")
 
+    def test_a_reverse_charge_sale_adds_nothing_to_the_interest_base(
+        self, db_session, business, frozen_today
+    ):
+        # P16 M2: the recipient pays that tax under s.9(3)/9(4); charging this
+        # business interest on it was charging interest on someone else's tax.
+        sale(db_session, business.id)  # IGST 18,000 owed by this business
+        rcm = sale(db_session, business.id, igst="5000.00")
+        rcm.reverse_charge = True
+        db_session.commit()
+
+        result = late_fee_service.estimate(db_session, business, PERIOD, ReturnType.GSTR3B)
+        assert result.net_tax_liability == Decimal("18000.00")
+
     def test_interest_runs_on_the_cash_shortfall_not_on_the_output_tax(
         self, db_session, business, frozen_today
     ):

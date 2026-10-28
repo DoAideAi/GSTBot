@@ -166,7 +166,9 @@ def get_dashboard(
     sales = _bucket(summary["sales"])
     purchase = _bucket(summary["purchase"])
     credit = _bucket(summary["credit"])
-    net_liability = _net_liability(sales, credit)
+    # Against the sales this business owes tax on, not every sale it issued: a
+    # reverse-charge sale's tax is the recipient's to pay.
+    net_liability = _net_liability(_bucket(summary["output"]), credit)
 
     # ITC resting on invoices the supplier has not filed, from the latest
     # reconciliation for this period that finished. A failed or still-running
@@ -188,7 +190,7 @@ def get_dashboard(
                 sales=past_sales,
                 purchase=past_purchase,
                 credit=past_credit,
-                net_liability=_net_liability(past_sales, past_credit),
+                net_liability=_net_liability(_bucket(past_summary["output"]), past_credit),
             )
         )
 

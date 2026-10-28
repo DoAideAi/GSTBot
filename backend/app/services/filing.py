@@ -1377,7 +1377,13 @@ def build_gstr3b(
     interstate_unregistered: dict[str, dict] = {}
     for invoice in sales:
         taxable = _q(invoice.taxable_value or ZERO)
-        if _tax_total(invoice) == ZERO:
+        # A reverse-charge sale goes to 3.1(c) with the supplies this business
+        # pays no tax on, which is what it is to the supplier: the recipient
+        # pays under s.9(3)/9(4) and declares it at their own 3.1(d). Left in
+        # 3.1(a) its value sat beside a tax figure that (rightly) leaves its tax
+        # out — see ``itc._outward_tax_and_turnover`` — and before that, the
+        # tax was paid here as well as by the customer.
+        if invoice.reverse_charge or _tax_total(invoice) == ZERO:
             outward_exempt += taxable
             continue
         outward_taxable += taxable

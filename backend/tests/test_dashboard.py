@@ -475,6 +475,32 @@ class TestNotEveryPurchaseIsCredit:
         assert Decimal(body["credit"]["igst"]) == Decimal("0.00")
         assert Decimal(body["net_liability"]["igst"]) == Decimal("18000.00")
 
+    def test_a_reverse_charge_sale_is_not_in_the_liability(
+        self, auth_client, db_session, business
+    ):
+        """P16 M2: the recipient pays that tax, so it is not this business's to pay.
+
+        Still shown in the sales totals — it is a document this business
+        issued — but not netted into what the landing screen says is owed.
+        """
+        make_invoice(
+            db_session, business.id,
+            invoice_type=InvoiceType.SALES, invoice_number="S-1",
+            taxable_value=Decimal("100000.00"), igst=Decimal("18000.00"),
+            total_value=Decimal("118000.00"),
+        )
+        make_invoice(
+            db_session, business.id,
+            invoice_type=InvoiceType.SALES, invoice_number="S-RCM",
+            taxable_value=Decimal("50000.00"), igst=Decimal("9000.00"),
+            total_value=Decimal("59000.00"), reverse_charge=True,
+        )
+
+        body = auth_client.get("/api/v1/dashboard?period=2026-04").json()
+
+        assert Decimal(body["sales"]["igst"]) == Decimal("27000.00")
+        assert Decimal(body["net_liability"]["igst"]) == Decimal("18000.00")
+
     def test_the_claimable_purchases_in_a_mixed_period_still_net(
         self, auth_client, db_session, business
     ):

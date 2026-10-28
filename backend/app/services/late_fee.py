@@ -266,7 +266,9 @@ def estimate_from_summary(
     days_late = max(0, (reference_date - due).days)
 
     sales, purchase, credit = summary["sales"], summary["purchase"], summary["credit"]
-    net_tax = _net_cash_liability(sales, credit)
+    # Interest runs on tax this business owed; a reverse-charge sale's is the
+    # recipient's (see ``invoice_service._summarise``).
+    net_tax = _net_cash_liability(summary["output"], credit)
 
     if is_nil is None:
         is_nil = int(sales["count"]) == 0 and int(purchase["count"]) == 0

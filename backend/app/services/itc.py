@@ -834,15 +834,27 @@ def purchases_outside_periods(
 def _outward_tax_and_turnover(
     db: Session, business_id: int, period: str
 ) -> tuple[TaxHeads, Decimal, Decimal]:
-    """Output tax, exempt turnover and total turnover in one scan."""
+    """Output tax, exempt turnover and total turnover in one scan.
+
+    Output tax leaves out reverse-charge sales: under s.9(3)/9(4) the recipient
+    pays that tax, so it is not this business's liability and must not reach
+    the set-off or table 3.1(a). Counting it had the business pay a tax its
+    customer also pays. The supply stays in total turnover — it is not exempt —
+    so Rule 42's ratio is unchanged.
+    """
     tax_col = Invoice.igst + Invoice.cgst + Invoice.sgst + Invoice.cess
+
+    def _owed(column):
+        return func.coalesce(
+            func.sum(case((Invoice.reverse_charge.is_(False), column), else_=0)), 0
+        )
 
     row = db.execute(
         select(
-            func.coalesce(func.sum(Invoice.igst), 0),
-            func.coalesce(func.sum(Invoice.cgst), 0),
-            func.coalesce(func.sum(Invoice.sgst), 0),
-            func.coalesce(func.sum(Invoice.cess), 0),
+            _owed(Invoice.igst),
+            _owed(Invoice.cgst),
+            _owed(Invoice.sgst),
+            _owed(Invoice.cess),
             func.coalesce(func.sum(Invoice.taxable_value), 0),
             func.coalesce(
                 func.sum(

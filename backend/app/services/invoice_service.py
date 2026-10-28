@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import and_, case, func, insert, select, update
+from sqlalchemy import and_, case, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
@@ -995,7 +995,12 @@ def _blank_bucket() -> dict[str, int | Decimal]:
 
 
 def _blank_summary() -> dict[str, dict[str, int | Decimal]]:
-    return {"sales": _blank_bucket(), "purchase": _blank_bucket(), "credit": _blank_bucket()}
+    return {
+        "sales": _blank_bucket(),
+        "purchase": _blank_bucket(),
+        "credit": _blank_bucket(),
+        "output": _blank_bucket(),
+    }
 
 
 # The money columns summed, in the order the select puts them and the order the
@@ -1032,14 +1037,21 @@ def _summarise(
     claims_credit = and_(
         Invoice.itc_eligible.is_(True), Invoice.reverse_charge.is_(False)
     )
+    # The sales side's counterpart: the tax this business itself owes. A sale
+    # under reverse charge (s.9(3)/9(4)) carries tax the *recipient* pays, so it
+    # is a document this business issued and not a liability it has. Netting
+    # it in overstated what the dashboard said had to be paid, and the interest
+    # a late 3B was estimated to carry.
+    counted = or_(
+        and_(Invoice.invoice_type == InvoiceType.PURCHASE, claims_credit),
+        and_(Invoice.invoice_type == InvoiceType.SALES, Invoice.reverse_charge.is_(False)),
+    )
 
     def _summed(name: str):
         return func.coalesce(func.sum(getattr(Invoice, name)), 0)
 
-    def _summed_if_claimable(name: str):
-        return func.coalesce(
-            func.sum(case((claims_credit, getattr(Invoice, name)), else_=0)), 0
-        )
+    def _summed_if_counted(name: str):
+        return func.coalesce(func.sum(case((counted, getattr(Invoice, name)), else_=0)), 0)
 
     grouping = [Invoice.period, Invoice.invoice_type] if group_by_period else [Invoice.invoice_type]
     rows = db.execute(
@@ -1047,8 +1059,8 @@ def _summarise(
             *grouping,
             func.count(Invoice.id),
             *(_summed(name) for name in _MONEY),
-            func.count(case((claims_credit, Invoice.id))),
-            *(_summed_if_claimable(name) for name in _MONEY),
+            func.count(case((counted, Invoice.id))),
+            *(_summed_if_counted(name) for name in _MONEY),
         )
         .where(*conditions)
         .group_by(*grouping)
@@ -1076,8 +1088,10 @@ def _summarise(
         summary = summaries.setdefault(row_period, _blank_summary())
         key = invoice_type.value if hasattr(invoice_type, "value") else str(invoice_type)
         _fill(summary.setdefault(key, _blank_bucket()), count, rest[:width])
-        # Only a purchase can carry credit; a sale's claimable columns are the
-        # same arithmetic over rows that never had credit to begin with.
+        # The counted columns are claimable credit on a purchase row and the
+        # business's own liability on a sales row (see ``counted``).
         if key == InvoiceType.PURCHASE.value:
             _fill(summary["credit"], rest[width], rest[width + 1 :])
+        elif key == InvoiceType.SALES.value:
+            _fill(summary["output"], rest[width], rest[width + 1 :])
     return summaries
