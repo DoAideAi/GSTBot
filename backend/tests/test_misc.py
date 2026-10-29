@@ -590,3 +590,20 @@ class TestHealthAnswersHead:
     def test_head_carries_the_503_too(self, client, dependencies, path):
         dependencies(database=False)
         assert client.head(path).status_code == client.get(path).status_code == 503
+
+
+def test_head_on_a_probe_carries_the_same_dependencies_as_get():
+    # P19 M7: HEAD /health was registered bare, so it ran the dependency
+    # probes without the per-route rate limit GET /health carries.
+    from app.routers import misc
+
+    for path in ("/health", "/health/live", "/health/ready"):
+        by_method = {
+            method: route
+            for route in misc.router.routes
+            if getattr(route, "path", None) == path
+            for method in route.methods
+        }
+        assert [d.dependency for d in by_method["HEAD"].dependencies] == [
+            d.dependency for d in by_method["GET"].dependencies
+        ], path

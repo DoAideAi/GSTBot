@@ -310,7 +310,19 @@ def readiness(response: Response, db: Session = Depends(get_db)) -> dict[str, An
 # where a second operation per route is only noise.
 _PROBES = (("/health", health), ("/health/live", liveness), ("/health/ready", readiness))
 for _path, _probe in _PROBES:
-    router.add_api_route(_path, _probe, methods=["HEAD"], include_in_schema=False)
+    # With the GET route's own dependencies: registered bare, HEAD /health ran
+    # the database, Redis and storage probes without the per-route limit GET
+    # /health carries — the same handler, cheaper to hammer by method alone.
+    _get = next(
+        r for r in router.routes if getattr(r, "path", None) == _path and "GET" in r.methods
+    )
+    router.add_api_route(
+        _path,
+        _probe,
+        methods=["HEAD"],
+        include_in_schema=False,
+        dependencies=list(_get.dependencies),
+    )
 
 
 @router.get(
