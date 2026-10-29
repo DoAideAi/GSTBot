@@ -85,6 +85,21 @@ export function setActiveBusinessId(id) {
   writeStored(ACTIVE_BUSINESS_KEY, id ? String(id) : null);
 }
 
+/**
+ * Start a new session on *token*, acting for the login's own business.
+ *
+ * The "acting for" selection belongs to the session that chose it. Only an
+ * explicit sign-out cleared it, so a session that ended any other way left it
+ * behind for the next one on this browser — a 403 at sign-in for a login with
+ * no access to that business, or a silent start in someone else's client for
+ * one that had access. Every way a session starts comes through here; a
+ * password change, which continues the same session, does not.
+ */
+export function beginSession(token) {
+  setActiveBusinessId(null);
+  setToken(token);
+}
+
 // Told when a credential this client actually sent comes back refused.
 //
 // Dropping the dead token is only half of what has to happen, and on its own it
@@ -113,6 +128,8 @@ export function onUnauthorized(listener) {
  */
 function tokenRejected() {
   setToken(null);
+  // The session is over, and its business selection with it — see beginSession.
+  setActiveBusinessId(null);
   for (const listener of unauthorizedListeners) {
     try {
       listener();
@@ -436,7 +453,7 @@ export const api = {
     // calls the email "username".
     const form = new URLSearchParams({ username: email, password });
     const data = await request("/auth/login", { method: "POST", form, auth: false });
-    setToken(data.access_token);
+    beginSession(data.access_token);
     return data;
   },
 
@@ -447,7 +464,7 @@ export const api = {
       body: payload,
       auth: false,
     });
-    setToken(data.access_token);
+    beginSession(data.access_token);
     return data;
   },
 
@@ -478,7 +495,7 @@ export const api = {
       body: { token, new_password: newPassword },
       auth: false,
     });
-    setToken(data.access_token);
+    beginSession(data.access_token);
     return data;
   },
 

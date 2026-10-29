@@ -23,9 +23,9 @@ vi.mock("../hooks/usePageTitle", async () => {
 const auth = vi.hoisted(() => ({ current: { user: null } }));
 vi.mock("../hooks/useAuth", () => ({ useAuth: () => auth.current }));
 
-const setToken = vi.hoisted(() => vi.fn());
+const beginSession = vi.hoisted(() => vi.fn());
 vi.mock("../lib/api", () => ({
-  setToken,
+  beginSession,
   api: {
     subscribe: vi.fn().mockResolvedValue({ subscribed: true, new: true, message: "Done" }),
     myReferralCode: vi.fn().mockResolvedValue({ referral_code: "CA-TEST1" }),
@@ -54,7 +54,7 @@ describe("AuthCallbackPage", () => {
   }
 
   beforeEach(() => {
-    setToken.mockClear();
+    beginSession.mockClear();
     // jsdom refuses real navigation; the page only calls replace, so a plain
     // object is enough to observe the hand-off.
     Object.defineProperty(window, "location", { value: { replace: vi.fn() }, writable: true });
@@ -63,27 +63,27 @@ describe("AuthCallbackPage", () => {
   it("bounces a provider error back to the sign-in page with the reason", () => {
     renderAt("?error=denied");
     expect(screen.getByText("Login probe")).toBeInTheDocument();
-    expect(setToken).not.toHaveBeenCalled();
+    expect(beginSession).not.toHaveBeenCalled();
   });
 
   it("reads the token from the fragment the backend puts it in", () => {
     // oauth.py redirects to /auth/callback#token=… — never a query string,
     // so the token stays out of server logs and Referer headers.
     renderAt("#token=tok123");
-    expect(setToken).toHaveBeenCalledWith("tok123");
+    expect(beginSession).toHaveBeenCalledWith("tok123");
     expect(window.location.replace).toHaveBeenCalledWith("/");
   });
 
   it("does not take a token from the query string", () => {
     renderAt("?token=tok123");
-    expect(setToken).not.toHaveBeenCalled();
+    expect(beginSession).not.toHaveBeenCalled();
     expect(screen.getByText("Login probe")).toBeInTheDocument();
   });
 
   it("sends a callback with neither token nor error back to sign-in", () => {
     renderAt("");
     expect(screen.getByText("Login probe")).toBeInTheDocument();
-    expect(setToken).not.toHaveBeenCalled();
+    expect(beginSession).not.toHaveBeenCalled();
   });
 });
 

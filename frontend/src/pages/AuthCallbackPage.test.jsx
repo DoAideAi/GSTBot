@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getToken } from "../lib/api";
+import { getActiveBusinessId, getToken, setActiveBusinessId } from "../lib/api";
 import { rememberReturnTo } from "../lib/returnTo";
 import { track } from "../lib/track";
 import AuthCallbackPage from "./AuthCallbackPage";
@@ -84,5 +84,20 @@ describe("AuthCallbackPage returning to the page that was asked for", () => {
     sessionStorage.setItem("gstbot_return_to", "//evil.example/");
     land("token=tok&provider=google");
     expect(replace).toHaveBeenCalledWith("/");
+  });
+});
+
+describe("AuthCallbackPage starting a new session", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.stubGlobal("location", { ...window.location, replace: vi.fn() });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("starts at the login's own business, not the last session's choice", () => {
+    setActiveBusinessId(7);
+    land("token=tok&provider=google");
+    expect(getActiveBusinessId()).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { setToken } from "../lib/api";
+import { beginSession } from "../lib/api";
 import { takeReturnTo } from "../lib/returnTo";
 import { track } from "../lib/track";
 
@@ -28,7 +28,7 @@ export default function AuthCallbackPage() {
     }
 
     if (token) {
-      setToken(token);
+      beginSession(token);
       // The backend marks the sign-in that created the account, which is the
       // only place a new OAuth account and a returning one can be told apart.
       const method = fragment.get("provider") || "oauth";

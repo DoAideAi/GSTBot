@@ -1462,3 +1462,55 @@ describe("featurePath", () => {
     expect(featurePath(path)).toBe(feature);
   });
 });
+
+describe("the business a session acts for does not outlive the session", () => {
+  // Only an explicit sign-out cleared it. A token that expired, and every way
+  // a session starts — password, registration, a reset — left the previous
+  // session's "acting for" business in place, so the next login on that
+  // browser began pointed at it: a 403 for someone with no access to it, or a
+  // silent start in another person's client for someone with access.
+  function ok(body) {
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("is forgotten when the token is refused", async () => {
+    setToken("expired");
+    setActiveBusinessId(7);
+    global.fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Token has expired" }), { status: 401 }),
+    );
+    await expect(api.dashboard()).rejects.toThrow();
+    expect(getActiveBusinessId()).toBeNull();
+  });
+
+  it.each([
+    ["signing in", () => api.login("a@b.com", "supersecret123")],
+    ["registering", () => api.register({ email: "a@b.com", password: "supersecret123" })],
+    ["resetting a password", () => api.resetPassword("reset-tok", "a-fresh-passphrase")],
+  ])("is not carried into a new session started by %s", async (_, start) => {
+    setActiveBusinessId(7);
+    global.fetch.mockResolvedValueOnce(ok({ access_token: "new", token_type: "bearer" }));
+    await start();
+    global.fetch.mockResolvedValueOnce(ok({ id: 1 }));
+    await api.me();
+    expect(global.fetch.mock.calls.at(-1)[1].headers["X-Business-Id"]).toBeUndefined();
+  });
+
+  it("is kept when a password change continues the same session", async () => {
+    setToken("tok");
+    setActiveBusinessId(7);
+    global.fetch.mockResolvedValueOnce(ok({ access_token: "rotated", token_type: "bearer" }));
+    await api.changePassword("old-secret-1", "new-secret-2");
+    expect(getActiveBusinessId()).toBe("7");
+  });
+});
