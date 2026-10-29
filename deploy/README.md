@@ -100,13 +100,14 @@ sudo -u postgres createdb gstbot --owner gstbot
 
 The repository is private and this box has no credential for it, so the tree is
 pushed from a workstation rather than cloned. `--delete` keeps the server from
-accumulating files that a later revision removed; `node_modules` and `dist` are
+accumulating files that a later revision removed; `node_modules` and the builds
+(`dist`, and the `dist.next` and `dist.prev` a release leaves beside it) are
 excluded because they are built on the server, from the lockfile, in step 8.
 
 ```sh
 # from a workstation, in the repository root
 rsync -az --delete --no-owner --no-group \
-    --exclude .venv --exclude node_modules --exclude dist \
+    --exclude .venv --exclude node_modules --exclude dist --exclude 'dist.*' \
     --exclude __pycache__ --exclude .pytest_cache \
     -e "ssh -i path/to/hetzner_deploy_ed25519" \
     ./ root@89.167.8.178:/opt/GSTBot/
@@ -217,6 +218,11 @@ Nothing has to be copied from a workstation.
 The script installs the locked dependencies, builds the frontend, takes a
 database dump, migrates, restarts the services and then checks readiness on the
 bridge and `/health/live` through Caddy. Anything that fails stops the release.
+
+The frontend is built into `frontend/dist.next`, beside the `dist` the site is
+serving, and swapped in only once it has produced an `index.html`; the build it
+replaces is kept as `frontend/dist.prev`. A build that fails therefore stops the
+release with the previous site still up, rather than an emptied `dist`.
 
 The dump is the nightly backup unit, started synchronously — see "Backups". It
 runs because the migration is the one step of a release that redeploying the
@@ -350,9 +356,16 @@ in both directions, so it works — but it is a decision to take with the data i
 front of you, not something a deploy script should do while an incident is in
 progress.
 
-Until the deploy key exists, naming a sha does not work — see "Releasing" — so
-a rollback is the same two commands as a release, run from a workstation that
-has checked out the revision being rolled back to.
+The sha can be any commit the box can fetch from `origin` — the deploy key
+described under "Releasing" is what makes that work.
+
+To put back only the previous frontend — a release whose UI is broken but whose
+API is fine — swap the kept build back in; `gstbot-web` serves whatever `dist`
+holds, so no restart is needed:
+
+```sh
+cd /opt/GSTBot/frontend && mv dist dist.bad && mv dist.prev dist
+```
 
 ## Backups
 
