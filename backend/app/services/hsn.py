@@ -24,12 +24,41 @@ hand-curated alias table first, because the tariff wording for wheat flour is
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
 _DATA_FILE = Path(__file__).with_name("hsn_data.json")
+
+# A leading label the code is printed after: "HSN: 8471", "SAC Code 998314".
+_HSN_LABEL = re.compile(r"^\s*(?:HSN|SAC)(?:\s*/\s*SAC)?(?:\s*CODE)?\s*[:#.\-]?\s*", re.IGNORECASE)
+
+
+def normalize_hsn_code(value: object, *, cut_long: bool = False) -> str | None:
+    """*value* as the 4-8 digit code the portal takes, or ``None`` if it is not one.
+
+    One rule for every way a code enters: typed in an edit, or read off a
+    document by the model. The two had drifted — the edit form accepted the
+    dotted tariff form (``8471.30.10``) as its digits, while the parser kept
+    whatever it was handed cut to eight characters, so the same invoice stored
+    ``8471.30.`` from an upload and ``84713010`` from an edit, and an upload
+    could carry ``HSN: 847`` or ``abcd`` into the GSTR-1 HSN summary.
+
+    *cut_long* keeps the first eight digits of a longer run of digits — the
+    chapter, heading and tariff item, which is all the portal takes — for text a
+    model read, where a code runs into the digits printed after it. A person
+    typing more than eight digits is told instead.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    digits = re.sub(r"[.\s]", "", _HSN_LABEL.sub("", str(value)))
+    if cut_long and len(digits) > 8 and digits.isascii() and digits.isdigit():
+        digits = digits[:8]
+    if digits.isascii() and digits.isdigit() and 4 <= len(digits) <= 8:
+        return digits
+    return None
 
 
 @dataclass(frozen=True)

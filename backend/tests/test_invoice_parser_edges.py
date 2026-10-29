@@ -617,3 +617,48 @@ class TestARepeatedLabelCannotStallTheParser:
 
         text = "Original" + " filler" * (_PREFIX_WINDOW // 7 + 5) + " Invoice No: N-5"
         assert parse_heuristic(text).invoice_number == "N-5"
+
+
+class TestAnHsnCodeIsReadLikeTheEditFormReadsIt:
+    """P20 M19: the edit form read the dotted tariff form as its digits; the
+    parser kept the model's string cut to eight characters, so an upload stored
+    '8471.30.' where an edit stored '84713010', and 'HSN: 847' or 'abcd' reached
+    the GSTR-1 HSN summary from an upload while an edit would refuse them."""
+
+    @staticmethod
+    def _parse(hsn):
+        from app.services import invoice_parser as ip
+
+        payload = {
+            "invoice_number": "X-1",
+            "invoice_date": "2026-04-15",
+            "taxable_value": 100,
+            "igst": 18,
+            "total_value": 118,
+            "hsn_code": hsn,
+        }
+        return ip.validate(ip._from_model_payload(payload, "t", "m"))
+
+    @pytest.mark.parametrize(
+        ("printed", "stored"),
+        [
+            ("8471.30.10", "84713010"),
+            ("8471 30 10", "84713010"),
+            ("HSN: 8471", "8471"),
+            ("SAC Code 998314", "998314"),
+            (84713010, "84713010"),
+        ],
+    )
+    def test_a_code_in_any_printed_form_is_kept_as_its_digits(self, printed, stored):
+        assert self._parse(printed).hsn_code == stored
+
+    @pytest.mark.parametrize("junk", ["84", "abcd", "N/A", "84.7x"])
+    def test_a_code_that_is_not_one_is_dropped_with_a_warning(self, junk):
+        parsed = self._parse(junk)
+        assert parsed.hsn_code is None
+        assert any("unreadable HSN/SAC" in w for w in parsed.warnings)
+
+    def test_the_edit_form_uses_the_same_rule(self):
+        from app.schemas.invoice import InvoiceUpdate
+
+        assert InvoiceUpdate(hsn_code="HSN: 8471.30").hsn_code == "847130"

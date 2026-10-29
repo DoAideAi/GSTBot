@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.models.mixins import MONEY_MAX
 from app.services import document_text, gst_calendar
 from app.services import gstin as gstin_service
+from app.services import hsn as hsn_service
 from app.services.openrouter_client import OpenRouterError, chat_json, image_data_url, is_configured
 
 logger = logging.getLogger(__name__)
@@ -1508,7 +1509,12 @@ def _from_model_payload(payload: dict, text: str, model: str) -> ParsedInvoice:
     result.buyer_name = _clean_str(payload.get("buyer_name"))
     result.invoice_number = _clean_str(payload.get("invoice_number"), 64)
     result.invoice_date = to_date(payload.get("invoice_date"))
-    result.hsn_code = _clean_str(payload.get("hsn_code"), 8)
+    raw_hsn = payload.get("hsn_code")
+    result.hsn_code = hsn_service.normalize_hsn_code(raw_hsn, cut_long=True)
+    if result.hsn_code is None and str(raw_hsn if raw_hsn is not None else "").strip():
+        # Dropped, not stored: the edit form would refuse it, and the GSTR-1
+        # HSN summary would carry it. The reviewer is told what was read.
+        result.warnings.append(f"Discarded an unreadable HSN/SAC code: {str(raw_hsn)[:20]}")
     result.reverse_charge = to_flag(payload.get("reverse_charge"))
 
     # A GSTIN is kept only if it checksums. The model is reading blurry text

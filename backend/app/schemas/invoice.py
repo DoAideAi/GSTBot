@@ -11,6 +11,7 @@ from app.models.invoice import InvoiceSource, InvoiceStatus, InvoiceType
 from app.models.mixins import MONEY_MAX
 from app.services import gst_calendar
 from app.services import gstin as gstin_service
+from app.services import hsn as hsn_service
 from app.services.gst_calculator import quoted_rate
 from app.services.invoice_parser import VALID_TAX_RATES
 
@@ -276,8 +277,8 @@ class InvoiceUpdate(BaseModel):
         """
         if v is None or not v.strip():
             return None
-        digits = v.strip().replace(".", "").replace(" ", "")
-        if not digits.isascii() or not digits.isdigit() or not 4 <= len(digits) <= 8:
+        digits = hsn_service.normalize_hsn_code(v)
+        if digits is None:
             raise ValueError("An HSN/SAC code is 4 to 8 digits")
         return digits
 
