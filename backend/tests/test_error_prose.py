@@ -483,3 +483,31 @@ class TestTheRefusalsARealSessionMeets:
         body = response.json()
         assert body["valid"] is False
         assert_reads_as_prose(body["error"], "/meta/gstin")
+
+
+class TestARefusedPatternIsDescribedNotQuoted:
+    """A pattern mismatch used to read "String should match pattern
+    '^(?:2017-(?:0[7-9]|1[0-2])|20(?:1[89]|[2-9][0-9])-…)$'" — the regex,
+    verbatim, in the banner, in ``error.message`` and read aloud by the GPT
+    actions."""
+
+    def test_a_bad_period_says_what_a_period_looks_like(self, auth_client):
+        body = auth_client.get("/api/v1/dashboard", params={"period": "April 2026"}).json()
+        assert body["error"]["message"] == (
+            "period: should be a month written YYYY-MM, such as 2026-04, "
+            "from 2017-07 (when GST began) onwards"
+        )
+        # The pattern stays in ``ctx`` for a client that wants it; it is the
+        # sentences meant for a person that must not quote it.
+        assert all("(?:" not in item["msg"] for item in body["detail"])
+
+    def test_a_closed_choice_lists_the_choices(self, client):
+        body = client.get(
+            "/api/v1/gpt/calculate", params={"amount": "100", "rate": "18", "mode": "both"}
+        ).json()
+        assert "should be one of: exclusive, inclusive" in body["error"]["message"]
+
+    def test_any_other_pattern_is_still_not_quoted(self):
+        from app.core.errors import _pattern_message
+
+        assert _pattern_message(r"^order_[A-Za-z0-9_]+$") == "is not in the expected format"

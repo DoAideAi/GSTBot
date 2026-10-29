@@ -366,6 +366,8 @@ def _bounded_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
         entry = {key: _bounded(value) for key, value in error.items()}
         if isinstance(entry.get("msg"), str):
             entry["msg"] = _VALIDATOR_PREFIX.sub("", entry["msg"], count=1)
+        if error.get("type") == "string_pattern_mismatch":
+            entry["msg"] = _pattern_message((error.get("ctx") or {}).get("pattern", ""))
         if "input" in entry:
             if _is_secret(error.get("loc", ())):
                 entry["input"] = _REDACTED
@@ -378,6 +380,34 @@ def _bounded_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
                 }
         bounded.append(entry)
     return bounded
+
+
+def _pattern_message(pattern: str) -> str:
+    """What a refused pattern means, in words, instead of the regex itself.
+
+    Pydantic's message is "String should match pattern '<regex>'", and for a
+    period that is ``^(?:2017-(?:0[7-9]|1[0-2])|20(?:1[89]|[2-9][0-9])-…)$`` —
+    read out verbatim in the frontend's banner, in ``error.message`` and by the
+    GPT actions to whoever asked. Imported here rather than at the top so the
+    error handlers take on no module-level dependency on the code they report.
+    """
+    from app.schemas.gpt import HSN_PATTERN, STATE_CODE_PATTERN
+    from app.services.gst_calendar import PERIOD_PATTERN
+
+    known = {
+        PERIOD_PATTERN: (
+            "should be a month written YYYY-MM, such as 2026-04, "
+            "from 2017-07 (when GST began) onwards"
+        ),
+        HSN_PATTERN: "should be an HSN or SAC code of 4 to 8 digits",
+        STATE_CODE_PATTERN: "should be a two-digit GST state code, such as 27",
+    }
+    if pattern in known:
+        return known[pattern]
+    choices = re.fullmatch(r"\^\(([\w|]+)\)\$", pattern)
+    if choices:
+        return "should be one of: " + ", ".join(choices.group(1).split("|"))
+    return "is not in the expected format"
 
 
 # Fields whose value is never quoted back, however short. The echo above is
