@@ -13,8 +13,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.mixins import MONEY_MAX
 
-STATE_CODE_PATTERN = r"^\d{2}$"
-HSN_PATTERN = r"^\d{4,8}$"
+# ASCII digits spelled out: ``\d`` in a pydantic pattern matches ``८४७१`` too.
+STATE_CODE_PATTERN = r"^[0-9]{2}$"
+HSN_PATTERN = r"^[0-9]{4,8}$"
 
 # A GSTIN is 15 characters; the slack is for the spaces and hyphens people
 # paste out of PDFs, which ``gstin.normalize`` strips. Same ceiling as the

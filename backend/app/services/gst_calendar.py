@@ -55,7 +55,11 @@ from app.models.gstr_return import ReturnType
 # Anchored, so it validates the same whether a caller matches or searches with
 # it. Exported as the single definition every route, schema and importer spells
 # the period with.
-PERIOD_PATTERN = r"^(?:2017-(?:0[7-9]|1[0-2])|20(?:1[89]|[2-9]\d)-(?:0[1-9]|1[0-2]))$"
+#
+# ``[0-9]`` and never ``\d``: pydantic's regex engine, like Python's, reads
+# ``\d`` as any Unicode digit, so ``202٦-04`` passed, was recorded as a filed
+# GSTR-3B under that string, and matched no period the app ever asks about.
+PERIOD_PATTERN = r"^(?:2017-(?:0[7-9]|1[0-2])|20(?:1[89]|[2-9][0-9])-(?:0[1-9]|1[0-2]))$"
 
 _PERIOD_RE = re.compile(PERIOD_PATTERN)
 

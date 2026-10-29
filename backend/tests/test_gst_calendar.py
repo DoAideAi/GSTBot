@@ -414,3 +414,31 @@ class TestTheSpanAPeriodCanFallIn:
                 assert gst_calendar.next_period(period)
                 assert gst_calendar.previous_period(period)
                 assert gst_calendar.months_before(period, 60)
+
+
+class TestAPeriodIsSpelledInAsciiDigits:
+    """``\\d`` in a pydantic or Python pattern also matches ``٦`` and ``６``.
+
+    ``202٦-04`` used to pass every period parameter and was recorded as a
+    filed GSTR-3B under that string, while April itself stayed unfiled.
+    """
+
+    @pytest.mark.parametrize("period", ["202٦-04", "202６-04", "२०२६-04"])
+    def test_other_digits_are_not_a_period(self, period):
+        assert not gst_calendar.is_period(period)
+
+    def test_recording_one_is_refused(self, auth_client, db_session):
+        from app.models.gstr_return import GSTRReturn
+
+        response = auth_client.post("/api/v1/filing/gstr3b/filed", json={"period": "202٦-04"})
+
+        assert response.status_code == 422
+        assert db_session.query(GSTRReturn).count() == 0
+
+    def test_the_gpt_patterns_refuse_them_too(self):
+        from pydantic import ValidationError
+
+        from app.schemas.gpt import InvoiceItem
+
+        with pytest.raises(ValidationError):
+            InvoiceItem(description="x", hsn_code="८४७१", quantity=1, unit_price=1, gst_rate=18)
