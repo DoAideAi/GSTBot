@@ -36,7 +36,7 @@ per-instance re-read. Both prefetches obey that, and the loop writes through
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -47,6 +47,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import settings
 from app.models.alert import Alert, AlertStatus
 from app.models.business import Business
+from app.models.business_membership import BusinessMembership, MembershipRole
+from app.models.user import User
 from app.services.email_sender import EmailSendError, send_email
 
 logger = logging.getLogger(__name__)
@@ -149,13 +151,45 @@ def _digest(alerts: list[Row]) -> tuple[str, str]:
     return subject, "\n".join(lines)
 
 
-def _recipients(business: Business) -> list[str]:
-    """Every active user's email, in a stable order.
+def _recipients(business: Business, linked: Collection[str] = ()) -> list[str]:
+    """Every active user's email, and every linked login that can file, in a
+    stable order.
 
     Not just the owner: an accountant added to the business is exactly who
-    should hear about a deadline they may be the one filing.
+    should hear about a deadline they may be the one filing. An accountant
+    reaches a client's business through a link (``/businesses/mine/link``), a
+    membership rather than a user of that business, so ``business.users``
+    alone never told them. See :func:`_linked_recipients`.
     """
-    return sorted({u.email for u in business.users if u.is_active and u.email})
+    own = {u.email for u in business.users if u.is_active and u.email}
+    return sorted(own | set(linked))
+
+
+# The membership roles that can act on a deadline. A viewer cannot file.
+_LINKED_ROLES_TOLD = (MembershipRole.OWNER, MembershipRole.ACCOUNTANT)
+
+
+def _linked_recipients(db: Session, business_ids: Collection[int]) -> dict[int, set[str]]:
+    """``{business_id: emails}`` of the live owner and accountant links to them.
+
+    One statement for a whole chunk, like the users beside it, so the digest
+    reads no more per tenant than it did.
+    """
+    rows = db.execute(
+        select(BusinessMembership.business_id, User.email)
+        .join(User, User.id == BusinessMembership.user_id)
+        .where(
+            BusinessMembership.business_id.in_(business_ids),
+            BusinessMembership.deleted_at.is_(None),
+            BusinessMembership.role.in_(_LINKED_ROLES_TOLD),
+            User.is_active.is_(True),
+            User.email.is_not(None),
+        )
+    ).all()
+    linked: dict[int, set[str]] = {}
+    for business_id, email in rows:
+        linked.setdefault(business_id, set()).add(email)
+    return linked
 
 
 def _send_to_all(recipients: list[str], subject: str, body: str, *, business_id: int) -> bool:
@@ -279,7 +313,8 @@ def _send_pending_alerts(db: Session, *, now: datetime) -> AlertEmailResult:
             .options(selectinload(Business.users))
             .order_by(Business.id)
         ).all()
-        digest_targets.extend((b.id, _recipients(b)) for b in businesses)
+        linked = _linked_recipients(db, chunk)
+        digest_targets.extend((b.id, _recipients(b, linked.get(b.id, ()))) for b in businesses)
 
     # And the alerts themselves, for every tenant at once. Read after the
     # businesses rather than with them so that a tenant deactivated between the

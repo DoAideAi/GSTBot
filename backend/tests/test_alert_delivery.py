@@ -678,3 +678,55 @@ def test_the_result_is_json_serialisable_for_the_task_backend():
         "alerts_failed": 0,
         "skipped_no_recipient": 0,
     }
+
+
+class TestTheAccountantWhoFilesIsTold:
+    """P38 M10: a CA who linked a client's business never got its deadlines.
+
+    The digest went to ``business.users``, the logins whose own business it is.
+    Someone who files for a business reaches it through a link
+    (``/businesses/mine/link``), a membership row rather than a user of that
+    business, so they got none of its deadline mail, although the recipient
+    rule says the accountant "is exactly who should hear about a deadline they
+    may be the one filing". Linked logins that can act on an alert (owner and
+    accountant links, still live, on an active login) now get it. Viewers
+    cannot file and are left out, as is a link someone has removed.
+    """
+
+    def _link(self, db, business, *, email, role, removed=False, active=True):
+        from app.models.business_membership import BusinessMembership, MembershipRole
+        from app.models.mixins import utcnow
+
+        self.homes = getattr(self, "homes", 0) + 1
+        home = make_business(db, gstin=_valid_gstin(500 + self.homes))
+        user = make_user(db, home, email=email, is_active=active)
+        db.add(
+            BusinessMembership(
+                user_id=user.id,
+                business_id=business.id,
+                role=MembershipRole(role),
+                deleted_at=utcnow() if removed else None,
+            )
+        )
+        db.commit()
+
+    def test_linked_logins_that_can_file_are_emailed_and_no_one_else(
+        self, db_session, business, sent
+    ):
+        make_user(db_session, business, email="owner@example.com")
+        self._link(db_session, business, email="ca@firm.example", role="accountant")
+        self._link(db_session, business, email="partner@firm.example", role="owner")
+        self._link(db_session, business, email="viewer@firm.example", role="viewer")
+        self._link(db_session, business, email="gone@firm.example", role="accountant",
+                   removed=True)
+        self._link(db_session, business, email="left@firm.example", role="accountant",
+                   active=False)
+        make_alert(db_session, business)
+
+        send_pending_alerts(db_session, now=NOW)
+
+        assert {call["to"] for call in sent} == {
+            "owner@example.com",
+            "ca@firm.example",
+            "partner@firm.example",
+        }
