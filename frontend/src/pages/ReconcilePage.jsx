@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
+import Pager, { stepBackOffset } from "../components/Pager";
 import ReadOnlyNotice from "../components/ReadOnlyNotice";
 import ReportPurchaseButton from "../components/ReportPurchaseButton";
 import { SkeletonText } from "../components/Skeleton";
@@ -193,6 +194,11 @@ export default function ReconcilePage() {
   // now every run but the newest was stored and unreachable.
   const [history, setHistory] = useState([]);
   const [historyUnknown, setHistoryUnknown] = useState(false);
+  // Paged. It asked for the newest twelve and showed no pager, although the
+  // answer carries the total, so from a period's thirteenth run the older ones
+  // were unreachable: the evidence this list exists to keep.
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [historyTotal, setHistoryTotal] = useState(0);
   // {id, run} while an earlier run is on screen, null while the latest is.
   const [viewed, setViewed] = useState(null);
   const [historyToken, setHistoryToken] = useState(0);
@@ -287,10 +293,22 @@ export default function ReconcilePage() {
     (async () => {
       try {
         const data = await api.listReconciliations(
-          { period, limit: HISTORY_LIMIT },
+          { period, limit: HISTORY_LIMIT, offset: historyOffset },
           { signal: controller.signal },
         );
+        // Runs are never deleted, but a page past the end is still possible
+        // after a period change raced a page change: back to the last one.
+        const back = stepBackOffset(
+          { items: data.items ?? [], total: data.total },
+          historyOffset,
+          HISTORY_LIMIT,
+        );
+        if (back !== null) {
+          setHistoryOffset(back);
+          return;
+        }
         setHistory(data.items ?? []);
+        setHistoryTotal(data.total ?? (data.items ?? []).length);
         setHistoryUnknown(false);
       } catch (err) {
         // A superseded list writes nothing, for the same reason the pair above
@@ -303,7 +321,12 @@ export default function ReconcilePage() {
       }
     })();
     return () => controller.abort();
-  }, [period, reloadToken, historyToken]);
+  }, [period, reloadToken, historyToken, historyOffset]);
+
+  // Another month starts at its newest runs.
+  useEffect(() => {
+    setHistoryOffset(0);
+  }, [period]);
 
   // The purchase register's own problems, which are the ones the matcher
   // cannot tell you about. A supplier GSTIN that does not checksum, or is
@@ -801,7 +824,7 @@ export default function ReconcilePage() {
           Shown only once there is more than one, because a single entry is the
           run already on screen, listed again under a heading calling it
           history. */}
-      {(history.length > 1 || historyUnknown) && (
+      {(history.length > 1 || historyTotal > 1 || historyUnknown) && (
         <section className="panel">
           <h2>Earlier runs</h2>
           {historyUnknown ? (
@@ -830,7 +853,7 @@ export default function ReconcilePage() {
                     {history.map((item, index) => {
                       // The newest row is the one the page shows by default, so
                       // it is marked rather than offered as something to open.
-                      const isLatest = index === 0;
+                      const isLatest = historyOffset === 0 && index === 0;
                       const isShown = viewed ? viewed.id === item.id : isLatest;
                       return (
                         <tr key={item.id}>
@@ -871,6 +894,12 @@ export default function ReconcilePage() {
                   </tbody>
                 </table>
               </TableScroll>
+              <Pager
+                offset={historyOffset}
+                total={historyTotal}
+                pageSize={HISTORY_LIMIT}
+                onPage={setHistoryOffset}
+              />
             </>
           )}
         </section>

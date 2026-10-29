@@ -1805,3 +1805,78 @@ describe("a viewer", () => {
     expect(screen.queryByText(/read-only/)).toBeNull();
   });
 });
+
+describe("a period with more runs than one page holds", () => {
+  // P38 M9: the history asked for the newest twelve runs and showed them with
+  // no pager, although the answer carries the total. Re-reconciling as
+  // suppliers file late is routine, and from the thirteenth run on the older
+  // ones were unreachable: the same evidence the list exists to keep.
+  const SHOWN = currentPeriod();
+  const runs = Array.from({ length: 14 }, (_, i) => ({
+    id: 100 - i,
+    period: SHOWN,
+    total_invoices: 3,
+    matched_count: 1,
+    itc_at_risk: `${100 - i}000.00`,
+    itc_eligible: "1.00",
+    completed_at: "2026-06-02T09:30:00Z",
+    created_at: "2026-06-02T09:30:00Z",
+  }));
+
+  function renderPaged() {
+    const offsets = [];
+    global.fetch = vi.fn(async (url) => {
+      const ok = (body) => ({
+        ok: true, status: 200, statusText: "OK", text: async () => JSON.stringify(body),
+      });
+      const target = String(url);
+      if (/\/reconciliation\?/.test(target)) {
+        const params = new URL(target, "http://localhost").searchParams;
+        const offset = Number(params.get("offset") ?? 0);
+        const limit = Number(params.get("limit"));
+        offsets.push(offset);
+        return ok({ items: runs.slice(offset, offset + limit), total: runs.length, limit, offset });
+      }
+      if (target.includes("/filing/validate")) {
+        return { ok: false, status: 503, statusText: "", text: async () => "{}" };
+      }
+      if (target.includes("/gstr2b/periods")) return ok({ items: [] });
+      if (target.includes("/gstr2b/")) return ok(imported());
+      if (target.includes("/latest")) return ok(run({ id: 100 }));
+      return { ok: false, status: 404, statusText: "", text: async () => "{}" };
+    });
+    render(
+      <MemoryRouter>
+        <StubAuth>
+          <ReconcilePage />
+        </StubAuth>
+      </MemoryRouter>,
+    );
+    return offsets;
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("pages back to the oldest runs", async () => {
+    const offsets = renderPaged();
+    const table = await screen.findByRole("region", { name: "Earlier reconciliation runs" });
+    expect(within(table).queryByText("₹87,000.00")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await within(table).findByText("₹87,000.00")).toBeInTheDocument();
+    expect(within(table).getByText("₹88,000.00")).toBeInTheDocument();
+    expect(offsets).toContain(12);
+  });
+
+  it("marks only the newest run of all as the latest", async () => {
+    renderPaged();
+    const table = await screen.findByRole("region", { name: "Earlier reconciliation runs" });
+    expect(within(table).getAllByText("Latest")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await within(table).findByText("₹87,000.00");
+
+    expect(within(table).queryByText("Latest")).not.toBeInTheDocument();
+  });
+});
