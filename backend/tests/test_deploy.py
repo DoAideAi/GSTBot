@@ -858,11 +858,21 @@ class TestTheSiteBlock:
         )
 
         assert directives["default-src"] == "'self'"
-        assert directives["script-src"] == "'self'"
+        # Exactly these origins. Each is there for one named reason — Umami,
+        # and Razorpay Checkout's script — and anything else is a widening
+        # somebody should have to justify here.
+        assert directives["script-src"] == (
+            "'self' https://analytics.doaide.com https://checkout.razorpay.com"
+        )
+        assert "'unsafe-inline'" not in directives["script-src"]
         assert "'unsafe-eval'" not in policy
-        # Same-origin only. A script that did get onto the page still cannot
-        # post a tenant's invoices anywhere else.
-        assert directives["connect-src"] == "'self'"
+        # Same-origin plus the named services only. A script that did get onto
+        # the page still cannot post a tenant's invoices to a host of its own.
+        assert directives["connect-src"] == (
+            "'self' https://analytics.doaide.com https://api.razorpay.com "
+            "https://lumberjack.razorpay.com"
+        )
+        assert directives["frame-src"] == "https://api.razorpay.com https://checkout.razorpay.com"
         assert directives["frame-ancestors"] == "'none'"
         assert directives["object-src"] == "'none'"
         assert directives["base-uri"] == "'none'"
@@ -1833,3 +1843,14 @@ class TestTheRepositoryDoesNotLeakSecrets:
                 leaked.append(path)
 
         assert leaked == [], f"private keys are committed: {leaked}"
+
+
+def test_the_spa_policy_admits_the_payment_script_the_frontend_loads(spa_block):
+    """P18 M16: the pricing page and the report button load Razorpay's
+    checkout.js from its origin. A policy without it blocks every payment in
+    the browser, silently to the server — so the policy is held to the URL the
+    frontend actually uses."""
+    frontend = REPO_ROOT / "frontend" / "src" / "lib" / "razorpay.js"
+    script = matched(r'SCRIPT_SRC = "(https://[^/"]+)', frontend.read_text()).group(1)
+    policy = matched(r'Content-Security-Policy "([^"]+)"', spa_block).group(1)
+    assert script in matched(r"script-src ([^;]+)", policy).group(1)
