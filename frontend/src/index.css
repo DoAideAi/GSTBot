@@ -378,7 +378,7 @@ select {
 }
 input:focus,
 select:focus {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-ink);
   outline-offset: 1px;
 }
 label {
@@ -505,7 +505,7 @@ select[aria-invalid="true"]:focus {
   transition: border-color 150ms ease;
 }
 .auth-form input:focus {
-  border-color: rgba(240, 180, 41, 0.5) !important;
+  border-color: var(--brand-ink) !important;
   outline: none;
   box-shadow: none !important;
 }
@@ -1112,7 +1112,7 @@ select[aria-invalid="true"]:focus {
   border-bottom-color: var(--accent);
 }
 .auth-tab:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-ink);
   outline-offset: -2px;
 }
 
@@ -1958,13 +1958,16 @@ button.chip.is-active {
    :focus-visible rather than :focus, so clicking a button with a mouse does not
    leave a ring sitting behind the pointer — the heuristic keeps it for keyboard
    users, which is who it is for. */
+/* The ring is --brand-ink, not --brand: the gold is 1.8:1 on the light grounds,
+   under the 3:1 a focus indicator needs (WCAG 1.4.11), so on a light-mode device
+   keyboard focus was close to invisible. The ink is the gold on dark grounds. */
 .btn:focus-visible,
 .nav-link:focus-visible,
 .auth-switch button:focus-visible,
 .banner-close:focus-visible,
 button.chip:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-ink);
   outline-offset: 2px;
 }
 /* Brand green on brand green is not a focus ring. */
@@ -1974,7 +1977,7 @@ a:focus-visible {
 /* Inset, because an outset ring on a scroll container is clipped by the panel
    edge on exactly the narrow screens where the container is focusable at all. */
 .table-scroll:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-ink);
   outline-offset: -2px;
 }
 
@@ -2758,7 +2761,7 @@ a:focus-visible {
 }
 .calc-input:focus {
   outline: none;
-  border-color: var(--brand);
+  border-color: var(--brand-ink);
   box-shadow: 0 0 0 2px rgba(240, 180, 41, 0.15);
 }
 .calc-select {
@@ -3736,7 +3739,7 @@ a:focus-visible {
   transition: border-color var(--doaide-transition, 150ms ease);
 }
 .landing-search-box:focus-within {
-  border-color: var(--brand);
+  border-color: var(--brand-ink);
 }
 .landing-search-input {
   flex: 1;
@@ -5904,7 +5907,7 @@ a:focus-visible {
   line-height: 1.4;
 }
 .advisor-input::placeholder { color: var(--glass-input-placeholder); }
-.advisor-input:focus { border-color: var(--brand); }
+.advisor-input:focus { border-color: var(--brand-ink); }
 .advisor-send {
   width: 38px;
   height: 38px;

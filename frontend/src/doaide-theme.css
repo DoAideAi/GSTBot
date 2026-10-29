@@ -31,7 +31,7 @@ button[class*="primary"], .btn-primary, [class*="bg-indigo"], [class*="bg-blue-6
 [class*="text-gray-500"], [class*="text-gray-400"], [class*="text-slate-500"], [class*="text-slate-400"] { color: var(--doaide-text-secondary) !important; }
 [class*="text-indigo"], [class*="text-blue-6"], [class*="text-purple"], [class*="text-brand"] { color: var(--doaide-gold-ink) !important; }
 input, textarea, select { background-color: var(--doaide-bg-alt) !important; border-color: var(--doaide-border) !important; color: var(--doaide-text) !important; }
-input:focus, textarea:focus, select:focus { border-color: var(--doaide-gold) !important; box-shadow: 0 0 0 2px var(--doaide-gold-bg) !important; }
+input:focus, textarea:focus, select:focus { border-color: var(--doaide-gold-ink) !important; box-shadow: 0 0 0 2px var(--doaide-gold-bg) !important; }
 input::placeholder, textarea::placeholder { color: var(--doaide-text-muted) !important; }
 table { border-color: var(--doaide-border) !important; }
 thead, th { background-color: var(--doaide-surface) !important; color: var(--doaide-text-secondary) !important; }

@@ -51,3 +51,25 @@ describe("gold text on the light theme", () => {
     expect(css(file).match(raw)).toBeNull();
   });
 });
+
+// Focus indicators (P24 M13). The ring and the focused-field border were the
+// raw gold, 1.8:1 on the light grounds against the 3:1 a focus indicator needs
+// (WCAG 1.4.11): keyboard focus on a light-mode device was close to invisible.
+describe("focus indicators on the light theme", () => {
+  it.each(["index.css", "doaide-theme.css"])(
+    "%s draws no focus ring or focused border in the raw gold",
+    (file) => {
+      const offenders = [];
+      for (const [, selector, body] of css(file).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!selector.includes(":focus")) continue;
+        for (const prop of body.split(";")) {
+          const isIndicator = /^\s*(outline(-color)?|border(-color)?)\s*:/.test(prop);
+          const rawGold =
+            /var\(--(brand|accent|doaide-gold)\)|#F0B429|rgba\(240, ?180, ?41/i.test(prop);
+          if (isIndicator && rawGold) offenders.push(`${selector.trim()} { ${prop.trim()} }`);
+        }
+      }
+      expect(offenders).toEqual([]);
+    },
+  );
+});
