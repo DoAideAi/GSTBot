@@ -70,7 +70,13 @@ def _move_if(
     """
     db.execute(
         update(Alert)
-        .where(Alert.id == alert.id, Alert.status.in_(only_from))
+        .where(
+            Alert.id == alert.id,
+            # Already loaded through the tenant check; named again so the write
+            # cannot outlive a caller that forgot it.
+            Alert.business_id == alert.business_id,
+            Alert.status.in_(only_from),
+        )
         .values(status=to)
         .execution_options(synchronize_session=False)
     )

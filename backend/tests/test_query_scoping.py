@@ -43,7 +43,7 @@ SCOPED_MODELS = frozenset(
 # function the statement sits in; the value is why. Anything not here that
 # omits the predicate fails, which is the point — this list is the review.
 CROSS_TENANT_BY_DESIGN: dict[tuple[str, str], str] = {
-    ("services/alert_delivery.py", "send_pending_alerts"): (
+    ("services/alert_delivery.py", "_send_pending_alerts"): (
         "The digest is the one place the product loops over every business "
         "at once: it finds which tenants have something to send, then reads "
         "and stamps their alerts by id. The per-tenant scoping happens on "
@@ -53,6 +53,30 @@ CROSS_TENANT_BY_DESIGN: dict[tuple[str, str], str] = {
         "Whether a parse stalled is a property of the worker that died, not "
         "of whose invoice it was. The sweep fails every stranded row in one "
         "statement rather than one per tenant."
+    ),
+    ("services/invoice_service.py", "lost_uploads"): (
+        "The other half of the stall sweep: uploads whose queued parse never "
+        "ran, found across every tenant for the same reason."
+    ),
+    # The parse's own row, addressed by the id it was handed. The worker has an
+    # invoice id and nothing else (Celery carries no tenant), and the row was
+    # put on the queue by a request that had already scoped it. These are the
+    # claim, the ownership re-check and the write-back of that one row.
+    ("tasks/invoice_tasks.py", "parse_invoice_task"): (
+        "The worker's claim on the row it was queued for, by id."
+    ),
+    ("tasks/invoice_tasks.py", "_release_claim"): (
+        "Hands the worker's claimed row back, by the id it claimed."
+    ),
+    ("services/invoice_service.py", "_still_processing"): (
+        "Re-reads the parse's own row under a lock to see it still owns it."
+    ),
+    ("services/invoice_service.py", "_record_failure"): (
+        "Marks the parse's own row failed, only if it is still processing."
+    ),
+    ("services/reconciliation.py", "_apply_statuses"): (
+        "Stamps each verdict onto the invoice the run itself loaded for this "
+        "business, by id and only while it still holds the judged figures."
     ),
 }
 

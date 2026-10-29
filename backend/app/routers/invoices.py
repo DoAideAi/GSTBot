@@ -940,6 +940,7 @@ def reparse_invoice(
         update(Invoice)
         .where(
             Invoice.id == invoice.id,
+            Invoice.business_id == business.id,
             Invoice.status == invoice.status,
             Invoice.deleted_at.is_(None),
         )
