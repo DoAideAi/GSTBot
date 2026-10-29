@@ -1915,3 +1915,38 @@ class TestFrontendSettingsReachTheBuild:
             ["bash", "-c", loop, "_", str(env_file)], capture_output=True, text=True, check=True
         ).stdout
         assert out.splitlines() == ["VITE_X=+91 98", "VITE_Z=ok"]
+
+
+class TestATimerNobodyEnabledIsSaid:
+    """P23 M8: gstbot-monitor.timer was installed but never enabled on the
+    production box, so the checks it runs (backups, disk, a unit that gave up)
+    had not run since August, and no release said so."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _loop(self):
+        start = self.SCRIPT.index("for timer in gstbot-backup.timer")
+        return self.SCRIPT[start : self.SCRIPT.index("done", start) + 4]
+
+    def test_it_runs_after_the_health_checks_and_before_the_release_is_called_done(self):
+        loop = self.SCRIPT.index("for timer in gstbot-backup.timer")
+        assert self.SCRIPT.index('await "the site is answering') < loop
+        assert loop < self.SCRIPT.index('log "Deployed $REVISION"')
+
+    def test_a_disabled_timer_is_named_and_an_enabled_one_is_not(self, tmp_path):
+        fake = tmp_path / "systemctl"
+        # Enabled: the backup timer. Anything else is not.
+        fake.write_text('#!/bin/sh\n[ "$3" = gstbot-backup.timer ]\n')
+        fake.chmod(0o755)
+        script = "warn() { echo \"warning: $*\" >&2; }\n" + self._loop()
+        result = subprocess.run(
+            ["bash", "-c", script],
+            env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0  # a warning, not a failed release
+        assert "gstbot-monitor.timer is not enabled" in result.stderr
+        assert "systemctl enable --now gstbot-monitor.timer" in result.stderr
+        assert "gstbot-backup.timer" not in result.stderr

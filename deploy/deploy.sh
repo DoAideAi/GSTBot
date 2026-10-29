@@ -281,5 +281,16 @@ await "the site is answering through Caddy" \
     https://gst.doaide.com/api/v1/health/live 45 \
     "docker logs knol-caddy --tail 100"
 
+# The timers the one-time setup enables (deploy/README.md). No release step
+# depends on them, so a skipped `enable --now` is invisible: on 2026-10-29
+# gstbot-monitor.timer had sat installed and disabled since August, and
+# nothing was watching the backups, the disk or a unit that had given up.
+# A warning rather than a failure — the release itself has succeeded — said on
+# every deploy until it is put right.
+for timer in gstbot-backup.timer gstbot-monitor.timer; do
+    systemctl is-enabled --quiet "$timer" 2>/dev/null \
+        || warn "$timer is not enabled, so it never runs: systemctl enable --now $timer"
+done
+
 log "Deployed $REVISION"
 systemctl --no-pager --lines=0 status gstbot.target || true
