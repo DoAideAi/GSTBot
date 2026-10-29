@@ -202,8 +202,17 @@ class TestCancelLifecycle:
         db_session.add(sub)
         db_session.commit()
 
-        resp = auth_client.post(CANCEL)
+        # A sub_ mandate is cancelled at Razorpay first, so the provider has to
+        # be there to accept it; without one the cancel is refused, untouched.
+        with (
+            patch.object(razorpay_client, "is_configured", return_value=True),
+            patch.object(
+                razorpay_client, "cancel_subscription", return_value={"status": "cancelled"}
+            ) as cancel,
+        ):
+            resp = auth_client.post(CANCEL)
         assert resp.status_code == 200
+        cancel.assert_called_once_with("sub_managed")
         sub = _row(db_session, business.id)
         assert sub.status == SubscriptionStatus.CANCELLED
         assert sub.tier == SubscriptionTier.FREE

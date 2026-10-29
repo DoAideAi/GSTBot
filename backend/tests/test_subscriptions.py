@@ -318,6 +318,32 @@ class TestCancelSubscription:
         assert sub.tier == SubscriptionTier.PRO
         assert sub.status == SubscriptionStatus.ACTIVE
 
+    def test_a_razorpay_mandate_is_not_cancelled_here_alone_when_razorpay_is_unconfigured(
+        self, auth_client, db_session, business
+    ):
+        """The provider call used to be skipped when the keys were missing, so
+        the row read cancelled while Razorpay kept charging every cycle."""
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=SubscriptionStatus.ACTIVE,
+            razorpay_subscription_id="sub_still_billing",
+        )
+        db_session.add(sub)
+        db_session.commit()
+
+        with (
+            patch.object(razorpay_client, "is_configured", return_value=False),
+            patch.object(razorpay_client, "cancel_subscription") as cancel,
+        ):
+            response = auth_client.post("/api/v1/subscriptions/cancel")
+        assert response.status_code == 503, response.text
+        assert "nothing has been changed" in response.json()["detail"]
+        cancel.assert_not_called()
+        db_session.refresh(sub)
+        assert sub.tier == SubscriptionTier.PRO
+        assert sub.status == SubscriptionStatus.ACTIVE
+
     def test_cancelling_already_cancelled_is_refused(
         self, auth_client, db_session, business
     ):

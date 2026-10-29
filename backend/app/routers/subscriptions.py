@@ -624,6 +624,12 @@ def _require_order_matches(payload: VerifyPaymentRequest, business: Business) ->
         400: {"description": "There is no paid subscription to cancel."},
         409: {"description": "The subscription is already cancelled or expired."},
         502: {"description": "Razorpay did not cancel the subscription. Safe to retry."},
+        503: {
+            "description": (
+                "A Razorpay subscription cannot be cancelled because this deployment "
+                "has no Razorpay credentials. Nothing was changed."
+            )
+        },
     },
     dependencies=[Depends(require_owner), Depends(_cancel_limit)],
 )
@@ -673,7 +679,26 @@ def cancel_subscription(
     # refused every time, so every paying business that tried to cancel got a
     # 502 "try again" that no retry could ever get past.
     provider_id = sub.razorpay_subscription_id or ""
-    if provider_id.startswith("sub_") and razorpay_client.is_configured():
+    if provider_id.startswith("sub_"):
+        # A mandate exists at Razorpay whether or not this deployment holds
+        # the keys to reach it. Skipping the call when the keys are missing —
+        # rotated out, or an env file restored without them — marked the
+        # subscription cancelled here while Razorpay went on charging the card
+        # every cycle, and the user had been told it was done. Refused instead,
+        # with nothing changed, exactly as an unreachable provider is below.
+        if not razorpay_client.is_configured():
+            logger.error(
+                "Cannot cancel a Razorpay subscription: Razorpay is not configured",
+                extra={"business_id": business.id, "subscription_id": provider_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Cancelling is unavailable right now, so nothing has been "
+                    "changed and you have not been charged by this request. Try "
+                    "again later, or contact support if this persists."
+                ),
+            )
         result = razorpay_client.cancel_subscription(provider_id)
         if result is None:
             raise HTTPException(
