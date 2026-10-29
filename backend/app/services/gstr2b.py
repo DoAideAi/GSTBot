@@ -313,11 +313,13 @@ def recipient_gstin(content: bytes, filename: str | None = None) -> str | None:
         return None
     try:
         payload = json.loads(text)
+        # Inside the guard, for the reason :func:`parse_json` gives: from
+        # Python 3.13 a deeply nested document parses, and ``str()`` of a
+        # ``gstin`` holding one is then the first thing to recurse.
+        return _addressed_to(payload) if isinstance(payload, dict) else None
     except (ValueError, RecursionError):
         # Not readable as JSON, so :func:`parse` is about to say so properly.
-        # RecursionError too: see :func:`parse_json`.
         return None
-    return _addressed_to(payload) if isinstance(payload, dict) else None
 
 
 def _as_list(value: object) -> list:
@@ -431,25 +433,30 @@ def _record_from_document(
 
 def parse_json(payload: dict | str | bytes) -> list[GSTR2BRecord]:
     """Every inward document in a portal GSTR-2B, as flat records."""
-    if isinstance(payload, bytes | str):
-        try:
+    try:
+        if isinstance(payload, bytes | str):
             payload = json.loads(payload)
-        # ``json.loads`` recurses once per nesting level, so a few kilobytes of
-        # ``[[[[…`` is a RecursionError rather than a ValueError — and was a 500
-        # on an upload whose only fault is that it is not a GSTR-2B.
-        except (ValueError, RecursionError) as exc:
-            raise GSTR2BParseError(
-                "This file is not valid JSON. Upload the unmodified download "
-                "from the GST portal."
-            ) from exc
+        # An escaped half-pair in an invoice number or trade name was stored as
+        # written, and every later response that serialised the row was a 500.
+        payload = encodable(payload)
+    # A few kilobytes of ``[[[[…`` is a RecursionError rather than a
+    # ValueError — and was a 500 on an upload whose only fault is that it is
+    # not a GSTR-2B. Which call raises it depends on the interpreter: up to
+    # 3.12 ``json.loads`` recurses once per nesting level and gives up itself,
+    # while from 3.13 it parses any depth and the first thing to recurse is
+    # the ``encodable`` walk. Guarding only the parse was correct on the 3.12
+    # this ships on and a 500 on anything newer, so both sit under one guard
+    # and the answer does not depend on which Python is running.
+    except (ValueError, RecursionError) as exc:
+        raise GSTR2BParseError(
+            "This file is not valid JSON, or is nested far deeper than a "
+            "GSTR-2B. Upload the unmodified download from the GST portal."
+        ) from exc
     if not isinstance(payload, dict):
         raise GSTR2BParseError(
             "This file is not a GSTR-2B download. Upload the unmodified "
             "file from the GST portal."
         )
-    # An escaped half-pair in an invoice number or trade name was stored as
-    # written, and every later response that serialised the row was a 500.
-    payload = encodable(payload)
 
     docdata = _unwrap_docdata(payload)
     fallback_period = _statement_period(payload)

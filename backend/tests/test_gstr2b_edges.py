@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -733,6 +734,40 @@ class TestAFileThatIsNotAStatementIsRefusedNotCrashedOn:
 
     def test_the_addressee_check_survives_it_too(self):
         assert gstr2b.recipient_gstin(b"[" * 100_000, "x.json") is None
+
+    # From Python 3.13 ``json.loads`` parses any depth, and the first thing to
+    # recurse is whatever walks the result. The suite runs on 3.12, where the
+    # parse gives up first, so these reach the walks directly — a decoded
+    # document handed straight in, or a parse that behaves as 3.13's does.
+    # The parse is swapped in this module only: the request's own JSON, the
+    # token's and the response's still go through the real one.
+
+    @staticmethod
+    def _deep(levels: int = 100_000) -> list:
+        nested: list = []
+        for _ in range(levels):
+            nested = [nested]
+        return nested
+
+    def test_a_decoded_document_nested_too_deep_to_walk_is_refused(self):
+        document = {"gstin": BUSINESS_GSTIN, "docdata": {"b2b": self._deep()}}
+        with pytest.raises(GSTR2BParseError, match="nested far deeper than a GSTR-2B"):
+            parse_json(document)
+
+    def test_the_upload_is_a_422_when_the_parse_does_not_give_up_first(
+        self, auth_client, monkeypatch
+    ):
+        deep = {"gstin": BUSINESS_GSTIN, "docdata": {"b2b": self._deep()}}
+        monkeypatch.setattr(gstr2b, "json", SimpleNamespace(loads=lambda _text: deep))
+        response = upload_2b(auth_client, content=b"{}", filename="gstr2b.json")
+        assert response.status_code == 422, response.text
+        assert "nested far deeper" in response.json()["detail"]
+
+    def test_the_addressee_check_survives_a_parse_that_does_not_give_up(self, monkeypatch):
+        # ``str()`` of a ``gstin`` holding the nesting is the walk here.
+        deep = {"gstin": self._deep()}
+        monkeypatch.setattr(gstr2b, "json", SimpleNamespace(loads=lambda _text: deep))
+        assert gstr2b.recipient_gstin(b"{}", "x.json") is None
 
 
 class TestAHalfPairInTheFileIsNotStoredAsWritten:
