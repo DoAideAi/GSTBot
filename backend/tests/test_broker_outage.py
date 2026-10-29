@@ -88,3 +88,69 @@ class TestAnUnreachableBroker:
         assert response.status_code == 201, response.text
         assert response.json()["invoice"]["status"] == "parsed"
         assert time.monotonic() - started < 5
+
+
+class TestABatchDuringAnOutage:
+    """Fifty files must not each pay for the dead broker and a model call.
+
+    The single-file fallback, repeated per file, held a bulk request for over
+    an hour: a publish timeout and an inline parse of up to the model budget,
+    fifty times. The batch now asks the broker once and parses inline only for
+    a bounded time; the rest are stored ``uploaded`` for the stall sweep.
+    """
+
+    @staticmethod
+    def _files(text: str, count: int):
+        return [
+            ("files", (f"inv-{n}.txt", f"{text}\nInvoice No: BULK-{n}".encode(), "text/plain"))
+            for n in range(count)
+        ]
+
+    @pytest.fixture()
+    def dead_broker(self, monkeypatch):
+        from app.tasks.invoice_tasks import parse_invoice_task
+
+        calls = []
+
+        def refuse(*args, **kwargs):
+            calls.append(args)
+            raise OperationalError("Connection refused")
+
+        monkeypatch.setattr(settings, "celery_enabled", True)
+        monkeypatch.setattr(parse_invoice_task, "delay", refuse)
+        return calls
+
+    def test_the_broker_is_asked_once_per_batch(
+        self, dead_broker, auth_client, sample_invoice_text
+    ):
+        response = auth_client.post(
+            "/api/v1/invoices/bulk",
+            files=self._files(sample_invoice_text, 3),
+            data={"invoice_type": "purchase"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["accepted"] == 3
+        assert len(dead_broker) == 1
+        # Within the inline budget, so all three are still parsed now.
+        statuses = {i["invoice"]["status"] for i in response.json()["items"]}
+        assert "uploaded" not in statuses and "processing" not in statuses
+
+    def test_past_the_inline_budget_files_are_stored_for_the_sweep(
+        self, dead_broker, monkeypatch, auth_client, sample_invoice_text
+    ):
+        from app.routers import invoices
+
+        monkeypatch.setattr(invoices, "_BULK_INLINE_SECONDS", 0.0)
+
+        response = auth_client.post(
+            "/api/v1/invoices/bulk",
+            files=self._files(sample_invoice_text, 3),
+            data={"invoice_type": "purchase"},
+        )
+
+        assert response.status_code == 200, response.text
+        items = response.json()["items"]
+        assert all(item["accepted"] for item in items)
+        assert {item["invoice"]["status"] for item in items} == {"uploaded"}
+        assert not any(item["queued"] for item in items)

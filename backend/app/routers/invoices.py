@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -292,8 +293,13 @@ def _store_and_extract(
     filename: str,
     content_type: str | None,
     invoice_type: InvoiceType,
+    try_queue: bool = True,
+    parse_inline: bool = True,
 ) -> tuple[Invoice, bool]:
     """Commit an upload and extract it, exactly as ``upload_invoice`` always has.
+
+    ``try_queue`` and ``parse_inline`` exist for the bulk route's broker
+    outage, and are left alone by everything else: see ``_BULK_INLINE_SECONDS``.
 
     Raises :class:`HTTPException` for a plan limit or a duplicate — the two
     ways storing the file itself can fail — so both callers report them the
@@ -337,7 +343,7 @@ def _store_and_extract(
         ) from exc
 
     queued = False
-    if settings.celery_enabled:
+    if settings.celery_enabled and try_queue:
         from app.tasks.invoice_tasks import parse_invoice_task
 
         try:
@@ -352,7 +358,7 @@ def _store_and_extract(
                 extra={"invoice_id": invoice.id, "business_id": tenant.id},
             )
 
-    if not queued:
+    if not queued and parse_inline:
         invoice = invoice_service.process_invoice(db, invoice, business_gstin=tenant.gstin)
 
     return invoice, queued
@@ -445,6 +451,16 @@ async def upload_invoice(
 # below what abuse would need and well above what a month's paperwork is.
 MAX_BULK_FILES = 50
 
+# How long one batch may spend parsing inline once the broker is unreachable.
+# The single-file fallback is right for one file and wrong for fifty: each paid
+# the broker's connect timeout and a publish retry, then a model call of up to
+# ``openrouter_call_budget_seconds`` — over an hour for a full batch, long after
+# the proxy and the browser had given up on a request whose files were in fact
+# being stored. After the first failed enqueue the rest of the batch stops
+# asking the broker, and once this budget is spent files are stored
+# ``uploaded``; the stalled-parse sweep queues them when the broker is back.
+_BULK_INLINE_SECONDS = 60.0
+
 
 @router.post(
     "/bulk",
@@ -498,6 +514,8 @@ async def upload_invoices_bulk(
     tenant = invoice_service.TenantSnapshot.of(business)
 
     items: list[InvoiceBulkUploadItemOut] = []
+    broker_down = False
+    inline_until = time.monotonic() + _BULK_INLINE_SECONDS
     for upload in files:
         filename = safe_filename(upload.filename, fallback="invoice")
         content_type = _media_type(upload.content_type)
@@ -513,7 +531,11 @@ async def upload_invoices_bulk(
                 filename=filename,
                 content_type=content_type,
                 invoice_type=invoice_type,
+                try_queue=not broker_down,
+                parse_inline=not settings.celery_enabled or time.monotonic() < inline_until,
             )
+            if settings.celery_enabled and not queued:
+                broker_down = True
         except HTTPException as exc:
             detail = exc.detail
             duplicate_id = None
