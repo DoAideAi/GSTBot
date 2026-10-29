@@ -229,6 +229,18 @@ serving, and swapped in only once it has produced an `index.html`; the build it
 replaces is kept as `frontend/dist.prev`. A build that fails therefore stops the
 release with the previous site still up, rather than an emptied `dist`.
 
+**Prefer building the frontend somewhere else.** This box has 8 GB shared by
+every product on it, and a build here can swap it to a halt — on 2026-10-29 one
+did, and was killed with the release half-done. Build `frontend/` from the
+commit being released on a machine with the memory, write
+`<git rev-parse HEAD:frontend>-<vite hash>` to `dist/.source` (the vite hash is
+the first 16 hex digits of the sha256 of the `VITE_*` lines in
+`/etc/gstbot/gstbot.env`), and rsync `dist/` to `frontend/dist.upload/` before
+running the script. The release stages that upload exactly as it would its own
+build, and discards one built from any other tree. With no upload it builds
+here only if `GSTBOT_BUILD_MIN_FREE_MB` (1536 by default) is free, and otherwise
+stops before touching anything.
+
 The restart clears each unit's failed state first, which also resets its start
 counter. The units allow five starts in five minutes so that a crash loop stops;
 a release's restart used to count against that, and the third release inside

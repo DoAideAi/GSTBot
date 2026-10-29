@@ -35,6 +35,10 @@ ROOT=/opt/GSTBot
 VENV="$ROOT/.venv"
 LOCKFILE="$ROOT/backend/requirements.lock"
 REF="${1:-}"
+# The memory a frontend build on this box must find free before it starts, in
+# MiB, and where to read it. See room_to_build.
+BUILD_MIN_FREE_MB="${GSTBOT_BUILD_MIN_FREE_MB:-1536}"
+MEMINFO="${GSTBOT_MEMINFO:-/proc/meminfo}"
 
 log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[33mwarning: %s\033[0m\n' "$*" >&2; }
@@ -263,13 +267,59 @@ frontend_source() {
         | sha256sum | cut -c1-16)"
     echo "$tree-$vite"
 }
+# A build made somewhere else, uploaded to frontend/dist.upload with the source
+# id it was built from in dist.upload/.source. The box has 8 GB shared by many
+# products, and on 2026-10-29 a build here swapped it to a load average of 180,
+# SSH stopped answering for the length of it, and the build was killed with
+# the release half-done; the way round that was a wrapper that pre-seeded
+# .dist-source to fool this script out of its own build. An upload is checked
+# against the tree being released — one built from anything else is discarded,
+# never published — and then staged exactly as a build made here would be.
+#
+#   1. build frontend/ from the commit being released, on a machine with
+#      the memory (the lockfile install, then the build script);
+#   2. write "$(git rev-parse HEAD:frontend)-<vite hash>" to dist/.source;
+#   3. rsync -a --delete dist/ server:/opt/GSTBot/frontend/dist.upload/
+#
+# The vite hash is the second half of frontend_source's id: the first 16 hex
+# digits of sha256 over the VITE_* lines in /etc/gstbot/gstbot.env.
+stage_uploaded_build() {
+    local upload="$FRONTEND/dist.upload" made
+    [ -f "$upload/index.html" ] || return 1
+    made="$(cat "$upload/.source" 2>/dev/null || true)"
+    if [ -z "$source_id" ] || [ "$made" != "$source_id" ]; then
+        warn "dist.upload was built from ${made:-an unrecorded tree}, not ${source_id:-a known one}; discarding it"
+        rm -rf "$upload"
+        return 1
+    fi
+    rm -f "$upload/.source"
+    rm -rf "$FRONTEND/dist.next"
+    mv "$upload" "$FRONTEND/dist.next"
+}
+
+# Whether this box has the memory for a build right now. A build that starts
+# without it does not fail fast: it swaps every product here into the ground
+# first, and is killed at the end anyway. Unknown (no MemAvailable) does not
+# block — the floor is protection, not a dependency.
+room_to_build() {
+    local available_kb
+    available_kb="$(awk '/^MemAvailable:/ { print $2 }' "$MEMINFO" 2>/dev/null || true)"
+    [ -n "$available_kb" ] || return 0
+    [ $((available_kb / 1024)) -ge "$BUILD_MIN_FREE_MB" ]
+}
+
 source_id="$(frontend_source)"
 if [ -n "$source_id" ] && [ -f "$FRONTEND/dist/index.html" ] \
     && [ "$(cat "$FRONTEND/.dist-source" 2>/dev/null)" = "$source_id" ]; then
     echo "The frontend is unchanged since the build it is serving; not rebuilding it"
+    rm -rf "$FRONTEND/dist.upload"
+elif stage_uploaded_build; then
+    frontend_staged=1
+    echo "Staged the uploaded build into dist.next; it goes live after the migrations"
 else
     rm -f "$FRONTEND/.dist-source"
     rm -rf "$FRONTEND/dist.next"
+    room_to_build || die "under ${BUILD_MIN_FREE_MB}MiB of memory free, so the frontend is not built here; build it elsewhere and upload it to frontend/dist.upload (see stage_uploaded_build), or set GSTBOT_BUILD_MIN_FREE_MB"
     ( cd "$FRONTEND" \
         && while IFS= read -r line; do
                # shellcheck disable=SC2163 # each line is NAME=value, exported as one

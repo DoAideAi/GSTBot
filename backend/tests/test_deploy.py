@@ -2679,3 +2679,94 @@ class TestRestorePointsAreThinnedNotJustAged:
     def test_thinning_runs_after_a_verified_dump(self):
         verified = self.SCRIPT.index('mv "$partial" "$target"')
         assert verified < self.SCRIPT.index("\nthin_dumps\n")
+
+
+class TestTheFrontendIsNotBuiltOnABoxWithNoRoomForIt:
+    """P33 M14: the release built the frontend on the server unconditionally.
+
+    The box has 8 GB shared by many products. On 2026-10-29 a release's vite
+    build swapped it to a load average of 180, SSH stopped answering for the
+    length of it, and the build was killed ("Terminated") with the release
+    half-done. The only way round it was a hand-written wrapper that pre-seeded
+    .dist-source to fool the script into skipping its own build. A build made
+    off the box is now something the script accepts, and one on it is refused
+    rather than started when memory is short.
+    """
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _fn(self, name):
+        start = self.SCRIPT.index(f"{name}() {{")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def _run(self, body, **env):
+        prelude = "".join(f'{k}="{v}"\n' for k, v in env.items())
+        prelude += "warn() { printf 'warning: %s\\n' \"$*\" >&2; }\n"
+        return subprocess.run(
+            ["bash", "-c", prelude + body], capture_output=True, text=True, timeout=20
+        )
+
+    def _upload(self, frontend, source):
+        upload = frontend / "dist.upload"
+        upload.mkdir(parents=True)
+        (upload / "index.html").write_text("built elsewhere")
+        (upload / ".source").write_text(source + "\n")
+
+    def test_an_uploaded_build_of_this_tree_is_staged_like_one_made_here(self, tmp_path):
+        frontend = tmp_path / "frontend"
+        self._upload(frontend, "tree-vite")
+
+        run = self._run(
+            self._fn("stage_uploaded_build") + "stage_uploaded_build\n",
+            FRONTEND=frontend, source_id="tree-vite",
+        )
+
+        assert run.returncode == 0, run.stderr
+        assert (frontend / "dist.next" / "index.html").read_text() == "built elsewhere"
+        assert not (frontend / "dist.upload").exists()
+        # The marker is the upload's, not the site's: it is not served.
+        assert not (frontend / "dist.next" / ".source").exists()
+
+    def test_an_upload_of_some_other_tree_is_discarded_not_published(self, tmp_path):
+        frontend = tmp_path / "frontend"
+        self._upload(frontend, "old-tree-vite")
+
+        run = self._run(
+            self._fn("stage_uploaded_build") + "stage_uploaded_build\n",
+            FRONTEND=frontend, source_id="tree-vite",
+        )
+
+        assert run.returncode != 0
+        assert not (frontend / "dist.next").exists()
+        assert not (frontend / "dist.upload").exists()
+        assert "old-tree-vite" in run.stderr
+
+    def test_no_upload_means_nothing_staged(self, tmp_path):
+        frontend = tmp_path / "frontend"
+        frontend.mkdir()
+        run = self._run(
+            self._fn("stage_uploaded_build") + "stage_uploaded_build\n",
+            FRONTEND=frontend, source_id="tree-vite",
+        )
+        assert run.returncode != 0 and not (frontend / "dist.next").exists()
+
+    @pytest.mark.parametrize(("available_kb", "room"), [(800_000, False), (3_000_000, True)])
+    def test_a_build_needs_the_memory_floor_free(self, tmp_path, available_kb, room):
+        meminfo = tmp_path / "meminfo"
+        meminfo.write_text(f"MemTotal: 8000000 kB\nMemAvailable: {available_kb} kB\n")
+        run = self._run(
+            self._fn("room_to_build") + "room_to_build\n",
+            MEMINFO=meminfo, BUILD_MIN_FREE_MB="1536",
+        )
+        assert (run.returncode == 0) is room
+
+    def test_the_release_uses_an_upload_first_and_checks_memory_before_npm(self):
+        upload = self.SCRIPT.index("elif stage_uploaded_build; then")
+        check = self.SCRIPT.index("room_to_build ||")
+        npm = self.SCRIPT.index("npm ci --no-audit --no-fund")
+        assert upload < check < npm
+        refusal = self.SCRIPT[check : check + 400]
+        assert "die" in refusal and "dist.upload" in refusal
+
+    def test_the_upload_directory_is_not_tracked(self):
+        assert "dist.upload/" in (DEPLOY.parent / ".gitignore").read_text().split()

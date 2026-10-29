@@ -18,6 +18,7 @@ dist/
 # deploy.sh builds into dist.next and keeps the previous build as dist.prev.
 dist.next/
 dist.prev/
+dist.upload/
 # What the build in dist was made from; deploy.sh skips an unchanged rebuild.
 .dist-source
 # The revision deploy.sh released, which /health reports.
