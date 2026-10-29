@@ -2620,7 +2620,7 @@ class TestRestorePointsAreThinnedNotJustAged:
         os.utime(path, (when, when))
         return path.name
 
-    def test_older_dumps_keep_the_newest_of_each_day_and_today_keeps_all(self, tmp_path):
+    def test_older_dumps_keep_the_first_and_newest_of_each_day_and_today_keeps_all(self, tmp_path):
         today = [self._dump(tmp_path, f"20261029T1{n}0000Z", 1 + n) for n in range(3)]
         three_days = [
             self._dump(tmp_path, "20261026T024000Z", 80),
@@ -2636,7 +2636,45 @@ class TestRestorePointsAreThinnedNotJustAged:
 
         assert run.returncode == 0, run.stderr
         left = sorted(p.name for p in tmp_path.iterdir())
-        assert left == sorted([*today, three_days[-1], *five_days])
+        # Each older day keeps its first dump and its last; the middle goes.
+        assert left == sorted([*today, three_days[0], three_days[-1], *five_days])
+
+    def test_a_day_of_releases_keeps_the_state_from_before_the_first(self, tmp_path):
+        """The newest dump of a release day is taken after its migrations ran.
+
+        Keeping only that one deleted the 02:30 nightly and the first release's
+        restore point — the only copies of the database as it stood before
+        that day's changes. A migration that damaged data, noticed the next
+        morning, then had nothing nearer than the previous day to go back to,
+        and every real entry made in between was lost with the damage.
+        """
+        nightly = self._dump(tmp_path, "20261026T023000Z", 40)
+        before_release = self._dump(tmp_path, "20261026T100000Z", 32)
+        between = self._dump(tmp_path, "20261026T120000Z", 30)
+        after_last_release = self._dump(tmp_path, "20261026T150000Z", 27)
+
+        run = subprocess.run(
+            ["bash", "-c", f'set -euo pipefail\nDEST="{tmp_path}"\n' + self._thin() + "thin_dumps"],
+            capture_output=True, text=True, timeout=20,
+        )
+
+        assert run.returncode == 0, run.stderr
+        left = sorted(p.name for p in tmp_path.iterdir())
+        assert nightly in left and after_last_release in left
+        assert before_release not in left and between not in left
+        assert f"Thinned {between}" in run.stdout
+
+    def test_a_day_with_two_dumps_keeps_both(self, tmp_path):
+        kept = [
+            self._dump(tmp_path, "20261025T023000Z", 60),
+            self._dump(tmp_path, "20261025T180000Z", 50),
+        ]
+        run = subprocess.run(
+            ["bash", "-c", f'set -euo pipefail\nDEST="{tmp_path}"\n' + self._thin() + "thin_dumps"],
+            capture_output=True, text=True, timeout=20,
+        )
+        assert run.returncode == 0, run.stderr
+        assert sorted(p.name for p in tmp_path.iterdir()) == sorted(kept)
 
     def test_thinning_runs_after_a_verified_dump(self):
         verified = self.SCRIPT.index('mv "$partial" "$target"')

@@ -131,22 +131,36 @@ find "$DEST" -maxdepth 1 -type f -name '*.dump' -mtime "+$RETENTION_DAYS" -print
 
 # Every release takes a restore point as well as the nightly run, so age alone
 # let the count follow how often anyone deployed — 162 dumps after one busy
-# day, mostly identical. Past a day old only one a day is worth keeping: the
-# newest of that day. Within the last day every one stays, since the latest
+# day, mostly identical. Past a day old two a day are worth keeping: the first
+# and the newest. Within the last day every one stays, since the latest
 # release's restore point is the one a rollback reaches for. Thinning rather
 # than a count cap, which a burst of releases would turn into deleting the
 # nightly dumps a problem noticed late needs. Names carry a UTC stamp, so they
 # sort in time order without anything GNU-only.
+#
+# The first as well as the newest: on a day of releases the newest dump is
+# taken after that day's migrations ran, and keeping it alone deleted the
+# 02:30 nightly and the first restore point — the only copies of the database
+# as it stood before the day's changes. A migration that damaged data,
+# noticed the next morning, then had nothing nearer than the day before to go
+# back to, and the real entries made in between went with the damage.
 thin_dumps() {
-    local path name day previous=""
+    local path day previous="" middle=""
     find "$DEST" -maxdepth 1 -type f -name '*.dump' -mtime +0 | sort -r |
     while IFS= read -r path; do
-        name="${path##*/}"
-        day="$(printf '%s\n' "$name" | sed -nE 's/.*-([0-9]{8})T[0-9]{6}Z\.dump$/\1/p')"
+        day="$(printf '%s\n' "${path##*/}" | sed -nE 's/.*-([0-9]{8})T[0-9]{6}Z\.dump$/\1/p')"
         [ -n "$day" ] || continue
+        # Newest first, so the first of a day is kept as its newest. Each later
+        # one is held back in case it is the day's first; it is removed only
+        # once an older dump of the same day turns up behind it.
         if [ "$day" = "$previous" ]; then
-            rm -f -- "$path"
-            echo "Thinned $name"
+            if [ -n "$middle" ]; then
+                rm -f -- "$middle"
+                echo "Thinned ${middle##*/}"
+            fi
+            middle="$path"
+        else
+            middle=""
         fi
         previous="$day"
     done
