@@ -51,4 +51,35 @@ describe("AnimatedCounter", () => {
 
     expect(container.querySelector(".animated-counter")).toBeTruthy();
   });
+
+  describe("for someone who is not watching it count", () => {
+    // P37 M17: the text a screen reader read was whatever the animation had
+    // reached, which is "0" until the figure scrolls into view. A screen reader's
+    // virtual cursor need not scroll, so the trust strip could be read as
+    // "0+ Businesses on DoAide GST". Every frame also swapped the text under it,
+    // and a visitor who asked the OS for reduced motion still got the count.
+
+    afterEach(() => {
+      delete window.matchMedia;
+    });
+
+    it("gives assistive technology the real figure before any animation runs", () => {
+      const { container } = render(<AnimatedCounter end={5000} suffix="+" />);
+
+      expect(screen.getByText("5k+")).toBeInTheDocument();
+      const ticking = container.querySelector("[aria-hidden='true']");
+      expect(ticking).toHaveTextContent("0+");
+    });
+
+    it("shows the figure at once when reduced motion is asked for", () => {
+      window.matchMedia = vi.fn((query) => ({
+        matches: query.includes("prefers-reduced-motion: reduce"),
+        media: query,
+      }));
+      const { container } = render(<AnimatedCounter end={250} suffix="+" />);
+
+      expect(container.querySelector("[aria-hidden='true']")).toHaveTextContent("250+");
+      expect(window.IntersectionObserver).not.toHaveBeenCalled();
+    });
+  });
 });
