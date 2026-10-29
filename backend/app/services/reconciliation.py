@@ -1523,7 +1523,32 @@ def store_gstr2b(
         current = existing.data if isinstance(existing.data, dict) else {}
         if current.get("invoices") == invoices and current.get("raw") == raw:
             return existing
-        existing.soft_delete()
+        # Kept only as evidence of what a reconciliation ran against, so kept
+        # only if one did. A superseded copy no run ever read evidences nothing,
+        # and was kept regardless: a business re-downloading its 2B each day as
+        # suppliers file late stored a full copy — up to 15 MB of JSON — every
+        # day, forever, on a disk with a few GB free. A run is created right
+        # after it loads the statement in force, and both carry created_at from
+        # the same server clock, so any run of this period since this copy was
+        # stored ran against it.
+        reconciled_against = db.scalar(
+            select(ReconciliationRun.id)
+            .where(
+                ReconciliationRun.business_id == business_id,
+                ReconciliationRun.period == period,
+                # Column against column, so both timestamps are compared as
+                # the database stores them rather than as Python bound them.
+                ReconciliationRun.created_at
+                >= select(GSTRReturn.created_at)
+                .where(GSTRReturn.id == existing.id)
+                .scalar_subquery(),
+            )
+            .limit(1)
+        )
+        if reconciled_against is None:
+            db.delete(existing)
+        else:
+            existing.soft_delete()
         db.flush()
 
     totals = summarise_records(records)

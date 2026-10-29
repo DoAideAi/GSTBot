@@ -273,7 +273,12 @@ async def import_gstr2b(
     # ``replaced_previous: true`` and "(replacing the previous import)" — the
     # sentence the reconcile page shows — for an upload that changed nothing,
     # and a replaced statement is the cue to re-run the reconciliation.
-    unchanged = previous_id is not None and stored.id == previous_id
+    #
+    # The very object, not its id: a superseded copy no reconciliation ran
+    # against is now deleted outright, and SQLite hands its id to the next
+    # insert — so a different statement compared equal and was reported as
+    # "already imported".
+    unchanged = previous is not None and stored is previous
     had_previous = previous_id is not None and not unchanged
     if unchanged:
         response.status_code = status.HTTP_200_OK

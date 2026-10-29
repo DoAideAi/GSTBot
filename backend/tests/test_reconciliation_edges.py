@@ -1582,7 +1582,7 @@ class TestTwoImportsOfOnePeriodAtOnce:
         monkeypatch.setattr(reconciliation, "latest_gstr2b", stale_then_real)
 
     def test_the_later_import_replaces_the_one_that_won(self, monkeypatch, db_session, business):
-        first = import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+        import_2b(db_session, business.id, [portal(invoice_number="A-1")])
         self._miss_the_winner_once(monkeypatch)
 
         second = import_2b(db_session, business.id, [portal(invoice_number="B-2")])
@@ -1591,7 +1591,12 @@ class TestTwoImportsOfOnePeriodAtOnce:
         live = reconciliation.latest_gstr2b(db_session, business.id, PERIOD)
         assert live.id == second.id
         assert [row["invoice_number"] for row in live.data["invoices"]] == ["B-2"]
-        assert db_session.get(GSTRReturn, first.id).deleted_at is not None
+        # Nothing reconciled against the copy it replaced, so that copy is not
+        # kept (P34 M5): the period holds the one statement in force.
+        copies = db_session.query(GSTRReturn).filter_by(
+            business_id=business.id, period=PERIOD, return_type=ReturnType.GSTR2B
+        ).all()
+        assert [c.data["invoices"][0]["invoice_number"] for c in copies] == ["B-2"]
 
     def test_a_collision_that_persists_still_raises(self, monkeypatch, db_session, business):
         from sqlalchemy.exc import IntegrityError
@@ -1771,6 +1776,12 @@ class TestTheSameStatementImportedAgain:
         self, db_session, business
     ):
         first = import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+        # Kept as evidence because a reconciliation ran against it; one nothing
+        # ran against is not kept at all (P34 M5).
+        db_session.add(ReconciliationRun(
+            business_id=business.id, period=PERIOD, status=ReconciliationStatus.COMPLETED,
+        ))
+        db_session.commit()
         second = import_2b(
             db_session,
             business.id,
