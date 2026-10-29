@@ -33,6 +33,7 @@ token and says so. Only the absent code is filled in.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import FastAPI
@@ -70,6 +71,86 @@ DATABASE_UNAVAILABLE = {
         "see the `Retry-After` header."
     )
 }
+
+
+# The body every error handler in ``app.core.errors`` returns, and until now
+# described nowhere: every 4xx and 5xx in the spec was a description alone, so
+# a generated client had no type for the ``error.code`` it is told to branch
+# on, and 422 advertised FastAPI's own ``HTTPValidationError`` — a shape this
+# app never sends, since its handler wraps the pydantic list in the same body.
+ERROR_SCHEMA_NAME = "ErrorResponse"
+ERROR_SCHEMA: dict[str, Any] = {
+    "title": ERROR_SCHEMA_NAME,
+    "type": "object",
+    "required": ["detail", "error", "correlation_id"],
+    "properties": {
+        "detail": {
+            "description": (
+                "What went wrong, for a person: usually a sentence; a pydantic "
+                "error list on a 422; an object with a `message` on a few 409s."
+            ),
+        },
+        "error": {
+            "type": "object",
+            "required": ["code", "status", "message"],
+            "properties": {
+                "code": {"type": "string", "description": "Stable; branch on this."},
+                "status": {"type": "integer"},
+                "message": {"type": "string", "description": "`detail` as one line."},
+                "fields": {
+                    "type": "array",
+                    "description": "On a 422: one entry per refused field.",
+                    "items": {
+                        "type": "object",
+                        "required": ["field", "message", "type"],
+                        "properties": {
+                            "field": {"type": "string"},
+                            "message": {"type": "string"},
+                            "type": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        },
+        "correlation_id": {
+            "type": "string",
+            "description": "Also in the `X-Request-ID` header; quote it to support.",
+        },
+    },
+}
+_ERROR_CONTENT = {
+    "application/json": {"schema": {"$ref": f"#/components/schemas/{ERROR_SCHEMA_NAME}"}}
+}
+
+
+def describe_error_bodies(schema: dict[str, Any]) -> None:
+    """Give every documented 4xx and 5xx the body the error handlers return.
+
+    A response that already names its own content keeps it. 422 is the
+    exception: FastAPI fills it with ``HTTPValidationError`` itself, which is
+    wrong for this app, so it is replaced rather than kept.
+    """
+    components = schema.setdefault("components", {}).setdefault("schemas", {})
+    components[ERROR_SCHEMA_NAME] = ERROR_SCHEMA
+    for operations in schema.get("paths", {}).values():
+        for operation in operations.values():
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.get("responses", {})
+            for code, response in list(responses.items()):
+                if not (code.isdigit() and int(code) >= 400):
+                    continue
+                if code == "422" or "content" not in response:
+                    # A new dict: the 403 wordings above are shared module
+                    # constants, and setting a key on one would edit them all.
+                    responses[code] = {**response, "content": _ERROR_CONTENT}
+    for unused in ("HTTPValidationError", "ValidationError"):
+        if not _referenced(schema, unused):
+            components.pop(unused, None)
+
+
+def _referenced(schema: dict[str, Any], name: str) -> bool:
+    return f'"#/components/schemas/{name}"' in json.dumps(schema)
 
 
 def is_guarded(route: Any) -> bool:
@@ -198,6 +279,7 @@ def install_openapi(application: FastAPI) -> None:
         # from the guard above.
         schema = build()
         describe_conditional_responses(application, schema)
+        describe_error_bodies(schema)
         return schema
 
     application.openapi = openapi  # type: ignore[method-assign]
@@ -205,12 +287,15 @@ def install_openapi(application: FastAPI) -> None:
 
 __all__ = [
     "DATABASE_UNAVAILABLE",
+    "ERROR_SCHEMA",
+    "ERROR_SCHEMA_NAME",
     "FORBIDDEN",
     "PAID_TIER_REQUIRED",
     "RATE_LIMITED",
     "ROLE_OR_PAID_TIER",
     "UNAUTHORIZED",
     "describe_conditional_responses",
+    "describe_error_bodies",
     "install_openapi",
     "is_guarded",
     "is_metered",

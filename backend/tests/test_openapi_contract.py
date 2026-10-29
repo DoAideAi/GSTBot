@@ -321,7 +321,8 @@ class TestThePaidTierRefusalIsDocumented:
     def test_a_paid_only_route_says_it_is_the_plan(self, spec):
         from app.core.openapi import PAID_TIER_REQUIRED
 
-        assert spec["paths"]["/api/v1/itc"]["get"]["responses"]["403"] == PAID_TIER_REQUIRED
+        described = spec["paths"]["/api/v1/itc"]["get"]["responses"]["403"]
+        assert described["description"] == PAID_TIER_REQUIRED["description"]
 
     def test_a_route_behind_both_gates_names_both(self, spec):
         """The reconciliation run is role- *and* paid-gated; the role wording
@@ -329,7 +330,7 @@ class TestThePaidTierRefusalIsDocumented:
         from app.core.openapi import ROLE_OR_PAID_TIER
 
         described = spec["paths"]["/api/v1/reconciliation/run"]["post"]["responses"]["403"]
-        assert described == ROLE_OR_PAID_TIER
+        assert described["description"] == ROLE_OR_PAID_TIER["description"]
 
     def test_a_route_that_words_its_own_403_keeps_it(self, spec):
         described = spec["paths"]["/api/v1/meta/gstin/bulk"]["post"]["responses"]["403"]
@@ -393,3 +394,69 @@ class TestTheWhatsappWebhookRefusalsAreDocumented:
 
     def test_the_receiver_documents_its_400_and_403(self, spec):
         assert {"400", "403"} <= set(spec["paths"]["/api/v1/whatsapp/webhook"]["post"]["responses"])
+
+
+class TestEveryErrorDocumentsItsBody:
+    """Every 4xx and 5xx was a description with no body schema.
+
+    So a client generated from the spec had no type for ``error.code``, the
+    field the API tells callers to branch on, and 422 advertised FastAPI's
+    ``HTTPValidationError``, a shape this app never returns.
+    """
+
+    @pytest.fixture(scope="class")
+    def spec(self):
+        from app.main import app
+
+        return app.openapi()
+
+    def test_each_error_response_names_the_shared_body(self, spec):
+        from app.core.openapi import ERROR_SCHEMA_NAME
+
+        ref = f"#/components/schemas/{ERROR_SCHEMA_NAME}"
+        missing = [
+            f"{method.upper()} {path} {code}"
+            for path, operations in spec["paths"].items()
+            for method, op in operations.items()
+            for code, response in op.get("responses", {}).items()
+            if code.isdigit() and int(code) >= 400
+            and response.get("content", {}).get("application/json", {}).get("schema")
+            != {"$ref": ref}
+        ]
+        assert missing == []
+
+    def test_the_validation_schema_fastapi_assumes_is_gone(self, spec):
+        assert "HTTPValidationError" not in spec["components"]["schemas"]
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda c: c.get("/api/v1/invoices"),  # 401
+            lambda c: c.get("/api/v1/no-such-route"),  # 404
+            lambda c: c.post("/api/v1/auth/login", json={}),  # 422
+        ],
+        ids=["401", "404", "422"],
+    )
+    def test_a_real_error_body_has_the_documented_keys(self, client, call):
+        from app.core.openapi import ERROR_SCHEMA
+
+        body = call(client).json()
+        assert set(ERROR_SCHEMA["required"]) <= set(body)
+        assert set(ERROR_SCHEMA["properties"]["error"]["required"]) <= set(body["error"])
+
+
+class TestNonJsonRoutesSayWhatTheyReturn:
+    @pytest.mark.parametrize(
+        ("path", "media"),
+        [
+            ("/api/v1/seo/sitemap.xml", "application/xml"),
+            ("/api/v1/seo/robots.txt", "text/plain"),
+            ("/api/v1/seo/og-image", "image/png"),
+            ("/api/v1/gpt/openapi.yaml", "application/yaml"),
+        ],
+    )
+    def test_the_documented_media_type_is_the_served_one(self, path, media):
+        from app.main import app
+
+        content = app.openapi()["paths"][path]["get"]["responses"]["200"]["content"]
+        assert list(content) == [media]

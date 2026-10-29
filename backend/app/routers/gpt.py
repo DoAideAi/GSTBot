@@ -24,7 +24,7 @@ from pathlib import Path as FilePath
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app.core.config import settings
 from app.core.rate_limit import RateLimit
@@ -465,7 +465,8 @@ def filing_dates_for(
     "/openapi.yaml",
     summary="OpenAPI spec for GPT Actions",
     description="The spec to import in the GPT builder (Actions → Import from URL).",
-    response_class=PlainTextResponse,
+    response_class=Response,
+    responses={200: {"description": "The spec, as YAML.", "content": {"application/yaml": {}}}},
     dependencies=[Depends(_gpt_limit)],
 )
 def openapi_spec() -> PlainTextResponse:

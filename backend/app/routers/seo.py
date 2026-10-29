@@ -272,6 +272,8 @@ Sitemap: {SITE}/api/v1/seo/sitemap.xml
         "Lists all public pages — static tool pages, auto-generated HSN/GST "
         "rate pages, and GSTIN lookup pages — for crawler discovery."
     ),
+    response_class=Response,
+    responses={200: {"description": "The sitemap.", "content": {"application/xml": {}}}},
     dependencies=[Depends(_seo_limit)],
 )
 def sitemap() -> Response:
@@ -289,6 +291,8 @@ def sitemap() -> Response:
         "Allows all crawlers on all public pages and points at the XML "
         "sitemap. Cached for 24 hours."
     ),
+    response_class=Response,
+    responses={200: {"description": "The robots file.", "content": {"text/plain": {}}}},
     dependencies=[Depends(_seo_limit)],
 )
 def robots() -> Response:
@@ -378,6 +382,8 @@ def _render_og_image(title: str, subtitle: str | None = None) -> bytes:
         "Renders a branded 1200x630 PNG for social sharing previews. "
         "Pass title and optional subtitle as query params."
     ),
+    response_class=Response,
+    responses={200: {"description": "The image.", "content": {"image/png": {}}}},
     dependencies=[Depends(_og_limit)],
 )
 def og_image(
