@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import String, cast, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import set_committed_value
@@ -773,6 +773,49 @@ def _suppliers_by_gstin(
     return found
 
 
+def _rescore(supplier: Supplier, period: str) -> supplier_score.SupplierScore:
+    """Recompute *supplier*'s counters, score and last filing from its history.
+
+    Everything here is derived from ``filing_history`` alone, so it is correct
+    after any change to that history — an entry replaced by a re-run, or one
+    removed because the supplier is no longer in the period at all.
+    """
+    # Counters are totals over the recorded history, so re-running a period
+    # cannot inflate them.  Single pass rather than five separate sum() calls.
+    _matched = _mismatched = _missing = _late = 0
+    for e in supplier.filing_history:
+        m = int(e.get("matched") or 0)
+        mm = int(e.get("mismatched") or 0)
+        mi = int(e.get("missing") or 0)
+        _matched += m
+        _mismatched += mm
+        _missing += mi
+        if (e.get("filing_delay_days") or 0) > 0:
+            _late += 1
+    supplier.total_invoices = _matched + _mismatched + _missing
+    supplier.matched_invoices = _matched
+    supplier.mismatched_invoices = _mismatched
+    supplier.missing_invoices = _missing
+    supplier.late_filings = _late
+
+    score = supplier_score.score_supplier(supplier, as_of_period=period)
+    supplier_score.apply_score(supplier, score)
+    # "Last filed" on the Suppliers page, so read off the history the way
+    # the score's recency reads it: a period counts only if the supplier's
+    # GSTR-1 put at least one invoice in the 2B. This was the period of the
+    # run instead, so a supplier whose every invoice was missing this month
+    # read "Last filed: this month" — the opposite of the warning the
+    # column exists to give — and re-running an older month walked the
+    # date backwards past filings already seen.
+    filed_periods = [
+        e["period"]
+        for e in supplier.filing_history
+        if int(e.get("matched") or 0) or int(e.get("mismatched") or 0)
+    ]
+    supplier.last_filed_period = max(filed_periods) if filed_periods else None
+    return score
+
+
 def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult) -> dict:
     """Roll the run's findings into each supplier's compliance record.
 
@@ -858,40 +901,7 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
         history.append(observation)
         # Bounded: this column is an audit trail for the score, not a ledger.
         supplier.filing_history = sorted(history, key=lambda e: e["period"])[-36:]
-
-        # Counters are totals over the recorded history, so re-running a period
-        # cannot inflate them.  Single pass rather than five separate sum() calls.
-        _matched = _mismatched = _missing = _late = 0
-        for e in supplier.filing_history:
-            m = int(e.get("matched") or 0)
-            mm = int(e.get("mismatched") or 0)
-            mi = int(e.get("missing") or 0)
-            _matched += m
-            _mismatched += mm
-            _missing += mi
-            if (e.get("filing_delay_days") or 0) > 0:
-                _late += 1
-        supplier.total_invoices = _matched + _mismatched + _missing
-        supplier.matched_invoices = _matched
-        supplier.mismatched_invoices = _mismatched
-        supplier.missing_invoices = _missing
-        supplier.late_filings = _late
-
-        score = supplier_score.score_supplier(supplier, as_of_period=result.period)
-        supplier_score.apply_score(supplier, score)
-        # "Last filed" on the Suppliers page, so read off the history the way
-        # the score's recency reads it: a period counts only if the supplier's
-        # GSTR-1 put at least one invoice in the 2B. This was the period of the
-        # run instead, so a supplier whose every invoice was missing this month
-        # read "Last filed: this month" — the opposite of the warning the
-        # column exists to give — and re-running an older month walked the
-        # date backwards past filings already seen.
-        filed_periods = [
-            e["period"]
-            for e in supplier.filing_history
-            if int(e.get("matched") or 0) or int(e.get("mismatched") or 0)
-        ]
-        supplier.last_filed_period = max(filed_periods) if filed_periods else None
+        score = _rescore(supplier, result.period)
         if filed_on is not None and (
             supplier.last_seen_at is None or filed_on > supplier.last_seen_at
         ):
@@ -904,7 +914,46 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
             "recommended_provision_pct": float(score.recommended_provision_pct),
             **tally,
         }
+
+    _forget_absent_suppliers(db, business_id, result.period, set(per_gstin))
     return summary
+
+
+def _forget_absent_suppliers(
+    db: Session, business_id: int, period: str, present: set[str]
+) -> None:
+    """Drop *period* from the history of every supplier no longer in it.
+
+    The loop above replaces a supplier's entry for the period, and reaches
+    only the suppliers this run found. One who has dropped out of the period
+    entirely — their wrongly booked purchases deleted, their only invoice
+    edited onto another supplier's GSTIN, a 2B re-imported without them —
+    kept the last run's entry indefinitely: three invoices "missing" in a
+    month that now holds none, counted in their totals and their score on
+    every later run, and nothing the user could do would clear it.
+    """
+    # One statement whatever the tenant's size, narrowed in the database to
+    # rows whose stored history names the period at all. The match is on the
+    # JSON text, so it can over-select — the loop below decides — but never
+    # under-select, and a period is ``YYYY-MM``, which holds no LIKE wildcard.
+    rows = db.scalars(
+        select(Supplier).where(
+            Supplier.business_id == business_id,
+            Supplier.deleted_at.is_(None),
+            cast(Supplier.filing_history, String).like(f'%"{period}"%'),
+        )
+    ).all()
+    for supplier in rows:
+        if supplier.gstin in present:
+            continue
+        history = [
+            entry for entry in supplier.filing_history or [] if isinstance(entry, dict)
+        ]
+        kept = [entry for entry in history if entry.get("period") != period]
+        if len(kept) == len(history):
+            continue
+        supplier.filing_history = kept
+        _rescore(supplier, period)
 
 
 def _apply_statuses(result: ReconciliationResult) -> None:

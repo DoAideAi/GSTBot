@@ -713,7 +713,9 @@ class TestScoringDoesNotQueryPerSupplier:
         self, db_session, business, monkeypatch
     ):
         seen = self.run_with(db_session, business, 30, monkeypatch)
-        assert len(seen) == 1
+        # The lookup, and the one sweep for suppliers who have left the
+        # period: a constant two, not one per supplier.
+        assert len(seen) == 2
 
     def test_every_supplier_is_still_found_and_scored(self, db_session, business):
         gstins = _valid_gstins(30)
@@ -745,7 +747,8 @@ class TestScoringDoesNotQueryPerSupplier:
         # instead of needing five hundred suppliers to cross it.
         monkeypatch.setattr(reconciliation, "_SUPPLIER_LOOKUP_CHUNK", 10)
         seen = self.run_with(db_session, business, 25, monkeypatch)
-        assert len(seen) == 3
+        # Three chunks, then the sweep for suppliers who have left the period.
+        assert len(seen) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -995,6 +998,63 @@ class TestTheObservationARunRecords:
         assert [entry["period"] for entry in supplier.filing_history] == [PERIOD]
         assert supplier.matched_invoices == 1
         assert supplier.total_invoices == 1
+
+    def test_a_supplier_no_longer_in_the_period_loses_its_observation_for_it(
+        self, db_session, business
+    ):
+        # Re-running replaced the entry of every supplier the run found, and
+        # reached no one else. Three purchases booked against this supplier by
+        # mistake and then deleted left "3 missing" in their record for good —
+        # in their totals and their score — with nothing the user could do to
+        # clear it.
+        self._supplier(
+            db_session,
+            business,
+            filing_history=[
+                {"period": "2026-02", "matched": 2, "mismatched": 0, "missing": 0},
+            ],
+        )
+        booked = [save(db_session, business.id, invoice_number=f"W-{n}") for n in range(3)]
+        import_2b(
+            db_session,
+            business.id,
+            [portal(supplier_gstin=SUPPLIER_GSTIN_SAME_STATE, invoice_number="OTHER-1")],
+        )
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+        assert self._reload(db_session).missing_invoices == 3
+
+        for invoice in booked:
+            invoice.soft_delete()
+        db_session.commit()
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        supplier = self._reload(db_session)
+        assert [entry["period"] for entry in supplier.filing_history] == ["2026-02"]
+        assert supplier.missing_invoices == 0
+        assert supplier.matched_invoices == 2
+        assert supplier.total_invoices == 2
+        assert supplier.last_filed_period == "2026-02"
+
+    def test_a_supplier_with_no_entry_for_the_period_is_left_alone(
+        self, db_session, business
+    ):
+        history = [{"period": "2026-02", "matched": 2, "mismatched": 0, "missing": 0}]
+        self._supplier(
+            db_session, business, filing_history=history, total_invoices=99,
+        )
+        import_2b(
+            db_session,
+            business.id,
+            [portal(supplier_gstin=SUPPLIER_GSTIN_SAME_STATE, invoice_number="OTHER-1")],
+        )
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        # Untouched rather than re-derived: a run about April has nothing to
+        # say about a supplier it never saw and who had no April to forget.
+        supplier = self._reload(db_session)
+        assert supplier.filing_history == history
+        assert supplier.total_invoices == 99
 
     def test_the_history_is_bounded_at_three_years(self, db_session, business):
         # An audit trail for the score, not a ledger. 36 monthly observations
