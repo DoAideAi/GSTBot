@@ -498,7 +498,9 @@ class TestTheREADMEDescribesThisRepository:
         assert backend_gate is not None
         assert f"{backend_gate.group(1)}% backend" in readme
 
-        vite = (REPO_ROOT / "frontend" / "vite.config.js").read_text()
+        # The figures' one home since P37 M20, read by vitest and by CI's
+        # separate coverage step alike.
+        vite = (REPO_ROOT / "frontend" / "scripts" / "coverage-thresholds.mjs").read_text()
         # `[\d.]+`, not `\d+`. A gate is not always a whole number — branches
         # sits at 99.5 — and the integer pattern matched the "99" off the front
         # of it and stopped. That is the one failure this test cannot afford:
@@ -571,8 +573,8 @@ class TestTheREADMEDescribesThisRepository:
 
 
 def _thresholds_block(vite: str) -> str:
-    match = re.search(r"thresholds: \{([^}]*)\}", vite)
-    assert match is not None, "vite.config.js has no coverage thresholds block"
+    match = re.search(r"(?:thresholds: |COVERAGE_THRESHOLDS = )\{([^}]*)\}", vite)
+    assert match is not None, "no coverage thresholds block found"
     return match.group(1)
 
 
@@ -617,3 +619,47 @@ class TestWhatShipsIsAuditedOnASchedule:
         # A floating auditor can change its verdict without the lock moving.
         run = "\n".join(commands(job) for job in audit["jobs"].values())
         assert re.search(r"pip-audit==\d+\.\d+\.\d+", run), run
+
+
+class TestAFailingTestIsNotHiddenBehindTheCoverageGate:
+    """P37 M20: the coverage gate made a failing test look like a normal day.
+
+    Both Test steps enforced their coverage threshold themselves, and both
+    thresholds have been missed on every run since they were set. So the Test
+    step was red every time, and a real failure was the same red. On
+    2026-10-29 two backend guard tests (an import cycle, and a query the
+    tenant-scoping check could no longer see) failed on five commits in a row
+    and nobody looked. The tests and the threshold are now separate steps: Test
+    is red only when a test fails, and the threshold still fails the job,
+    each under its own name.
+    """
+
+    @staticmethod
+    def _step(job: dict, name: str) -> dict:
+        return next(step for step in job["steps"] if step.get("name") == name)
+
+    def test_the_backend_tests_do_not_enforce_the_threshold(self, jobs):
+        assert "--cov-fail-under=0" in self._step(jobs["backend"], "Test")["run"]
+
+    def test_the_backend_threshold_is_its_own_step_reading_the_same_figure(self, jobs):
+        steps = [step.get("name") for step in jobs["backend"]["steps"]]
+        gate = self._step(jobs["backend"], "Coverage threshold")
+        assert steps.index("Test") < steps.index("Coverage threshold")
+        # No number here: ``coverage report`` reads fail_under from pyproject,
+        # the one place the ratchet is set.
+        assert re.search(r"coverage report\b", gate["run"])
+        assert "fail-under" not in gate["run"]
+
+    def test_the_frontend_tests_do_not_enforce_the_thresholds(self, jobs):
+        run = self._step(jobs["frontend"], "Test")["run"]
+        for metric in ("statements", "branches", "functions", "lines"):
+            assert f"--coverage.thresholds.{metric}=0" in run, metric
+
+    def test_the_frontend_thresholds_are_their_own_step_reading_the_same_figures(self, jobs):
+        steps = [step.get("name") for step in jobs["frontend"]["steps"]]
+        gate = self._step(jobs["frontend"], "Coverage threshold")
+        assert steps.index("Test") < steps.index("Coverage threshold")
+        assert "scripts/check-coverage.mjs" in gate["run"]
+        config = (REPO_ROOT / "frontend" / "vite.config.js").read_text()
+        # One source for the numbers, read by vitest and by the gate alike.
+        assert "COVERAGE_THRESHOLDS" in config and "json-summary" in config

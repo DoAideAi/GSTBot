@@ -3,6 +3,7 @@
 // default node environment with no DOM and no localStorage.
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { COVERAGE_THRESHOLDS } from "./scripts/coverage-thresholds.mjs";
 
 export default defineConfig({
   plugins: [react()],
@@ -43,7 +44,7 @@ export default defineConfig({
     css: false,
     coverage: {
       provider: "v8",
-      reporter: ["text", "lcov"],
+      reporter: ["text", "lcov", "json-summary"],
       include: ["src/**/*.{js,jsx}"],
       exclude: [
         "src/**/*.test.{js,jsx}",
@@ -88,7 +89,10 @@ export default defineConfig({
       //
       // A gate at the measured figure would make removing any of those guards
       // the way to keep CI green.
-      thresholds: { statements: 99, branches: 99.5, functions: 99, lines: 99 },
+      //
+      // The figures live in scripts/coverage-thresholds.mjs, which CI's
+      // separate coverage step reads too (scripts/check-coverage.mjs).
+      thresholds: COVERAGE_THRESHOLDS,
     },
   },
 });

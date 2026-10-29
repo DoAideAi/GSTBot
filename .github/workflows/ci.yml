@@ -96,7 +96,17 @@ jobs:
         # being deleted or a module arriving with none, not a target to code
         # towards; raise it in the same commit that earns it.
         if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
-        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+        #
+        # The threshold is not enforced here (--cov-fail-under=0) but in the
+        # next step, so this one is red only when a test fails (P37 M20).
+        # Enforced here, it had been red on every run since the ratchet was set,
+        # and two failing guard tests went unseen for five commits in that red.
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=0
+
+      - name: Coverage threshold
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        # fail_under from pyproject.toml, applied to the data Test just wrote.
+        run: python -m coverage report --format=total
 
       - name: Upload coverage
         # Kept even when the tests fail — a run that dropped below the gate is
@@ -195,7 +205,19 @@ jobs:
         # Thresholds live in vite.config.js, the same ratchet the backend
         # keeps in pyproject.toml. `functions` is deliberately the loosest of
         # the four — see the comment there for why v8 undercounts it on JSX.
-        run: npm run test:coverage
+        #
+        # Switched off here and checked in the next step, for the reason the
+        # backend's Test step gives (P37 M20): a threshold missed on every run
+        # made a failing test the same red as a normal day.
+        run: >-
+          npm run test:coverage --
+          --coverage.thresholds.statements=0 --coverage.thresholds.branches=0
+          --coverage.thresholds.functions=0 --coverage.thresholds.lines=0
+
+      - name: Coverage threshold
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
+        # The figures in scripts/coverage-thresholds.mjs, the file vitest reads.
+        run: node scripts/check-coverage.mjs
 
       - name: Upload coverage
         # Kept on failure too: a run that tripped the threshold is exactly
