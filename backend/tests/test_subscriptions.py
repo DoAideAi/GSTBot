@@ -1553,15 +1553,19 @@ class TestTwoPaymentsVerifiedAtOnce:
     it writes, so two verifications for one business must not interleave."""
 
     def _verify(self, auth_client, business, payment_id):
+        # A renewal is a new order; one order buys one period.
+        order_id = payment_id.replace("pay_", "order_", 1)
         with patch.object(
             razorpay_client, "verify_payment_signature", return_value=True
         ), patch.object(
-            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
+            razorpay_client,
+            "fetch_order",
+            return_value=dict(_paid_order(business.id, "pro"), id=order_id),
         ):
             return auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
                 json={
-                    "razorpay_order_id": "order_test",
+                    "razorpay_order_id": order_id,
                     "razorpay_payment_id": payment_id,
                     "razorpay_signature": "valid_sig",
                     "tier": "pro",
@@ -1821,3 +1825,46 @@ class TestTwoOrdersOpenedBeforeEitherIsPaid:
         refused = [r for r in caplog.records if r.getMessage().startswith("Checkout refused")]
         assert len(refused) == 1
         assert refused[0].requested_tier == "pro" and refused[0].business_id == business.id
+
+
+class TestOneOrderBuysOnePeriod:
+    """P21 M16: the subscription ledger is keyed by payment, so a second
+    payment captured against an order already applied bought a second period
+    from one order. Report purchases already held one order to one report."""
+
+    def _verify(self, client, business, payment_id):
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
+        ):
+            return client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": "order_test",
+                    "razorpay_payment_id": payment_id,
+                    "razorpay_signature": "valid_sig",
+                    "tier": "pro",
+                },
+            )
+
+    def test_a_second_payment_on_the_same_order_buys_nothing(
+        self, auth_client, db_session, business, caplog
+    ):
+        from datetime import datetime
+
+        first = self._verify(auth_client, business, "pay_one")
+        assert first.status_code == 200
+        with caplog.at_level(logging.WARNING, logger="app.routers.subscriptions"):
+            second = self._verify(auth_client, business, "pay_two")
+        assert second.status_code == 409
+        assert any("refund due" in r.getMessage() for r in caplog.records)
+        sub = db_session.scalar(select(Subscription).where(Subscription.business_id == business.id))
+        db_session.refresh(sub)
+        assert sub.current_period_end.replace(tzinfo=None) == datetime.fromisoformat(
+            first.json()["current_period_end"]
+        ).replace(tzinfo=None)
+
+    def test_a_retry_of_the_applied_payment_is_still_answered(self, auth_client, business):
+        assert self._verify(auth_client, business, "pay_one").status_code == 200
+        assert self._verify(auth_client, business, "pay_one").status_code == 200

@@ -241,8 +241,9 @@ def create_order(
         },
         409: {
             "description": (
-                "The payment is already applied to another business, or this "
-                "subscription has ended since the order was created."
+                "The payment is already applied to another business, its order "
+                "was already applied with another payment, or this subscription "
+                "has ended since the order was created."
             )
         },
         502: {"description": "Razorpay could not be asked about the order. Safe to retry."},
@@ -331,6 +332,35 @@ def verify_payment(
             )
         if sub is not None:
             return SubscriptionOut.model_validate(sub)
+
+    # One order buys one period. The ledger is keyed by payment, so a second
+    # payment captured against an order already applied — a double charge
+    # Razorpay can let through, signed like any other — bought a second
+    # period from one order. Report purchases hold one order to one report
+    # by a unique key; this is the same rule, checked under the billing lock.
+    spent = db.scalar(
+        select(SubscriptionPayment).where(
+            SubscriptionPayment.razorpay_order_id == payload.razorpay_order_id
+        )
+    )
+    if spent is not None:
+        logger.warning(
+            "Second payment for an order already applied; not applied, refund due",
+            extra={
+                "business_id": business.id,
+                "user_id": current_user.id,
+                "razorpay_order_id": payload.razorpay_order_id,
+                "razorpay_payment_id": payload.razorpay_payment_id,
+                "applied_payment_id": spent.razorpay_payment_id,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This order has already been paid for and applied. Contact support "
+                "if you were charged twice."
+            ),
+        )
 
     period_end = _period_end_for(order, payload, sub)
     renewal = sub is not None
