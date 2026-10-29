@@ -2770,3 +2770,96 @@ class TestTheFrontendIsNotBuiltOnABoxWithNoRoomForIt:
 
     def test_the_upload_directory_is_not_tracked(self):
         assert "dist.upload/" in (DEPLOY.parent / ".gitignore").read_text().split()
+
+
+class TestTheUploadedOriginalsAreBackedUp:
+    """P34 M7: the dumps restored every row, and none of the documents.
+
+    backup.sh dumped the database and said, in its own header, that
+    /var/lib/gstbot/invoices "is not dumped here. A restore gives back every
+    row, including the paths of files that are no longer there." Each invoice
+    row points at the uploaded original — the scan an assessment asks for —
+    and nothing kept a copy. Now each run takes a snapshot beside the dump:
+    rsync against the previous one with --link-dest, so a file that has not
+    changed costs a hard link rather than a second copy.
+    """
+
+    SCRIPT = BACKUP_SCRIPT.read_text()
+
+    def _fn(self, name):
+        start = self.SCRIPT.index(f"{name}() {{")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def _run(self, body, **env):
+        prelude = "".join(f'{k}="{v}"\n' for k, v in env.items())
+        prelude += "log() { printf '%s\\n' \"$*\"; }\n"
+        prelude += "die() { printf 'error: %s\\n' \"$*\" >&2; exit 1; }\n"
+        return subprocess.run(
+            ["bash", "-c", "set -euo pipefail\n" + prelude + body],
+            capture_output=True, text=True, timeout=30,
+        )
+
+    def _snapshot(self, uploads, dest, stamp):
+        return self._run(
+            self._fn("snapshot_uploads") + "snapshot_uploads\n",
+            UPLOADS=uploads, DEST=dest, stamp=stamp,
+        )
+
+    @pytest.fixture()
+    def needs_rsync(self):
+        if shutil.which("rsync") is None:
+            pytest.skip("needs rsync")
+
+    def test_a_snapshot_holds_the_files_and_shares_the_unchanged_ones(self, tmp_path, needs_rsync):
+        uploads, dest = tmp_path / "invoices", tmp_path / "backups"
+        (uploads / "7").mkdir(parents=True)
+        dest.mkdir()
+        (uploads / "7" / "kept.pdf").write_text("scan")
+        (uploads / "7" / "deleted.pdf").write_text("gone soon")
+
+        first = self._snapshot(uploads, dest, "20261029T023000Z")
+        (uploads / "7" / "deleted.pdf").unlink()
+        second = self._snapshot(uploads, dest, "20261030T023000Z")
+
+        assert first.returncode == 0 and second.returncode == 0, first.stderr + second.stderr
+        old, new = dest / "uploads-20261029T023000Z", dest / "uploads-20261030T023000Z"
+        assert (new / "7" / "kept.pdf").read_text() == "scan"
+        assert not (new / "7" / "deleted.pdf").exists()
+        assert (old / "7" / "deleted.pdf").exists()  # the earlier snapshot still has it
+        assert (old / "7" / "kept.pdf").stat().st_ino == (new / "7" / "kept.pdf").stat().st_ino
+        assert not list(dest.glob("*.partial"))
+
+    def test_a_box_with_no_upload_directory_is_not_a_failed_backup(self, tmp_path, needs_rsync):
+        dest = tmp_path / "backups"
+        dest.mkdir()
+        run = self._snapshot(tmp_path / "missing", dest, "20261029T023000Z")
+        assert run.returncode == 0, run.stderr
+        assert list(dest.iterdir()) == []
+
+    def test_older_snapshots_keep_the_first_and_newest_of_each_day(self, tmp_path):
+        import os
+        import time
+
+        def snap(stamp, age_hours):
+            path = tmp_path / f"uploads-{stamp}"
+            path.mkdir()
+            when = time.time() - age_hours * 3600
+            os.utime(path, (when, when))
+            return path.name
+
+        today = [snap("20261029T100000Z", 2), snap("20261029T120000Z", 1)]
+        day = [snap("20261026T023000Z", 80), snap("20261026T120000Z", 75),
+               snap("20261026T150000Z", 72)]
+
+        run = self._run(self._fn("thin_snapshots") + "thin_snapshots\n", DEST=tmp_path)
+
+        assert run.returncode == 0, run.stderr
+        left = sorted(p.name for p in tmp_path.iterdir())
+        assert left == sorted([*today, day[0], day[-1]])
+
+    def test_it_runs_after_the_verified_dump_and_ages_out_with_it(self):
+        verified = self.SCRIPT.index('mv "$partial" "$target"')
+        assert verified < self.SCRIPT.index("\nsnapshot_uploads\n")
+        assert "-name 'uploads-*' -mtime \"+$RETENTION_DAYS\"" in self.SCRIPT
+        assert "\nthin_snapshots\n" in self.SCRIPT
+        assert "is not dumped here" not in self.SCRIPT

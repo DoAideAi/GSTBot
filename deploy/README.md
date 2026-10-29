@@ -440,6 +440,13 @@ them — and the ones in between are thinned. Nothing is deleted by a run that f
 once it has been verified — so every `*.dump` in there is one that was
 readable at the moment it was written.
 
+Each run also snapshots the uploaded originals (`UPLOAD_DIR`) into
+`uploads-<timestamp>/` beside the dump, with `rsync --link-dest` against the
+previous snapshot, so an unchanged file is a hard link rather than another copy.
+Snapshots are kept and thinned exactly as the dumps are. To restore one, copy it
+back over `UPLOAD_DIR` (`rsync -a uploads-<timestamp>/ /var/lib/gstbot/invoices/`)
+alongside the dump of the same moment.
+
 The knobs are environment variables with defaults in the script
 (`GSTBOT_BACKUP_DIR`, `GSTBOT_BACKUP_RETENTION_DAYS`, `GSTBOT_BACKUP_MIN_FREE_MB`),
 which is what makes a restore drill into a scratch directory a one-liner rather
@@ -579,8 +586,9 @@ below covers the database and lands on the same disk as the database. That is
 the cover for a bad migration or a mistaken delete; it is not cover for losing
 the box, and nothing here copies `/var/backups/gstbot` anywhere else.
 `/var/lib/gstbot/invoices` — the uploaded originals, under the same statutory
-retention as the rows that point at them — is not dumped at all. A restore
-gives back every row, including the paths of files that are no longer there.
+retention as the rows that point at them — is snapshotted beside the dumps (see
+"Backups"), on the same disk, so it shares their limit: cover for a mistaken
+delete, not for losing the box.
 
 **Isolation from the other products.** Postgres, Redis and the edge are shared.
 A `FLUSHALL`, a runaway connection count, or a bad `/opt/knol/Caddyfile` edit

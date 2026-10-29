@@ -15,9 +15,10 @@
 #   * The dumps land on the same disk as the database. That covers operator
 #     error and corruption; it does not cover losing the box. Copying $DEST
 #     off-host is a separate job and is not done yet.
-#   * /var/lib/gstbot/invoices holds the uploaded originals and is not dumped
-#     here. A restore gives back every row, including the paths of files that
-#     are no longer there.
+#   * The uploaded originals (UPLOAD_DIR, /var/lib/gstbot/invoices) are not in
+#     the dump. They used not to be anywhere: a restore gave back every row,
+#     including the paths of files that were no longer there. Each run now
+#     takes a snapshot of them beside the dump — see snapshot_uploads.
 #
 # Postgres is shared with the other products on this box. This dumps one
 # database, by name, as the one role that owns it — never `pg_dumpall`, which
@@ -86,6 +87,13 @@ for name, value in (
 PY
 )" || die "DATABASE_URL in $ENV_FILE is not a URL this can dump"
 eval "$connection"
+
+# Where the uploaded originals are, read the same way as DATABASE_URL: the
+# unit's EnvironmentFile under systemd, the one line out of the file by hand.
+if [ -z "${UPLOAD_DIR:-}" ] && [ -r "$ENV_FILE" ]; then
+    UPLOAD_DIR="$(sed -n 's/^UPLOAD_DIR=//p' "$ENV_FILE" | tail -n 1)"
+fi
+UPLOADS="${GSTBOT_UPLOAD_DIR:-${UPLOAD_DIR:-/var/lib/gstbot/invoices}}"
 
 # ---- Preflight ------------------------------------------------------------
 [ -d "$DEST" ] || die "$DEST does not exist; see 'Backups' in deploy/README.md"
@@ -166,6 +174,58 @@ thin_dumps() {
     done
 }
 thin_dumps
+
+# ---- Uploaded originals ---------------------------------------------------
+# Every invoice row points at the file it was read from — the scan an
+# assessment asks to see — and the dump holds the path, not the file. A
+# snapshot per run, beside the dump: rsync against the previous snapshot with
+# --link-dest, so a file that has not changed is a hard link to the copy
+# already kept rather than a second one, and only new uploads cost space.
+# Written under .partial and renamed when complete, like the dump, and touched
+# after the rename, because rsync -a gives the directory its source's mtime
+# and the age sweep below reads mtime.
+snapshot_uploads() {
+    local latest target partial
+    if [ ! -d "$UPLOADS" ]; then
+        log "No upload directory at $UPLOADS; no snapshot of uploaded files taken"
+        return 0
+    fi
+    latest="$(find "$DEST" -maxdepth 1 -type d -name 'uploads-*Z' | sort | tail -n 1)"
+    target="$DEST/uploads-${stamp}"
+    partial="$target.partial"
+    rm -rf "$partial"
+    rsync -a --delete ${latest:+"--link-dest=$latest"} "$UPLOADS/" "$partial/" \
+        || die "the uploaded files could not be snapshotted; the dump in $DEST is intact"
+    mv "$partial" "$target"
+    touch "$target"
+    log "Snapshotted $UPLOADS to $target"
+}
+
+# The same retention as the dumps, and the same thinning: every snapshot from
+# the last day, then the first and the newest of each older day.
+thin_snapshots() {
+    local path day previous="" middle=""
+    find "$DEST" -maxdepth 1 -type d -name 'uploads-*Z' -mtime +0 | sort -r |
+    while IFS= read -r path; do
+        day="$(printf '%s\n' "${path##*/}" | sed -nE 's/^uploads-([0-9]{8})T[0-9]{6}Z$/\1/p')"
+        [ -n "$day" ] || continue
+        if [ "$day" = "$previous" ]; then
+            if [ -n "$middle" ]; then
+                rm -rf -- "$middle"
+                echo "Thinned ${middle##*/}"
+            fi
+            middle="$path"
+        else
+            middle=""
+        fi
+        previous="$day"
+    done
+}
+
+snapshot_uploads
+find "$DEST" -maxdepth 1 -type d -name 'uploads-*' -mtime "+$RETENTION_DAYS" -print \
+    -exec rm -rf {} + | sed 's/^/Pruned /'
+thin_snapshots
 
 kept="$(find "$DEST" -maxdepth 1 -type f -name '*.dump' | wc -l)"
 log "$kept dump(s) in $DEST, keeping ${RETENTION_DAYS} days"
