@@ -2108,3 +2108,78 @@ class TestAnUploadWhoseQueuedParseWasLost:
         db_session.expire_all()
         assert client.get(f"/api/v1/invoices/{invoice_id}").json()["status"] == "parsed"
         assert purchase_igst() == Decimal("81000.00")
+
+
+class TestARecordedThreeBShowsWhatItDeclared:
+    """P19 M20: a business whose period includes a reverse-charge sale records
+    its GSTR-3B. The totals the filing screen shows beside the ARN must be the
+    ones that 3B declared at 3.1(a) — not every sale's tax, which included tax
+    the recipient pays."""
+
+    def test_the_filed_totals_match_the_return(self, signed_in, db_session, stub_openrouter):
+        from app.models.invoice import Invoice
+
+        client = signed_in
+        upload(
+            client,
+            stub_openrouter,
+            text=SALES_TEXT,
+            extraction=SALES_EXTRACTION,
+            invoice_type="sales",
+            name="sale-0101.txt",
+        )
+        rcm = upload(
+            client,
+            stub_openrouter,
+            text=SALES_TEXT.replace("UT/2026/0101", "UT/2026/0102"),
+            extraction=dict(SALES_EXTRACTION, invoice_number="UT/2026/0102"),
+            invoice_type="sales",
+            name="sale-0102-rcm.txt",
+        )
+        # The supply is under reverse charge: the recipient pays its tax.
+        assert client.patch(
+            f"/api/v1/invoices/{rcm['id']}", json={"reverse_charge": True}
+        ).status_code == 200
+        assert db_session.get(Invoice, rcm["id"]).reverse_charge is True
+
+        preview = client.get("/api/v1/filing/gstr3b", params={"period": PERIOD}).json()
+        declared = preview["document"]["sup_details"]["osup_det"]
+
+        filed = client.post(
+            "/api/v1/filing/gstr3b/filed", json={"period": PERIOD, "filed_on": "2026-05-18"}
+        )
+        assert filed.status_code == 201, filed.text
+        record = filed.json()
+        assert money(record["total_taxable_value"]) == money(declared["txval"]) == Decimal(
+            "200000.00"
+        )
+        assert money(record["total_cgst"]) == money(declared["camt"]) == Decimal("18000.00")
+        assert record["invoice_count"] == 2
+
+
+class TestTheSameStatementUploadedTwice:
+    """P19 M20: a user drops the same GSTR-2B file again. Every import is kept
+    for assessments, but an identical one adds nothing, so nothing new is
+    stored — and the period still reconciles against it."""
+
+    def test_a_second_identical_upload_keeps_one_statement(
+        self, signed_in, db_session, stub_openrouter
+    ):
+        from app.models.gstr_return import GSTRReturn, ReturnType
+
+        client = signed_in
+        takes_the_pro_plan(db_session)
+        upload(
+            client,
+            stub_openrouter,
+            text=PURCHASE_TEXT,
+            extraction=PURCHASE_EXTRACTION,
+            invoice_type="purchase",
+            name="northwind-0042.txt",
+        )
+        first = import_2b(client, portal_2b())
+        second = import_2b(client, portal_2b())
+        assert second["id"] == first["id"]
+        stored = db_session.query(GSTRReturn).filter_by(return_type=ReturnType.GSTR2B).count()
+        assert stored == 1
+        assert reconcile(client, PERIOD)["matched_count"] == 1
