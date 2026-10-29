@@ -993,7 +993,11 @@ def test_import_rejects_an_unsupported_extension(auth_client, db_session, busine
 def test_reimport_reports_that_it_replaced(auth_client, db_session, business):
     _activate_pro(db_session, business.id)
     upload_2b(auth_client)
-    body = upload_2b(auth_client).json()
+    # A regenerated statement — a supplier filed late — not the same file
+    # again: an identical upload replaces nothing and says so (P30 M9).
+    regenerated = json.loads(portal_file_json())
+    regenerated["data"]["docdata"]["b2b"][0]["inv"][0]["val"] = 123456
+    body = upload_2b(auth_client, content=json.dumps(regenerated).encode()).json()
 
     assert body["replaced_previous"] is True
     assert "replacing the previous import" in body["message"]

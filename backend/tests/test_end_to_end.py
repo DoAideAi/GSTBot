@@ -220,12 +220,12 @@ def upload(client, model, *, text: str, extraction: dict, invoice_type: str, nam
     return response.json()["invoice"]
 
 
-def import_2b(client, content: bytes) -> dict:
+def import_2b(client, content: bytes, *, expected: int = 201) -> dict:
     response = client.post(
         "/api/v1/reconciliation/gstr2b/import",
         files={"file": ("gstr2b.json", content, "application/json")},
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == expected, response.text
     return response.json()
 
 
@@ -2461,8 +2461,10 @@ class TestTheSameStatementUploadedTwice:
             name="northwind-0042.txt",
         )
         first = import_2b(client, portal_2b())
-        second = import_2b(client, portal_2b())
+        # The statement already on file: 200, not 201 — nothing was stored.
+        second = import_2b(client, portal_2b(), expected=200)
         assert second["id"] == first["id"]
+        assert second["unchanged"] is True and second["replaced_previous"] is False
         stored = db_session.query(GSTRReturn).filter_by(return_type=ReturnType.GSTR2B).count()
         assert stored == 1
         assert reconcile(client, PERIOD)["matched_count"] == 1

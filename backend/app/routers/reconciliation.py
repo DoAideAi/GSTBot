@@ -102,6 +102,13 @@ _report_download_limit = RateLimit("report_download", "30/minute")
     ),
     responses={
         201: {"description": "Imported. Run a reconciliation next."},
+        200: {
+            "description": (
+                "This statement is the one already on file for the period, so "
+                "nothing was stored or replaced (`unchanged` is true)."
+            ),
+            "model": GSTR2BImportOut,
+        },
         400: {"description": "The uploaded file is empty."},
         413: {"description": "Larger than `MAX_UPLOAD_MB`."},
         415: {"description": "Not a JSON or CSV file."},
@@ -116,6 +123,7 @@ _report_download_limit = RateLimit("report_download", "30/minute")
     dependencies=[Depends(_import_limit), Depends(require_writer), Depends(require_paid_tier)],
 )
 async def import_gstr2b(
+    response: Response,
     file: UploadFile = File(..., description="GSTR-2B download: portal JSON or CSV export"),
     period: str | None = Form(
         default=None,
@@ -254,10 +262,20 @@ async def import_gstr2b(
             ),
         )
 
-    had_previous = reconciliation.has_gstr2b(db, business.id, resolved)
+    previous = reconciliation.latest_gstr2b(db, business.id, resolved)
+    previous_id = previous.id if previous is not None else None
     stored = reconciliation.store_gstr2b(
         db, business.id, resolved, records, source_filename=filename
     )
+    # ``store_gstr2b`` hands back the statement already on file when this one
+    # is identical to it, storing nothing. That answered 201 Created,
+    # ``replaced_previous: true`` and "(replacing the previous import)" — the
+    # sentence the reconcile page shows — for an upload that changed nothing,
+    # and a replaced statement is the cue to re-run the reconciliation.
+    unchanged = previous_id is not None and stored.id == previous_id
+    had_previous = previous_id is not None and not unchanged
+    if unchanged:
+        response.status_code = status.HTTP_200_OK
 
     logger.info(
         "GSTR-2B imported",
@@ -266,6 +284,7 @@ async def import_gstr2b(
             "period": resolved,
             "record_count": len(records),
             "replaced_previous": had_previous,
+            "unchanged": unchanged,
             "source_filename": filename,
         },
     )
@@ -273,7 +292,12 @@ async def import_gstr2b(
     other_periods = sorted(
         {record.period for record in records if record.period and record.period != resolved}
     )
-    message = f"Imported {len(records)} invoices for {resolved}"
+    message = (
+        f"Already imported: this is the statement on file for {resolved}, so "
+        "nothing changed"
+        if unchanged
+        else f"Imported {len(records)} invoices for {resolved}"
+    )
     if had_previous:
         message += " (replacing the previous import)"
     if other_periods:
@@ -291,6 +315,7 @@ async def import_gstr2b(
         )},
         other_periods=other_periods,
         replaced_previous=had_previous,
+        unchanged=unchanged,
         message=message,
     )
 

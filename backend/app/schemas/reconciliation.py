@@ -34,6 +34,9 @@ class GSTR2BImportOut(BaseModel):
     # reconcile against *their* period, not this statement's.
     other_periods: list[str] = Field(default_factory=list)
     replaced_previous: bool = False
+    # The upload was the statement already on file: nothing was stored or
+    # replaced, and the route answers 200 rather than 201.
+    unchanged: bool = False
     message: str = ""
 
 
