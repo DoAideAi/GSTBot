@@ -486,6 +486,10 @@ UNGATED_MUTATIONS = {
     # There is no session yet, so there is no role to read.
     "/api/v1/auth/login",
     "/api/v1/auth/register",
+    # The caller's own password, proven by the current one. It is about the
+    # login, not any business's books, and a viewer whose password leaked must
+    # be able to rotate it like anyone else.
+    "/api/v1/auth/change-password",
     # These two manage *this login's* access, not any business's books. They
     # resolve through ``get_current_user`` and never through a tenant, and
     # linking is proven by the other account's own password — a role on some

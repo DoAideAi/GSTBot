@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -43,6 +44,7 @@ from app.models.user import User, UserRole
 from app.routers import referrals
 from app.schemas.auth import (
     BusinessOut,
+    ChangePasswordRequest,
     MeOut,
     RegisterRequest,
     RegisterResponse,
@@ -62,6 +64,9 @@ _register_limit = RateLimit("register", "10/hour", by="ip")
 # password needs, and far less than a stuffing run wants.
 _login_limit = RateLimit("login", "20/minute", by="ip")
 _me_limit = RateLimit("me", "120/minute")
+# Per caller: each attempt is a bcrypt round against the current password, and
+# a session that has been taken is exactly what would try a few.
+_change_password_limit = RateLimit("change_password", "10/hour")
 
 # The per-account failure budget, spent by wrong passwords and refunded the
 # moment a right one arrives. Ten in a quarter of an hour: a person who has
@@ -311,6 +316,63 @@ def login(
 
     logger.info("Login", extra={"user_id": user.id, "business_id": user.business_id})
     return Token(access_token=create_access_token(user.id))
+
+
+@router.post(
+    "/change-password",
+    response_model=Token,
+    summary="Change this login's password",
+    description=(
+        "Needs the current password. The new one follows the registration rules "
+        "and must differ from it.\n\n"
+        "Every token issued before the change stops working, so a session opened "
+        "with a password that leaked ends with it. The response carries a fresh "
+        "token, so the caller stays signed in."
+    ),
+    responses={
+        400: {
+            "description": (
+                "The current password is wrong, or this login signs in with a "
+                "provider and has no password."
+            )
+        },
+        422: {"description": "The new password is too short, too common, or unchanged."},
+    },
+    dependencies=[Depends(_change_password_limit)],
+)
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Token:
+    """Rotate the password, and end the sessions the old one opened.
+
+    There was no way to change a password at all, so one that leaked could not
+    be rotated short of an edit in the database, and every token it had issued
+    stayed good for its full lifetime.
+    """
+    if current_user.hashed_password is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This login signs in with a sign-in provider and has no password "
+                "here. Change it with that provider instead."
+            ),
+        )
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        logger.warning("Password change refused: wrong current password",
+                       extra={"user_id": current_user.id})
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The current password is not correct.",
+        )
+    current_user.hashed_password = hash_password(payload.new_password)
+    # Whole seconds, matching the token's ``iat``: the token handed back below
+    # is issued in this same second and must not be refused by the cutoff.
+    current_user.password_changed_at = datetime.now(UTC).replace(microsecond=0)
+    db.commit()
+    logger.info("Password changed", extra={"user_id": current_user.id})
+    return Token(access_token=create_access_token(current_user.id))
 
 
 @router.get(

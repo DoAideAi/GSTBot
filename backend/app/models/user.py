@@ -1,11 +1,12 @@
 """Login identities, each belonging to exactly one business."""
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from sqlalchemy import DateTime, ForeignKey, Index, String, text
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -62,6 +63,12 @@ class User(Base, TimestampMixin):
         SAEnum(UserRole, native_enum=False, length=20), default=UserRole.OWNER, nullable=False
     )
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    # When the password was last changed, to the second. A token issued before
+    # it is refused (see ``deps.get_current_user``), so changing a password
+    # ends every session the old one opened. ``None``: never changed.
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     referral_code: Mapped[str | None] = mapped_column(
         String(64), index=True, unique=True, nullable=True
     )

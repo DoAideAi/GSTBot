@@ -91,16 +91,29 @@ def create_access_token(subject: str | int, expires_minutes: int | None = None) 
     expire = datetime.now(UTC) + timedelta(
         minutes=expires_minutes or settings.access_token_expire_minutes
     )
-    payload: dict[str, Any] = {"sub": str(subject), "exp": expire, "type": "access"}
+    # ``iat`` in whole seconds: what a password change compares against, so a
+    # token issued before it can be refused. See ``deps.get_current_user``.
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "exp": expire,
+        "iat": int(datetime.now(UTC).timestamp()),
+        "type": "access",
+    }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> str | None:
-    """Return the subject (user id) of a valid token, or ``None`` if invalid."""
+def decode_access_claims(token: str) -> dict[str, Any] | None:
+    """The claims of a valid access token, or ``None`` if it is not one."""
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except jwt.PyJWTError:
         return None
     if payload.get("type") != "access":
         return None
-    return payload.get("sub")
+    return payload
+
+
+def decode_access_token(token: str) -> str | None:
+    """Return the subject (user id) of a valid token, or ``None`` if invalid."""
+    payload = decode_access_claims(token)
+    return payload.get("sub") if payload else None

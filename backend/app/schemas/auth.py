@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.core import sanitize
 from app.models.business import BusinessPlan
@@ -200,6 +200,26 @@ class RegisterRequest(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(
+        min_length=8,
+        max_length=128,
+        description="The same rules as at registration: 8 to 128 characters, not a common one.",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def _not_obviously_weak(cls, v: str) -> str:
+        return RegisterRequest._not_obviously_weak(v)
+
+    @model_validator(mode="after")
+    def _a_change(self) -> ChangePasswordRequest:
+        if self.new_password == self.current_password:
+            raise ValueError("The new password is the same as the current one.")
+        return self
 
 
 class RegisterResponse(BaseModel):

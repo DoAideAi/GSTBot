@@ -3,6 +3,7 @@ what they are allowed to do to it."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -14,7 +15,7 @@ from app.core.database import get_db
 from app.core.errors import CodedHTTPException
 from app.core.logging import note_actor
 from app.core.params import MAX_ID, MIN_ID
-from app.core.security import decode_access_token
+from app.core.security import decode_access_claims
 from app.models.business import Business
 from app.models.business_membership import BusinessMembership
 from app.models.subscription import Subscription
@@ -58,7 +59,8 @@ def get_current_user(
     request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
 ) -> User:
     """Resolve the authenticated user from the bearer token."""
-    subject = decode_access_token(token)
+    claims = decode_access_claims(token)
+    subject = claims.get("sub") if claims else None
     if subject is None:
         raise _credentials_exc
     try:
@@ -68,6 +70,16 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise _credentials_exc
+    # Changing a password ends the sessions the old one opened: a token issued
+    # before the change is refused. One with no ``iat`` predates the claim and
+    # counts as issued at the epoch, so it too stops working after a change.
+    if user.password_changed_at is not None:
+        issued = claims.get("iat")
+        changed = user.password_changed_at
+        if changed.tzinfo is None:  # SQLite hands back naive UTC
+            changed = changed.replace(tzinfo=UTC)
+        if not isinstance(issued, int | float) or issued < changed.timestamp():
+            raise _credentials_exc
     # Stamped for the access line, which is the only audit trail this product
     # keeps: no table records who filed a return or acknowledged an alert, so
     # a log line that says ``POST /filing/gstr3b/filed 201`` and nothing else

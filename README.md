@@ -136,7 +136,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-96 routes under `/api/v1`. The generated reference is the authority — start the
+97 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
