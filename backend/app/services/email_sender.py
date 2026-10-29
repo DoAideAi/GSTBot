@@ -184,11 +184,26 @@ def send_email(*, to: str, subject: str, body: str) -> None:
     for attempt in range(1, attempts + 1):  # pragma: no branch
         try:
             _deliver(message)
-        except (smtplib.SMTPException, OSError) as exc:
+        # UnicodeError too: smtplib encodes the login as ASCII, so a password
+        # with a "£" in it raised UnicodeEncodeError on every send — outside
+        # this function's promise of EmailSendError, so each tenant's digest
+        # failed as an unexplained traceback. Its text names the character and
+        # its position in the password, so the reason is written out instead.
+        except (smtplib.SMTPException, OSError, UnicodeError) as exc:
+            reason = (
+                "text the relay can only take as ASCII is not ASCII "
+                "(check SMTP_USERNAME and SMTP_PASSWORD)"
+                if isinstance(exc, UnicodeError)
+                else _without_addresses(exc)
+            )
             failure = EmailSendError(
-                f"email delivery failed after {attempt} attempt(s): {_without_addresses(exc)}"
+                f"email delivery failed after {attempt} attempt(s): {reason}"
             )
             failure.__cause__ = exc
+            if isinstance(exc, UnicodeError):
+                # Permanent, and chained it would print the password's
+                # character in the traceback the caller logs.
+                raise failure from None
             if attempt == attempts or not _is_transient(exc):
                 raise failure from exc
 

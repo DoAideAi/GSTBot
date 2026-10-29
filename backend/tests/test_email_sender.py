@@ -421,3 +421,49 @@ class TestNoAddressReachesTheLog:
         assert not any("owner@example.com" in line for line in retries)
         # The relay's code survives, which is the part worth reading.
         assert "451" in retries[0]
+
+
+class TestANonAsciiCredential:
+    """P23 M5: smtplib encodes the login as ASCII, so a password with a "£" in
+    it raised UnicodeEncodeError on every send — not the EmailSendError this
+    module promises — and its text names the password's character."""
+
+    def test_it_is_a_permanent_send_error_that_does_not_quote_the_password(
+        self, monkeypatch
+    ):
+        import smtplib
+
+        from app.core.config import settings
+        from app.services import email_sender
+
+        monkeypatch.setattr(settings, "smtp_host", "relay.example.com")
+        monkeypatch.setattr(settings, "smtp_username", "alerts")
+        monkeypatch.setattr(settings, "smtp_password", "pa£s")
+        attempts = []
+
+        class Relay:
+            def __init__(self, *a, **k):
+                attempts.append(1)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def starttls(self):
+                pass
+
+            def login(self, user, password):
+                # What smtplib.SMTP.auth does with the credentials.
+                f"\0{user}\0{password}".encode("ascii")
+
+            def send_message(self, message):
+                raise AssertionError("never reached")
+
+        monkeypatch.setattr(smtplib, "SMTP", Relay)
+        with pytest.raises(email_sender.EmailSendError) as caught:
+            email_sender.send_email(to="owner@example.com", subject="s", body="b")
+        assert len(attempts) == 1  # not retried: it cannot succeed
+        assert "SMTP_PASSWORD" in str(caught.value)
+        assert "£" not in str(caught.value) and caught.value.__cause__ is None
