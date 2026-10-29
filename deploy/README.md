@@ -222,7 +222,12 @@ Nothing has to be copied from a workstation.
 
 The script installs the locked dependencies, builds the frontend, takes a
 database dump, migrates, restarts the services and then checks readiness on the
-bridge and `/health/live` through Caddy. Anything that fails stops the release.
+bridge and `/health/live` through Caddy. Last, `deploy/services_settled.sh`
+waits for a Celery worker to answer a ping and, after two restart intervals,
+requires every restarted unit to be active with no automatic restarts. The
+units restart themselves, so a worker or beat that dies on start still reads
+"active" between deaths, and nothing else asks them. Anything that fails stops
+the release, and "Deployed <sha>" is printed only after all of it.
 
 The frontend is built into `frontend/dist.next`, beside the `dist` the site is
 serving, and swapped in only once it has produced an `index.html`; the build it
@@ -324,6 +329,12 @@ quietly differ from the one the suite ran against. (CI used to install the
 floors alone, which resolved whatever PyPI had that day: the suite ran on
 SQLAlchemy 2.1 while production ran 2.0.) A Dependabot bump to a floor still
 verifies itself: `test_requirements.py` fails until the lock is recompiled.
+
+Dependabot only sees the floors, never the transitive pins that make up most of
+the lock, so `.github/workflows/audit.yml` runs `pip-audit` against the lock
+exactly as written, and `npm audit` against the frontend's production packages,
+every Monday and from the Actions tab on demand. It is not a pull-request gate:
+a red run is the report, and recompiling the lock is the fix.
 
 Recompile the lock on a workstation whenever `requirements.txt` changes, and
 commit both in the same change:

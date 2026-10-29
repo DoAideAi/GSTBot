@@ -522,6 +522,26 @@ class TestTheREADMEDescribesThisRepository:
         )
         assert f"branches at {thresholds['branches']}" in prose
 
+    def test_both_guides_quote_every_frontend_gate_and_where_it_lives(self, readme):
+        """P37 M19: CLAUDE.md quoted functions at 95 after it had been 99.
+
+        The drift this test exists for, back again in the file it did not read.
+        The functions gate was raised to join the other three, and CLAUDE.md,
+        the guide an agent reads before touching this repository, went on
+        saying 95. Both guides now name every figure, and the file that holds
+        them since P37 M20.
+        """
+        source = (REPO_ROOT / "frontend" / "scripts" / "coverage-thresholds.mjs").read_text()
+        thresholds = dict(re.findall(r"(\w+): ([\d.]+)", _thresholds_block(source)))
+        claude = (REPO_ROOT / "CLAUDE.md").read_text()
+        for name, text in (("README.md", readme), ("CLAUDE.md", claude)):
+            flat = " ".join(text.split())
+            assert "coverage-thresholds.mjs" in flat, f"{name} does not say where the gates live"
+            assert f"functions at {thresholds['functions']}" in flat, (
+                f"{name} misquotes the functions gate ({thresholds['functions']})"
+            )
+            assert f"branches at {thresholds['branches']}" in flat, name
+
     def test_it_names_the_route_count_the_api_actually_publishes(self, readme, client):
         # The one number in it that no other file states, and the one a reader
         # cannot check for themselves without starting the API.

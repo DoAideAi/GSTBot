@@ -61,11 +61,13 @@ in-memory SQLite, an unreachable Redis, and no OpenRouter key — so the degrade
 paths are what the suite actually exercises. Anything exported outside silently
 wins and changes what is under test.
 
-**Coverage gates are ratchets, not targets.** 99% backend (`pyproject.toml`),
-statements and lines 99, branches 99.5 and functions 95 frontend
-(`vite.config.js`). Functions is the loosest of the four because v8 undercounts
-it on JSX, and branches sits below the measured figure because three guards are
-unreachable by construction — the comments there say which. They exist so that
+**Coverage gates are ratchets, not targets.** 99% backend (`pyproject.toml`);
+frontend statements and lines at 99, functions at 99 and branches at 99.5
+(`frontend/scripts/coverage-thresholds.mjs`, read by `vite.config.js`).
+Branches sits below the measured figure because three guards are unreachable by
+construction — the comment above `thresholds` in `vite.config.js` says which.
+CI checks them in a "Coverage threshold" step after Test, so a red Test step
+means a test failed, never just a gate. They exist so that
 deleting tests or landing a module with none fails CI. Raise a gate in the
 commit that earns it; never write a test purely to move the number.
 

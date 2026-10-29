@@ -92,8 +92,11 @@ what is under test. Never export test environment variables in a CI step or a
 shell wrapper.
 
 Coverage gates (99% backend in `pyproject.toml`; frontend statements and lines
-at 99 and branches at 99.5 in `frontend/vite.config.js`) are ratchets against
-tests being deleted or a module landing with none — not targets to code towards.
+at 99, functions at 99 and branches at 99.5 in
+`frontend/scripts/coverage-thresholds.mjs`, which `vite.config.js` reads) are
+ratchets against tests being deleted or a module landing with none — not
+targets to code towards. CI enforces them in a "Coverage threshold" step of
+their own, after Test, so a red Test step always means a test failed.
 
 ### The tests that fail when a new route or a new screen forgets something
 
