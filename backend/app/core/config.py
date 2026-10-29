@@ -496,6 +496,21 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.backend_cors_origins.split(",") if o.strip()]
 
     @property
+    def frontend_origin(self) -> str:
+        """Where a sign-in sends the browser back to, its token in the fragment.
+
+        In production, the site: ``PUBLIC_SITE_URL``. This was the first CORS
+        origin, which is a list of who may call the API rather than the site's
+        address — on 2026-10-29 production's list held only the previous
+        domain, and every OAuth sign-in that day handed its bearer token there.
+        Elsewhere it stays the first CORS origin, the dev server: the site URL
+        defaults to production, and a local sign-in must not go there.
+        """
+        if self.is_production:
+            return self.public_site_url
+        return self.cors_origins[0] if self.cors_origins else "http://localhost:5173"
+
+    @property
     def advisor_models(self) -> tuple[str, ...]:
         """The Gemini models the advisor tries, in order."""
         return tuple(self.gemini_models.split(","))

@@ -52,7 +52,6 @@ if settings.microsoft_client_id:
         client_kwargs={"scope": "openid email profile"},
     )
 
-FRONTEND_URL = settings.cors_origins[0] if settings.cors_origins else "http://localhost:5173"
 
 _oauth_initiate_limit = RateLimit("oauth_initiate", "30/minute", by="ip")
 _oauth_callback_limit = RateLimit("oauth_callback", "30/minute", by="ip")
@@ -133,7 +132,7 @@ async def _start_login(request: Request, provider: str) -> Any:
 
 def _login_error(code: str) -> RedirectResponse:
     """Send the browser back to the login page with *code* for it to explain."""
-    return RedirectResponse(f"{FRONTEND_URL}/login?error={code}")
+    return RedirectResponse(f"{settings.frontend_origin}/login?error={code}")
 
 
 def _provider_id(value: object) -> str:
@@ -270,7 +269,7 @@ def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
     # returning sign-in as a second sign-up.
     if vars(user).pop("oauth_created", False):
         fragment += "&new=1"
-    return RedirectResponse(f"{FRONTEND_URL}/auth/callback#{fragment}")
+    return RedirectResponse(f"{settings.frontend_origin}/auth/callback#{fragment}")
 
 
 # ── Which providers this deployment offers ────────────────
