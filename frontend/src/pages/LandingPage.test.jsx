@@ -203,7 +203,7 @@ describe("LandingPage", () => {
       renderLanding();
 
       expect(
-        screen.getByPlaceholderText(/Enter any GSTIN to verify/),
+        screen.getByLabelText("GSTIN or search term"),
       ).toBeInTheDocument();
     });
 
@@ -270,7 +270,7 @@ describe("LandingPage", () => {
     it("submits a GSTIN-shaped query to the lookup route", async () => {
       renderLanding();
 
-      const input = screen.getByPlaceholderText(/Enter any GSTIN/);
+      const input = screen.getByLabelText("GSTIN or search term");
       await userEvent.type(input, "27AAPFU0939F1ZV");
       await userEvent.click(screen.getByText("Verify"));
     });
@@ -278,7 +278,7 @@ describe("LandingPage", () => {
     it("submits a non-GSTIN query to the lookup route with q param", async () => {
       renderLanding();
 
-      const input = screen.getByPlaceholderText(/Enter any GSTIN/);
+      const input = screen.getByLabelText("GSTIN or search term");
       await userEvent.type(input, "test query");
       await userEvent.click(screen.getByText("Verify"));
     });

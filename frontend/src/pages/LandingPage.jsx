@@ -342,7 +342,7 @@ function InstantLookup() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Enter any GSTIN to verify instantly — no sign-up needed"
+          placeholder="Enter a GSTIN, e.g. 27AAPFU0939F1ZV"
           className="landing-search-input"
           spellCheck={false}
           autoComplete="off"
