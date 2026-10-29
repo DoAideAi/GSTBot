@@ -341,3 +341,19 @@ class TestEveryScheduledJobIsWatched:
         )
         for name in celery_app.conf.beat_schedule:
             assert f'record_heartbeat("{name}")' in tasks_source, name
+
+
+class TestANaiveHeartbeat:
+    def test_a_heartbeat_without_a_timezone_is_read_as_utc(self, monkeypatch):
+        # P19 M5: it parsed, then raised on the subtraction outside the guard —
+        # a 500 from the health check that monitoring polls.
+        from datetime import UTC, datetime
+
+        store = _FakeStore()
+        naive = datetime.now(UTC).replace(tzinfo=None).isoformat()
+        for name in job_health.JOB_STALE_AFTER_SECONDS:
+            store.set(job_health._HEARTBEAT_PREFIX + name, naive)
+        monkeypatch.setattr(job_health, "get_redis", lambda: store)
+
+        statuses = job_health.job_statuses()
+        assert all(s.stale is False and s.last_run.tzinfo is not None for s in statuses)

@@ -236,3 +236,22 @@ class TestBusinessEvents:
         assert events["invoice_parsed"] == 1
         assert events["invoice_parsed_heuristic"] == 1
         assert events["invoice_parse_failed"] == 0
+
+
+class TestAJunkValueInRedis:
+    """P19 M5: every field is written by HINCRBY, but a value that got there
+    some other way made ``float()`` raise and the whole metrics read 500,
+    hiding every hour that was fine."""
+
+    def test_a_non_number_counts_as_zero_and_the_rest_survive(self, fake):
+        metrics.record(200, 12.0, now=NOW)
+        key = metrics.KEY_PREFIX + metrics._hour(NOW)
+        fake.hashes[key]["status_5xx"] = "garbage"
+        fake.hashes[metrics.OVER_PREFIX + metrics._hour(NOW)]["/x"] = "nan"
+        fake.hashes[metrics.EVENTS_PREFIX + metrics._hour(NOW)][metrics.EVENTS[0]] = "inf"
+
+        report = metrics.summary(hours=1, now=NOW)
+        assert report["totals"]["requests"] == 1
+        assert report["totals"]["status_5xx"] == 0
+        assert report["over_budget_routes"] == {"/x": 0}
+        assert report["events"][metrics.EVENTS[0]] == 0

@@ -12,6 +12,7 @@ counter could not be written.
 """
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -113,9 +114,23 @@ def count(event: str, n: int = 1, *, now: datetime | None = None) -> None:
         mark_unavailable("metrics write failed")
 
 
+def _number(value: Any) -> float:
+    """A counter read back from Redis, or 0 when it is not one.
+
+    Every field is written by HINCRBY/HINCRBYFLOAT, so this is about a value
+    that got there some other way: a non-number made ``float()`` raise and the
+    whole metrics endpoint answer 500, hiding the hours that were fine.
+    """
+    try:
+        number = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) else 0.0
+
+
 def _row(hour: datetime, raw: dict[Any, Any]) -> dict[str, Any]:
     values = {k.decode() if isinstance(k, bytes) else str(k): v for k, v in raw.items()}
-    counts = {f: float(values.get(f, 0) or 0) for f in FIELDS}
+    counts = {f: _number(values.get(f, 0)) for f in FIELDS}
     requests = int(counts["requests"])
     return {
         "hour": hour.strftime("%Y-%m-%dT%H:00Z"),
@@ -160,13 +175,13 @@ def summary(hours: int = 24, *, now: datetime | None = None) -> dict[str, Any] |
     for raw in overs:
         for name, count in (raw or {}).items():
             label = name.decode() if isinstance(name, bytes) else str(name)
-            by_route[label] = by_route.get(label, 0) + int(float(count))
+            by_route[label] = by_route.get(label, 0) + int(_number(count))
     events = dict.fromkeys(EVENTS, 0)
     for raw in event_raws:
         for name, value in (raw or {}).items():
             label = name.decode() if isinstance(name, bytes) else str(name)
             if label in events:
-                events[label] += int(float(value))
+                events[label] += int(_number(value))
     return {
         "hours": rows,
         "totals": {

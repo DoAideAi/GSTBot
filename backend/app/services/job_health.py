@@ -93,6 +93,12 @@ def job_statuses() -> list[JobStatus]:
                 raw = client.get(_HEARTBEAT_PREFIX + name)
                 if raw:
                     last_run = datetime.fromisoformat(raw)
+                    # Stamped aware by record_heartbeat; a naive value (an older
+                    # writer, a hand-set key) parsed fine and then raised on the
+                    # subtraction below, outside this guard — a 500 from the
+                    # health check monitoring polls. Naive means UTC here.
+                    if last_run.tzinfo is None:
+                        last_run = last_run.replace(tzinfo=UTC)
 
         stale: bool | None
         if last_run is not None:
