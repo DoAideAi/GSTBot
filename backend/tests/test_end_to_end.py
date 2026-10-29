@@ -1741,6 +1741,165 @@ class TestABusinessPaysAndThenCancels:
         assert allowance() == 50
 
 
+class _FakeRazorpay:
+    """Razorpay as far as checkout sees it: an order is remembered as it was
+    created — receipt and amount from create-order — and comes back paid.
+
+    So the journeys below hand the order id from create-order to
+    verify-payment the way the browser does, and what verify checks is what
+    create-order actually wrote, not a fixture built to match it.
+    """
+
+    def __init__(self) -> None:
+        self.orders: dict[str, dict] = {}
+        self.fetches = 0
+
+    def create_order(self, amount_paise, currency="INR", receipt=None):
+        order_id = f"order_e2e{len(self.orders) + 1}"
+        self.orders[order_id] = {
+            "id": order_id,
+            "receipt": receipt,
+            "amount": amount_paise,
+            "amount_paid": amount_paise,
+            "currency": currency,
+            "status": "paid",
+        }
+        return {"id": order_id, "amount": amount_paise, "currency": currency}
+
+    def fetch_order(self, order_id):
+        self.fetches += 1
+        return self.orders.get(order_id)
+
+    def patches(self):
+        from contextlib import ExitStack
+        from unittest.mock import patch
+
+        from app.services import razorpay_client
+
+        stack = ExitStack()
+        stack.enter_context(patch.object(razorpay_client, "is_configured", return_value=True))
+        stack.enter_context(
+            patch.object(razorpay_client, "verify_payment_signature", return_value=True)
+        )
+        stack.enter_context(
+            patch.object(razorpay_client, "create_order", side_effect=self.create_order)
+        )
+        stack.enter_context(
+            patch.object(razorpay_client, "fetch_order", side_effect=self.fetch_order)
+        )
+        return stack
+
+
+class TestABusinessChoosingBetweenPlans:
+    """P21 M20: this pass's billing fixes as the journeys that found them.
+
+    A business on Free opens checkout for SMB and for CA before paying either
+    (two tabs, or a change of mind). Both orders are legitimate when opened, so
+    create-order's downgrade guard cannot see the problem; what the business
+    then pays, in what order, decides what it ends up with.
+    """
+
+    @staticmethod
+    def _order(client, tier: str):
+        return client.post("/api/v1/subscriptions/create-order", json={"tier": tier})
+
+    @staticmethod
+    def _pay(client, order_id: str, tier: str, payment_id: str):
+        return client.post(
+            "/api/v1/subscriptions/verify-payment",
+            json={
+                "razorpay_order_id": order_id,
+                "razorpay_payment_id": payment_id,
+                "razorpay_signature": "sig",
+                "tier": tier,
+            },
+        )
+
+    def test_two_tabs_then_the_lower_plan_is_refused_and_nothing_is_lost(self, signed_in):
+        client = signed_in
+        razorpay = _FakeRazorpay()
+
+        def paywalled() -> int:
+            return client.post("/api/v1/reconciliation/run", json={"period": PERIOD}).status_code
+
+        with razorpay.patches():
+            smb = self._order(client, "pro")
+            ca = self._order(client, "enterprise")
+            assert smb.status_code == ca.status_code == 200, (smb.text, ca.text)
+
+            # CA is paid first: the plan the business wanted.
+            paid = self._pay(client, ca.json()["order_id"], "enterprise", "pay_e2e_ca")
+            assert paid.status_code == 200, paid.text
+            assert paid.json()["tier"] == "enterprise"
+            ca_ends = paid.json()["current_period_end"]
+            assert paywalled() == 409  # past the paywall, short of a 2B
+
+            # Then the stale SMB tab is paid too. The money is taken, but
+            # applying it would end the CA plan at once: the CA plan stays.
+            stale = self._pay(client, smb.json()["order_id"], "pro", "pay_e2e_smb")
+            assert stale.status_code == 200, stale.text
+            assert stale.json()["tier"] == "enterprise"
+            assert stale.json()["current_period_end"] == ca_ends
+
+            # And it is not applied on a retry either.
+            retried = self._pay(client, smb.json()["order_id"], "pro", "pay_e2e_smb")
+            assert retried.json()["tier"] == "enterprise"
+
+            # Opening SMB checkout now is refused before any money moves.
+            refused = self._order(client, "pro")
+            assert refused.status_code == 409
+            assert "CA plan is active until" in refused.json()["detail"]
+            assert len(razorpay.orders) == 2  # no order was created for it
+
+        current = client.get("/api/v1/subscriptions/current").json()
+        assert current["tier"] == "enterprise"
+        assert current["current_period_end"] == ca_ends
+        assert paywalled() == 409
+
+    def test_the_lower_plan_first_then_the_upgrade_goes_through(self, signed_in):
+        client = signed_in
+        razorpay = _FakeRazorpay()
+        with razorpay.patches():
+            smb = self._order(client, "pro").json()["order_id"]
+            ca = self._order(client, "enterprise").json()["order_id"]
+            assert self._pay(client, smb, "pro", "pay_e2e_smb").json()["tier"] == "pro"
+            upgraded = self._pay(client, ca, "enterprise", "pay_e2e_ca")
+        assert upgraded.status_code == 200, upgraded.text
+        assert upgraded.json()["tier"] == "enterprise"
+
+    def test_one_order_paid_twice_buys_one_period(self, signed_in):
+        client = signed_in
+        razorpay = _FakeRazorpay()
+        with razorpay.patches():
+            order_id = self._order(client, "pro").json()["order_id"]
+            first = self._pay(client, order_id, "pro", "pay_e2e_one")
+            assert first.status_code == 200, first.text
+            ends = first.json()["current_period_end"]
+
+            # The checkout callback firing again is the same payment: answered
+            # from the ledger, without asking Razorpay.
+            fetches = razorpay.fetches
+            again = self._pay(client, order_id, "pro", "pay_e2e_one")
+            assert again.status_code == 200
+            assert again.json()["current_period_end"] == ends
+            assert razorpay.fetches == fetches
+
+            # A second, different payment captured on the same order is a
+            # double charge, not a second month.
+            double = self._pay(client, order_id, "pro", "pay_e2e_two")
+            assert double.status_code == 409
+            assert "already been paid for" in double.json()["detail"]
+
+            # A renewal is a new order, and does extend the period.
+            renewal = self._order(client, "pro").json()["order_id"]
+            renewed = self._pay(client, renewal, "pro", "pay_e2e_renew")
+        assert renewed.status_code == 200, renewed.text
+        assert renewed.json()["current_period_end"] > ends
+        assert client.get("/api/v1/subscriptions/current").json()["current_period_end"] == (
+            renewed.json()["current_period_end"]
+        )
+
+
 class TestABusinessThatGetsEachStepWrongFirst:
     """P16 M20: the error path as one journey.
 
