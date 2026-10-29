@@ -323,6 +323,16 @@ describe("invoiceDraftErrors", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("states a totals mismatch in Indian grouping, as every other amount is", () => {
+    const { warnings } = invoiceDraftErrors(
+      draft({ taxable_value: "1234567", cgst: "111111.03", sgst: "111111.03", total_value: "1400000" }),
+      { today },
+    );
+    expect(warnings).toEqual([
+      "Taxable plus tax comes to ₹14,56,789.06, but the total says ₹14,00,000.00.",
+    ]);
+  });
+
   it("keys each error to its field", () => {
     const { errors } = invoiceDraftErrors(
       draft({ cgst: "-1", invoice_date: "2027-01-01", hsn_code: "abc" }),
@@ -371,8 +381,8 @@ describe("invoiceDraftErrors", () => {
       draft({ cgst: "90", sgst: "", total_value: "1180" }),
       { today },
     );
-    expect(warnings.join(" ")).toContain("₹1090.00");
-    expect(warnings.join(" ")).toContain("₹1180.00");
+    expect(warnings.join(" ")).toContain("₹1,090.00");
+    expect(warnings.join(" ")).toContain("₹1,180.00");
   });
 
   it("warns when CGST and SGST differ", () => {
@@ -382,7 +392,7 @@ describe("invoiceDraftErrors", () => {
 
   it("warns when the total does not add up", () => {
     const { warnings } = invoiceDraftErrors(draft({ total_value: "5000" }), { today });
-    expect(warnings.join(" ")).toContain("5000.00");
+    expect(warnings.join(" ")).toContain("₹5,000.00");
   });
 
   it("tolerates rounding of a rupee in the total", () => {

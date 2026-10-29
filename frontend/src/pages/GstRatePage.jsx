@@ -12,6 +12,16 @@ function capitalize(str) {
   return str.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * An example amount in Indian grouping: whole rupees as they are, anything
+ * else to the paisa. Plain toLocaleString printed the CGST/SGST halves of a
+ * 0.25% example as "₹12.5".
+ */
+function inr(value) {
+  const decimals = Number.isInteger(value) ? 0 : 2;
+  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: 2 })}`;
+}
+
 function exampleAmount(rate) {
   if (rate === 0) return null;
   const base = 10000;
@@ -45,7 +55,7 @@ function buildFaqSchema(display, match) {
       name: `How to calculate GST on ${display}?`,
       acceptedAnswer: {
         "@type": "Answer",
-        text: `GST on ${display} is calculated at ${match.rate}%. For example, on a taxable value of ₹${ex.base.toLocaleString("en-IN")}, GST = ₹${ex.tax.toLocaleString("en-IN")}, making the total ₹${ex.total.toLocaleString("en-IN")}.`,
+        text: `GST on ${display} is calculated at ${match.rate}%. For example, on a taxable value of ${inr(ex.base)}, GST = ${inr(ex.tax)}, making the total ${inr(ex.total)}.`,
       },
     });
   }
@@ -149,27 +159,27 @@ export default function GstRatePage() {
                     <tbody>
                       <tr>
                         <td>Taxable Value</td>
-                        <td className="hsn-rate">₹{example.base.toLocaleString("en-IN")}</td>
+                        <td className="hsn-rate">{inr(example.base)}</td>
                       </tr>
                       <tr>
                         <td>GST @ {example.rate}%</td>
-                        <td className="hsn-rate">₹{example.tax.toLocaleString("en-IN")}</td>
+                        <td className="hsn-rate">{inr(example.tax)}</td>
                       </tr>
                       {!match.interstate && (
                         <>
                           <tr>
                             <td>  ↳ CGST @ {example.rate / 2}%</td>
-                            <td className="hsn-rate">₹{(example.tax / 2).toLocaleString("en-IN")}</td>
+                            <td className="hsn-rate">{inr(example.tax / 2)}</td>
                           </tr>
                           <tr>
                             <td>  ↳ SGST @ {example.rate / 2}%</td>
-                            <td className="hsn-rate">₹{(example.tax / 2).toLocaleString("en-IN")}</td>
+                            <td className="hsn-rate">{inr(example.tax / 2)}</td>
                           </tr>
                         </>
                       )}
                       <tr>
                         <td><strong>Total</strong></td>
-                        <td className="hsn-rate"><strong>₹{example.total.toLocaleString("en-IN")}</strong></td>
+                        <td className="hsn-rate"><strong>{inr(example.total)}</strong></td>
                       </tr>
                     </tbody>
                   </table>

@@ -22,6 +22,8 @@
  * server's 413, so a raised limit degrades to "the old behaviour" rather than
  * to a broken upload.
  */
+import { rupees } from "./format";
+
 export const MAX_UPLOAD_MB = 15;
 
 /** Kept in step with ALLOWED_EXTENSIONS in app/routers/invoices.py. */
@@ -473,7 +475,7 @@ function invoiceDraftWarnings(draft, errors, options = {}) {
     const computed = taxable + (cgst ?? 0) + (sgst ?? 0) + (igst ?? 0) + (cess ?? 0);
     if (Math.abs(computed - total) > 1) {
       warnings.push(
-        `Taxable plus tax comes to ₹${computed.toFixed(2)}, but the total says ₹${total.toFixed(2)}.`,
+        `Taxable plus tax comes to ${rupees(computed)}, but the total says ${rupees(total)}.`,
       );
     }
   }

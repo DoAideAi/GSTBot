@@ -95,6 +95,15 @@ describe("GstRatePage", () => {
     expect(screen.getByText("₹11,800")).toBeInTheDocument();
   });
 
+  it("shows a fractional example amount to the paisa", () => {
+    // 0.25% of ₹10,000 is ₹25, split ₹12.50 + ₹12.50; it printed "₹12.5".
+    renderRate("diamond");
+
+    expect(screen.getByText("₹25")).toBeInTheDocument();
+    expect(screen.getAllByText("₹12.50")).toHaveLength(2);
+    expect(screen.queryByText("₹12.5")).not.toBeInTheDocument();
+  });
+
   it("does not show example calculation for zero-rate products", () => {
     renderRate("milk");
 
