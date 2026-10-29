@@ -288,8 +288,18 @@ systemctl restart gstbot-migrate.service \
     || die "migrations failed; journalctl -u gstbot-migrate -n 100"
 
 log "Restarting services"
-systemctl restart gstbot-api.service gstbot-web.service gstbot-worker.service \
-    gstbot-beat.service
+# reset-failed first: it also clears each unit's start counter. The units allow
+# five starts in 300 s (StartLimitBurst) so that a crash loop stops instead of
+# spinning — and a release's restart counted against that like a crash did. On
+# 2026-10-29 the third release inside five minutes was refused with
+# start-limit-hit, and the API and worker stayed down for four minutes. A
+# deliberate restart is not the loop the limit is for. And it says so if it
+# fails: under `set -e` alone the release stopped here with no error line, which
+# read like a deploy still running.
+SERVICES=(gstbot-api.service gstbot-web.service gstbot-worker.service gstbot-beat.service)
+systemctl reset-failed "${SERVICES[@]}" 2>/dev/null || true
+systemctl restart "${SERVICES[@]}" \
+    || die "the services did not restart; systemctl status ${SERVICES[*]} — then journalctl -u gstbot-api -n 100"
 
 log "Checking health"
 

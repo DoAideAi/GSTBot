@@ -998,8 +998,9 @@ class TestTheDeployScript:
     def test_it_migrates_before_it_restarts_anything(self, commands):
         # A migration that fails after the restart leaves new code talking to
         # an old schema.
+        assert "SERVICES=(gstbot-api.service" in commands
         assert commands.index("systemctl restart gstbot-migrate.service") < commands.index(
-            "systemctl restart gstbot-api.service"
+            'systemctl restart "${SERVICES[@]}"'
         )
 
     def test_it_takes_a_restore_point_before_it_migrates(self, commands):
@@ -1052,7 +1053,9 @@ class TestTheDeployScript:
         # Naming them rather than restarting the target, because the target
         # would also restart gstbot-migrate a second time. A unit left out
         # here keeps serving the previous release's code.
-        restarts = matched(r"systemctl restart (gstbot-api[^\n]*)", commands).group(1)
+        # The release restarts the list it also clears the start counter for.
+        assert 'systemctl restart "${SERVICES[@]}"' in commands
+        restarts = matched(r"SERVICES=\((gstbot-api[^)]*)\)", commands).group(1)
         for name in SERVING_UNITS:
             assert name in restarts, f"{name} is not restarted by a release"
 
@@ -2247,3 +2250,32 @@ class TestAnUnchangedFrontendIsNotRebuilt:
         # Cleared before a build starts, so a failed one cannot leave it vouching.
         assert self.SCRIPT.index('rm -f "$FRONTEND/.dist-source"') < build
         assert ".dist-source" in (REPO_ROOT / ".gitignore").read_text()
+
+
+class TestAReleaseRestartIsNotACrashLoop:
+    """P24 M12: the units allow five starts in 300 s so a crash loop stops, and
+    a release's restart counted against that like a crash. The third release
+    inside five minutes was refused with start-limit-hit, the API and worker
+    stayed down for four minutes, and deploy.sh stopped under set -e with no
+    error line at all."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def test_the_start_counter_is_cleared_before_the_restart(self):
+        reset = self.SCRIPT.index('systemctl reset-failed "${SERVICES[@]}"')
+        restart = self.SCRIPT.index('systemctl restart "${SERVICES[@]}"')
+        assert reset < restart
+        # Every unit the release restarts has its counter cleared: one list.
+        assert self.SCRIPT.count("SERVICES=(") == 1
+
+    def test_a_restart_that_fails_says_so(self):
+        restart = self.SCRIPT.index('systemctl restart "${SERVICES[@]}"')
+        assert self.SCRIPT[restart:].lstrip().split("\n")[1].strip().startswith(
+            '|| die "the services did not restart'
+        )
+
+    def test_the_limit_it_works_around_is_still_there(self):
+        # Clearing the counter is only safe because the limit stays for what
+        # it is for: a unit that keeps crashing on its own.
+        api = (DEPLOY / "systemd" / "gstbot-api.service").read_text()
+        assert "StartLimitBurst=5" in api and "Restart=always" in api
