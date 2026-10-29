@@ -36,11 +36,11 @@ class _FakeSMTP:
         self.sent = None
         _FakeSMTP.instances.append(self)
 
-    def __enter__(self):
-        return self
+    def quit(self):
+        self.quit_called = True
 
-    def __exit__(self, *exc_info):
-        return False
+    def close(self):
+        pass
 
     def starttls(self):
         self.started_tls = True
@@ -445,11 +445,8 @@ class TestANonAsciiCredential:
             def __init__(self, *a, **k):
                 attempts.append(1)
 
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc):
-                return False
+            def quit(self):
+                pass
 
             def starttls(self):
                 pass
@@ -467,3 +464,47 @@ class TestANonAsciiCredential:
         assert len(attempts) == 1  # not retried: it cannot succeed
         assert "SMTP_PASSWORD" in str(caught.value)
         assert "£" not in str(caught.value) and caught.value.__cause__ is None
+
+
+# ---------------------------------------------------------------------------
+# The goodbye is not the send
+# ---------------------------------------------------------------------------
+
+class _QuitRefused(_FakeSMTP):
+    """A relay that answers QUIT with 421, as the real ``quit()`` does by raising
+    from the socket read or — under ``with`` — from ``__exit__``."""
+
+    closed = False
+
+    def quit(self):
+        raise smtplib.SMTPResponseException(421, b"closing channel")
+
+    def close(self):
+        type(self).closed = True
+
+
+class TestQuitDoesNotDecideTheSend:
+    def test_a_refused_quit_after_delivery_is_not_a_failure_or_a_resend(self, monkeypatch):
+        monkeypatch.setattr(smtplib, "SMTP", _QuitRefused)
+
+        send_email(to="owner@example.com", subject="s", body="b")
+
+        assert len(_FakeSMTP.instances) == 1  # sent once, not retried
+        assert _FakeSMTP.instances[0].sent is not None
+        assert _QuitRefused.closed  # the socket is still released
+
+    def test_a_refused_quit_does_not_mask_a_permanent_refusal(self, monkeypatch):
+        class _Rejects(_QuitRefused):
+            def send_message(self, message):
+                raise smtplib.SMTPDataError(550, b"message rejected")
+
+        monkeypatch.setattr(smtplib, "SMTP", _Rejects)
+
+        with pytest.raises(EmailSendError) as caught:
+            send_email(to="owner@example.com", subject="s", body="b")
+        assert "550" in str(caught.value)
+        assert len(_FakeSMTP.instances) == 1  # permanent, so asked once
+
+    def test_quit_is_sent_after_a_normal_delivery(self):
+        send_email(to="owner@example.com", subject="s", body="b")
+        assert _FakeSMTP.instances[0].quit_called

@@ -137,14 +137,35 @@ def _transient_code(code: object) -> bool:
 
 def _deliver(message: EmailMessage) -> None:
     """One attempt: connect, upgrade, authenticate, send. Raises smtplib's own."""
-    with smtplib.SMTP(
+    # Not ``with smtplib.SMTP(...)``: its ``__exit__`` sends QUIT and raises
+    # when the answer is anything but 221. A relay that took the message and
+    # then said 421 to QUIT failed a send that had happened — and 4xx is
+    # retried, so the digest went out again on every attempt. Raised on the
+    # way out of a failed send, the same 421 replaced the real refusal, so a
+    # permanent 550 was retried as though it were transient.
+    client = smtplib.SMTP(
         settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout_seconds
-    ) as client:
+    )
+    try:
         if settings.smtp_use_tls:
             client.starttls()
         if settings.smtp_username:
             client.login(settings.smtp_username, settings.smtp_password)
         client.send_message(message)
+    finally:
+        _hang_up(client)
+
+
+def _hang_up(client: smtplib.SMTP) -> None:
+    """Say QUIT and close the socket, whatever the relay answers.
+
+    Once DATA is accepted the message is the relay's; how it takes the goodbye
+    says nothing about the send, and must not become the outcome of it.
+    """
+    try:
+        client.quit()
+    except (smtplib.SMTPException, OSError):
+        client.close()
 
 
 def send_email(*, to: str, subject: str, body: str) -> None:
