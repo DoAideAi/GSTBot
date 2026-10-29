@@ -769,6 +769,13 @@ def test_the_gate_governs_existing_logins_rather_than_creating_them():
     says so, or a membership carried over by ``POST /businesses/mine/link``.
     If an invite route is added later it will need a role on the payload, and
     this assertion is where that gets noticed.
+
+    Reading and revoking links (``GET`` and ``DELETE /businesses/mine/members``)
+    is not that: neither grants anyone a role, so only creating verbs count.
     """
-    paths = {route.path for route in API_ROUTES}
-    assert not [path for path in paths if "invite" in path or "member" in path]
+    creating = {
+        route.path
+        for route in API_ROUTES
+        if route.methods & {"POST", "PUT", "PATCH"}
+    }
+    assert not [path for path in creating if "invite" in path or "member" in path]

@@ -43,7 +43,13 @@ from app.core.security import verify_password
 from app.models.business import Business
 from app.models.business_membership import BusinessMembership, MembershipRole
 from app.models.user import User
-from app.schemas.business import LinkBusinessIn, MyBusinessesOut, MyBusinessOut
+from app.schemas.business import (
+    LinkBusinessIn,
+    LinkedLoginOut,
+    LinkedLoginsOut,
+    MyBusinessesOut,
+    MyBusinessOut,
+)
 from app.services import data_export
 
 logger = logging.getLogger(__name__)
@@ -317,6 +323,92 @@ def unlink_business(
     logger.info(
         "Business unlinked",
         extra={"user_id": current_user.id, "linked_business_id": business_id},
+    )
+
+
+# The other side of a link. ``POST /mine/link`` is proven by a password and
+# nothing else, and there is no way to change a password, so a link made by
+# someone who once knew it — a former accountant, a shared login — lasted for
+# ever, and the business's owner could neither see it outside the full export
+# nor take it away. Unlinking was only ever the linker's to do.
+@router.get(
+    "/mine/members",
+    response_model=LinkedLoginsOut,
+    summary="Other logins that have linked this business",
+    description=(
+        "Every login that reaches this business through `POST "
+        "/businesses/mine/link`, with the role it acts with and when it "
+        "linked. The business's own logins are not listed; they are not "
+        "links. Owner only."
+    ),
+    dependencies=[Depends(_read_limit), Depends(require_owner)],
+)
+def linked_logins(
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+) -> LinkedLoginsOut:
+    rows = db.execute(
+        select(BusinessMembership, User)
+        .join(User, User.id == BusinessMembership.user_id)
+        .where(
+            BusinessMembership.business_id == business.id,
+            BusinessMembership.deleted_at.is_(None),
+        )
+        .order_by(BusinessMembership.id)
+    ).all()
+    return LinkedLoginsOut(
+        items=[
+            LinkedLoginOut(
+                id=membership.id,
+                email=user.email,
+                role=membership.role.value,
+                linked_at=membership.created_at,
+            )
+            for membership, user in rows
+        ]
+    )
+
+
+@router.delete(
+    "/mine/members/{membership_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    summary="Revoke another login's link to this business",
+    description=(
+        "Takes away the access a `GET /businesses/mine/members` entry "
+        "describes. The other login keeps its own business; it just can no "
+        "longer act for this one. Owner only."
+    ),
+    responses={404: {"description": "No such link to this business."}},
+    dependencies=[Depends(_link_limit), Depends(require_owner)],
+)
+def revoke_linked_login(
+    membership_id: RowId,
+    db: Session = Depends(get_db),
+    business: Business = Depends(get_current_business),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    membership = db.scalar(
+        select(BusinessMembership).where(
+            BusinessMembership.id == membership_id,
+            BusinessMembership.business_id == business.id,
+            BusinessMembership.deleted_at.is_(None),
+        )
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That login is not linked to this business.",
+        )
+    membership.soft_delete()
+    db.commit()
+    logger.info(
+        "Business link revoked",
+        extra={
+            "user_id": current_user.id,
+            "business_id": business.id,
+            "revoked_user_id": membership.user_id,
+        },
     )
 
 

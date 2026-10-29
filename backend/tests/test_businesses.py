@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import event
 
 from app.models.business import Business
-from app.models.business_membership import BusinessMembership
+from app.models.business_membership import BusinessMembership, MembershipRole
 from app.models.user import User, UserRole
 from app.services.gstin import compute_check_digit
 from tests.conftest import BUSINESS_GSTIN, TEST_EMAIL, TEST_PASSWORD
@@ -438,6 +438,68 @@ class TestUnlinkingABusiness:
         # exactly the authentication this test exists to require the absence
         # of. Any id does; the auth check runs before the row is looked up.
         assert client.delete("/api/v1/businesses/mine/1").status_code == 401
+
+
+class TestTheLinkedBusinessesOwnerCanSeeAndRevokeLinks:
+    """A link was the linker's alone to end.
+
+    It is proven by a password, there is no way to change a password, and the
+    business linked into could not list or remove it — so whoever once knew
+    the password kept the books for good. ``auth_client`` links the second
+    business here; that business's own owner is the one acting below.
+    """
+
+    @staticmethod
+    def _as_second_owner(second):
+        return {"Authorization": f"Bearer {second['access_token']}"}
+
+    def test_the_owner_sees_who_has_linked_in(self, auth_client, client):
+        second = register_second_business(client)
+        link(auth_client)
+
+        response = auth_client.get(
+            "/api/v1/businesses/mine/members", headers=self._as_second_owner(second)
+        )
+        assert response.status_code == 200
+        [member] = response.json()["items"]
+        assert member["email"] == TEST_EMAIL
+        assert member["role"] == "owner"
+
+    def test_revoking_ends_the_linkers_switch(self, auth_client, client):
+        second = register_second_business(client)
+        linked_id = link(auth_client).json()["id"]
+        as_owner = self._as_second_owner(second)
+        member_id = auth_client.get(
+            "/api/v1/businesses/mine/members", headers=as_owner
+        ).json()["items"][0]["id"]
+
+        revoked = auth_client.delete(
+            f"/api/v1/businesses/mine/members/{member_id}", headers=as_owner
+        )
+        assert revoked.status_code == 204
+
+        switched = auth_client.get(
+            "/api/v1/dashboard", headers={"X-Business-Id": str(linked_id)}
+        )
+        assert switched.status_code == 403
+        assert auth_client.get(
+            "/api/v1/businesses/mine/members", headers=as_owner
+        ).json()["items"] == []
+
+    def test_a_linked_viewer_cannot_list_or_revoke(self, auth_client, client, db_session):
+        register_second_business(client)
+        linked_id = link(auth_client).json()["id"]
+        membership = db_session.query(BusinessMembership).one()
+        membership.role = MembershipRole.VIEWER
+        db_session.commit()
+        switched = {"X-Business-Id": str(linked_id)}
+
+        assert auth_client.get(
+            "/api/v1/businesses/mine/members", headers=switched
+        ).status_code == 403
+        assert auth_client.delete(
+            f"/api/v1/businesses/mine/members/{membership.id}", headers=switched
+        ).status_code == 403
 
 
 # ---------------------------------------------------------------------------

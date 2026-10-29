@@ -1,6 +1,8 @@
 """Request/response models for the multi-GSTIN business list."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models.business import BusinessPlan
@@ -29,3 +31,16 @@ class LinkBusinessIn(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
+
+class LinkedLoginOut(BaseModel):
+    """Another login that has linked this business, and with what role."""
+
+    id: int
+    email: str
+    role: str
+    linked_at: datetime
+
+
+class LinkedLoginsOut(BaseModel):
+    items: list[LinkedLoginOut]

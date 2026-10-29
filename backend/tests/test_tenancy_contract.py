@@ -180,6 +180,39 @@ def _a_linked_business(auth_client, db_session, business) -> int:
     return linked.id
 
 
+def _a_member_of_this_business(auth_client, db_session, business) -> int:
+    """Another login's link *into* this tenant — the owner's revoke route.
+
+    The mirror of :func:`_a_linked_business`: there the membership belongs to
+    this tenant's owner and names someone else's business; here it belongs to
+    an outsider and names this one. The rival owner must not be able to revoke
+    it, which is what stops one business cutting off another's accountant.
+    """
+    from app.core.security import hash_password
+    from app.models.business import Business
+    from app.models.business_membership import BusinessMembership, MembershipRole
+    from app.models.user import User, UserRole
+    from tests.test_businesses import _valid_gstin
+
+    elsewhere = Business(gstin=_valid_gstin(901), legal_name="Accountant Co", state_code="27")
+    db_session.add(elsewhere)
+    db_session.flush()
+    outsider = User(
+        email="accountant@example.com",
+        hashed_password=hash_password("unused-password-1"),
+        business_id=elsewhere.id,
+        role=UserRole.OWNER,
+    )
+    db_session.add(outsider)
+    db_session.flush()
+    membership = BusinessMembership(
+        user_id=outsider.id, business_id=business.id, role=MembershipRole.ACCOUNTANT
+    )
+    db_session.add(membership)
+    db_session.commit()
+    return membership.id
+
+
 # Keyed by path, because the two alert routes and the four invoice routes each
 # address the same kind of row and differ only in what they do to it.
 FACTORIES = {
@@ -191,6 +224,7 @@ FACTORIES = {
     "/api/v1/reconciliation/{run_id}": _a_run,
     "/api/v1/reconciliation/{run_id}/report.pdf": _a_run,
     "/api/v1/businesses/mine/{business_id}": _a_linked_business,
+    "/api/v1/businesses/mine/members/{membership_id}": _a_member_of_this_business,
 }
 
 # A body that passes validation, so a 404 is the ownership check answering and
