@@ -43,11 +43,13 @@ and whoever adds a sender has a durable row to send and to mark.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.alert import (
@@ -496,7 +498,50 @@ def sweep_itc_deadlines(
     return SweepResult(raised=raised, reopened=reopened, resolved=resolved)
 
 
+# Session-level advisory lock for the sweep, beside the digest's 7_365_401 in
+# alert_delivery. Single-key space; the per-tenant locks elsewhere use the
+# two-integer space and cannot collide with it.
+_SWEEP_LOCK_KEY = 7_365_402
+
+
+@contextmanager
+def _sole_sweep(db: Session) -> Iterator[bool]:
+    """Yield whether this is the only deadline sweep in progress.
+
+    "Ran twice converges" holds for runs one after the other. Two at once — a
+    redelivered acks_late task, a second beat, a run by hand — both find no
+    alert for a period and both insert one; alerts have no unique key to stop
+    it. The pair then outlives the filing: the next sweep keys what exists by
+    (period, return type), keeps one of the two, resolves that one when the
+    return is filed, and the other stays pending and is emailed every morning.
+
+    The same lock the digest takes, for the same reasons: on a connection of
+    its own, because the sweep commits per business; ``try`` rather than wait,
+    because the overlapping run is already doing this one's work.
+    """
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        yield True
+        return
+    with bind.connect() as conn:
+        acquired = bool(conn.scalar(select(func.pg_try_advisory_lock(_SWEEP_LOCK_KEY))))
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                conn.scalar(select(func.pg_advisory_unlock(_SWEEP_LOCK_KEY)))
+
+
 def sweep_filing_deadlines(db: Session, *, today: date | None = None) -> SweepResult:
+    """Run the deadline sweep, unless another one is already running."""
+    with _sole_sweep(db) as sole:
+        if not sole:
+            logger.info("Filing deadline sweep skipped: another sweep is running")
+            return SweepResult()
+        return _sweep_filing_deadlines(db, today=today)
+
+
+def _sweep_filing_deadlines(db: Session, *, today: date | None = None) -> SweepResult:
     """Raise, refresh and close filing-deadline alerts for every active tenant.
 
     Committed per business rather than once at the end. A nightly job that dies

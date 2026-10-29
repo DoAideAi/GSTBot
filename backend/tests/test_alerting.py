@@ -859,3 +859,34 @@ class TestTheScheduledTask:
             sweep_filing_deadlines_task()
 
         assert sessions["closed"] == 1
+
+
+class TestTwoSweepsAtOnce:
+    """P20 M5: a redelivered task, a second beat or a run by hand overlapping
+    the morning sweep — both found no alert and both inserted one. The pair
+    outlived the filing (only one is resolved), and the other was emailed every
+    morning. The sweep now runs only if it holds the sweep lock."""
+
+    def test_a_sweep_that_cannot_take_the_lock_changes_nothing(
+        self, db_session, business, monkeypatch, caplog
+    ):
+        from contextlib import contextmanager
+
+        from app.models.alert import Alert
+
+        @contextmanager
+        def held(_db):
+            yield False
+
+        monkeypatch.setattr(alerting, "_sole_sweep", held)
+        result = alerting.sweep_filing_deadlines(db_session, today=date(2026, 5, 18))
+        assert (result.businesses, result.raised) == (0, 0)
+        assert db_session.query(Alert).count() == 0
+        assert any("another sweep is running" in r.getMessage() for r in caplog.records)
+
+    def test_the_sole_sweep_still_raises(self, db_session, business):
+        from app.models.alert import Alert
+
+        result = alerting.sweep_filing_deadlines(db_session, today=date(2026, 5, 18))
+        assert result.raised >= 1
+        assert db_session.query(Alert).count() == result.raised
