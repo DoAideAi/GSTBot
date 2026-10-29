@@ -494,6 +494,7 @@ tell anybody. So the checks are the failures that are silent by construction:
 | Check | The failure it is for |
 |---|---|
 | the four running units are `active` | one exhausted `StartLimitBurst` and stopped being restarted |
+| no release has held `/run/lock/gstbot-deploy.lock` for over 30 minutes (a run during a shorter one stands down instead of reporting the restart) | a release hung partway, with services stopped or half-upgraded |
 | `gstbot-backup.timer` is `active` | it was never enabled, or was disabled and not put back |
 | a `*.dump` newer than 48 hours exists | dumps have been failing into a journal with no reader |
 | an `uploads-*` snapshot newer than 48 hours exists (when `UPLOAD_DIR` does) | the snapshot of uploaded invoices fails after the dump, so the dump alone stays fresh |

@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1761,6 +1762,94 @@ class TestTheMonitor:
         # into hand-written JSON turns the alert into a 400 from the receiving
         # end — a notification channel that breaks exactly when it is used.
         assert "json.dumps" in commands
+
+    class TestARunDuringAReleaseIsNotAnAlarm:
+        """P37 M15: the monitor reported a routine release as an outage.
+
+        It fires every fifteen minutes, and a release restarts every service. On
+        2026-10-29 at 18:31:27, three seconds after a release took its restore
+        point, the monitor reported gstbot-api and gstbot-worker "inactive" and
+        the API "not ready": a false alarm, sent wherever GSTBOT_ALERT_WEBHOOK
+        points, for a deploy that went on to succeed. A run that finds the
+        release lock held now stands down. One that finds it held for longer than
+        any release takes says so instead, because a hung release must not
+        silence the monitor. The lock is only tested, never kept, since deploy.sh
+        refuses to start while anyone holds it.
+        """
+
+        @pytest.fixture()
+        def box(self, tmp_path):
+            bin_dir = tmp_path / "bin"
+            bin_dir.mkdir()
+            # Mid-release: every unit is down and nothing answers.
+            (bin_dir / "systemctl").write_text("#!/bin/sh\necho inactive\n")
+            (bin_dir / "curl").write_text("#!/bin/sh\nexit 7\n")
+            for stub in bin_dir.iterdir():
+                stub.chmod(0o755)
+            backups = tmp_path / "backups"
+            backups.mkdir()
+            (backups / "gstbot-20261030T023000Z.dump").write_bytes(b"dump")
+            return SimpleNamespace(bin=bin_dir, backups=backups, lock=tmp_path / "deploy.lock")
+
+        def run(self, box) -> subprocess.CompletedProcess:
+            env = {
+                **os.environ,
+                "PATH": f"{box.bin}:{os.environ['PATH']}",
+                "GSTBOT_BACKUP_DIR": str(box.backups),
+                "GSTBOT_UPLOAD_DIR": str(box.backups / "no-uploads-here"),
+                "GSTBOT_MONITOR_MIN_FREE_MB": "0",
+                "GSTBOT_ALERT_WEBHOOK": "",
+                "GSTBOT_DEPLOY_LOCK": str(box.lock),
+            }
+            return subprocess.run(
+                ["bash", str(MONITOR_SCRIPT)], capture_output=True, text=True, env=env
+            )
+
+        @staticmethod
+        def problems(result) -> list[str]:
+            return [line for line in result.stderr.splitlines() if line.startswith("PROBLEM: ")]
+
+        @contextmanager
+        def releasing(self, box, *, started_minutes_ago: float = 1):
+            """Hold the release lock exactly as deploy.sh's ``flock -n 9`` does."""
+            import fcntl
+
+            box.lock.write_text("")
+            then = time.time() - started_minutes_ago * 60
+            os.utime(box.lock, (then, then))
+            with open(box.lock) as held:
+                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                yield
+
+        def test_a_run_during_a_release_stands_down(self, box):
+            with self.releasing(box):
+                result = self.run(box)
+            assert result.returncode == 0, result.stderr
+            assert self.problems(result) == []
+            assert "release is in progress" in result.stdout
+
+        def test_a_release_that_has_hung_is_itself_the_problem(self, box):
+            with self.releasing(box, started_minutes_ago=120):
+                result = self.run(box)
+            assert result.returncode != 0
+            problems = self.problems(result)
+            assert any("120 minutes" in p and str(box.lock) in p for p in problems), problems
+            # And the rest is still checked, since a hung release explains nothing.
+            assert any("gstbot-api.service" in p for p in problems), problems
+
+        def test_a_lock_file_nobody_holds_is_not_a_release(self, box):
+            box.lock.write_text("")
+            result = self.run(box)
+            assert any("gstbot-api.service" in p for p in self.problems(result))
+
+        def test_the_monitor_does_not_keep_the_lock(self, box):
+            # deploy.sh's `flock -n` refuses to start while anyone holds it.
+            import fcntl
+
+            box.lock.write_text("")
+            self.run(box)
+            with open(box.lock) as handle:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     class TestTheUploadedFilesAreWatchedLikeTheDumps:
         """P36 M7: a fresh dump hid uploaded files that had stopped being backed up.

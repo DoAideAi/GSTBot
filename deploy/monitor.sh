@@ -62,6 +62,10 @@ MAX_QUEUE_DEPTH="${GSTBOT_MONITOR_MAX_QUEUE_DEPTH:-100}"
 # with a failed unit behind it; set, the same summary reaches somewhere with a
 # person attached. See "Monitoring" in deploy/README.md.
 WEBHOOK="${GSTBOT_ALERT_WEBHOOK:-}"
+# The lock deploy.sh holds for the length of a release, and how long a release
+# may hold it before holding it is the problem.
+DEPLOY_LOCK="${GSTBOT_DEPLOY_LOCK:-/run/lock/gstbot-deploy.lock}"
+MAX_RELEASE_MINUTES="${GSTBOT_MONITOR_MAX_RELEASE_MINUTES:-30}"
 
 # The units that are supposed to be running right now. gstbot-migrate is not
 # here: it is a oneshot that stays active after exiting, so "active" says only
@@ -86,6 +90,41 @@ ok() { printf 'ok: %s\n' "$*"; }
 
 # Every check runs even after one has failed. Stopping at the first would
 # report a dead API and say nothing about the disk that caused it.
+
+# ---- A release in progress ------------------------------------------------
+# A release restarts every unit, and this timer fires every fifteen minutes. On
+# 2026-10-29 a run three seconds after a release's restore point reported the
+# API and worker "inactive" and the API "not ready", which was a false alarm for
+# a deploy that succeeded. So a run that finds the release lock held stands down.
+#
+# Tested, never kept: deploy.sh's `flock -n` refuses to start while anyone
+# holds the lock, so this takes a shared lock for an instant and lets it go. The
+# minutes come from the lock file's mtime, which deploy.sh's `exec 9>` resets
+# when a release starts. A release held past MAX_RELEASE_MINUTES is not stood
+# down for, because a hung release must not silence the monitor.
+release_minutes() {
+    python3 - "$DEPLOY_LOCK" <<'PY'
+import fcntl, os, sys, time
+try:
+    fd = os.open(sys.argv[1], os.O_RDONLY)
+except OSError:
+    sys.exit(0)
+try:
+    fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+except BlockingIOError:
+    print(int((time.time() - os.fstat(fd).st_mtime) // 60))
+else:
+    fcntl.flock(fd, fcntl.LOCK_UN)
+PY
+}
+release_age="$(release_minutes 2>/dev/null || true)"
+if [ -n "$release_age" ]; then
+    if [ "$release_age" -lt "$MAX_RELEASE_MINUTES" ]; then
+        echo "A release is in progress (it took $DEPLOY_LOCK ${release_age} min ago); not checking until it is over"
+        exit 0
+    fi
+    fail "a release has held $DEPLOY_LOCK for ${release_age} minutes, longer than any release takes; it may be hung (pgrep -af deploy.sh)"
+fi
 
 # ---- Units ----------------------------------------------------------------
 # `systemctl show` rather than `is-active`, because it distinguishes failed
