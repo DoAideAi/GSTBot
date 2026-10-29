@@ -1,7 +1,14 @@
 """Subscriber email capture and unsubscribe endpoints."""
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
+import pytest
+
+from app.models.subscriber import Subscriber
 from app.routers.misc import make_unsubscribe_token
+from app.schemas.misc import SubscriberRequest
 
 
 class TestSubscribe:
@@ -55,9 +62,21 @@ class TestSubscribe:
         r = client.post("/api/v1/subscribers", json={"email": "not-an-email"})
         assert r.status_code == 422
 
-    def test_invalid_source_is_rejected(self, client):
-        r = client.post("/api/v1/subscribers", json={"email": "s@x.com", "source": "evil"})
+    @pytest.mark.parametrize(
+        "source", ["<script>", "Has Space", "UPPER", "a" * 51, "-leading", "", "dot.ted"]
+    )
+    def test_a_source_that_is_not_a_short_slug_is_rejected(self, client, source):
+        r = client.post("/api/v1/subscribers", json={"email": "s@x.com", "source": source})
         assert r.status_code == 422
+
+    def test_a_tool_pages_own_source_is_accepted(self, client, db_session):
+        # It was an allow-list of four, and the tool pages send their own:
+        # every sign-up from the e-way bill page, the ITC calculators, the
+        # return calendar — 42 of the 46 forms — was refused with a 422.
+        r = client.post("/api/v1/subscribers", json={"email": "e@x.com", "source": "eway-bill"})
+        assert r.status_code in (200, 201), r.text
+        sub = db_session.query(Subscriber).filter_by(email="e@x.com").one()
+        assert sub.source == "eway-bill"
 
     def test_source_defaults_to_landing(self, client, db_session):
         client.post("/api/v1/subscribers", json={"email": "default@example.com"})
@@ -153,3 +172,22 @@ class TestLegacyReminderSubscribe:
         assert r.json()["subscribed"] is True
         from app.models.subscriber import Subscriber
         assert db_session.query(Subscriber).filter_by(email="legacy@example.com").count() == 1
+
+
+def test_every_source_the_site_sends_is_one_the_api_takes():
+    """Read off the frontend, so a page added with its own source cannot drift."""
+    src = Path(__file__).resolve().parents[2] / "frontend" / "src"
+    sources = {
+        m.group(1)
+        for path in src.rglob("*.jsx")
+        if ".test." not in path.name
+        for m in re.finditer(r'<EmailCapture\b[^>]*?\ssource="([^"]+)"', path.read_text(), re.S)
+    }
+    assert len(sources) > 30
+    refused = []
+    for source in sorted(sources):
+        try:
+            SubscriberRequest(email="x@example.com", source=source)
+        except ValueError:
+            refused.append(source)
+    assert refused == []

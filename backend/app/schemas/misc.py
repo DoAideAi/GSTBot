@@ -12,9 +12,16 @@ class ReminderSubscribeRequest(BaseModel):
 
 class SubscriberRequest(BaseModel):
     email: EmailStr
+    # Which page's form it came from: an attribution label, so its shape is
+    # checked rather than its value. It was an allow-list of four while the
+    # tool pages each send their own — "eway-bill", "itc-mismatch", forty-odd
+    # more — so 42 of the site's 46 reminder forms answered every sign-up with
+    # a 422 and stored nothing. A lowercase slug that fits the column (50);
+    # test_subscribers reads every source off the frontend and sends it here.
     source: str = Field(
         default="landing",
-        pattern=r"^(calculator|lookup|filing-dates|landing)$",
+        max_length=50,
+        pattern=r"^[a-z0-9][a-z0-9-]*$",
     )
 
 
