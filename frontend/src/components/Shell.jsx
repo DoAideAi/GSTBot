@@ -60,10 +60,21 @@ export default function Shell({ children }) {
     };
   }, [businessId]);
 
-  useEffect(() => fetchAlertCount(), [fetchAlertCount]);
-  // Re-fetch when navigating away from alerts (user may have dismissed some).
+  // On load, on a business switch, and on each move to another page — the
+  // user may have dismissed some on the alerts list — but not on arriving at
+  // that list, which loads its own. One effect: there were two, "on mount"
+  // and "whenever the path is not /alerts", and the second ran on mount too,
+  // so every page load asked GET /alerts twice for one number, and the second
+  // request's abort was dropped.
+  const lastPath = useRef(null);
   useEffect(() => {
-    if (location.pathname !== "/alerts") fetchAlertCount();
+    const arrivedAtAlerts =
+      location.pathname === "/alerts" &&
+      lastPath.current !== null &&
+      lastPath.current !== location.pathname;
+    lastPath.current = location.pathname;
+    if (arrivedAtAlerts) return undefined;
+    return fetchAlertCount();
   }, [location.pathname, fetchAlertCount]);
 
   // Eight links do not fit on a phone, so below 860px they collapse behind a

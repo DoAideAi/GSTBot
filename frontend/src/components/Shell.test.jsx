@@ -380,3 +380,60 @@ describe("Shell", () => {
     });
   });
 });
+
+describe("Shell asking for the open-alert count", () => {
+  // Two effects asked for it on mount — one "on mount", one "whenever the path
+  // is not /alerts", which also runs on mount — so every page load sent
+  // GET /alerts twice, four statements each, for one number.
+  beforeEach(() => {
+    localStorage.clear();
+    setToken("stored-token");
+    global.fetch = vi.fn(async (url) => {
+      const path = String(url);
+      if (path.includes("/auth/me")) {
+        return jsonResponse({ id: 1, email: "o@example.com", business: { id: 1 }, active_role: "owner" });
+      }
+      if (path.includes("/alerts")) return jsonResponse({ items: [], open_total: 2, total: 0 });
+      return jsonResponse({ tier: "free", status: "active" });
+    });
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const alertCalls = () => global.fetch.mock.calls.filter(([u]) => String(u).includes("/alerts")).length;
+
+  function renderAt(route) {
+    return render(
+      <MemoryRouter initialEntries={[route]}>
+        <AuthProvider>
+          <Routes>
+            <Route path="*" element={<Shell><p>Page body</p></Shell>} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  it("asks once when a page loads", async () => {
+    renderAt("/dashboard");
+    await waitFor(() => expect(alertCalls()).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(alertCalls()).toBe(1);
+  });
+
+  it("asks again on leaving a page, but not on arriving at the alerts list", async () => {
+    const user = userEvent.setup();
+    renderAt("/dashboard");
+    await waitFor(() => expect(alertCalls()).toBe(1));
+
+    await user.click(screen.getByRole("link", { name: "Invoices" }));
+    await waitFor(() => expect(alertCalls()).toBe(2));
+
+    await user.click(screen.getByRole("link", { name: /Alerts/ }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(alertCalls()).toBe(2);
+
+    await user.click(screen.getByRole("link", { name: "Invoices" }));
+    await waitFor(() => expect(alertCalls()).toBe(3));
+  });
+});
