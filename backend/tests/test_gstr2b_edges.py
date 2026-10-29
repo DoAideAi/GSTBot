@@ -633,22 +633,30 @@ class TestASectionThatIsNotAList:
     """
 
     @pytest.mark.parametrize("section", ["b2b", "b2ba", "cdnr", "cdnra"])
-    @pytest.mark.parametrize("value", [5, "abc", {"ctin": "x"}, None, 1.5])
-    def test_a_section_holding_something_other_than_a_list_is_not_read(
+    @pytest.mark.parametrize("value", [5, "abc", {"ctin": "x"}, 1.5])
+    def test_a_section_holding_something_other_than_a_list_is_refused_not_crashed_on(
         self, section, value
     ):
         payload = {"gstin": BUSINESS_GSTIN, "docdata": {section: value, "b2b": []}}
         payload["docdata"][section] = value
-        # No invoice can be read out of it, but it must not raise TypeError.
+        # Not a TypeError out of the middle of the read, and (P38 M1) not an
+        # empty statement either: with nothing else readable, a parse error.
+        with pytest.raises(GSTR2BParseError, match=section):
+            gstr2b.parse_json(payload)
+
+    @pytest.mark.parametrize("section", ["b2b", "b2ba", "cdnr", "cdnra"])
+    def test_a_section_holding_null_is_simply_empty(self, section):
+        payload = {"gstin": BUSINESS_GSTIN, "docdata": {section: None, "b2b": []}}
         assert gstr2b.parse_json(payload) == []
 
     @pytest.mark.parametrize("value", [3, "abc", 2.5])
-    def test_a_supplier_whose_documents_are_not_a_list_is_skipped(self, value):
+    def test_a_file_whose_only_supplier_has_no_document_list_is_refused(self, value):
         payload = {
             "gstin": BUSINESS_GSTIN,
             "docdata": {"b2b": [{"ctin": SUPPLIER_GSTIN_SAME_STATE, "inv": value}]},
         }
-        assert gstr2b.parse_json(payload) == []
+        with pytest.raises(GSTR2BParseError, match="inv"):
+            gstr2b.parse_json(payload)
 
     def test_one_malformed_supplier_does_not_cost_the_others_their_invoices(self):
         # The point of skipping rather than refusing: a file with one bad
@@ -836,3 +844,36 @@ class TestAnAmountThePortalWouldNeverWriteRefusesTheStatement:
     def test_an_amount_written_as_a_string_is_still_read(self):
         (record,) = parse_json(self._with_item(txval="1000.50"))
         assert record.taxable_value == Decimal("1000.50")
+
+
+class TestAWhollyMalformedFileDoesNotReplaceTheStatement:
+    """P38 M1: a file with nothing readable in it was imported as an empty 2B.
+
+    A section or document list that is not a list is skipped, so one bad
+    block costs only itself (``TestASectionThatIsNotAList``). When the bad
+    blocks were all there was, the skip left no records, and the file was
+    stored as a statement with no invoices: "imported, 0 invoices". It
+    superseded the real 2B for the period, and the next reconciliation marked
+    every purchase missing and every rupee of its credit at risk. A real nil
+    2B is told apart by the portal's period stamp and has nothing malformed in
+    it. A file that only had malformed blocks is refused, and the statement in
+    force stays in force.
+    """
+
+    def test_it_is_refused_and_the_statement_in_force_stays(self, auth_client, paid_business):
+        assert upload_2b(auth_client).status_code == 201
+        before = auth_client.get("/api/v1/reconciliation/gstr2b/periods").json()
+
+        broken = {"gstin": BUSINESS_GSTIN, "rtnprd": "042026", "docdata": {"b2b": "x"}}
+        response = upload_2b(auth_client, content=json.dumps(broken).encode())
+
+        assert response.status_code == 422
+        assert "b2b" in response.json()["detail"]
+        assert auth_client.get("/api/v1/reconciliation/gstr2b/periods").json() == before
+
+    def test_a_real_nil_statement_still_imports(self, auth_client, paid_business):
+        nil = {"gstin": BUSINESS_GSTIN, "rtnprd": "042026", "docdata": {"b2b": []}}
+        response = upload_2b(auth_client, content=json.dumps(nil).encode())
+        assert response.status_code == 201
+        assert response.json()["invoice_count"] == 0
+

@@ -589,6 +589,11 @@ def parse_json(payload: dict | str | bytes) -> list[GSTR2BRecord]:
     docdata = _unwrap_docdata(payload)
     fallback_period = _statement_period(payload)
     records: list[GSTR2BRecord] = []
+    # Blocks skipped for not being lists. One bad block costs only itself, but
+    # a file that had nothing else is not an empty statement: stored as one, it
+    # superseded the real 2B, and the next reconciliation put every purchase's
+    # credit at risk.
+    malformed: list[str] = []
 
     for section in _INVOICE_SECTIONS + _NOTE_SECTIONS:
         is_note = section in _NOTE_SECTIONS
@@ -599,10 +604,17 @@ def parse_json(payload: dict | str | bytes) -> list[GSTR2BRecord]:
         # 500 with a correlation id instead of the 400 that names the problem.
         # Anything that is not a list of objects carries no invoice to read, so
         # it is skipped and the rest of the file is still imported.
-        for supplier in _as_list(docdata.get(section)):
+        listed = docdata.get(section)
+        if listed is not None and not isinstance(listed, list):
+            malformed.append(f"'{section}'")
+        for supplier in _as_list(listed):
             if not isinstance(supplier, dict):
                 continue
-            documents = _as_list(supplier.get("inv") or supplier.get("nt"))
+            held = supplier.get("inv") or supplier.get("nt")
+            if held is not None and not isinstance(held, list):
+                key = "inv" if supplier.get("inv") else "nt"
+                malformed.append(f"'{key}' under a '{section}' supplier")
+            documents = _as_list(held)
             for document in documents:
                 if not isinstance(document, dict):
                     continue
@@ -611,6 +623,14 @@ def parse_json(payload: dict | str | bytes) -> list[GSTR2BRecord]:
                         document, supplier, is_note=is_note, fallback_period=fallback_period
                     )
                 )
+    if malformed and not records:
+        raise GSTR2BParseError(
+            "Nothing in this file could be read as a GSTR-2B: "
+            + ", ".join(dict.fromkeys(malformed))
+            + " should be a list of entries and is not. The file may have been edited "
+            "or cut short; download it from the GST portal again. The statement already "
+            "imported for this period is unchanged."
+        )
     return records
 
 
