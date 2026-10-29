@@ -828,6 +828,32 @@ def update_invoice(
                 },
             )
 
+    # This business's own sales number, once a financial year (Rule 46): the
+    # index above cannot see a clash with a sale to an unregistered buyer, or
+    # with one billed to a different GSTIN. See ``sales_number_clash``.
+    if invoice.invoice_type == InvoiceType.SALES and (
+        "invoice_number" in changes or "invoice_date" in changes
+    ):
+        number = changes.get("invoice_number", invoice.invoice_number)
+        taken = invoice_service.sales_number_clash(
+            db,
+            business.id,
+            number,
+            changes.get("invoice_date", invoice.invoice_date),
+            excluding_id=invoice.id,
+        )
+        if taken is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": (
+                        f"Sales invoice {number} is already on file this financial "
+                        f"year as invoice {taken.id}."
+                    ),
+                    "invoice_id": taken.id,
+                },
+            )
+
     for attr, value in changes.items():
         setattr(invoice, attr, value)
 

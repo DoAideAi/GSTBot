@@ -12,7 +12,7 @@ import time
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -27,10 +27,12 @@ from app.core.sanitize import clean_text, safe_extension, strip_control_chars, w
 from app.models.business import Business
 from app.models.invoice import (
     UNCOUNTABLE_STATUSES,
+    UNREADABLE_STATUSES,
     Invoice,
     InvoiceSource,
     InvoiceStatus,
     InvoiceType,
+    without_document,
 )
 from app.models.subscription import Subscription, SubscriptionTier
 from app.models.supplier import Supplier
@@ -699,6 +701,12 @@ def process_invoice(
             return invoice
         apply_parsed(db, invoice, parsed, business_gstin=business_gstin)
         number, counterparty = invoice.invoice_number, invoice.counterparty_gstin
+        if invoice.invoice_type == InvoiceType.SALES:
+            clash = sales_number_clash(
+                db, business_id, number, invoice.invoice_date, excluding_id=invoice.id
+            )
+            if clash is not None:
+                raise SalesNumberTaken(clash)
         db.commit()
         # The success line. Until this existed a parse that worked left no
         # trace at all — the task's return value goes to a result backend
@@ -714,6 +722,17 @@ def process_invoice(
         metrics.count("invoice_parsed")
         if (invoice.parsed_with or "").endswith("heuristic"):
             metrics.count("invoice_parsed_heuristic")
+    except SalesNumberTaken as exc:
+        # This business's own invoice number, already used by another sale
+        # this financial year: the same sale scanned twice. Handled as the
+        # indexed duplicate below is, with the clash already in hand.
+        db.rollback()
+        _record_failure(db, invoice.id, _duplicate_message(number, exc.existing))
+        logger.info(
+            "Invoice %s repeats sales invoice %s", invoice.id, exc.existing.id,
+            extra=_parse_outcome(invoice, business_id, started, duplicate_of=exc.existing),
+        )
+        metrics.count("invoice_duplicate")
     except IntegrityError:
         # The same invoice number from the same counterparty is already on
         # file. Only discoverable here: the number is not known until the
@@ -827,6 +846,53 @@ def _parse_outcome(
     if duplicate_of is not None:
         fields["duplicate_of"] = duplicate_of.id
     return fields
+
+
+class SalesNumberTaken(Exception):
+    """A sales invoice number already used by another sale this financial year."""
+
+    def __init__(self, existing: Invoice) -> None:
+        super().__init__(existing.invoice_number)
+        self.existing = existing
+
+
+def sales_number_clash(
+    db: Session,
+    business_id: int,
+    invoice_number: str | None,
+    invoice_date: date | None,
+    *,
+    excluding_id: int | None,
+) -> Invoice | None:
+    """Another live sale this financial year with the same invoice number.
+
+    Rule 46 makes a supplier's invoice number unique within a financial year,
+    so for a *sale* — this business's own number — a repeat is the same
+    invoice twice. The unique index on (business, type, counterparty GSTIN,
+    number) could not say so: NULLs never collide in a unique index, so a sale
+    to an unregistered buyer (B2C, no GSTIN) scanned twice parsed twice and
+    GSTR-1 declared it twice, and the same number billed to a different buyer
+    GSTIN slipped past it the same way. Scoped to the financial year because
+    numbering commonly restarts each April. Purchases are not checked: two
+    unregistered suppliers may both send "1", and nothing tells them apart.
+    """
+    number = (invoice_number or "").strip()
+    if not number or invoice_date is None:
+        return None
+    year_end = gst_calendar.financial_year_end(invoice_date)
+    year_start = date(year_end.year - 1, gst_calendar.FY_START_MONTH, 1)
+    query = select(Invoice).where(
+        Invoice.business_id == business_id,
+        Invoice.invoice_type == InvoiceType.SALES,
+        Invoice.deleted_at.is_(None),
+        Invoice.invoice_number == number,
+        Invoice.invoice_date.between(year_start, year_end),
+        # A row whose figures were never read is not a sale on file.
+        Invoice.status.not_in(UNREADABLE_STATUSES),
+    )
+    if excluding_id is not None:
+        query = query.where(Invoice.id != excluding_id)
+    return db.scalar(query.options(*without_document()).order_by(Invoice.id).limit(1))
 
 
 def _duplicate_message(number: str | None, existing: Invoice | None) -> str:

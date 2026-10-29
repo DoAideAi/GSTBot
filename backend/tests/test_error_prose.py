@@ -211,6 +211,9 @@ INTERNAL_ONLY = {
     # One tenant's SMTP failing must not end the digest for the rest, so this
     # is caught inside the task loop and never reaches a response.
     "EmailSendError": "logged inside the digest task",
+    # Caught inside process_invoice, which writes its own sentence naming the
+    # sale already on file; the exception's text never reaches a response.
+    "SalesNumberTaken": "caught in process_invoice; the row's parse_error is written separately",
     # The upload volume's own error (full, read-only, gone) is for the
     # operator; the caller gets the route's retryable 503 in its own words.
     "UploadNotStored": "503 from upload, worded by the route, not by the exception",
