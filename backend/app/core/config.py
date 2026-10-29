@@ -167,7 +167,10 @@ class Settings(BaseSettings):
     openrouter_model: str = "openai/gpt-oss-20b:free"
     # Vision extraction: a photographed or scanned invoice, sent as an image.
     openrouter_vision_model: str = "qwen/qwen2.5-vl-72b-instruct:free"
-    openrouter_app_url: str = "https://gst.doaide.com"
+    # The site OpenRouter attributes calls to. Empty means PUBLIC_SITE_URL: as
+    # a literal of its own, a staging box that set only PUBLIC_SITE_URL still
+    # reported production here (see ``_derived_defaults``).
+    openrouter_app_url: str = ""
     openrouter_app_title: str = "DoAide GST"
     openrouter_timeout_seconds: float = 90.0
     # Total tries, not retries: 1 disables retrying entirely. Only transient
@@ -362,6 +365,13 @@ class Settings(BaseSettings):
 
         parse_rate(v)  # Raises ValueError with a usable message.
         return v
+
+    @model_validator(mode="after")
+    def _derived_defaults(self) -> Settings:
+        """Settings whose default is another setting, filled once both are read."""
+        if not self.openrouter_app_url.strip():
+            self.openrouter_app_url = self.public_site_url
+        return self
 
     @model_validator(mode="after")
     def _production_invariants(self) -> Settings:

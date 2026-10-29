@@ -450,3 +450,23 @@ class TestThePublicSiteUrlIsOneSetting:
             if "gst.doaide.com" in line and '.replace("https://gst.doaide.com"' not in line
         ]
         assert offenders == []
+
+
+class TestTheOpenRouterSiteFollowsThePublicOne:
+    """P19 M15: OPENROUTER_APP_URL had its own literal production default, so a
+    staging box that set PUBLIC_SITE_URL still told OpenRouter it was
+    production."""
+
+    def test_unset_it_is_the_public_site(self):
+        settings = Settings(public_site_url="https://staging.example.com", openrouter_app_url="")
+        assert settings.openrouter_app_url == "https://staging.example.com"
+
+    def test_set_it_wins(self):
+        settings = Settings(
+            public_site_url="https://staging.example.com",
+            openrouter_app_url="https://ranking.example.com",
+        )
+        assert settings.openrouter_app_url == "https://ranking.example.com"
+
+    def test_the_default_deployment_is_unchanged(self):
+        assert Settings(openrouter_app_url="").openrouter_app_url == "https://gst.doaide.com"
