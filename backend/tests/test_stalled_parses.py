@@ -385,7 +385,7 @@ class TestTheScheduledTask:
         closed: list[bool] = []
         monkeypatch.setattr(invoice_tasks, "SessionLocal", _Handle)
 
-        assert invoice_tasks.reap_stalled_parses_task() == {"reaped": 1}
+        assert invoice_tasks.reap_stalled_parses_task() == {"reaped": 1, "requeued": 0}
         # A leaked connection in a long-lived worker never comes back.
         assert closed == [True]
 
@@ -553,3 +553,48 @@ class TestTheSweepsRegistration:
         assert registered.max_retries == 2
         assert registered.default_retry_delay == 300
         assert registered.max_retries * registered.default_retry_delay < 3600
+
+
+class TestAnUploadWhoseParseWasLost:
+    """P18 M3: ``uploaded`` had no way out but the parse task. The broker is
+    Redis with snapshots and no append-only log, so a restart loses whatever was
+    queued since the last snapshot, and those rows stayed ``uploaded`` forever —
+    unreadable, so silently out of every return and the credit pool, with no
+    message. The hourly sweep now queues them again."""
+
+    def test_only_an_old_uploaded_row_is_lost(self, db_session, business):
+        old = _invoice(db_session, business, status=InvoiceStatus.UPLOADED, age_seconds=7200)
+        _invoice(db_session, business, status=InvoiceStatus.UPLOADED, age_seconds=60)
+        _invoice(db_session, business, status=InvoiceStatus.PROCESSING, age_seconds=7200)
+        _invoice(
+            db_session,
+            business,
+            status=InvoiceStatus.UPLOADED,
+            age_seconds=7200,
+            deleted_at=datetime.now(UTC),
+        )
+        assert invoice_service.lost_uploads(db_session) == [old.id]
+
+    def test_the_sweep_queues_them_again(self, db_session, business, monkeypatch):
+        from app.tasks import invoice_tasks
+
+        lost = _invoice(db_session, business, status=InvoiceStatus.UPLOADED, age_seconds=7200)
+
+        class _Handle:
+            def __getattr__(self, name):
+                return getattr(db_session, name)
+
+            def close(self):
+                pass
+
+        queued: list[int] = []
+        monkeypatch.setattr(invoice_tasks, "SessionLocal", _Handle)
+        monkeypatch.setattr(
+            invoice_tasks.parse_invoice_task, "delay", lambda invoice_id: queued.append(invoice_id)
+        )
+
+        assert invoice_tasks.reap_stalled_parses_task() == {"reaped": 0, "requeued": 1}
+        assert queued == [lost.id]
+        # Queued, not failed: the file is fine and the parse never ran.
+        db_session.refresh(lost)
+        assert lost.status is InvoiceStatus.UPLOADED

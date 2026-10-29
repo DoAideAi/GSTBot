@@ -933,6 +933,39 @@ def reap_stalled_parses(
     return len(stalled_ids)
 
 
+def lost_uploads(
+    db: Session, *, now: datetime | None = None, stall_seconds: int | None = None
+) -> list[int]:
+    """Invoices still ``uploaded`` long after their parse should have started.
+
+    The sibling of :func:`reap_stalled_parses`, for the other way a row strands.
+    An upload commits ``uploaded`` and hands a task to the broker; a parse that
+    is retried puts the row back to ``uploaded`` and hands over another. The
+    broker is Redis with snapshotting and no append-only log, so a restart loses
+    whatever was queued since the last snapshot — and nothing ever moved those
+    rows again. ``uploaded`` is unreadable, so each one silently dropped out of
+    the register's returns and credit, with no message to tell its owner.
+
+    Returned for the caller to queue again, not failed: the file is fine and the
+    parse never ran. Queueing one that is in fact still waiting costs nothing —
+    the task claims ``uploaded`` -> ``processing`` conditionally, so the second
+    copy finds nothing to do.
+    """
+    now = now or datetime.now(UTC)
+    seconds = (
+        settings.invoice_parse_stall_seconds if stall_seconds is None else stall_seconds
+    )
+    return list(
+        db.scalars(
+            select(Invoice.id).where(
+                Invoice.status == InvoiceStatus.UPLOADED,
+                Invoice.deleted_at.is_(None),
+                Invoice.updated_at < now - timedelta(seconds=seconds),
+            )
+        ).all()
+    )
+
+
 def tax_summary(
     db: Session, business_id: int, period: str | None = None
 ) -> dict[str, dict[str, int | Decimal]]:

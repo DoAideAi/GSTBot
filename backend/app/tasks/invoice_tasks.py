@@ -160,8 +160,17 @@ def reap_stalled_parses_task(self) -> dict:
     db = SessionLocal()
     try:
         reaped = invoice_service.reap_stalled_parses(db)
+        # Rows whose queued parse was lost with the broker: queue them again.
+        lost = invoice_service.lost_uploads(db)
+        for invoice_id in lost:
+            parse_invoice_task.delay(invoice_id)
+        if lost:
+            logger.warning(
+                "Requeued uploads whose parse was never run",
+                extra={"count": len(lost), "invoice_ids": lost},
+            )
         job_health.record_heartbeat("stalled-parse-sweep")
-        return {"reaped": reaped}
+        return {"reaped": reaped, "requeued": len(lost)}
     except Exception as exc:  # noqa: BLE001 - retried, then surfaced
         logger.exception(
             "reap_stalled_parses_task failed",
