@@ -47,6 +47,15 @@ READY_URL="${GSTBOT_MONITOR_READY_URL:-http://172.18.0.1:3008/api/v1/health/read
 # TLS and a Caddy container that belongs to another product. /health/live
 # rather than /health/ready, so a degraded dependency is not reported twice.
 PUBLIC_URL="${GSTBOT_MONITOR_PUBLIC_URL:-https://gst.doaide.com/api/v1/health/live}"
+# Running is not working. A worker can be active while it no longer takes
+# tasks, the scheduler active while the deadline sweep stopped firing, Redis
+# gone while the API answers ready: all of it passed every check above, since
+# both endpoints answer 200 while degraded. Their bodies say what is wrong, and
+# monitor_health.py turns them into one problem per line.
+JOBS_URL="${GSTBOT_MONITOR_JOBS_URL:-http://172.18.0.1:3008/api/v1/health/jobs}"
+HEALTH_URL="${GSTBOT_MONITOR_HEALTH_URL:-http://172.18.0.1:3008/api/v1/health}"
+# Tasks waiting before a backlog is reported. A busy hour is a few dozen.
+MAX_QUEUE_DEPTH="${GSTBOT_MONITOR_MAX_QUEUE_DEPTH:-100}"
 # Optional. Unset, everything below still runs and still lands in the journal
 # with a failed unit behind it; set, the same summary reaches somewhere with a
 # person attached. See "Monitoring" in deploy/README.md.
@@ -146,6 +155,23 @@ else
 fi
 
 # ---- Report ---------------------------------------------------------------
+# Read as well as fetched. A body that does not come back is already reported
+# by the readiness check above, so only what the body says is added here.
+HEALTH_HELPER="$(dirname "$(readlink -f "$0")")/monitor_health.py"
+for kind in jobs health; do
+    if [ "$kind" = jobs ]; then url="$JOBS_URL"; else url="$HEALTH_URL"; fi
+    body="$(curl -sS --max-time 10 "$url" 2>/dev/null || true)"
+    [ -n "$body" ] || continue
+    found="$(printf '%s' "$body" | python3 "$HEALTH_HELPER" "$kind" "$MAX_QUEUE_DEPTH" || true)"
+    if [ -z "$found" ]; then
+        ok "$kind health reports nothing wrong"
+    else
+        while IFS= read -r line; do
+            [ -n "$line" ] && fail "$line"
+        done <<< "$found"
+    fi
+done
+
 if [ "${#problems[@]}" -eq 0 ]; then
     echo "All checks passed"
     exit 0

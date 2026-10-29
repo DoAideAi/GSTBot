@@ -2046,3 +2046,79 @@ class TestTheVirtualenvIsWhatTheLockSays:
         prune = self.SCRIPT.index('deploy/lock_extras.py" "$LOCKFILE"')
         uninstall = self.SCRIPT.index('pip" uninstall --quiet --yes $stale')
         assert install < prune < uninstall < self.SCRIPT.index('log "Building the frontend"')
+
+
+class TestTheMonitorReadsWhatTheHealthEndpointsSay:
+    """P24 M8: the monitor checked that units were active and that /health/ready
+    answered, but both health endpoints answer 200 while degraded. A worker
+    that stopped taking tasks, a scheduler whose deadline sweep stopped firing,
+    or Redis going away passed every check."""
+
+    SCRIPT = MONITOR_SCRIPT.read_text()
+
+    @pytest.fixture()
+    def health(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "monitor_health", DEPLOY / "monitor_health.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    HEALTHY_JOBS = {
+        "health": "ok",
+        "celery_enabled": True,
+        "workers": {"reachable": True, "names": ["celery@box"]},
+        "queue": {"name": "celery", "reachable": True, "depth": 0},
+        "jobs": [
+            {"name": "filing-deadline-sweep", "last_run": "2026-10-29T01:30:00Z", "stale": False}
+        ],
+    }
+
+    def test_healthy_jobs_report_nothing(self, health):
+        assert health.job_problems(self.HEALTHY_JOBS, 100) == []
+
+    @pytest.mark.parametrize(
+        ("change", "expected"),
+        [
+            ({"workers": {"reachable": False}}, "no Celery worker answers"),
+            ({"queue": {"reachable": False, "depth": None}}, "task queue cannot be read"),
+            ({"queue": {"reachable": True, "depth": 250}}, "250 tasks are waiting"),
+            (
+                {"jobs": [{"name": "filing-deadline-sweep", "last_run": None, "stale": True}]},
+                "filing-deadline-sweep has not run on time (last run never)",
+            ),
+            ({"health": "degraded"}, "background jobs report 'degraded'"),
+        ],
+    )
+    def test_each_way_jobs_go_wrong_is_named(self, health, change, expected):
+        doc = {**self.HEALTHY_JOBS, **change, "health": change.get("health", "degraded")}
+        problems = health.job_problems(doc, 100)
+        assert any(expected in p for p in problems), problems
+
+    def test_a_worker_is_not_expected_when_celery_is_off(self, health):
+        doc = {**self.HEALTHY_JOBS, "celery_enabled": False, "workers": {"reachable": False}}
+        assert health.job_problems(doc, 100) == []
+
+    def test_a_core_dependency_down_is_named_and_an_optional_one_is_not(self, health):
+        doc = {"status": "ok", "checks": {
+            "database": {"status": "ok"},
+            "redis": {"status": "unavailable"},
+            "storage": {"status": "ok"},
+            "ai": {"status": "unconfigured"},
+        }}
+        assert health.health_problems(doc) == ["redis is unavailable according to /health"]
+
+    def test_a_body_that_is_not_json_is_a_problem_not_a_crash(self, health):
+        assert health.main(["x", "jobs"], "<html>502</html>")
+        assert health.main(["x", "health"], "")
+
+    def test_the_script_reads_both_endpoints_and_records_what_they_say(self):
+        assert "api/v1/health/jobs" in self.SCRIPT and "api/v1/health}" in self.SCRIPT
+        assert 'python3 "$HEALTH_HELPER" "$kind" "$MAX_QUEUE_DEPTH"' in self.SCRIPT
+        assert '[ -n "$line" ] && fail "$line"' in self.SCRIPT
+        # Recorded before the verdict, so a problem here fails the unit and
+        # reaches the webhook like any other.
+        assert self.SCRIPT.index('fail "$line"') < self.SCRIPT.index('echo "All checks passed"')
