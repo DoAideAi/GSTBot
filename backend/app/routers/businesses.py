@@ -252,6 +252,16 @@ def link_business(
     )
     db.add(membership)
     db.commit()
+    # An access grant, and the only trace of whose: the access line is
+    # ``POST /businesses/mine/link`` and the business is in the body.
+    logger.info(
+        "Business linked",
+        extra={
+            "user_id": current_user.id,
+            "linked_business_id": other.business_id,
+            "role": role.value,
+        },
+    )
 
     # ``target`` again rather than a second ``db.get``: the commit expired it,
     # so reading it here reloads the row exactly once either way, and one name
@@ -293,6 +303,10 @@ def unlink_business(
         )
     membership.soft_delete()
     db.commit()
+    logger.info(
+        "Business unlinked",
+        extra={"user_id": current_user.id, "linked_business_id": business_id},
+    )
 
 
 @router.get(

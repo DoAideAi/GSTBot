@@ -697,3 +697,23 @@ class TestTheThreeSurfacesAgreeOnReachability:
                 f"{linked.status_code} but listing "
                 f"{'shows' if linked_id in listed else 'hides'} it"
             )
+
+
+class TestAccessChangesLeaveATrace:
+    """P19 M11: linking another business is an access grant, and its access
+    line (``POST /businesses/mine/link``) cannot say whose — the business is in
+    the body. Nothing else recorded it, nor the unlink."""
+
+    def test_a_link_and_an_unlink_are_logged_with_the_business(self, auth_client, caplog):
+        second = register_second_business(auth_client)
+        response = link(auth_client)
+        assert response.status_code in (200, 201), response.text
+        linked_id = second["business"]["id"]
+
+        (line,) = [r for r in caplog.records if r.getMessage() == "Business linked"]
+        assert line.linked_business_id == linked_id
+        assert line.role == "owner"
+
+        assert auth_client.delete(f"/api/v1/businesses/mine/{linked_id}").status_code == 204
+        (gone,) = [r for r in caplog.records if r.getMessage() == "Business unlinked"]
+        assert gone.linked_business_id == linked_id

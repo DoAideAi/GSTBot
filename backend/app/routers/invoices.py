@@ -923,3 +923,16 @@ def delete_invoice(
     invoice = _owned_invoice(db, business, invoice_id)
     invoice.soft_delete()
     db.commit()
+    # The edit route leaves an audit line; removing an invoice from the books
+    # is the larger change and left none. Period and type say which return it
+    # just left.
+    logger.info(
+        "Invoice deleted",
+        extra={
+            "business_id": business.id,
+            "invoice_id": invoice.id,
+            "invoice_type": invoice.invoice_type.value,
+            "period": invoice.period,
+            "status": invoice.status.value,
+        },
+    )

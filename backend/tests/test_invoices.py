@@ -2206,3 +2206,13 @@ class TestAPasswordProtectedPdf:
         invoice = db_session.get(Invoice, response.json()["invoice"]["id"])
         assert "LOCK-1" in (invoice.raw_text or "")
         assert not any("password" in w for w in invoice.extraction["warnings"])
+
+
+def test_a_deleted_invoice_leaves_an_audit_line(auth_client, sample_invoice_text, caplog):
+    # P19 M11: an edit logged what was touched; removing the invoice from the
+    # books — the larger change — logged nothing.
+    invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+    assert auth_client.delete(f"/api/v1/invoices/{invoice_id}").status_code == 204
+    (line,) = [r for r in caplog.records if r.getMessage() == "Invoice deleted"]
+    assert line.invoice_id == invoice_id
+    assert line.invoice_type == "purchase"
