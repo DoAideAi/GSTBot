@@ -32,6 +32,32 @@ describe("LoginPage", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
+  describe("coming back from a failed single sign-on", () => {
+    // The callbacks send /login?error=<code>; nothing read it, so a cancelled
+    // or failed Google sign-in landed on a blank form.
+    function renderAt(url) {
+      return render(
+        <MemoryRouter initialEntries={[url]}>
+          <AuthProvider>
+            <LoginPage />
+          </AuthProvider>
+        </MemoryRouter>,
+      );
+    }
+
+    it("says what happened, and opens on sign in", async () => {
+      renderAt("/login?error=google_auth_failed");
+      expect(await screen.findByText(/Signing in with Google did not complete/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    });
+
+    it("shows nothing without an error", async () => {
+      renderAt("/login");
+      await screen.findByRole("button", { name: "Create account" });
+      expect(screen.queryByText(/did not complete/)).not.toBeInTheDocument();
+    });
+  });
+
   it("signs in and stores the session", async () => {
     const user = userEvent.setup();
     global.fetch

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ErrorBanner from "./ErrorBanner";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
@@ -15,10 +15,48 @@ const EMPTY = {
   full_name: "",
 };
 
+const PROVIDER_NAMES = { google: "Google", github: "GitHub", microsoft: "Microsoft" };
+
+/**
+ * What a failed single sign-on comes back to /login saying.
+ *
+ * The OAuth callbacks send every failure to `/login?error=<code>`, and
+ * nothing read it: cancelling at Google, a provider that could not be
+ * reached, an account refused for an unverified email, all landed on a blank
+ * form, as though the button had done nothing.
+ */
+export function ssoErrorMessage(code) {
+  if (!code) return "";
+  const provider = PROVIDER_NAMES[code.replace(/_auth_failed$/, "")];
+  if (provider) {
+    return (
+      `Signing in with ${provider} did not complete — it was cancelled, or ${provider} ` +
+      "could not be reached. Try again, or sign in with your email and password."
+    );
+  }
+  if (code === "no_email") {
+    return (
+      "That account did not share an email address with us, so we cannot sign you in " +
+      "with it. Use an account with a verified email, or sign in with your email and password."
+    );
+  }
+  if (code === "account_deactivated") {
+    return (
+      "That account could not be signed in this way. If you already have a DoAide GST " +
+      "account with this email, sign in with your email and password; if it has been " +
+      "deactivated, contact support."
+    );
+  }
+  return "Single sign-on did not complete. Try again, or sign in with your email and password.";
+}
+
 export default function AuthForm() {
-  const [mode, setMode] = useState("register");
+  const { search } = useLocation();
+  const [ssoError] = useState(() => ssoErrorMessage(new URLSearchParams(search).get("error")));
+  // Someone coming back from a failed SSO attempt was signing in, not signing up.
+  const [mode, setMode] = useState(ssoError ? "login" : "register");
   const [form, setForm] = useState(EMPTY);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(ssoError);
   const [busy, setBusy] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [gstinCheck, setGstinCheck] = useState(null);
