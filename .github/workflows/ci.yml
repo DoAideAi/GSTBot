@@ -288,14 +288,19 @@ jobs:
           sudo mkdir -p /opt/GSTBot
           sudo cp -R . /opt/GSTBot/
 
-          # Everything else ExecStart= names: the virtualenv that is built at
-          # release time, and node from a distribution this runner is not.
+          # Everything else an Exec*= line names: the virtualenv that is built
+          # at release time, and node from a distribution this runner is not.
+          # Every Exec line, not only ExecStart=: gstbot-migrate's
+          # ExecCondition= runs .venv/bin/python, which no ExecStart= names,
+          # and verify refused the unit for it.
           for unit in deploy/systemd/*.service; do
-            binary="$(sed -n 's/^ExecStart=[-@+!]*\([^ \\]*\).*/\1/p' "$unit" | head -1)"
-            [ -n "$binary" ] || { echo "no ExecStart= in $unit"; exit 1; }
-            [ -x "$binary" ] && continue
-            sudo install -d "$(dirname "$binary")"
-            sudo install -m 0755 /dev/null "$binary"
+            grep -q '^ExecStart=' "$unit" || { echo "no ExecStart= in $unit"; exit 1; }
+            for binary in $(sed -n 's/^Exec[A-Za-z]*=[-@+!:|]*\([^ \\]*\).*/\1/p' "$unit"); do
+              case "$binary" in /*) ;; *) continue ;; esac
+              [ -x "$binary" ] && continue
+              sudo install -d "$(dirname "$binary")"
+              sudo install -m 0755 /dev/null "$binary"
+            done
           done
 
           systemd-analyze verify deploy/systemd/gstbot.target deploy/systemd/*.service deploy/systemd/*.timer

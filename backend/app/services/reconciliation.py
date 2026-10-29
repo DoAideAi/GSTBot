@@ -46,6 +46,7 @@ from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.errors import public_reason
+from app.core.sanitize import escape_like
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
 from app.models.invoice import (
     UNREADABLE_STATUSES,
@@ -955,12 +956,15 @@ def _forget_absent_suppliers(
     # One statement whatever the tenant's size, narrowed in the database to
     # rows whose stored history names the period at all. The match is on the
     # JSON text, so it can over-select — the loop below decides — but never
-    # under-select, and a period is ``YYYY-MM``, which holds no LIKE wildcard.
+    # under-select. A period is ``YYYY-MM`` and holds no LIKE wildcard, but it is
+    # escaped anyway, as every LIKE here is (see ``test_sanitize``).
     rows = db.scalars(
         select(Supplier).where(
             Supplier.business_id == business_id,
             Supplier.deleted_at.is_(None),
-            cast(Supplier.filing_history, String).like(f'%"{period}"%'),
+            cast(Supplier.filing_history, String).like(
+                f'%"{escape_like(period)}"%', escape="\\"
+            ),
         )
     ).all()
     for supplier in rows:
