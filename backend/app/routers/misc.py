@@ -100,6 +100,35 @@ def _timed(check) -> tuple[bool, float, str | None]:
     return ok, round((time.perf_counter() - started) * 1000, 2), error
 
 
+def _integrations() -> dict[str, dict[str, Any]]:
+    """Which optional integrations this deployment has, and what each one drives."""
+    from app.routers.advisor import _get_api_key
+    from app.services import razorpay_client
+
+    email_ready = bool(settings.alerts_email_enabled and settings.smtp_host)
+    return {
+        "advisor": {
+            "status": "configured" if _get_api_key() else "unconfigured",
+            "required_for": ["GST advisor chat"],
+        },
+        "payments": {
+            "status": "configured" if razorpay_client.is_configured() else "unconfigured",
+            "webhooks": bool(settings.razorpay_webhook_secret),
+            "required_for": ["paid plans", "report purchases"],
+        },
+        "email": {
+            "status": (
+                "configured"
+                if email_ready
+                else "misconfigured"
+                if settings.alerts_email_enabled
+                else "disabled"
+            ),
+            "required_for": ["deadline alert emails"],
+        },
+    }
+
+
 @router.get(
     "/health",
     summary="Full health report",
@@ -155,6 +184,11 @@ def health(response: Response, db: Session = Depends(get_db)) -> dict[str, Any]:
             "path": settings.upload_dir,
             "required_for": ["invoice uploads"],
         },
+        # Optional features, reported so a missing key is visible here rather
+        # than as a 503 to whoever next uses the feature. Booleans only — no
+        # key, host or account ever appears. They do not move ``health``: each
+        # one switched off is a supported configuration.
+        "integrations": _integrations(),
     }
 
     if not database_ok:

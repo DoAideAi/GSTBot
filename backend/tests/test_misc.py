@@ -607,3 +607,45 @@ def test_head_on_a_probe_carries_the_same_dependencies_as_get():
         assert [d.dependency for d in by_method["HEAD"].dependencies] == [
             d.dependency for d in by_method["GET"].dependencies
         ], path
+
+
+class TestHealthReportsTheOptionalIntegrations:
+    """P20 M11: a missing Gemini key made the advisor answer 503 to every
+    question, Razorpay missing made checkout 503, and email switched on with no
+    SMTP host kept alerts in-app — all while /health said nothing about them."""
+
+    def test_each_integration_is_reported_without_its_secret(self, client, monkeypatch):
+        from app.core.config import settings
+        from app.routers import advisor
+
+        monkeypatch.setattr(advisor, "_get_api_key", lambda: "AIza-secret-key")
+        monkeypatch.setattr(settings, "razorpay_key_id", "rzp_live_id")
+        monkeypatch.setattr(settings, "razorpay_key_secret", "rzp-secret")
+        monkeypatch.setattr(settings, "razorpay_webhook_secret", "")
+        monkeypatch.setattr(settings, "alerts_email_enabled", True)
+        monkeypatch.setattr(settings, "smtp_host", "")
+
+        response = client.get("/api/v1/health")
+        integrations = response.json()["checks"]["integrations"]
+        assert integrations["advisor"]["status"] == "configured"
+        assert integrations["payments"] == {
+            "status": "configured",
+            "webhooks": False,
+            "required_for": ["paid plans", "report purchases"],
+        }
+        assert integrations["email"]["status"] == "misconfigured"
+        for secret in ("AIza-secret-key", "rzp_live_id", "rzp-secret"):
+            assert secret not in response.text
+
+    def test_nothing_configured_reads_unconfigured_and_disabled(self, client, monkeypatch):
+        from app.core.config import settings
+        from app.routers import advisor
+
+        monkeypatch.setattr(advisor, "_get_api_key", lambda: None)
+        monkeypatch.setattr(settings, "razorpay_key_id", "")
+        monkeypatch.setattr(settings, "alerts_email_enabled", False)
+
+        integrations = client.get("/api/v1/health").json()["checks"]["integrations"]
+        assert integrations["advisor"]["status"] == "unconfigured"
+        assert integrations["payments"]["status"] == "unconfigured"
+        assert integrations["email"]["status"] == "disabled"
