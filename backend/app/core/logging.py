@@ -119,12 +119,44 @@ def sanitize_correlation_id(value: str | None) -> str:
     return candidate if all(ch in allowed for ch in candidate) else ""
 
 
+# Who a request acts as, for every line it logs. The access line has always
+# named the login, the business acted for and the role (deps.py stamps them on
+# request.state), but the lines that say what happened — "Filing withdrawn",
+# "Invoice deleted" — named the business alone, so finding who withdrew a
+# return meant joining two lines by correlation id inside the journal's few
+# days. A dict rather than the values: the auth dependencies are sync and run
+# in a threadpool on a copy of the context, where setting a ContextVar would
+# be lost; mutating the dict the middleware put there is seen everywhere.
+_actor: ContextVar[dict | None] = ContextVar("log_actor", default=None)
+ACTOR_FIELDS = ("user_id", "business_id", "role")
+
+
+def start_actor_scope() -> object:
+    """Open a request's actor record; returns the token to close it with."""
+    return _actor.set({})
+
+
+def end_actor_scope(token: object) -> None:
+    _actor.reset(token)  # type: ignore[arg-type]
+
+
+def note_actor(**fields: object) -> None:
+    """Record who the current request acts as. A no-op outside a request."""
+    actor = _actor.get()
+    if actor is not None:
+        actor.update({k: v for k, v in fields.items() if k in ACTOR_FIELDS})
+
+
 class CorrelationIdFilter(logging.Filter):
-    """Put ``correlation_id`` on every record so formatters can rely on it."""
+    """Put ``correlation_id`` on every record so formatters can rely on it,
+    and who the request acts as, where a line does not say so itself."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         if not getattr(record, "correlation_id", ""):
             record.correlation_id = get_correlation_id() or "-"
+        for key, value in (_actor.get() or {}).items():
+            if not hasattr(record, key):
+                setattr(record, key, value)
         return True
 
 

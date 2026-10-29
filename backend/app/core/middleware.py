@@ -22,10 +22,12 @@ from app.core.errors import error_body
 from app.core.headers import security_headers
 from app.core.logging import (
     bind_correlation_id,
+    end_actor_scope,
     get_correlation_id,
     reset_correlation_id,
     sanitize_correlation_id,
     set_correlation_id,
+    start_actor_scope,
 )
 from app.core.rate_limit import check_global, client_ip, wait_phrase
 
@@ -89,10 +91,12 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 
         correlation_id = bind_correlation_id(supplied)
         token = set_correlation_id(correlation_id)
+        actor = start_actor_scope()
         request.state.correlation_id = correlation_id
         try:
             response = await call_next(request)
         finally:
+            end_actor_scope(actor)
             reset_correlation_id(token)
 
         response.headers["X-Request-ID"] = correlation_id

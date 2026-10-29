@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.errors import CodedHTTPException
+from app.core.logging import note_actor
 from app.core.params import MAX_ID, MIN_ID
 from app.core.security import decode_access_token
 from app.models.business import Business
@@ -74,6 +75,7 @@ def get_current_user(
     # here, before the tenant is resolved, so a refused ``X-Business-Id``
     # still names the login that tried it.
     request.state.user_id = user.id
+    note_actor(user_id=user.id)
     return user
 
 
@@ -151,6 +153,7 @@ def get_active_tenant(
     # membership is unlinked nothing in the database can tell the two apart.
     request.state.business_id = business.id
     request.state.role = role.value
+    note_actor(business_id=business.id, role=role.value)
     return ActiveTenant(business=business, role=role)
 
 
