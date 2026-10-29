@@ -23,6 +23,7 @@ containerised edge cannot reach. Those are the assertions with teeth here.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -954,6 +955,115 @@ class TestTheComposeEdgeAgreesToo:
 # ---------------------------------------------------------------------------
 # The release script
 # ---------------------------------------------------------------------------
+
+SETTLED_SCRIPT = DEPLOY / "services_settled.sh"
+
+
+class TestARestartedServiceMustStayUp:
+    """P37 M14: a release was declared deployed with its worker crash-looping.
+
+    The units are ``Type=exec`` with ``Restart=always``, so ``systemctl
+    restart`` succeeds the moment each process has been exec'd. A worker or
+    beat that then dies (an import error in a task module, a bad setting only
+    Celery reads) is restarted every five seconds and reads "active" between
+    deaths. The health checks after the restart asked only the API, the static
+    site and the edge, so the release said "Deployed" while uploads queued and
+    never parsed and the deadline sweeps stopped.
+
+    ``services_settled.sh`` closes that. It waits for a Celery worker to
+    answer a ping, then checks that every service is active and that systemd
+    has not had to restart any of them since this release did. Run here
+    against stub ``systemctl`` and ``curl``.
+    """
+
+    SERVICES = ["gstbot-api.service", "gstbot-worker.service", "gstbot-beat.service"]
+
+    @pytest.fixture()
+    def box(self, tmp_path):
+        state = tmp_path / "state"
+        state.mkdir()
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        # `systemctl show --property=X --value UNIT` reads state/UNIT.X.
+        (bin_dir / "systemctl").write_text(
+            "#!/bin/sh\n"
+            'prop=""; for a in "$@"; do case "$a" in --property=*) prop="${a#--property=}";; esac; '
+            'unit="$a"; done\n'
+            f'cat "{state}/$unit.$prop" 2>/dev/null\n'
+        )
+        # Answers the jobs URL with state/jobs.json, or fails like a refused connection.
+        (bin_dir / "curl").write_text(
+            f'#!/bin/sh\n[ -f "{state}/jobs.json" ] && cat "{state}/jobs.json" || exit 7\n'
+        )
+        for stub in bin_dir.iterdir():
+            stub.chmod(0o755)
+        for unit in self.SERVICES:
+            (state / f"{unit}.ActiveState").write_text("active\n")
+            (state / f"{unit}.NRestarts").write_text("0\n")
+        (state / "jobs.json").write_text(
+            json.dumps({"celery_enabled": True, "workers": {"reachable": True}})
+        )
+        return SimpleNamespace(bin=bin_dir, state=state)
+
+    def run(self, box) -> subprocess.CompletedProcess:
+        env = {
+            **os.environ,
+            "PATH": f"{box.bin}:{os.environ['PATH']}",
+            "GSTBOT_SETTLE_SECONDS": "0",
+            "GSTBOT_WORKER_WAIT_SECONDS": "2",
+        }
+        return subprocess.run(
+            ["bash", str(SETTLED_SCRIPT), *self.SERVICES], capture_output=True, text=True, env=env
+        )
+
+    def test_services_that_stayed_up_pass(self, box):
+        result = self.run(box)
+        assert result.returncode == 0, result.stderr
+
+    def test_a_worker_that_never_answers_fails_the_release(self, box):
+        (box.state / "jobs.json").write_text(
+            json.dumps({"celery_enabled": True, "workers": {"reachable": False}})
+        )
+        result = self.run(box)
+        assert result.returncode != 0
+        assert "worker" in result.stderr.lower()
+
+    def test_a_unit_systemd_had_to_restart_fails_the_release(self, box):
+        # Beat has no ping. Its crash loop shows only as restarts.
+        (box.state / "gstbot-beat.service.NRestarts").write_text("2\n")
+        result = self.run(box)
+        assert result.returncode != 0
+        assert "gstbot-beat.service" in result.stderr and "2" in result.stderr
+
+    def test_a_unit_caught_between_deaths_fails_the_release(self, box):
+        (box.state / "gstbot-worker.service.ActiveState").write_text("activating\n")
+        result = self.run(box)
+        assert result.returncode != 0
+        assert "gstbot-worker.service" in result.stderr
+
+    def test_no_worker_is_expected_where_celery_is_off(self, box):
+        (box.state / "jobs.json").write_text(
+            json.dumps({"celery_enabled": False, "workers": {"reachable": False}})
+        )
+        assert self.run(box).returncode == 0
+
+    def test_the_release_runs_it_after_the_restart_and_before_it_says_deployed(self):
+        commands = "\n".join(
+            line for line in DEPLOY_SCRIPT.read_text().splitlines()
+            if not line.lstrip().startswith("#")
+        )
+        assert "services_settled.sh" in commands
+        assert (
+            commands.index('systemctl restart "${SERVICES[@]}"')
+            < commands.index("services_settled.sh")
+            < commands.index('log "Deployed')
+        )
+
+    def test_it_is_valid_executable_bash(self):
+        assert SETTLED_SCRIPT.stat().st_mode & stat.S_IXUSR, "chmod +x deploy/services_settled.sh"
+        result = subprocess.run(["bash", "-n", str(SETTLED_SCRIPT)], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+
 
 class TestTheDeployScript:
     @pytest.fixture(scope="class")

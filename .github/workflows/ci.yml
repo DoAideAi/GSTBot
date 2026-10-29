@@ -338,4 +338,4 @@ jobs:
         # what catches the unquoted expansion and the swallowed exit status —
         # the failures a release script has in the one situation it exists for,
         # and a backup script has at 02:30 with nobody watching.
-        run: shellcheck deploy/deploy.sh deploy/backup.sh deploy/monitor.sh deploy/rollback-frontend.sh
+        run: shellcheck deploy/deploy.sh deploy/backup.sh deploy/monitor.sh deploy/rollback-frontend.sh deploy/services_settled.sh

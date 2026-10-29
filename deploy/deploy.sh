@@ -473,6 +473,13 @@ await "the site is answering through Caddy" \
     https://gst.doaide.com/api/v1/health/live 45 \
     "docker logs knol-caddy --tail 100"
 
+# Started is not running. Everything above asks the API, the static site and
+# the edge; a worker or beat that dies on start is restarted by systemd every
+# few seconds and reads "active" in between, so the release said "Deployed"
+# while uploads queued and never parsed. See services_settled.sh.
+"$ROOT/deploy/services_settled.sh" "${SERVICES[@]}" \
+    || die "a service did not stay up after the restart (above); the new code is live, so fix forward or roll back"
+
 # The timers the one-time setup enables (deploy/README.md). No release step
 # depends on them, so a skipped `enable --now` is invisible: on 2026-10-29
 # gstbot-monitor.timer had sat installed and disabled since August, and
