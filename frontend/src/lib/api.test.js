@@ -452,6 +452,35 @@ describe("api", () => {
     expect(getToken()).toBeNull();
   });
 
+  it("tells the server, so the token stops working there too", async () => {
+    // Logout used to be the browser forgetting its copy: a token copied
+    // before sign-out kept working for the rest of its day.
+    setToken("tok-out");
+    global.fetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    api.logout();
+    expect(getToken()).toBeNull(); // forgotten at once, whatever the server says
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe("/api/v1/auth/logout");
+    expect(init.method).toBe("POST");
+    // The request carries the token being signed out, not the cleared one.
+    expect(init.headers.Authorization).toBe("Bearer tok-out");
+  });
+
+  it("still signs out locally when the server cannot be reached", async () => {
+    setToken("tok-offline");
+    global.fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    expect(() => api.logout()).not.toThrow();
+    expect(getToken()).toBeNull();
+    await new Promise((r) => setTimeout(r, 0)); // no unhandled rejection
+  });
+
+  it("does not call the server when there is no session to end", () => {
+    setToken(null);
+    api.logout();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("posts an upload as multipart with the invoice type", async () => {
     setToken("tok-1");
     global.fetch.mockResolvedValueOnce(jsonResponse({ invoice: { id: 1 }, queued: false }));

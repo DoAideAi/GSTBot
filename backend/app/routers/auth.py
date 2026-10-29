@@ -20,14 +20,14 @@ import hashlib
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import ActiveTenant, get_active_tenant, get_current_user
+from app.core.deps import ActiveTenant, get_active_tenant, get_current_user, oauth2_scheme
 from app.core.rate_limit import (
     RateLimit,
     apply_headers,
@@ -38,8 +38,14 @@ from app.core.rate_limit import (
     wait_phrase,
 )
 from app.core.ratespec import Rate, parse_rate
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    decode_access_claims,
+    hash_password,
+    verify_password,
+)
 from app.models.business import Business, BusinessPlan
+from app.models.revoked_token import RevokedToken
 from app.models.user import User, UserRole
 from app.routers import referrals
 from app.schemas.auth import (
@@ -316,6 +322,47 @@ def login(
 
     logger.info("Login", extra={"user_id": user.id, "business_id": user.business_id})
     return Token(access_token=create_access_token(user.id))
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    summary="Sign this session out",
+    description=(
+        "Revokes the token the request carries, so it stops working now rather "
+        "than when it expires. Other sessions of the same login are untouched."
+    ),
+    dependencies=[Depends(_me_limit)],
+)
+def logout(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """End this token's session on the server.
+
+    Logout used to be the browser forgetting its copy, so a token copied
+    before sign-out — a shared computer, an extension — stayed good for its
+    full lifetime. ``get_current_user`` refuses a revoked ``jti``.
+    """
+    claims = decode_access_claims(token) or {}
+    jti, exp = claims.get("jti"), claims.get("exp")
+    now = datetime.now(UTC)
+    # Rows past their token's expiry protect nothing; dropping them here keeps
+    # the list to about a day of sign-outs without a job of its own.
+    db.execute(delete(RevokedToken).where(RevokedToken.expires_at < now))
+    if isinstance(jti, str) and isinstance(exp, int | float):
+        db.add(
+            RevokedToken(
+                jti=jti,
+                user_id=current_user.id,
+                expires_at=datetime.fromtimestamp(exp, tz=UTC),
+            )
+        )
+    db.commit()
+    logger.info("Signed out", extra={"user_id": current_user.id})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

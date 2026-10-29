@@ -97,6 +97,8 @@ def create_access_token(subject: str | int, expires_minutes: int | None = None) 
         "sub": str(subject),
         "exp": expire,
         "iat": int(datetime.now(UTC).timestamp()),
+        # Names this token alone, so signing it out revokes it and no other.
+        "jti": secrets.token_urlsafe(16),
         "type": "access",
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)

@@ -490,6 +490,9 @@ UNGATED_MUTATIONS = {
     # login, not any business's books, and a viewer whose password leaked must
     # be able to rotate it like anyone else.
     "/api/v1/auth/change-password",
+    # Ending one's own session. A viewer must be able to sign out as surely as
+    # anyone; refusing it would leave their token live after they had left.
+    "/api/v1/auth/logout",
     # These two manage *this login's* access, not any business's books. They
     # resolve through ``get_current_user`` and never through a tenant, and
     # linking is proven by the other account's own password — a role on some

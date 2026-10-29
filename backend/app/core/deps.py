@@ -18,6 +18,7 @@ from app.core.params import MAX_ID, MIN_ID
 from app.core.security import decode_access_claims
 from app.models.business import Business
 from app.models.business_membership import BusinessMembership
+from app.models.revoked_token import RevokedToken
 from app.models.subscription import Subscription
 from app.models.user import User, UserRole
 
@@ -80,6 +81,12 @@ def get_current_user(
             changed = changed.replace(tzinfo=UTC)
         if not isinstance(issued, int | float) or issued < changed.timestamp():
             raise _credentials_exc
+    # Signed out: the token was revoked by ``POST /auth/logout`` before it
+    # expired. One primary-key lookup; a token minted before tokens carried a
+    # ``jti`` cannot be named, and lapses with its expiry as it always did.
+    jti = claims.get("jti")
+    if isinstance(jti, str) and db.get(RevokedToken, jti) is not None:
+        raise _credentials_exc
     # Stamped for the access line, which is the only audit trail this product
     # keeps: no table records who filed a return or acknowledged an alert, so
     # a log line that says ``POST /filing/gstr3b/filed 201`` and nothing else

@@ -451,6 +451,13 @@ export const api = {
   },
 
   logout() {
+    // Revoke the token on the server, so a copy of it stops working there too:
+    // logout used to be this browser forgetting it, and a token copied before
+    // sign-out kept working for the rest of its day. Best effort and not
+    // awaited — `request` reads the token before its first await, so the call
+    // carries the session being ended, and signing out never waits on, or
+    // fails because of, the network.
+    if (getToken()) request("/auth/logout", { method: "POST" }).catch(() => {});
     setToken(null);
     // A stale "acting as" business must not survive into the next session on
     // this browser — the next sign-in may be a different login entirely.

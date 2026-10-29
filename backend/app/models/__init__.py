@@ -16,6 +16,7 @@ from app.models.reconciliation_run import (
 )
 from app.models.referral import Referral
 from app.models.report_purchase import ReportPurchase
+from app.models.revoked_token import RevokedToken
 from app.models.subscriber import Subscriber
 from app.models.subscription import Subscription, SubscriptionStatus, SubscriptionTier
 from app.models.subscription_payment import SubscriptionPayment
@@ -45,6 +46,7 @@ __all__ = [
     "ReconciliationStatus",
     "Referral",
     "ReportPurchase",
+    "RevokedToken",
     "ReturnStatus",
     "ReturnType",
     "RiskLevel",
