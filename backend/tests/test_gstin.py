@@ -56,6 +56,90 @@ def test_invalid_gstins_are_rejected(bad, reason):
         gstin_service.parse(bad)
 
 
+# ---------------------------------------------------------------------------
+# What a refusal says. Each one is read by someone holding the invoice or the
+# certificate — on the registration form, the lookup page, a bulk result row,
+# WhatsApp and the GPT — so it has to name the character to look at again.
+# "GSTIN format is invalid" named nothing.
+# ---------------------------------------------------------------------------
+
+
+def _refusal(gstin: str) -> str:
+    with pytest.raises(gstin_service.InvalidGSTIN) as caught:
+        gstin_service.parse(gstin)
+    return str(caught.value)
+
+
+@pytest.mark.parametrize(("bad", "length"), [("27AAPFU0939F1Z", 14), ("27AAPFU0939F1ZVX", 16)])
+def test_a_gstin_of_the_wrong_length_says_how_long_it_is(bad, length):
+    assert _refusal(bad) == f"A GSTIN is 15 characters; this one has {length}."
+
+
+@pytest.mark.parametrize(
+    ("bad", "position", "expected"),
+    [
+        ("2AAPFU0939F1ZVV", 2, "a digit (the state code)"),
+        ("2712345678901ZV", 3, "a letter (part of the PAN)"),
+        ("27AAPFUA939F1ZV", 8, "a digit (part of the PAN)"),
+        ("27AAPFU093951ZV", 12, "a letter (the last character of the PAN)"),
+        ("27AAPFU0939F0ZV", 13, "1-9 or a letter (the registration number)"),
+        ("27AAPFU0939F1AV", 14, "the letter Z"),
+        ("27AAPFU0939F1Z.", 15, "a digit or a letter (the check digit)"),
+    ],
+)
+def test_a_misplaced_character_is_named_by_its_position(bad, position, expected):
+    message = _refusal(bad)
+    assert message.startswith(
+        f"Character {position} of a GSTIN should be {expected}, but it is {bad[position - 1]!r}."
+    )
+
+
+@pytest.mark.parametrize(
+    ("bad", "suggested"),
+    [
+        ("27AAPFUO939F1ZV", "0"),  # the letter O typed in the PAN's digits
+        ("27AAPFU0939F0ZV", "O"),  # a zero where the registration number allows a letter
+        ("27AAPF50939F1ZV", "S"),
+        ("27AAPFU09I9F1ZV", "1"),
+        ("27AAPFU0939F1Z.", None),  # nothing a full stop is mistaken for
+        ("27AAPFUA939F1ZV", None),  # A is no digit's lookalike
+    ],
+)
+def test_a_lookalike_character_suggests_the_one_it_was_mistaken_for(bad, suggested):
+    message = _refusal(bad)
+    if suggested is None:
+        assert "Check whether" not in message
+    else:
+        assert message.endswith(f"Check whether it should be {suggested!r}.")
+
+
+def test_the_position_rules_are_the_format_rule():
+    """Every character, at every position, is refused by one iff by the other.
+
+    The positions table exists to explain ``GSTIN_PATTERN``, so a disagreement
+    between them is a refusal that names the wrong character — or, the other
+    way round, a pattern failure that explains nothing.
+    """
+    for index in range(15):
+        for char in gstin_service._ALPHABET + ".":
+            candidate = BUSINESS_GSTIN[:index] + char + BUSINESS_GSTIN[index + 1 :]
+            matches = bool(gstin_service.GSTIN_PATTERN.match(candidate))
+            allowed = char in gstin_service._POSITIONS[index][0]
+            assert matches == allowed, (index + 1, char)
+
+
+def test_an_unknown_state_code_says_what_the_first_two_digits_are():
+    message = _refusal("40AAPFU0939F1ZV")
+    assert message.startswith("40 is not a GST state code.")
+    assert "27 for Maharashtra" in message
+
+
+def test_a_wrong_check_digit_says_one_character_is_mistyped():
+    message = _refusal("27AAPFU0939F1ZW")
+    assert "check digit (its last character)" in message
+    assert "mistyped" in message
+
+
 def test_no_adjacent_transposition_survives_validation():
     """The failure mode validation exists for.
 

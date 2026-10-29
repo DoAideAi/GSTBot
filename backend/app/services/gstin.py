@@ -135,18 +135,69 @@ def is_valid(gstin: str) -> bool:
     return True
 
 
+# What each position of a GSTIN must hold, in the words the refusal uses. The
+# same rule as GSTIN_PATTERN, position by position, because "the format is
+# invalid" is the one answer a person holding the paper cannot act on: they
+# need to know which character to look at again.
+_POSITIONS: tuple[tuple[str, str], ...] = (
+    *(("0123456789", "a digit (the state code)"),) * 2,
+    *(("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "a letter (part of the PAN)"),) * 5,
+    *(("0123456789", "a digit (part of the PAN)"),) * 4,
+    ("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "a letter (the last character of the PAN)"),
+    ("123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", "1-9 or a letter (the registration number)"),
+    ("Z", "the letter Z"),
+    (_ALPHABET, "a digit or a letter (the check digit)"),
+)
+
+# The confusions that produce most of these refusals, said out loud. A GSTIN
+# copied from a scan or retyped from a printed invoice swaps these far more
+# often than it gains a stray symbol.
+_LOOKALIKES = {"O": "0", "0": "O", "I": "1", "1": "I", "S": "5", "5": "S", "B": "8", "8": "B"}
+
+
+def _misplaced(candidate: str) -> str:
+    """Which character of a 15-character *candidate* breaks the pattern, in words."""
+    for index, (allowed, expected) in enumerate(_POSITIONS):
+        char = candidate[index]
+        if char in allowed:
+            continue
+        message = f"Character {index + 1} of a GSTIN should be {expected}, but it is {char!r}."
+        swap = _LOOKALIKES.get(char)
+        if swap is not None and swap in allowed:
+            message += f" Check whether it should be {swap!r}."
+        return message
+    # Unreachable while _POSITIONS spells GSTIN_PATTERN, which the test that
+    # walks every position of a valid GSTIN holds it to.
+    return "This is not in the format of a GSTIN."  # pragma: no cover
+
+
 def parse(gstin: str) -> GSTINParts:
-    """Validate *gstin* and return its parts, or raise :class:`InvalidGSTIN`."""
+    """Validate *gstin* and return its parts, or raise :class:`InvalidGSTIN`.
+
+    Every refusal says what to look at, because each one is read by a person
+    with the invoice or certificate in front of them: the registration form,
+    an edited purchase, the home search box, WhatsApp and the GPT all show
+    the message as it is.
+    """
     candidate = normalize(gstin)
     if len(candidate) != 15:
-        raise InvalidGSTIN("GSTIN must be 15 characters")
+        raise InvalidGSTIN(
+            f"A GSTIN is 15 characters; this one has {len(candidate)}."
+        )
     if not GSTIN_PATTERN.match(candidate):
-        raise InvalidGSTIN("GSTIN format is invalid")
+        raise InvalidGSTIN(_misplaced(candidate))
     state_code = candidate[:2]
     if state_code not in STATE_CODES:
-        raise InvalidGSTIN(f"Unknown state code {state_code!r}")
+        raise InvalidGSTIN(
+            f"{state_code} is not a GST state code. A GSTIN starts with the code "
+            "of the state it is registered in, such as 27 for Maharashtra."
+        )
     if compute_check_digit(candidate[:14]) != candidate[14]:
-        raise InvalidGSTIN("GSTIN check digit does not match")
+        raise InvalidGSTIN(
+            "The GSTIN's check digit (its last character) does not match the "
+            "other 14, so one of them is mistyped. Compare it with the "
+            "registration certificate or the invoice."
+        )
     return GSTINParts(
         gstin=candidate,
         state_code=state_code,
