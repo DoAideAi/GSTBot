@@ -23,6 +23,7 @@
  * to a broken upload.
  */
 import { rupees } from "./format";
+import { STATE_CODES } from "./stateCodes";
 
 export const MAX_UPLOAD_MB = 15;
 
@@ -109,15 +110,22 @@ export function partitionFiles(files, options) {
   return { accepted, rejected };
 }
 
+const ASSIGNED_STATE_CODES = new Set(STATE_CODES.map((s) => s.code));
+
 /**
  * Why a GSTIN is malformed, or "" when it is plausibly well-formed.
  *
- * Shape only — no checksum. The check digit is base-36 weighted mod-36
- * arithmetic, and a second implementation of it in another language is a
- * standing invitation for the two to disagree; the one that matters is the one
- * the server enforces. So this catches the errors that need no arithmetic
- * (wrong length, a letter where a digit belongs, an unassigned state code) and
- * lets the server return the definitive answer for anything shaped right.
+ * No checksum. The check digit is base-36 weighted mod-36 arithmetic, and a
+ * second implementation of it in another language is a standing invitation for
+ * the two to disagree; the one that matters is the one the server enforces. So
+ * this catches the errors that need no arithmetic (wrong length, a letter where
+ * a digit belongs, an unassigned state code) and lets the server return the
+ * definitive answer for anything shaped right.
+ *
+ * The state code is checked against lib/stateCodes, which stateCodes.test.js
+ * pins to the server's list. Only 00 was refused, and the invoice generator —
+ * which never asks the server — printed a GSTIN in "state 45" under a green
+ * "✓ Valid format".
  *
  * `` is returned for an empty string: emptiness is the caller's business, and
  * on the invoice form clearing the field is a legitimate edit.
@@ -134,9 +142,13 @@ export function gstinShapeError(value) {
   if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(cleaned)) {
     return "That does not look like a GSTIN. The format is 27AAPFU0939F1ZV.";
   }
-  // 00 is not a state and is the usual result of a leading digit being eaten.
-  if (cleaned.slice(0, 2) === "00") {
+  const state = cleaned.slice(0, 2);
+  // 00 is the usual result of a leading digit being eaten, so it gets a hint.
+  if (state === "00") {
     return "A GSTIN starts with its state code, and 00 is not one. Check for a missing first digit.";
+  }
+  if (!ASSIGNED_STATE_CODES.has(state)) {
+    return `A GSTIN starts with its state code, and ${state} is not one. Check the first two digits.`;
   }
   return "";
 }
@@ -231,13 +243,12 @@ export function hsnError(value) {
 /**
  * Why a place of supply is unacceptable, or "".
  *
- * Shape only, for the same reason `gstinShapeError` is shape only: the list of
- * codes GST assigns is the server's (`STATE_CODES` in app/services/gstin.py),
- * it changes when the Council reorganises a state or union territory, and a
- * second copy of it here would eventually disagree with the one that decides
- * whether a return uploads. A single digit is padded rather than refused —
- * `7` for Delhi is what a person types and `07` is what the portal wants, which
- * is exactly what the server's own validator does with it.
+ * Checked against the same list as `gstinShapeError`, lib/stateCodes, which a
+ * test pins to the server's `STATE_CODES` so the two cannot drift apart when the
+ * Council reorganises a state or union territory. A single digit is padded
+ * rather than refused — `7` for Delhi is what a person types and `07` is what
+ * the portal wants, which is exactly what the server's own validator does with
+ * it.
  */
 export function placeOfSupplyError(value) {
   const raw = normalizePlaceOfSupply(value);
@@ -245,7 +256,7 @@ export function placeOfSupplyError(value) {
   if (!/^\d{2}$/.test(raw)) {
     return "A place of supply is the two-digit state code, e.g. 27 for Maharashtra.";
   }
-  if (raw === "00") return "00 is not a state code.";
+  if (!ASSIGNED_STATE_CODES.has(raw)) return `${raw} is not a state code.`;
   return "";
 }
 

@@ -167,6 +167,20 @@ describe("gstinShapeError", () => {
     expect(gstinShapeError("00AAPFU0939F1ZV")).toContain("state code");
   });
 
+  it("rejects a state code no state holds", () => {
+    // The invoice generator never asks the server: this is the only check a
+    // GSTIN gets there, and 45 came back "✓ Valid format" on a printed invoice.
+    for (const gstin of ["39AAPFU0939F1ZV", "45AAPFU0939F1ZV", "98AAPFU0939F1ZV"]) {
+      expect(gstinShapeError(gstin)).toContain("state code");
+    }
+  });
+
+  it("accepts every assigned code, the non-state 97 and 99 included", () => {
+    for (const code of ["01", "38", "97", "99"]) {
+      expect(gstinShapeError(`${code}AAPFU0939F1ZV`)).toBe("");
+    }
+  });
+
   it("does not judge the check digit", () => {
     // Deliberate: the checksum lives on the server, and a second
     // implementation of that arithmetic is how the two come to disagree.
@@ -579,11 +593,12 @@ describe("placeOfSupplyError", () => {
     expect(placeOfSupplyError("00")).toContain("not a state code");
   });
 
-  it("leaves the list of real codes to the server", () => {
-    // A second copy of STATE_CODES here would eventually disagree with the one
-    // that decides whether a return uploads. 39 is not assigned; the server
-    // says so, and this only checks the shape.
-    expect(placeOfSupplyError("39")).toBe("");
+  it("refuses a code no state holds", () => {
+    // The list it checks against is lib/stateCodes, which stateCodes.test.js
+    // pins to the server's own, so the two cannot drift apart.
+    expect(placeOfSupplyError("39")).toContain("not a state code");
+    expect(placeOfSupplyError("7")).toBe("");
+    expect(placeOfSupplyError("97")).toBe("");
   });
 });
 
