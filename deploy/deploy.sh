@@ -195,13 +195,29 @@ log "Building the frontend"
 # VITE_WHATSAPP_NUMBER put in gstbot.env (where the template said to look)
 # silently did nothing. Read line by line rather than sourced: the file is
 # systemd syntax, not shell.
-( cd "$ROOT/frontend" \
+#
+# Built beside the live site, not in it. gstbot-web serves frontend/dist while
+# this runs, and vite empties its outDir before writing: building in place
+# took the site down for the length of every build (no index.html, no assets)
+# and, when a build failed — out of memory, a compile error — left it down,
+# because the release stops here and nothing after it restarts or restores
+# anything. dist.next is swapped in only once it is complete; the build it
+# replaces is kept as dist.prev, which is also what a quick rollback of the
+# frontend puts back.
+FRONTEND="$ROOT/frontend"
+rm -rf "$FRONTEND/dist.next"
+( cd "$FRONTEND" \
     && while IFS= read -r line; do
            case "$line" in VITE_[A-Z0-9_]*=*) export "$line" ;; esac
        done < /etc/gstbot/gstbot.env \
     && npm ci --no-audit --no-fund \
-    && NODE_OPTIONS=--max-old-space-size=768 npm run build )
-[ -f "$ROOT/frontend/dist/index.html" ] || die "build produced no index.html"
+    && GSTBOT_BUILD_DIR=dist.next NODE_OPTIONS=--max-old-space-size=768 npm run build ) \
+    || die "the frontend did not build; the site still serves the previous build"
+[ -f "$FRONTEND/dist.next/index.html" ] \
+    || die "build produced no index.html; the site still serves the previous build"
+rm -rf "$FRONTEND/dist.prev"
+if [ -d "$FRONTEND/dist" ]; then mv "$FRONTEND/dist" "$FRONTEND/dist.prev"; fi
+mv "$FRONTEND/dist.next" "$FRONTEND/dist"
 
 log "Taking a restore point"
 # The migration below is the one step of a release that is not undone by

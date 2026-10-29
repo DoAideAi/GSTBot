@@ -15,7 +15,8 @@ import { build } from 'vite'
 import { appShellHead, finalizeHead, SITE_URL } from './seoHead.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const DIST = join(ROOT, 'dist')
+// Wherever vite build just wrote: deploy.sh builds into dist.next, not the live dist.
+const DIST = join(ROOT, process.env.GSTBOT_BUILD_DIR || 'dist')
 const SSR_OUT = join(ROOT, 'node_modules', '.prerender')
 
 // The sitemap is the list of indexable pages, so it is also the list to prerender.

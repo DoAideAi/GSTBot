@@ -632,9 +632,11 @@ class TestTheUnitsRunThisApplication:
         root = matched(r"--root (\S+)", command).group(1)
 
         assert root == f"{INSTALL_ROOT}/frontend/dist"
-        # And that is the path the release script proves it wrote before it
-        # restarts anything.
-        assert '[ -f "$ROOT/frontend/dist/index.html" ]' in DEPLOY_SCRIPT.read_text()
+        # And that is the path the release script swaps a proven build into
+        # before it restarts anything.
+        script = DEPLOY_SCRIPT.read_text()
+        assert 'FRONTEND="$ROOT/frontend"' in script
+        assert 'mv "$FRONTEND/dist.next" "$FRONTEND/dist"' in script
 
     @pytest.mark.parametrize(
         ("name", "variable"),
@@ -1950,3 +1952,54 @@ class TestATimerNobodyEnabledIsSaid:
         assert "gstbot-monitor.timer is not enabled" in result.stderr
         assert "systemctl enable --now gstbot-monitor.timer" in result.stderr
         assert "gstbot-backup.timer" not in result.stderr
+
+
+class TestTheLiveSiteIsNotWhatTheBuildWritesInto:
+    """P23 M12: the frontend was built in place, in the dist gstbot-web serves,
+    and vite empties its outDir first: every release took the site down for
+    the length of the build, and a failed build left it down, because the
+    release stopped there with nothing restoring it."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+    FRONTEND = DEPLOY.parent / "frontend"
+
+    def _swap(self):
+        start = self.SCRIPT.index('rm -rf "$FRONTEND/dist.prev"')
+        return self.SCRIPT[start : self.SCRIPT.index('"$FRONTEND/dist"\n', start) + 17]
+
+    def test_the_build_writes_beside_the_live_site(self):
+        assert "GSTBOT_BUILD_DIR=dist.next" in self.SCRIPT
+        assert "process.env.GSTBOT_BUILD_DIR" in (self.FRONTEND / "vite.config.js").read_text()
+        # The prerender writes its pages into the same directory vite did.
+        prerender = (self.FRONTEND / "scripts" / "prerender.mjs").read_text()
+        assert "process.env.GSTBOT_BUILD_DIR" in prerender
+
+    def test_the_swap_happens_only_after_the_build_is_proven(self):
+        build = self.SCRIPT.index("GSTBOT_BUILD_DIR=dist.next")
+        proven = self.SCRIPT.index('[ -f "$FRONTEND/dist.next/index.html" ]')
+        swap = self.SCRIPT.index('mv "$FRONTEND/dist.next" "$FRONTEND/dist"')
+        assert build < proven < swap < self.SCRIPT.index('log "Taking a restore point"')
+        # A build that fails stops the release with the live site untouched.
+        assert "|| die \"the frontend did not build" in self.SCRIPT
+
+    def test_the_swap_keeps_the_previous_build_and_leaves_no_staging(self, tmp_path):
+        frontend = tmp_path / "frontend"
+        (frontend / "dist").mkdir(parents=True)
+        (frontend / "dist" / "index.html").write_text("old")
+        (frontend / "dist.prev").mkdir()  # the release before last: replaced
+        (frontend / "dist.next").mkdir()
+        (frontend / "dist.next" / "index.html").write_text("new")
+        result = subprocess.run(
+            ["bash", "-ec", f'FRONTEND="{frontend}"\n' + self._swap()],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
+        assert (frontend / "dist" / "index.html").read_text() == "new"
+        assert (frontend / "dist.prev" / "index.html").read_text() == "old"
+        assert not (frontend / "dist.next").exists()
+
+    def test_the_staging_directories_are_not_tracked(self):
+        ignored = (DEPLOY.parent / ".gitignore").read_text().split()
+        assert "dist.next/" in ignored and "dist.prev/" in ignored

@@ -7,6 +7,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   build: {
+    // deploy.sh builds beside the live dist (GSTBOT_BUILD_DIR=dist.next) and
+    // swaps it in only once the build has succeeded; see deploy/deploy.sh.
+    outDir: process.env.GSTBOT_BUILD_DIR || "dist",
     rollupOptions: {
       output: {
         // React and the router change only when package.json does, while the
