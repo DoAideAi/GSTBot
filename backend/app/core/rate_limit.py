@@ -45,6 +45,24 @@ logger = logging.getLogger(__name__)
 _MAX_MEMORY_KEYS = 10_000
 
 
+# Every name a RATE_LIMIT_OVERRIDES entry can usefully target: each RateLimit
+# registers itself, and a counter that reads the overrides directly (the
+# per-account login and link budgets) registers its name beside its default.
+# Startup checks the overrides against this, because a misspelt name is
+# otherwise parsed, stored, and read by nothing.
+_KNOWN_LIMITS: set[str] = {"global"}
+
+
+def register_limit_name(name: str) -> str:
+    """Declare *name* overridable, returning it for use as a constant."""
+    _KNOWN_LIMITS.add(name)
+    return name
+
+
+def known_limit_names() -> frozenset[str]:
+    return frozenset(_KNOWN_LIMITS)
+
+
 @dataclass(frozen=True)
 class Decision:
     allowed: bool
@@ -309,7 +327,7 @@ class RateLimit:
         # "site" — one bucket shared by every caller, a ceiling on the total
         # rather than on any one of them. ``detail`` replaces the default
         # "try again in Ns" where the wait is hours, not seconds.
-        self.name = name
+        self.name = register_limit_name(name)
         self.spec = spec
         self.by = by
         self.detail = detail

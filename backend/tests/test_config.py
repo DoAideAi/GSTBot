@@ -294,6 +294,57 @@ class TestRateLimitOverrides:
 class TestStartupWarnings:
     """Questionable, not fatal — the deployment still comes up."""
 
+    class TestAnOverrideForNoLimitIsNamed:
+        """P36 M5: a mistyped RATE_LIMIT_OVERRIDES name did nothing, silently.
+
+        Only an unparseable *rate* was warned about. An entry whose *name*
+        matches no limit (``login_acount=5/15m``) was parsed, stored, and never
+        read by anything, so the limit stayed at its default. That is the
+        override the env example tells an operator to reach for during a
+        credential-stuffing run, and the tightening never happened while the
+        boot log said nothing.
+        """
+
+        @pytest.fixture(autouse=True)
+        def _every_limit_registered(self):
+            import app.main  # noqa: F401  (imports every router, registering its limits)
+
+        def test_a_misspelt_name_warns_and_says_which(self):
+            warnings = validate_startup_config(
+                Settings(**prod(rate_limit_overrides="login_acount=5/15m,login=10/minute"))
+            )
+            (warning,) = [w for w in warnings if "RATE_LIMIT_OVERRIDES" in w]
+            assert "login_acount" in warning
+            assert "'login'" not in warning
+
+        def test_every_limit_the_env_example_names_exists(self):
+            # The names an operator copies from the docs, in the middle of an
+            # incident. A rename that left the docs behind is this bug again.
+            import re
+            from pathlib import Path
+
+            from app.core.rate_limit import known_limit_names
+
+            example = (Path(__file__).resolve().parents[2] / "deploy" / "gstbot.env.example")
+            section = example.read_text().split("# ---- Rate limiting ----")[1].split("# ----")[0]
+            named = set(re.findall(r"`([a-z_]+)`", section))
+            named |= set(re.findall(r"([a-z_]+)=\d", section))
+            assert named, "the rate-limit section names no limits"
+            assert named <= known_limit_names(), named - known_limit_names()
+
+        @pytest.mark.parametrize(
+            "name",
+            # A dependency limit, the blanket one, and both failure counters
+            # that read the overrides directly rather than through RateLimit.
+            ["login", "advisor_daily", "invoice_reparse_daily", "global", "login_account",
+             "link_account"],
+        )
+        def test_every_real_limit_is_accepted(self, name):
+            warnings = validate_startup_config(
+                Settings(**prod(rate_limit_overrides=f"{name}=5/15m"))
+            )
+            assert not [w for w in warnings if "RATE_LIMIT_OVERRIDES" in w]
+
     def test_a_missing_model_key_only_warns(self):
         # Extraction degrades to heuristics and OCR; that is a worse product,
         # not an insecure one, and refusing to boot would be wrong.

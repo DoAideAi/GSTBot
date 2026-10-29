@@ -35,6 +35,7 @@ from app.core.rate_limit import (
     client_ip,
     forget,
     peek,
+    register_limit_name,
     wait_phrase,
 )
 from app.core.ratespec import Rate, parse_rate
@@ -95,7 +96,7 @@ _RESET_EMAIL_RATE = f"{RESET_EMAILS_PER_ADDRESS}/hour"
 # forgotten which of their passwords it is runs out of guesses long before
 # this, and an attacker who has spread themselves over a thousand hosts still
 # only gets forty guesses an hour at any one account.
-_LOGIN_ACCOUNT_LIMIT = "login_account"
+_LOGIN_ACCOUNT_LIMIT = register_limit_name("login_account")
 _LOGIN_ACCOUNT_SPEC = "10/15m"
 
 

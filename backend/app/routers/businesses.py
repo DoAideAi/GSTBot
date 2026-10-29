@@ -36,6 +36,7 @@ from app.core.rate_limit import (
     client_ip,
     forget,
     peek,
+    register_limit_name,
     wait_phrase,
 )
 from app.core.ratespec import parse_rate
@@ -70,7 +71,7 @@ _link_limit = RateLimit("businesses_link", "20/minute", by="ip")
 # distributed attacks: login's per-account budget (10/15m) limits total
 # guesses regardless of how many source IPs the attacker has, whereas the
 # link endpoint previously had only the per-IP limit.
-_LINK_ACCOUNT_LIMIT = "link_account"
+_LINK_ACCOUNT_LIMIT = register_limit_name("link_account")
 _LINK_ACCOUNT_SPEC = "10/15m"
 
 

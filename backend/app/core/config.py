@@ -708,6 +708,20 @@ def validate_startup_config(settings_obj: Settings | None = None) -> list[str]:
                 f"is not — {provider} sign-in is offered and fails at the callback."
             )
 
+    # Checked against the limits the loaded routers registered, so only once
+    # they are loaded: a bare Settings check with no app has nothing to compare.
+    from app.core.rate_limit import known_limit_names
+
+    known = known_limit_names()
+    if len(known) > 1:
+        unknown = sorted(set(current.rate_limits) - known)
+        if unknown:
+            found.append(
+                f"RATE_LIMIT_OVERRIDES names {', '.join(repr(n) for n in unknown)}, which no "
+                "limit reads; the override does nothing and the default stays in force. "
+                "Check the spelling against the limit names in the routers."
+            )
+
     if current.is_production:
         if not current.rate_limit_enabled:
             found.append("RATE_LIMIT_ENABLED is false in a production environment.")
