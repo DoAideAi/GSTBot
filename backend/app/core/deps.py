@@ -7,7 +7,7 @@ from datetime import UTC
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy import select
+from sqlalchemy import exists, literal, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -68,8 +68,20 @@ def get_current_user(
         user_id = int(subject)
     except (TypeError, ValueError) as exc:
         raise _credentials_exc from exc
-    user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    # The user and whether this token was signed out, in one round trip: the
+    # revocation check rode a second query on every authenticated request,
+    # for a table that is almost always empty. A token minted before tokens
+    # carried a ``jti`` cannot be named, and lapses with its expiry as it
+    # always did.
+    jti = claims.get("jti")
+    revoked = (
+        exists().where(RevokedToken.jti == jti) if isinstance(jti, str) else literal(False)
+    )
+    row = db.execute(select(User, revoked).where(User.id == user_id)).first()
+    if row is None:
+        raise _credentials_exc
+    user, signed_out = row
+    if not user.is_active or signed_out:
         raise _credentials_exc
     # Changing a password ends the sessions the old one opened: a token issued
     # before the change is refused. One with no ``iat`` predates the claim and
@@ -81,12 +93,6 @@ def get_current_user(
             changed = changed.replace(tzinfo=UTC)
         if not isinstance(issued, int | float) or issued < changed.timestamp():
             raise _credentials_exc
-    # Signed out: the token was revoked by ``POST /auth/logout`` before it
-    # expired. One primary-key lookup; a token minted before tokens carried a
-    # ``jti`` cannot be named, and lapses with its expiry as it always did.
-    jti = claims.get("jti")
-    if isinstance(jti, str) and db.get(RevokedToken, jti) is not None:
-        raise _credentials_exc
     # Stamped for the access line, which is the only audit trail this product
     # keeps: no table records who filed a return or acknowledged an alert, so
     # a log line that says ``POST /filing/gstr3b/filed 201`` and nothing else
