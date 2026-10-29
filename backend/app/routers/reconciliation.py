@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer
 
+from app.core import metrics
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import (
@@ -698,6 +699,7 @@ _UNMATCHED_PAYMENT = (
     },
     dependencies=[Depends(_report_verify_limit), Depends(require_writer)],
 )
+@metrics.payment_outcomes("report")
 def verify_report_payment(
     payload: ReportVerifyRequest,
     db: Session = Depends(get_db),

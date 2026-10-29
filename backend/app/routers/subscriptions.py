@@ -255,6 +255,7 @@ def create_order(
     },
     dependencies=[Depends(require_owner), Depends(_verify_limit)],
 )
+@metrics.payment_outcomes("checkout")
 def verify_payment(
     payload: VerifyPaymentRequest,
     business: Business = Depends(get_current_business),

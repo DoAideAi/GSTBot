@@ -12,9 +12,12 @@ counter could not be written.
 """
 from __future__ import annotations
 
+import functools
 import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+from fastapi import HTTPException
 
 from app.core.redis_client import get_redis, report_failure
 
@@ -63,6 +66,22 @@ EVENTS = (
     "razorpay_webhook_unmatched",
     "razorpay_webhook_ignored",
     "razorpay_webhook_applied",
+    # How a payment's verification ended, for the subscription checkout and
+    # for the PDF report. These are the routes that turn a charge into what was
+    # paid for, and they had no counters: a rotated key secret refused every
+    # real payment's signature, and an unreachable Razorpay 502'd every one —
+    # customers charged and not upgraded — with a log line per payment the
+    # only trace. See ``payment_outcomes``.
+    "checkout_payment_applied",
+    "checkout_payment_refused",
+    "checkout_payment_conflict",
+    "checkout_provider_unreachable",
+    "checkout_payment_failed",
+    "report_payment_applied",
+    "report_payment_refused",
+    "report_payment_conflict",
+    "report_provider_unreachable",
+    "report_payment_failed",
 )
 
 
@@ -214,3 +233,40 @@ def summary(hours: int = 24, *, now: datetime | None = None) -> dict[str, Any] |
         ),
         "events": events,
     }
+
+
+def payment_outcomes(flow: str):
+    """Count how a payment-verification route ended, under ``<flow>_…``.
+
+    By the status it answered rather than at each of its exits, so an exit
+    added later is counted without anyone remembering to: 4xx is a payment
+    refused (a bad signature, an order that does not match), 409 one already
+    used, 502–504 Razorpay unreachable, anything else unexpected. Applied
+    beneath the route decorator; ``functools.wraps`` keeps the signature
+    FastAPI reads its parameters from.
+    """
+
+    def decorate(route):
+        @functools.wraps(route)
+        def counted(*args, **kwargs):
+            try:
+                result = route(*args, **kwargs)
+            except HTTPException as exc:
+                if exc.status_code == 409:
+                    count(f"{flow}_payment_conflict")
+                elif exc.status_code in (502, 503, 504):
+                    count(f"{flow}_provider_unreachable")
+                elif 400 <= exc.status_code < 500:
+                    count(f"{flow}_payment_refused")
+                else:
+                    count(f"{flow}_payment_failed")
+                raise
+            except Exception:
+                count(f"{flow}_payment_failed")
+                raise
+            count(f"{flow}_payment_applied")
+            return result
+
+        return counted
+
+    return decorate
