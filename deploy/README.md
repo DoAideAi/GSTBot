@@ -231,6 +231,21 @@ GSTBOT_SKIP_BACKUP=1 /opt/GSTBot/deploy/deploy.sh
 
 which migrates with no restore point and says so.
 
+One release runs at a time. The script holds `flock` on
+`/run/lock/gstbot-deploy.lock` (override with `GSTBOT_DEPLOY_LOCK`) for its
+whole run, and a second start exits at once with "another deploy is running".
+Two concurrent builds once left `frontend/dist` with no `assets/` — a blank
+site while `/health` still said 200. To see whether one is running:
+
+```sh
+flock -n /run/lock/gstbot-deploy.lock true && echo free || echo busy
+```
+
+The script re-executes from a copy in `/tmp/gstbot-deploy.*`, so look for that
+rather than `deploy/deploy.sh` in `ps`. `VITE_*` lines in
+`/etc/gstbot/gstbot.env` are exported into the frontend build, so changing one
+needs a deploy, not a restart.
+
 **Watch the source line, because the fallback is quiet.** If the fetch fails,
 `deploy.sh` does not stop — it releases the tree already in `/opt/GSTBot`, which
 is the supported path on a box holding no credential and the wrong one here:
@@ -303,6 +318,15 @@ curl -s 172.18.0.1:3008/api/v1/health | jq    # every dependency, with latency
 missing `OPENROUTER_API_KEY` or a dead Redis is not an outage — extraction
 falls back to heuristics and parsing runs inline — so page on `/health/ready`,
 which is 503 only when the database is unreachable.
+
+Its `checks.integrations` block says which optional features this server can
+offer, from configuration alone (nothing is called): `advisor` (the GST advisor
+chat, needs `GEMINI_API_KEY` or `GEMINI_API_KEY_FILE`), `payments`
+(`RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`; `webhooks` is whether
+`RAZORPAY_WEBHOOK_SECRET` is set) and `email` (deadline alert emails:
+`ALERTS_EMAIL_ENABLED` and `SMTP_HOST`). `unconfigured` or `disabled` there is
+a feature switched off, not a fault, and does not change `status`;
+`misconfigured` (email switched on with no `SMTP_HOST`) is a mistake to fix.
 
 Every log line and every response carries a correlation id (`X-Request-ID`).
 It is what turns a user's screenshot into a journal query:
