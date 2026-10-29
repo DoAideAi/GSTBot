@@ -50,6 +50,8 @@ def test_the_template_names_nothing_the_app_does_not_read():
         "CELERY_CONCURRENCY",
         "CELERY_LOG_LEVEL",
         "GSTBOT_ALERT_WEBHOOK",
+        # Read by deploy.sh into the frontend build (vite inlines VITE_*).
+        "VITE_WHATSAPP_NUMBER",
     }
     settings_names = {name.upper() for name in Settings.model_fields}
     unknown = sorted(_named_in_template() - settings_names - outside_the_app)

@@ -188,7 +188,17 @@ log "Building the frontend"
 # 4 GB box shared with three other products is well above what is actually
 # free — the build then gets OOM-killed at the rollup stage instead of failing
 # with something that names the cause.
+#
+# VITE_* settings are read from /etc/gstbot/gstbot.env, where every other
+# setting lives. The build is the only thing that reads them — vite inlines
+# them into the bundle — and the units' EnvironmentFile never reaches it, so a
+# VITE_WHATSAPP_NUMBER put in gstbot.env (where the template said to look)
+# silently did nothing. Read line by line rather than sourced: the file is
+# systemd syntax, not shell.
 ( cd "$ROOT/frontend" \
+    && while IFS= read -r line; do
+           case "$line" in VITE_[A-Z0-9_]*=*) export "$line" ;; esac
+       done < /etc/gstbot/gstbot.env \
     && npm ci --no-audit --no-fund \
     && NODE_OPTIONS=--max-old-space-size=768 npm run build )
 [ -f "$ROOT/frontend/dist/index.html" ] || die "build produced no index.html"

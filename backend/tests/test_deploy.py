@@ -1889,3 +1889,29 @@ class TestOneReleaseAtATime:
             holder.kill()
         assert result.returncode != 0
         assert "another deploy is running" in result.stderr
+
+
+class TestFrontendSettingsReachTheBuild:
+    """P20 M15: VITE_* values are inlined into the bundle by the build, which
+    the units' EnvironmentFile never reaches; the template said to set
+    VITE_WHATSAPP_NUMBER without saying where, and gstbot.env did nothing."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def test_the_build_exports_vite_lines_from_the_env_file_first(self):
+        export = self.SCRIPT.index('case "$line" in VITE_')
+        build = self.SCRIPT.index("npm run build")
+        assert export < build
+        assert "done < /etc/gstbot/gstbot.env" in self.SCRIPT[export:build]
+
+    def test_the_export_skips_comments_and_keeps_values_whole(self, tmp_path):
+        env_file = tmp_path / "gstbot.env"
+        env_file.write_text("A=1\nVITE_X=+91 98\n# VITE_Y=no\nVITE_Z=ok\n")
+        loop = (
+            'while IFS= read -r line; do case "$line" in VITE_[A-Z0-9_]*=*) '
+            'export "$line" ;; esac; done < "$1"; env | grep ^VITE_ | sort'
+        )
+        out = subprocess.run(
+            ["bash", "-c", loop, "_", str(env_file)], capture_output=True, text=True, check=True
+        ).stdout
+        assert out.splitlines() == ["VITE_X=+91 98", "VITE_Z=ok"]
