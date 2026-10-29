@@ -127,6 +127,19 @@ fi
 [ -f "$LOCKFILE" ] || die "$LOCKFILE is missing; the tree in $ROOT predates it"
 command -v npm >/dev/null || die "npm is not installed; the frontend is built here"
 
+# The frontend is built on this box, so its Node is part of the release. CI
+# tests one major (frontend/package.json engines.node) and the box ran another
+# for months — CI on 20, the box on 22 — with nothing to say so. A release on a
+# different major is refused before anything is built.
+check_node() {
+    local want have
+    want="$(sed -nE 's/.*"node": *"[^0-9]*([0-9]+).*/\1/p' "$FRONTEND/package.json" | head -1)"
+    have="$(node --version 2>/dev/null | sed -nE 's/^v([0-9]+).*/\1/p')"
+    [ -n "$want" ] || die "frontend/package.json declares no engines.node to check this box against"
+    [ "$have" = "$want" ] \
+        || die "this box runs Node ${have:-none}, but the frontend is tested on Node $want (frontend/package.json engines.node); install Node $want before releasing"
+}
+
 log "Selecting the release source"
 if [ -n "$REF" ]; then
     # An explicit ref is the one case where the remote is not optional: there
@@ -235,6 +248,7 @@ log "Building the frontend"
 # replaces is kept as dist.prev, which is also what a quick rollback of the
 # frontend puts back.
 FRONTEND="$ROOT/frontend"
+check_node
 # What the build in dist was made from: the committed frontend tree and the
 # VITE_* settings inlined into it. A release whose frontend is unchanged used
 # to rebuild it anyway — npm ci from the registry and the slowest step here —

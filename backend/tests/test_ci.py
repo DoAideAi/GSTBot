@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -276,6 +277,54 @@ class TestTheRuntimeVersionsAgree:
         dockerfile = (REPO_ROOT / "frontend" / "Dockerfile").read_text()
         majors = set(re.findall(r"^FROM node:(\d+)", dockerfile, flags=re.M))
         assert sole(majors, "frontend/Dockerfile node stages") == with_node
+
+    # P29 M20: CI and the image ran Node 20 while the box that builds every
+    # release's frontend (deploy.sh runs `npm ci && npm run build` there) runs
+    # 22 — so CI never tested the Node that produces what ships, and nothing
+    # said so, because nothing declared a Node at all. And 20 had left
+    # maintenance six months earlier.
+
+    # Node majors and the day upstream stopped patching them.
+    NODE_END_OF_LIFE = {"16": "2023-09-11", "18": "2025-04-30", "20": "2026-04-30"}
+
+    def test_the_frontend_declares_the_node_ci_tests_on(self, with_node):
+        package = json.loads((REPO_ROOT / "frontend" / "package.json").read_text())
+        engines = (package.get("engines") or {}).get("node")
+        assert engines, "frontend/package.json declares no engines.node"
+        assert re.match(r"\^?>?=?\s*(\d+)", engines).group(1) == with_node
+
+    def test_ci_does_not_test_on_a_node_past_end_of_life(self, with_node):
+        from datetime import date
+
+        ended = self.NODE_END_OF_LIFE.get(with_node)
+        assert ended is None or date.fromisoformat(ended) > date.today(), (
+            f"Node {with_node} stopped receiving fixes on {ended}"
+        )
+
+    def test_a_release_refuses_to_build_on_another_node(self, tmp_path):
+        # The box builds the frontend, so its Node is part of the release.
+        # Run the real check against a fake `node` of each major.
+        script = (DEPLOY / "deploy.sh").read_text()
+        start = script.index("check_node() {")
+        check = script[start : script.index("\n}\n", start) + 3]
+        frontend = tmp_path / "frontend"
+        frontend.mkdir()
+        (frontend / "package.json").write_text('{"engines": {"node": ">=22"}}')
+        results = {}
+        for version in ("v22.23.1", "v20.19.0"):
+            fake = tmp_path / version
+            fake.mkdir()
+            (fake / "node").write_text(f"#!/bin/sh\necho {version}\n")
+            (fake / "node").chmod(0o755)
+            run = subprocess.run(
+                ["bash", "-c", f'FRONTEND="{frontend}"\ndie() {{ echo "$*" >&2; exit 1; }}\n'
+                 + check + "check_node"],
+                capture_output=True, text=True, timeout=10,
+                env={"PATH": f"{fake}:/usr/bin:/bin"},
+            )
+            results[version] = (run.returncode, run.stderr)
+        assert results["v22.23.1"][0] == 0, results
+        assert results["v20.19.0"][0] != 0 and "22" in results["v20.19.0"][1]
 
 
 # ---------------------------------------------------------------------------
