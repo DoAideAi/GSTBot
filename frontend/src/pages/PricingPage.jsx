@@ -34,6 +34,30 @@ function formatPrice(paise) {
   return `₹${rupees.toLocaleString("en-IN")}`;
 }
 
+/**
+ * What the cancel prompt says. Cancelling ends the plan at once and the API
+ * gives nothing back for the rest of the period, so a plan paid up to a date
+ * says which date, and that those days go with it. The prompt only said
+ * "paid features stop straight away", so cancelling three days into an
+ * annual plan lost a year of it without saying so.
+ */
+export function cancelConfirmation(sub, now = new Date()) {
+  const end = sub?.current_period_end ? new Date(sub.current_period_end) : null;
+  if (!end || Number.isNaN(end.getTime()) || end <= now) {
+    return "Cancel your paid plan and move to Free? Paid features stop straight away.";
+  }
+  const date = end.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+  return (
+    `Your plan is paid up to ${date}. Cancelling moves you to Free now: paid ` +
+    "features stop straight away and the remaining days are not refunded. Cancel anyway?"
+  );
+}
+
 export default function PricingPage() {
   usePageTitle("Pricing — DoAide GST");
   const { user } = useAuth();
@@ -148,7 +172,7 @@ export default function PricingPage() {
   const [cancelling, setCancelling] = useState(false);
   async function handleCancel() {
     if (cancelling) return;
-    if (!window.confirm("Cancel your paid plan and move to Free? Paid features stop straight away.")) return;
+    if (!window.confirm(cancelConfirmation(currentSub))) return;
     setError(null);
     setSuccess(null);
     setCancelling(true);

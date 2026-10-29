@@ -390,3 +390,22 @@ describe("the upgrade funnel", () => {
     );
   });
 });
+
+describe("cancelConfirmation", () => {
+  it("names the date being given up, and that it is not refunded", async () => {
+    const { cancelConfirmation } = await import("./PricingPage");
+    const text = cancelConfirmation(
+      { current_period_end: "2027-10-26T18:30:00Z" },
+      new Date("2026-10-29T00:00:00Z"),
+    );
+    expect(text).toContain("paid up to 27 Oct 2027");
+    expect(text).toContain("not refunded");
+  });
+
+  it("falls back to the plain warning when there is no future end date", async () => {
+    const { cancelConfirmation } = await import("./PricingPage");
+    const plain = "Cancel your paid plan and move to Free? Paid features stop straight away.";
+    expect(cancelConfirmation(null)).toBe(plain);
+    expect(cancelConfirmation({ current_period_end: "2020-01-01T00:00:00Z" })).toBe(plain);
+  });
+});
