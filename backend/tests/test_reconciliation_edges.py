@@ -1591,3 +1591,38 @@ class TestACsvAmendmentKeepsItsOriginal:
         )
         (record,) = gstr2b.parse_csv(plain)
         assert record.original_invoice_number is None
+
+
+class TestTheSameStatementImportedAgain:
+    """P19 M10: every import is kept, soft-deleted once superseded, so an
+    assessment can see what each run used. An identical re-upload preserved
+    nothing new and stored a full copy each time — at the import limit, one
+    15 MB statement grew the database by hundreds of MB an hour."""
+
+    def _rows(self, db_session, business):
+        return (
+            db_session.query(GSTRReturn)
+            .filter_by(business_id=business.id, return_type=ReturnType.GSTR2B)
+            .count()
+        )
+
+    def test_an_identical_import_stores_nothing_new(self, db_session, business):
+        first = import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+        again = import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+        assert again.id == first.id
+        assert again.deleted_at is None
+        assert self._rows(db_session, business) == 1
+
+    def test_a_changed_statement_still_supersedes_and_keeps_the_old_one(
+        self, db_session, business
+    ):
+        first = import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+        second = import_2b(
+            db_session,
+            business.id,
+            [portal(invoice_number="A-1"), portal(invoice_number="A-2")],
+        )
+        assert second.id != first.id
+        db_session.refresh(first)
+        assert first.deleted_at is not None
+        assert self._rows(db_session, business) == 2

@@ -1235,8 +1235,18 @@ def store_gstr2b(
     superseded row is soft-deleted, so what an earlier reconciliation ran
     against can still be produced during an assessment.
     """
+    invoices = [record.as_dict() for record in records]
     existing = latest_gstr2b(db, business_id, period)
     if existing is not None:
+        # The same statement again — a re-upload of the file already in force.
+        # Every import is kept (soft-deleted when superseded) so an assessment
+        # can see what each reconciliation ran against; an identical one
+        # preserves nothing new, and each kept a full copy: repeated imports of
+        # one 15 MB statement, at the import limit, grew the database by
+        # hundreds of megabytes an hour on a disk with a few GB free.
+        current = existing.data if isinstance(existing.data, dict) else {}
+        if current.get("invoices") == invoices and current.get("raw") == raw:
+            return existing
         existing.soft_delete()
         db.flush()
 
@@ -1249,7 +1259,7 @@ def store_gstr2b(
         data={
             "source_filename": source_filename,
             "imported_at": datetime.now(UTC).isoformat(),
-            "invoices": [record.as_dict() for record in records],
+            "invoices": invoices,
             # The portal envelope, kept verbatim beside the normalised rows.
             "raw": raw,
         },
