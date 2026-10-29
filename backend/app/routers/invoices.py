@@ -857,8 +857,15 @@ def update_invoice(
     for attr, value in changes.items():
         setattr(invoice, attr, value)
 
-    if "invoice_date" in changes and invoice.invoice_date:
-        invoice.period = invoice.invoice_date.strftime("%Y-%m")
+    # Cleared as well as moved. ``null`` is how a misread date is taken back
+    # off an invoice, and only a truthy date used to re-derive this — so the
+    # row kept the misread date's month and went on being declared in that
+    # month's returns with no date at all, out of reach of the validation that
+    # asks an undated invoice for one.
+    if "invoice_date" in changes:
+        invoice.period = (
+            invoice.invoice_date.strftime("%Y-%m") if invoice.invoice_date else None
+        )
 
     # Two kinds of edit arrive here and they must not be conflated. Correcting a
     # field means a human has read the document and overridden what the
