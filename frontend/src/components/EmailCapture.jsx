@@ -58,7 +58,10 @@ export default function EmailCapture({
           className="email-capture-input"
           required
           disabled={status === "sending"}
-          aria-label={compact ? heading : undefined}
+          // Named on every form, not only the compact one: the full form's
+          // heading is an <h3> nothing ties to the field, and a placeholder is
+          // not a label, so a screen reader announced an unnamed edit box.
+          aria-label="Email address"
         />
         <button type="submit" className="btn btn-primary email-capture-btn" disabled={status === "sending"}>
           {status === "sending" ? "Subscribing…" : buttonLabel}

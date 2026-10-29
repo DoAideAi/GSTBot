@@ -63,4 +63,12 @@ describe("EmailCapture", () => {
     await user.click(screen.getByRole("button", { name: /subscribe/i }));
     await waitFor(() => expect(mockSubscribe).toHaveBeenCalledWith("fd@example.com", "filing-dates"));
   });
+
+  it("names the email field on the full form and the compact one", () => {
+    const { unmount } = render(<EmailCapture source="test" heading="Get reminders" />);
+    expect(screen.getByRole("textbox", { name: "Email address" })).toBeInTheDocument();
+    unmount();
+    render(<EmailCapture source="test" compact />);
+    expect(screen.getByRole("textbox", { name: "Email address" })).toBeInTheDocument();
+  });
 });
