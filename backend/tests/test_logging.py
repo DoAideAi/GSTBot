@@ -379,3 +379,62 @@ class TestAccessQueryFilter:
         configure_logging("INFO", "json")
         handler = logging.getLogger().handlers[0]
         assert any(isinstance(f, AccessQueryFilter) for f in handler.filters)
+
+
+class TestPostgresDoesNotGetToQuoteTheRow:
+    """P38 M2: a constraint violation logged the values it collided on.
+
+    Postgres explains a violation in the exception's own text, and every
+    handler logs these exceptions with their traceback. A duplicate signup
+    logged ``Key (email)=(owner@example.com) already exists``, and a NOT NULL
+    or CHECK failure logged ``Failing row contains (...)``, the whole row with
+    its password hash. ``hide_parameters`` (P36 M2) keeps SQLAlchemy's
+    ``[parameters: ...]`` out, but this text is the server's. The column names
+    stay, because they say what went wrong. The values go.
+    """
+
+    UNIQUE = (
+        'duplicate key value violates unique constraint "ix_users_email"\n'
+        "DETAIL:  Key (email)=(owner@example.com) already exists."
+    )
+    FOREIGN = (
+        'insert or update on table "invoices" violates foreign key constraint\n'
+        'DETAIL:  Key (business_id, supplier_id)=(7, 912) is not present in table "suppliers".'
+    )
+    ROW = (
+        'null value in column "full_name" violates not-null constraint\n'
+        "DETAIL:  Failing row contains (12, owner@example.com, $2b$12$abcdefhash, null)."
+    )
+
+    @staticmethod
+    def _formatted(formatter, message: str) -> str:
+        try:
+            raise RuntimeError(message)
+        except RuntimeError:
+            import sys
+
+            record = _record()
+            record.exc_info = sys.exc_info()
+        CorrelationIdFilter().filter(record)
+        return formatter.format(record)
+
+    @pytest.mark.parametrize("formatter", [JsonFormatter(), ConsoleFormatter()],
+                             ids=["json", "console"])
+    def test_a_unique_violation_names_the_column_not_the_value(self, formatter):
+        line = self._formatted(formatter, self.UNIQUE)
+        assert "owner@example.com" not in line
+        assert "Key (email)=(" in line and "already exists" in line
+
+    @pytest.mark.parametrize("formatter", [JsonFormatter(), ConsoleFormatter()],
+                             ids=["json", "console"])
+    def test_a_foreign_key_violation_keeps_its_table_and_drops_the_ids(self, formatter):
+        line = self._formatted(formatter, self.FOREIGN)
+        assert "912" not in line
+        assert "Key (business_id, supplier_id)=(" in line and "suppliers" in line
+
+    @pytest.mark.parametrize("formatter", [JsonFormatter(), ConsoleFormatter()],
+                             ids=["json", "console"])
+    def test_a_failing_row_is_not_written_out(self, formatter):
+        line = self._formatted(formatter, self.ROW)
+        assert "owner@example.com" not in line and "abcdefhash" not in line
+        assert "Failing row contains (" in line and "not-null constraint" in line

@@ -66,10 +66,29 @@ _GSTIN_RE = re.compile(r"\b(\d{2})[A-Z]{5}\d{4}[A-Z]([1-9A-Z]Z[0-9A-Z])\b", re.I
 _PAN_RE = re.compile(r"\b[A-Z]{3}[ABCFGHJLPT][A-Z]\d{4}[A-Z]\b")
 
 
+# Postgres explains a constraint violation in the exception's own text, and
+# every handler logs those exceptions with their traceback. The DETAIL line
+# quotes the values that collided ("Key (email)=(owner@example.com) already
+# exists") or, for a NOT NULL or CHECK failure, the whole row with its password
+# hash ("Failing row contains (...)"). The engine's hide_parameters cannot
+# reach this: the text is the server's. Column names and table names stay,
+# because they say what went wrong. Each match ends at Postgres's own fixed
+# wording rather than at a parenthesis, so a value containing one is still
+# masked whole. The line may be JSON, where a newline is the two characters \n.
+_PG_KEY_DETAIL_RE = re.compile(
+    r"(Key \([^()]*\)=\().*?(\)(?: already exists| is not present| conflicts with))"
+)
+_PG_FAILING_ROW_RE = re.compile(r"(Failing row contains \().*?(\)\.(?=\\n|\n|\"|\s|$))")
+_MASKED_VALUES = "[redacted]"
+
+
 def mask_identifiers(text: str) -> str:
-    """*text* with every GSTIN's PAN and every bare PAN masked."""
+    """*text* with every GSTIN's PAN, every bare PAN, and the row values a
+    Postgres constraint violation quotes, masked."""
     text = _GSTIN_RE.sub(lambda m: f"{m.group(1)}{'*' * 10}{m.group(2)}", text)
-    return _PAN_RE.sub("*" * 10, text)
+    text = _PAN_RE.sub("*" * 10, text)
+    text = _PG_KEY_DETAIL_RE.sub(rf"\g<1>{_MASKED_VALUES}\g<2>", text)
+    return _PG_FAILING_ROW_RE.sub(rf"\g<1>{_MASKED_VALUES}\g<2>", text)
 
 
 def new_correlation_id() -> str:
