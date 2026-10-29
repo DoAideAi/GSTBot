@@ -102,3 +102,45 @@ def test_it_needs_a_session(client):
 
 def _user_id(client):
     return client.get("/api/v1/auth/me").json()["id"]
+
+
+def test_a_change_that_lost_a_race_does_not_overwrite_the_one_that_won(
+    auth_client, db_session, monkeypatch
+):
+    """Two changes verified against the same old password: only the first lands.
+
+    The check is a bcrypt round — a quarter of a second — against the hash the
+    request loaded, and the write afterwards was unconditional. So the owner
+    rotating a leaked password and whoever leaked it, changing it at the same
+    moment from a session the old one opened, both passed, and the later commit
+    won. If that was the attacker's, the password the owner had just rotated
+    to was gone and the attacker's was in its place.
+    """
+    from sqlalchemy import update
+
+    from app.core.security import hash_password
+    from app.routers import auth as auth_router
+
+    owners = "the-owners-fresh-passphrase"
+    real_verify = auth_router.verify_password
+
+    def verify_while_the_owner_commits(plain, hashed):
+        ok = real_verify(plain, hashed)
+        # The owner's own change commits while this request is still checking.
+        db_session.execute(
+            update(User)
+            .where(User.email == TEST_EMAIL)
+            .values(hashed_password=hash_password(owners))
+            .execution_options(synchronize_session=False)
+        )
+        db_session.commit()
+        return ok
+
+    monkeypatch.setattr(auth_router, "verify_password", verify_while_the_owner_commits)
+    response = auth_client.post(URL, json={"current_password": TEST_PASSWORD, "new_password": NEW})
+    monkeypatch.setattr(auth_router, "verify_password", real_verify)
+
+    assert response.status_code == 409, response.text
+    assert "access_token" not in response.json()
+    assert _login(auth_client, owners).status_code == 200
+    assert _login(auth_client, NEW).status_code == 401

@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -383,6 +383,12 @@ def logout(
                 "provider and has no password."
             )
         },
+        409: {
+            "description": (
+                "The password was changed by another request while this one was "
+                "being checked. Nothing was changed by this one."
+            )
+        },
         422: {"description": "The new password is too short, too common, or unchanged."},
     },
     dependencies=[Depends(_change_password_limit)],
@@ -406,18 +412,44 @@ def change_password(
                 "here. Change it with that provider instead."
             ),
         )
-    if not verify_password(payload.current_password, current_user.hashed_password):
+    verified_against = current_user.hashed_password
+    if not verify_password(payload.current_password, verified_against):
         logger.warning("Password change refused: wrong current password",
                        extra={"user_id": current_user.id})
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The current password is not correct.",
         )
-    current_user.hashed_password = hash_password(payload.new_password)
-    # Whole seconds, matching the token's ``iat``: the token handed back below
-    # is issued in this same second and must not be refused by the cutoff.
-    current_user.password_changed_at = datetime.now(UTC).replace(microsecond=0)
+    # Written only over the hash the check above ran against. The check is a
+    # bcrypt round, and the write after it was unconditional: two changes made
+    # with the same old password — the owner rotating a leaked one, and whoever
+    # leaked it, at the same moment — both passed, and the later commit won. If
+    # that was the attacker's, the password the owner had just rotated to was
+    # replaced by theirs. Now the second finds the hash moved and changes
+    # nothing.
+    changed = db.execute(
+        update(User)
+        .where(User.id == current_user.id, User.hashed_password == verified_against)
+        .values(
+            hashed_password=hash_password(payload.new_password),
+            # Whole seconds, matching the token's ``iat``: the token handed back
+            # below is issued in this same second and must not be refused by
+            # the cutoff.
+            password_changed_at=datetime.now(UTC).replace(microsecond=0),
+        )
+        .execution_options(synchronize_session=False)
+    ).rowcount
     db.commit()
+    if not changed:
+        logger.warning("Password change refused: changed concurrently",
+                       extra={"user_id": current_user.id})
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Your password was changed by another request a moment ago, so "
+                "this change was not made. Sign in again with the current password."
+            ),
+        )
     logger.info("Password changed", extra={"user_id": current_user.id})
     return Token(access_token=create_access_token(current_user.id))
 
