@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -284,6 +286,26 @@ def verify_payment(
             ),
         )
 
+    return _apply_paid_order(db, business, payload, actor_user_id=current_user.id)
+
+
+def _apply_paid_order(
+    db: Session,
+    business: Business,
+    payload: VerifyPaymentRequest,
+    *,
+    actor_user_id: int | None,
+) -> SubscriptionOut:
+    """Apply a paid checkout order to *business*, once.
+
+    Everything a verified payment does after its signature is checked: the
+    order re-read from Razorpay and matched to the business and tier, the
+    billing lock, the one-payment and one-order checks, the period. Shared by
+    the browser's ``/verify-payment`` and the ``order.paid`` webhook, so the
+    two can arrive in either order — or only one of them at all — and the
+    checkout is applied exactly once. *actor_user_id* is ``None`` for the
+    webhook, which acts for nobody signed in.
+    """
     # The signature covers "order_id|payment_id" and nothing else, so on its own
     # it proves only that *some* order was paid. The tier came from the request
     # body and the business from the session, and neither was checked against
@@ -366,7 +388,7 @@ def verify_payment(
             "Second payment for an order already applied; not applied, refund due",
             extra={
                 "business_id": business.id,
-                "user_id": current_user.id,
+                "user_id": actor_user_id,
                 "razorpay_order_id": payload.razorpay_order_id,
                 "razorpay_payment_id": payload.razorpay_payment_id,
                 "applied_payment_id": spent.razorpay_payment_id,
@@ -414,7 +436,7 @@ def verify_payment(
                 "Lower plan paid over a running higher one; kept the higher plan, refund due",
                 extra={
                     "business_id": business.id,
-                    "user_id": current_user.id,
+                    "user_id": actor_user_id,
                     "current_tier": sub.tier.value,
                     "paid_tier": payload.tier.value,
                     "razorpay_payment_id": payload.razorpay_payment_id,
@@ -461,7 +483,7 @@ def verify_payment(
         "Subscription activated",
         extra={
             "business_id": business.id,
-            "user_id": current_user.id,
+            "user_id": actor_user_id,
             "tier": payload.tier.value,
             "razorpay_payment_id": payload.razorpay_payment_id,
             "razorpay_order_id": payload.razorpay_order_id,
@@ -780,6 +802,90 @@ def usage_summary(
     )
 
 
+_CHECKOUT_RECEIPT = re.compile(r"^biz_(\d{1,18})_([a-z]+)$")
+
+
+def _recover_paid_order(db: Session, payload: dict) -> dict:
+    """Apply a checkout the browser never confirmed, from ``order.paid``.
+
+    A one-time checkout was activated only by the browser calling
+    ``/verify-payment`` after Razorpay's checkout succeeded. If that never
+    landed — the tab closed, the connection dropped, the API restarted during a
+    deploy — the customer had paid and was not upgraded, and nothing on the
+    server would notice. Razorpay sends ``order.paid`` server to server
+    whatever the browser does, so this runs the same activation from it.
+
+    The business and tier come from the receipt this server wrote when it
+    created the order (``razorpay_client.order_receipt``); the order is then
+    re-read from Razorpay and matched exactly as the browser path matches it,
+    so this applies nothing that path would not. Idempotent with it: whichever
+    of the two arrives second finds the payment applied.
+
+    Razorpay retries a non-2xx for a day. Unreachable Razorpay is answered 502
+    so it does retry — that retry is the recovery. A refusal that a retry
+    cannot change (an order that does not match, a payment already used) is
+    acknowledged and logged.
+    """
+    order = _dig(payload, "payload", "order", "entity")
+    payment = _dig(payload, "payload", "payment", "entity")
+    receipt = order.get("receipt")
+    match = _CHECKOUT_RECEIPT.match(receipt) if isinstance(receipt, str) else None
+    business = db.get(Business, int(match.group(1))) if match else None
+    if business is None:
+        # A report purchase (rpt_…) is confirmed by its own route, and any
+        # other receipt is not an order this server created.
+        logger.info(
+            "order.paid acknowledged: not a checkout this server can apply",
+            extra={"event": "order.paid", "outcome": "unmatched", "receipt": receipt},
+        )
+        metrics.count("razorpay_webhook_unmatched")
+        return {"status": "ok"}
+    try:
+        request = VerifyPaymentRequest(
+            razorpay_order_id=order.get("id"),
+            razorpay_payment_id=payment.get("id"),
+            # Not checked on this path: the webhook's own signature was.
+            razorpay_signature="webhook",
+            tier=match.group(2),
+        )
+    except ValidationError:
+        logger.warning(
+            "order.paid without a usable order or payment id",
+            extra={"event": "order.paid", "outcome": "malformed", "business_id": business.id},
+        )
+        metrics.count("razorpay_webhook_malformed")
+        return {"status": "ok"}
+    try:
+        _apply_paid_order(db, business, request, actor_user_id=None)
+    except HTTPException as exc:
+        db.rollback()
+        if exc.status_code in (502, 503, 504):
+            raise
+        logger.warning(
+            "order.paid not applied: %s", exc.detail,
+            extra={
+                "event": "order.paid",
+                "outcome": "ignored",
+                "business_id": business.id,
+                "razorpay_order_id": request.razorpay_order_id,
+                "status_code": exc.status_code,
+            },
+        )
+        metrics.count("razorpay_webhook_ignored")
+        return {"status": "ok"}
+    logger.info(
+        "order.paid applied",
+        extra={
+            "event": "order.paid",
+            "outcome": "applied",
+            "business_id": business.id,
+            "razorpay_order_id": request.razorpay_order_id,
+        },
+    )
+    metrics.count("razorpay_webhook_applied")
+    return {"status": "ok"}
+
+
 def _dig(document: dict, *keys: str) -> dict:
     """``document[k1][k2]…`` when every step is a dict, else ``{}``."""
     node: object = document
@@ -856,6 +962,9 @@ async def razorpay_webhook(
     event = payload.get("event")
     if not isinstance(event, str):
         event = ""
+
+    if event == "order.paid":
+        return _recover_paid_order(db, payload)
     # Which id names the row, in order of preference. A Razorpay-managed
     # subscription is stored under its ``sub_`` id, a one-time checkout under
     # its ``pay_`` id. ``subscription.charged`` — and ``activated`` with a first
