@@ -638,3 +638,36 @@ class TestKeyComesFromSettings:
             patch.object(advisor.settings, "gemini_api_key_file", ""),
         ):
             assert advisor._get_api_key() is None
+
+
+class TestAnUnusualReplyStillSerialises:
+    """P18 M5: ``json.loads`` accepts a lone ``\\ud800`` escape in Gemini's
+    reply and returns an unpaired surrogate, which cannot be encoded to UTF-8 —
+    the response failed to serialise and the user got a 500 for one bad
+    character. A misbehaving upstream's 3 MB body was relayed whole."""
+
+    def _ask(self, client, body: bytes):
+        response = httpx.Response(200, content=body, headers={"content-type": "application/json"})
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=response),
+        ):
+            return client.post("/api/v1/advisor/ask", json={"message": "hi"})
+
+    def test_a_lone_surrogate_becomes_a_replacement_character(self, raw_client):
+        body = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": "GST \ud800 is 18%"}]}}]}
+        ).encode()
+        response = self._ask(raw_client, body)
+        assert response.status_code == 200
+        assert response.json()["reply"] == "GST � is 18%"
+
+    def test_an_oversized_reply_is_cut_to_the_ceiling(self, client):
+        from app.routers.advisor import MAX_REPLY_CHARS
+
+        body = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": "A" * (MAX_REPLY_CHARS * 3)}]}}]}
+        ).encode()
+        response = self._ask(client, body)
+        assert response.status_code == 200
+        assert len(response.json()["reply"]) == MAX_REPLY_CHARS

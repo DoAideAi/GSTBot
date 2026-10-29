@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
 from app.core.rate_limit import RateLimit
-from app.core.sanitize import visible_text
+from app.core.sanitize import encodable, visible_text
 
 logger = logging.getLogger(__name__)
 
@@ -342,6 +342,23 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
         ) from None
 
 
+# Far above what ``maxOutputTokens`` lets a real answer reach (1,024 tokens is a
+# few kilobytes); only a misbehaving upstream gets near it. Without a bound a
+# 3 MB body was relayed whole to the browser.
+MAX_REPLY_CHARS = 32_000
+
+
+def _clean_reply(text: str) -> str:
+    """*text* safe to serialise: unpaired surrogates replaced, length bounded.
+
+    ``json.loads`` accepts a lone ``\\ud800`` escape in the upstream reply and
+    hands back an unpaired surrogate, which cannot be encoded as UTF-8 — the
+    response model then failed to serialise and the user got a 500 for one bad
+    character in an otherwise good answer.
+    """
+    return encodable(text)[:MAX_REPLY_CHARS]
+
+
 def _reply_parts(data: object) -> str | None:
     """The answer's text exactly as written, or ``None`` when there is none."""
     candidates = data.get("candidates") if isinstance(data, dict) else None
@@ -350,8 +367,8 @@ def _reply_parts(data: object) -> str | None:
     parts = content.get("parts") if isinstance(content, dict) else None
     if not isinstance(parts, list):
         return None
-    text = "".join(
-        p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)
+    text = _clean_reply(
+        "".join(p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str))
     )
     return text or None
 
@@ -373,9 +390,11 @@ def _reply_text(data: object) -> str | None:
     parts = content.get("parts") if isinstance(content, dict) else None
     if not isinstance(parts, list):
         return None
-    text = "".join(
-        p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)
-    ).strip()
+    text = _clean_reply(
+        "".join(
+            p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)
+        ).strip()
+    )
     return text or None
 
 
