@@ -403,12 +403,14 @@ class TestFileUploadAdversarial:
 
 class TestContentDispositionInjection:
 
-    def test_newline_in_filename_star_is_percent_encoded(self):
+    def test_newline_in_filename_cannot_start_a_header(self):
+        # Control characters are dropped from both parameters rather than
+        # percent-encoded (content_disposition says why), so nothing in the
+        # value can end the header line, encoded or not.
         result = content_disposition("file\r\nX-Evil: yes\r\n.pdf")
-        assert "%0D%0A" in result
-        star = result.split("filename*=")[1] if "filename*=" in result else ""
-        assert "\r" not in star
-        assert "\n" not in star
+        assert "\r" not in result and "\n" not in result
+        assert "%0D" not in result.upper() and "%0A" not in result.upper()
+        assert result.startswith('attachment; filename="fileX-Evil: yes.pdf"')
 
     def test_double_quote_is_escaped(self):
         result = content_disposition('file"name.pdf')

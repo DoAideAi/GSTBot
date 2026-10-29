@@ -300,6 +300,7 @@ class TestTheSweepCoversEveryBusinessScopedRoute:
             ("POST", "/api/v1/reconciliation/run"),
             ("POST", "/api/v1/itc/set-off"),
             ("POST", "/api/v1/filing/{return_type}/filed"),
+            ("DELETE", "/api/v1/filing/{return_type}/filed"),
             ("POST", "/api/v1/suppliers/rescore"),
             ("POST", "/api/v1/subscriptions/cancel"),
             ("POST", "/api/v1/subscriptions/create-order"),
@@ -447,6 +448,41 @@ class TestAWriteMadeWhileSwitchedLandsOnTheOtherBusiness:
         )
         assert [row.business_id for row in filed] == [switched]
         assert business.id != switched
+
+    def test_withdrawing_a_filing_while_switched_never_touches_the_home_one(
+        self, auth_client, db_session, business, home, switched
+    ):
+        """The home business has GSTR-3B filed for PERIOD; the switched one has
+        nothing. Withdrawing while switched must find nothing to withdraw, and
+        after recording one there, withdraw that one and only that one."""
+        url = f"/api/v1/filing/{ReturnType.GSTR3B.value}/filed"
+        headers = {"X-Business-Id": str(switched)}
+
+        def filed_for():
+            return sorted(
+                row.business_id
+                for row in db_session.query(GSTRReturn).filter_by(
+                    period=PERIOD, return_type=ReturnType.GSTR3B, status=ReturnStatus.FILED
+                )
+                if row.deleted_at is None
+            )
+
+        missing = auth_client.delete(url, params={"period": PERIOD}, headers=headers)
+        assert missing.status_code == 404, missing.text
+        assert filed_for() == [business.id]
+
+        recorded = auth_client.post(
+            url,
+            json={"period": PERIOD, "filed_at": "2026-05-20", "arn": "AA270426000001X"},
+            headers=headers,
+        )
+        assert recorded.status_code in (200, 201), recorded.text
+        assert filed_for() == sorted([business.id, switched])
+
+        withdrawn = auth_client.delete(url, params={"period": PERIOD}, headers=headers)
+        assert withdrawn.status_code == 204, withdrawn.text
+        db_session.expire_all()
+        assert filed_for() == [business.id]
 
     def test_a_reconciliation_run_started_while_switched_is_the_other_businesss(
         self, auth_client, db_session, business, home, switched
