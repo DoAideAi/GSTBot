@@ -885,3 +885,59 @@ def test_output_tax_leaves_out_tax_the_recipient_pays(auth_client, db_session, b
     assert Decimal(body["net_liability"]["total"]) == Decimal(body["output_tax"])
     # The sales card still counts both invoices issued.
     assert body["sales"]["count"] == 2
+
+
+class TestTheDashboardDoesNotHaulTheReconciliationReport:
+    """P36 M8: every dashboard load read the whole reconciliation report.
+
+    The dashboard shows a run's counts and totals, which are columns. It got
+    them through ``latest_completed_run``, which loaded the row whole,
+    ``report`` included: every finding with both sides' figures, plus every
+    supplier's score, as one JSON value that is hundreds of kilobytes for a busy
+    month. That was fetched and decoded on the product's landing page, on every
+    load, and nothing read it.
+    """
+
+    def _run_with_a_report(self, db_session, business):
+        db_session.add(
+            ReconciliationRun(
+                business_id=business.id,
+                period="2026-04",
+                status=ReconciliationStatus.COMPLETED,
+                matched_count=3,
+                itc_eligible=Decimal("70000.00"),
+                itc_at_risk=Decimal("12000.00"),
+                report={"findings": [{"invoice_number": f"INV-{i}"} for i in range(500)]},
+            )
+        )
+        db_session.commit()
+
+    def test_the_report_column_is_never_selected(self, auth_client, db_session, business):
+        from sqlalchemy import event
+
+        self._run_with_a_report(db_session, business)
+        selected: list[str] = []
+
+        def record(conn, cursor, statement, *args):
+            if "from reconciliation_runs" in statement.lower():
+                selected.append(statement)
+
+        engine = db_session.get_bind()
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            body = auth_client.get("/api/v1/dashboard?period=2026-04").json()
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+
+        assert selected, "the dashboard no longer reads the latest run at all"
+        assert not [s for s in selected if "reconciliation_runs.report" in s]
+        assert body["last_reconciliation"]["matched"] == 3
+        assert Decimal(body["itc_at_risk"]) == Decimal("12000.00")
+
+    def test_the_itc_screen_still_gets_the_report_it_reads(self, db_session, business):
+        # ``itc_eligible_capital`` lives in the report, so that caller keeps it.
+        from app.services import reconciliation
+
+        self._run_with_a_report(db_session, business)
+        run = reconciliation.latest_completed_run(db_session, business.id, "2026-04")
+        assert len(run.report["findings"]) == 500

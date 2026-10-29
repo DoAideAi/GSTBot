@@ -42,7 +42,7 @@ from decimal import Decimal
 
 from sqlalchemy import String, bindparam, cast, func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, object_session
+from sqlalchemy.orm import Session, defer, object_session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.errors import public_reason
@@ -1238,7 +1238,7 @@ def has_gstr2b(db: Session, business_id: int, period: str) -> bool:
 
 
 def latest_completed_run(
-    db: Session, business_id: int, period: str
+    db: Session, business_id: int, period: str, *, with_report: bool = True
 ) -> ReconciliationRun | None:
     """The newest run for *period* that actually finished, if there is one.
 
@@ -1260,9 +1260,18 @@ def latest_completed_run(
     ``latest_gstr2b``'s counterpart, and used by every caller that reads money
     off a run. The runs *list* deliberately does not filter: "what did we try,
     and when" is the question that row exists to answer.
+
+    ``with_report=False`` leaves ``report`` unread: every finding and supplier
+    score as one JSON value, hundreds of kilobytes for a busy month. A caller
+    that only shows the counts and totals, which are columns, passes it. The
+    dashboard loaded and decoded the whole report on every visit and read none
+    of it.
     """
+    query = select(ReconciliationRun)
+    if not with_report:
+        query = query.options(defer(ReconciliationRun.report, raiseload=True))
     return db.scalar(
-        select(ReconciliationRun)
+        query
         .where(
             ReconciliationRun.business_id == business_id,
             ReconciliationRun.period == period,

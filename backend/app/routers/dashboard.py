@@ -180,7 +180,9 @@ def get_dashboard(
     # row carries zeros for every figure, and reading one here reports the risk
     # as nil — the reassuring answer, on the one screen a business checks to
     # decide whether to chase a supplier.
-    last_run = reconciliation.latest_completed_run(db, business.id, period)
+    last_run = reconciliation.latest_completed_run(
+        db, business.id, period, with_report=False
+    )
 
     # ---- History for the chart ----
     recent: list[PeriodSummary] = []
