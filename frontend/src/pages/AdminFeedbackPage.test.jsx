@@ -131,19 +131,24 @@ describe("AdminFeedbackPage", () => {
 
     global.fetch.mockImplementationOnce(() => Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") }));
     await userEvent.click(firstDelete);
-    expect(global.fetch.mock.calls.at(-1)[0]).toBe("/api/v1/feedback/2");
-    expect(global.fetch.mock.calls.at(-1)[1].method).toBe("DELETE");
-    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(2);
+    const calls = global.fetch.mock.calls;
+    const del = calls.findIndex(([, init]) => init?.method === "DELETE");
+    expect(calls[del][0]).toBe("/api/v1/feedback/2");
+    // The page is then asked for again rather than patched locally.
+    await vi.waitFor(() => expect(calls.length).toBeGreaterThan(del + 1));
+    expect(calls.at(-1)[0]).toBe("/api/v1/feedback?limit=50&offset=0");
   });
 
   it("shows the browser error log, and clears an error marked fixed", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
     await screen.findByRole("table");
+    let cleared = false;
     global.fetch = vi.fn((url, init) =>
       init?.method === "DELETE"
-        ? Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") })
-        : respond(200, {
+        ? ((cleared = true),
+          Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") }))
+        : respond(200, cleared ? { items: [], total: 0 } : {
             items: [
               {
                 id: 7,
@@ -167,7 +172,96 @@ describe("AdminFeedbackPage", () => {
     expect(global.fetch.mock.calls[0][0]).toContain("/api/v1/feedback/errors");
 
     await userEvent.click(within(table).getByRole("button", { name: "Mark fixed" }));
-    expect(global.fetch.mock.calls.at(-1)[0]).toBe("/api/v1/feedback/errors/7");
+    const del = global.fetch.mock.calls.find(([, init]) => init?.method === "DELETE");
+    expect(del[0]).toBe("/api/v1/feedback/errors/7");
     expect(await screen.findByText("No browser errors have been reported.")).toBeInTheDocument();
+  });
+});
+
+describe("AdminFeedbackPage paging after a delete", () => {
+  // A delete took the row off the screen and asked the server nothing more.
+  // The server's next page then started as many rows further on as had been
+  // deleted, so those rows appeared on neither page; and deleting the last row
+  // on the last page left "No feedback matches these filters." with the pager
+  // gone, though the count said there was more.
+  function server(rows) {
+    const store = [...rows];
+    global.fetch = vi.fn((url, init) => {
+      const u = new URL(url, "http://x");
+      if (init?.method === "DELETE") {
+        const id = Number(u.pathname.split("/").at(-1));
+        store.splice(store.findIndex((r) => r.id === id), 1);
+        return Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve("") });
+      }
+      const limit = Number(u.searchParams.get("limit") ?? 50);
+      const offset = Number(u.searchParams.get("offset") ?? 0);
+      return respond(200, { items: store.slice(offset, offset + limit), total: store.length });
+    });
+  }
+
+  const feedback = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: n - i,
+      category: "general",
+      message: `Message ${n - i}`,
+      email: null,
+      page_url: null,
+      user_agent: null,
+      ip_address: null,
+      metadata: null,
+      created_at: "2026-10-20T10:00:00Z",
+    }));
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("brings the next row up instead of skipping it", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    server(feedback(51));
+    renderPage();
+    const table = await screen.findByRole("table");
+    expect(within(table).queryByText("Message 1")).not.toBeInTheDocument();
+
+    await userEvent.click(within(table).getAllByRole("button", { name: "Delete" })[0]);
+
+    expect(await screen.findByText("Message 1")).toBeInTheDocument();
+    expect(screen.getByText("1–50 of 50")).toBeInTheDocument();
+  });
+
+  it("steps back a page when it deletes the last row of the last one", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    server(feedback(51));
+    renderPage();
+    await screen.findByRole("table");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("51–51 of 51")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("1–50 of 50")).toBeInTheDocument();
+    expect(screen.queryByText("No feedback matches these filters.")).not.toBeInTheDocument();
+  });
+
+  it("pages the browser error log instead of stopping at the first fifty", async () => {
+    const errors = Array.from({ length: 55 }, (_, i) => ({
+      id: 55 - i,
+      page: "/hsn",
+      message: `Error ${55 - i}`,
+      stack: null,
+      user_agent: null,
+      occurrences: 1,
+      first_seen_at: "2026-10-01T10:00:00Z",
+      last_seen_at: "2026-10-20T10:00:00Z",
+    }));
+    server(feedback(1));
+    renderPage();
+    await screen.findByRole("table");
+    server(errors);
+    await userEvent.click(screen.getByRole("button", { name: "Browser errors" }));
+    await screen.findByText("Error 55");
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Error 1")).toBeInTheDocument();
+    expect(screen.getByText("51–55 of 55")).toBeInTheDocument();
   });
 });

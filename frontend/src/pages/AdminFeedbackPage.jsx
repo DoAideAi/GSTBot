@@ -9,6 +9,42 @@ import { summarize } from "../lib/feedbackInsights";
 const PAGE_SIZE = 50;
 const LABELS = Object.fromEntries(CATEGORIES);
 
+/**
+ * Where to go when a page came back empty although rows remain: the last page
+ * there is. Rows deleted from here, or by another admin, can leave the page
+ * being looked at past the end, and an empty page under a count of rows read
+ * as "nothing matches" with no pager left to leave it by.
+ */
+function lastPageOffset(total) {
+  return Math.max(0, Math.ceil(total / PAGE_SIZE) - 1) * PAGE_SIZE;
+}
+
+function Pager({ offset, total, setOffset }) {
+  return (
+    <div className="pager">
+      <button
+        type="button"
+        className="btn btn-ghost"
+        disabled={offset === 0}
+        onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+      >
+        Previous
+      </button>
+      <span className="muted" role="status">
+        {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+      </span>
+      <button
+        type="button"
+        className="btn btn-ghost"
+        disabled={offset + PAGE_SIZE >= total}
+        onClick={() => setOffset(offset + PAGE_SIZE)}
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
 function when(iso) {
   return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
@@ -41,12 +77,20 @@ function ErrorLog({ onForbidden }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Paged, where it used to ask for the first fifty and stop: everything past
+  // them could not be reached, and clearing the ones shown brought none in.
+  const [offset, setOffset] = useState(0);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
     api
-      .listClientErrors({ limit: PAGE_SIZE }, { signal: controller.signal })
+      .listClientErrors({ limit: PAGE_SIZE, offset }, { signal: controller.signal })
       .then((body) => {
+        if (body.items.length === 0 && body.total > 0 && offset > 0) {
+          setOffset(lastPageOffset(body.total));
+          return;
+        }
         setItems(body.items);
         setTotal(body.total);
       })
@@ -59,7 +103,7 @@ function ErrorLog({ onForbidden }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [onForbidden]);
+  }, [onForbidden, offset, reload]);
 
   const markFixed = async (row) => {
     if (!window.confirm(`Clear "${row.message.slice(0, 80)}"? If it happens again it is logged afresh.`)) return;
@@ -67,6 +111,8 @@ function ErrorLog({ onForbidden }) {
       await api.deleteClientError(row.id);
       setItems((all) => all.filter((r) => r.id !== row.id));
       setTotal((t) => t - 1);
+      // Asked again, for the reason the feedback list gives.
+      setReload((n) => n + 1);
     } catch (err) {
       setError(err?.message || "That error could not be cleared.");
     }
@@ -123,6 +169,7 @@ function ErrorLog({ onForbidden }) {
               </tbody>
             </table>
           </TableScroll>
+          {total > PAGE_SIZE && <Pager offset={offset} total={total} setOffset={setOffset} />}
         </>
       )}
     </section>
@@ -143,6 +190,7 @@ export default function AdminFeedbackPage() {
   const [error, setError] = useState("");
   const [forbidden, setForbidden] = useState(false);
   const [view, setView] = useState("feedback");
+  const [reload, setReload] = useState(0);
   const onForbidden = useCallback(() => setForbidden(true), []);
 
   useEffect(() => {
@@ -152,6 +200,10 @@ export default function AdminFeedbackPage() {
     api
       .listFeedback({ ...filters, limit: PAGE_SIZE, offset }, { signal: controller.signal })
       .then((body) => {
+        if (body.items.length === 0 && body.total > 0 && offset > 0) {
+          setOffset(lastPageOffset(body.total));
+          return;
+        }
         setItems(body.items);
         setTotal(body.total);
         setForbidden(false);
@@ -167,7 +219,7 @@ export default function AdminFeedbackPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [filters, offset]);
+  }, [filters, offset, reload]);
 
   const remove = async (f) => {
     if (!window.confirm("Delete this feedback? This cannot be undone.")) return;
@@ -175,6 +227,11 @@ export default function AdminFeedbackPage() {
       await api.deleteFeedback(f.id);
       setItems((all) => all.filter((x) => x.id !== f.id));
       setTotal((t) => t - 1);
+      // Asked again rather than trusted locally. The server's next page now
+      // starts one row further on, so the row that moves up onto this page
+      // was shown on neither; and a page emptied this way is stepped back
+      // from above rather than left saying nothing matches.
+      setReload((n) => n + 1);
     } catch (err) {
       setError(err?.message || "That feedback could not be deleted.");
     }
@@ -296,27 +353,7 @@ export default function AdminFeedbackPage() {
                   </table>
                 </TableScroll>
 
-                <div className="pager">
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={offset === 0}
-                    onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                  >
-                    Previous
-                  </button>
-                  <span className="muted" role="status">
-                    {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={offset + PAGE_SIZE >= total}
-                    onClick={() => setOffset(offset + PAGE_SIZE)}
-                  >
-                    Next
-                  </button>
-                </div>
+                <Pager offset={offset} total={total} setOffset={setOffset} />
               </>
             )}
           </section>
