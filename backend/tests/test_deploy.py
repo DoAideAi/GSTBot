@@ -34,6 +34,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -1650,6 +1651,80 @@ class TestTheMonitor:
         # into hand-written JSON turns the alert into a 400 from the receiving
         # end — a notification channel that breaks exactly when it is used.
         assert "json.dumps" in commands
+
+    class TestTheUploadedFilesAreWatchedLikeTheDumps:
+        """P36 M7: a fresh dump hid uploaded files that had stopped being backed up.
+
+        backup.sh writes the dump, then snapshots the uploaded invoices. A
+        snapshot that fails (one unreadable file is enough for rsync) stops the
+        script after the dump has landed. The unit fails, and the monitor sees
+        a dump from tonight and reports nothing, night after night, while the
+        scans an assessment asks to see stop being kept. Run here against stub
+        ``systemctl`` and ``curl``, with real directories.
+        """
+
+        @pytest.fixture()
+        def box(self, tmp_path):
+            bin_dir = tmp_path / "bin"
+            bin_dir.mkdir()
+            (bin_dir / "systemctl").write_text("#!/bin/sh\necho active\n")
+            (bin_dir / "curl").write_text("#!/bin/sh\nexit 0\n")
+            for stub in bin_dir.iterdir():
+                stub.chmod(0o755)
+            backups = tmp_path / "backups"
+            backups.mkdir()
+            uploads = tmp_path / "invoices"
+            uploads.mkdir()
+            (backups / "gstbot-20261030T023000Z.dump").write_bytes(b"dump")
+            return SimpleNamespace(bin=bin_dir, backups=backups, uploads=uploads)
+
+        def run(self, box) -> list[str]:
+            env = {
+                **os.environ,
+                "PATH": f"{box.bin}:{os.environ['PATH']}",
+                "GSTBOT_BACKUP_DIR": str(box.backups),
+                "GSTBOT_UPLOAD_DIR": str(box.uploads),
+                "GSTBOT_MONITOR_MIN_FREE_MB": "0",
+                "GSTBOT_ALERT_WEBHOOK": "",
+            }
+            result = subprocess.run(
+                ["bash", str(MONITOR_SCRIPT)], capture_output=True, text=True, env=env
+            )
+            return [
+                line.removeprefix("PROBLEM: ")
+                for line in result.stderr.splitlines()
+                if line.startswith("PROBLEM: ")
+            ]
+
+        def snapshot(self, box, *, hours_old: float) -> None:
+            snap = box.backups / "uploads-20261030T023000Z"
+            snap.mkdir()
+            then = time.time() - hours_old * 3600
+            os.utime(snap, (then, then))
+
+        def test_a_fresh_dump_and_a_fresh_snapshot_are_all_well(self, box):
+            self.snapshot(box, hours_old=1)
+            assert self.run(box) == []
+
+        def test_a_fresh_dump_with_a_stale_snapshot_is_reported(self, box):
+            self.snapshot(box, hours_old=72)
+            (problem,) = self.run(box)
+            assert "uploaded" in problem and str(box.backups) in problem
+
+        def test_a_fresh_dump_with_no_snapshot_ever_is_reported(self, box):
+            (problem,) = self.run(box)
+            assert "uploaded" in problem
+
+        def test_a_partial_snapshot_does_not_count(self, box):
+            # The name a snapshot has until rsync finishes; an interrupted one
+            # is not a backup.
+            (box.backups / "uploads-20261030T023000Z.partial").mkdir()
+            assert len(self.run(box)) == 1
+
+        def test_no_upload_directory_means_no_snapshot_is_expected(self, box):
+            # backup.sh takes none when there is nothing to copy.
+            box.uploads.rmdir()
+            assert self.run(box) == []
 
     def test_the_monitor_writes_nothing(self, unit):
         # No StateDirectory and no ReadWritePaths under ProtectSystem=strict,

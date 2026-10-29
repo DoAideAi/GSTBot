@@ -33,6 +33,8 @@ set -euo pipefail
 # default, so the unit stays declarative and a check can be pointed somewhere
 # else for a drill without editing this file.
 BACKUP_DIR="${GSTBOT_BACKUP_DIR:-/var/backups/gstbot}"
+# The uploaded invoices backup.sh snapshots, with backup.sh's own default.
+UPLOADS="${GSTBOT_UPLOAD_DIR:-${UPLOAD_DIR:-/var/lib/gstbot/invoices}}"
 # 48 rather than 24. The timer carries up to 15 minutes of jitter and a box
 # that rebooted through 02:30 catches up shortly after boot, so a 24-hour
 # window reports a backup that is merely late.
@@ -128,6 +130,22 @@ else
         # never started", which are different mornings.
         total="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' 2>/dev/null | wc -l)"
         fail "no dump in $BACKUP_DIR newer than ${MAX_BACKUP_AGE_HOURS}h (${total// /} on disk)"
+    fi
+
+    # The snapshot of the uploaded invoices, held to the same window. backup.sh
+    # takes it after the dump, so a snapshot that fails every night still
+    # leaves a fresh dump behind, and the check above stays green while the
+    # scans themselves stop being kept. Finished snapshots only: a name that
+    # still ends in .partial is an rsync that never completed. None is expected
+    # where there is no upload directory, because backup.sh takes none there.
+    if [ -d "$UPLOADS" ]; then
+        snapshot="$(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'uploads-*Z' \
+            -newermt "-${MAX_BACKUP_AGE_HOURS} hours" -print -quit 2>/dev/null || true)"
+        if [ -n "$snapshot" ]; then
+            ok "a snapshot of the uploaded files newer than ${MAX_BACKUP_AGE_HOURS}h exists"
+        else
+            fail "no snapshot of the uploaded files ($UPLOADS) in $BACKUP_DIR newer than ${MAX_BACKUP_AGE_HOURS}h; journalctl -u gstbot-backup says why"
+        fi
     fi
 fi
 

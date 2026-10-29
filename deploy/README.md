@@ -496,6 +496,7 @@ tell anybody. So the checks are the failures that are silent by construction:
 | the four running units are `active` | one exhausted `StartLimitBurst` and stopped being restarted |
 | `gstbot-backup.timer` is `active` | it was never enabled, or was disabled and not put back |
 | a `*.dump` newer than 48 hours exists | dumps have been failing into a journal with no reader |
+| an `uploads-*` snapshot newer than 48 hours exists (when `UPLOAD_DIR` does) | the snapshot of uploaded invoices fails after the dump, so the dump alone stays fresh |
 | 1 GiB free where the dumps go | the disk fills, and it takes out four products |
 | `/health/ready` on the bridge | the API is not serving |
 | `/health/live` through Caddy | DNS, TLS or `knol-caddy` — the part the bridge check cannot see |
