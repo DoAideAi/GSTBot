@@ -1340,6 +1340,16 @@ describe("a refusal the API gave its own code", () => {
     expect(window.umami.track).toHaveBeenCalledWith("paywall_hit", { feature: "/itc" });
   });
 
+  it("counts running out of the monthly uploads as a paywall hit too", async () => {
+    // P24 M18: the commonest way the free plan stops being enough is a 402,
+    // not the 403 feature gate, and it was missing from the funnel.
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ detail: "Plan 'free' allows 50 invoices per month." }, { status: 402 }),
+    );
+    await api.itc("2026-04").catch(() => {});
+    expect(window.umami.track).toHaveBeenCalledWith("paywall_hit", { feature: "/itc" });
+  });
+
   it("does not count a role refusal as a paywall hit", async () => {
     global.fetch.mockResolvedValueOnce(
       jsonResponse({ detail: "Viewers cannot write", error: { code: "forbidden" } }, { status: 403 }),

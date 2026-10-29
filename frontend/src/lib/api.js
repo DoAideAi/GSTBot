@@ -175,7 +175,10 @@ async function request(
     // Counted here, once, because every gated route refuses the same way, so
     // no screen has to remember to report it. The route rather than the URL —
     // ids and query strings identify a business's rows, not a feature.
-    if (err.code === "paid_plan_required") {
+    // The 402 too: the monthly upload allowance running out is the commonest
+    // way the free plan stops being enough, and it was missing from the
+    // funnel because it is a different status from the feature gate.
+    if (err.code === "paid_plan_required" || res.status === 402) {
       track("paywall_hit", { feature: featurePath(path) });
     }
     throw err;

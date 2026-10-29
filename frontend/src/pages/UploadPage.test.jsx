@@ -651,6 +651,36 @@ describe("running out of the monthly allowance mid-batch", () => {
     expect(screen.getAllByText(/allowance ran out before this file/)).toHaveLength(5);
   });
 
+  it("offers the plans when even a single file finds the allowance used up", async () => {
+    // P24 M18: the banner said "upgrade the plan" with nothing to click, and
+    // a single file got no banner at all, only its row: a dead end at the
+    // moment the free plan stops being enough.
+    const user = userEvent.setup();
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ detail: "Monthly invoice allowance used up" }, { status: 402 }),
+    );
+
+    renderPage();
+    await user.upload(screen.getByLabelText("Choose files"), manyFiles(1));
+
+    const plans = await screen.findByRole("link", { name: "See plans" });
+    expect(plans).toHaveAttribute("href", "/pricing");
+    expect(screen.getByRole("heading", { name: /uploads are used up/ })).toBeInTheDocument();
+  });
+
+  it("does not offer plans for the per-minute limit, which passes by itself", async () => {
+    const user = userEvent.setup();
+    global.fetch.mockResolvedValueOnce(
+      jsonResponse({ detail: "Too many requests. Try again in 45s." }, { status: 429 }),
+    );
+
+    renderPage();
+    await user.upload(screen.getByLabelText("Choose files"), manyFiles(1));
+
+    await screen.findByText(/Too many requests/);
+    expect(screen.queryByRole("link", { name: "See plans" })).not.toBeInTheDocument();
+  });
+
   it("says how many were left and what to do about it", async () => {
     const user = userEvent.setup();
     global.fetch.mockResolvedValueOnce(

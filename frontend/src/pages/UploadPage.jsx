@@ -111,6 +111,11 @@ export default function UploadPage() {
   });
   const [results, setResults] = useState([]);
   const [error, setError] = useState("");
+  // The monthly allowance ran out. Shown as a way forward, not only an error:
+  // this is the moment the free plan stops being enough, and the banner said
+  // "upgrade the plan" with nothing to click (and, for a single file, nothing
+  // at all beyond the row's own message).
+  const [limitReached, setLimitReached] = useState(false);
   const [dragging, setDragging] = useState(false);
   // {done, total, count} while a batch is in flight, null otherwise.
   const [progress, setProgress] = useState(null);
@@ -167,6 +172,7 @@ export default function UploadPage() {
     }
 
     setError("");
+    setLimitReached(false);
 
     // Sent as batches rather than one request per file.
     //
@@ -216,6 +222,7 @@ export default function UploadPage() {
         // attempted are listed as such, because a batch that quietly shrinks
         // from forty to twelve is how an invoice goes missing from a return.
         const halt = HALTING[err.status];
+        if (err.status === 402) setLimitReached(true);
         if (halt) {
           const remaining = accepted.slice(done + group.length);
           // The banner says only what the rows cannot: how much of the batch
@@ -261,6 +268,19 @@ export default function UploadPage() {
       </div>
 
       <ErrorBanner message={error} onDismiss={() => setError("")} />
+
+      {limitReached && (
+        <section className="panel" aria-labelledby="upload-limit-heading">
+          <h2 id="upload-limit-heading">This month&apos;s uploads are used up</h2>
+          <p>
+            Your plan&apos;s monthly invoice allowance starts again on the 1st. The paid plans read
+            every invoice you upload, with no monthly cap, from ₹499 a month.
+          </p>
+          <Link className="btn btn-primary" to="/pricing">
+            See plans
+          </Link>
+        </section>
+      )}
 
       {/* Everything below this line is the write. A viewer gets the notice in
           place of the whole form rather than a dropzone that answers 403 on
