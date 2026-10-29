@@ -82,3 +82,51 @@ def test_a_run_of_another_period_does_not_keep_it(db_session, business):
     reconciliation.store_gstr2b(db_session, business.id, PERIOD, _statement("A-2"))
 
     assert _numbers(_copies(db_session, business.id)) == ["A-2"]
+
+
+class TestTheRunsOwnRecordDecidesWhatItRanAgainst:
+    """P37 M12: a statement a run read could be hard-deleted as never read.
+
+    Whether a superseded copy is kept was decided by timestamps alone: any run
+    of the period with ``created_at`` at or after the copy's. ``created_at`` is
+    the database's ``now()``, and on Postgres that is when the *transaction*
+    began, not when the row was written. A reconciliation's transaction begins
+    with the request's sign-in queries, before it reads the statement. A
+    statement imported from another tab and committed in that gap is the one
+    the run reads, and it is newer than the run by the clock that was checked.
+    The next import found no run "since" it and deleted it outright, while the
+    run's report still named it as ``gstr2b_return_id``: the evidence of what
+    that reconciliation compared, gone. The run's report says what it read,
+    so that is what is checked.
+    """
+
+    def test_a_copy_a_run_names_is_kept_whatever_the_clocks_say(self, db_session, business):
+        read = reconciliation.store_gstr2b(db_session, business.id, PERIOD, _statement("A-1"))
+        db_session.add(ReconciliationRun(
+            business_id=business.id, period=PERIOD, status=ReconciliationStatus.COMPLETED,
+            # Begun before the statement it then read was imported.
+            created_at=read.created_at - timedelta(seconds=5),
+            report={"gstr2b_return_id": read.id, "findings": []},
+        ))
+        db_session.commit()
+
+        reconciliation.store_gstr2b(db_session, business.id, PERIOD, _statement("A-2"))
+
+        copies = _copies(db_session, business.id)
+        assert _numbers(copies) == ["A-1", "A-2"]
+        retired = next(row for row in copies if row.data["invoices"][0]["invoice_number"] == "A-1")
+        assert retired.deleted_at is not None
+
+    def test_a_run_naming_another_copy_does_not_keep_this_one(self, db_session, business):
+        read = reconciliation.store_gstr2b(db_session, business.id, PERIOD, _statement("A-1"))
+        db_session.add(ReconciliationRun(
+            business_id=business.id, period=PERIOD, status=ReconciliationStatus.COMPLETED,
+            created_at=read.created_at - timedelta(seconds=5),
+            # An id that only shares this one's digits as a prefix.
+            report={"gstr2b_return_id": int(f"{read.id}0"), "findings": []},
+        ))
+        db_session.commit()
+
+        reconciliation.store_gstr2b(db_session, business.id, PERIOD, _statement("A-2"))
+
+        assert _numbers(_copies(db_session, business.id)) == ["A-2"]

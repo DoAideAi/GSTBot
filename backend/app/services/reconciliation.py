@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import String, bindparam, cast, func, select, update
+from sqlalchemy import String, bindparam, cast, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer, object_session
 from sqlalchemy.orm.attributes import set_committed_value
@@ -1540,17 +1540,29 @@ def store_gstr2b(
         # after it loads the statement in force, and both carry created_at from
         # the same server clock, so any run of this period since this copy was
         # stored ran against it.
+        #
+        # The clocks alone were not enough. ``created_at`` is Postgres's
+        # ``now()``, which is when the run's *transaction* began, and that is
+        # before the run reads the statement (the request's sign-in queries
+        # open it). A copy imported in that gap is the one the run reads, yet
+        # it is newer than the run, and was hard-deleted on the next import
+        # while the run's report still named it. So the run's own record is
+        # checked as well: the report names the statement it compared.
         reconciled_against = db.scalar(
             select(ReconciliationRun.id)
             .where(
                 ReconciliationRun.business_id == business_id,
                 ReconciliationRun.period == period,
-                # Column against column, so both timestamps are compared as
-                # the database stores them rather than as Python bound them.
-                ReconciliationRun.created_at
-                >= select(GSTRReturn.created_at)
-                .where(GSTRReturn.id == existing.id)
-                .scalar_subquery(),
+                or_(
+                    # Column against column, so both timestamps are compared
+                    # as the database stores them rather than as Python bound
+                    # them.
+                    ReconciliationRun.created_at
+                    >= select(GSTRReturn.created_at)
+                    .where(GSTRReturn.id == existing.id)
+                    .scalar_subquery(),
+                    ReconciliationRun.report["gstr2b_return_id"].as_integer() == existing.id,
+                ),
             )
             .limit(1)
         )
