@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import SeoHead from "../components/SeoHead";
 import { advisorErrorMessage, streamAdvisor } from "../lib/advisor";
+import { isAbortError } from "../lib/api";
 import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -57,6 +58,11 @@ export default function AdvisorPage() {
   // leaves the visit unfinished, which is the case worth seeing.
   const { start: startTool, complete: completeTool } = useToolFunnel("advisor");
 
+  // The answer being streamed, stopped if the page is left before it ends:
+  // otherwise the request ran to the end of a paid answer nobody would read.
+  const inFlight = useRef(null);
+  useEffect(() => () => inFlight.current?.abort(), []);
+
   const ask = async (question) => {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
@@ -70,6 +76,8 @@ export default function AdvisorPage() {
     track("advisor_ask", { chars: trimmed.length });
     startTool();
 
+    const controller = new AbortController();
+    inFlight.current = controller;
     try {
       let added = false;
       await streamAdvisor(trimmed, messages, (partial) => {
@@ -83,16 +91,19 @@ export default function AdvisorPage() {
             return next;
           });
         }
-      });
+      }, { signal: controller.signal });
       if (added) completeTool();
     } catch (err) {
+      if (isAbortError(err)) return;
       setMessages((prev) => [
         ...prev,
         { role: "assistant", text: advisorErrorMessage(err), error: true },
       ]);
     } finally {
-      setLoading(false);
-      inputRef.current?.focus();
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        inputRef.current?.focus();
+      }
     }
   };
 

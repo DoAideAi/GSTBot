@@ -157,3 +157,34 @@ describe("AdvisorPage", () => {
     await waitFor(() => expect(screen.getByPlaceholderText("Ask a GST question...")).not.toBeDisabled());
   });
 });
+
+describe("AdvisorPage when it is left mid-answer", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("stops the answer it was streaming", async () => {
+    // Navigating away kept the request open to the end of a paid answer.
+    let signal;
+    global.fetch = vi.fn((url, init) => {
+      signal = init.signal;
+      return Promise.resolve({
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${JSON.stringify({ t: "Part of it" })}\n\n`),
+            );
+          },
+        }),
+      });
+    });
+    const { unmount } = renderAdvisor();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Ask a GST question..."), "Rate?");
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(screen.getByText(/Part of it/)).toBeInTheDocument());
+
+    unmount();
+
+    expect(signal?.aborted).toBe(true);
+  });
+});

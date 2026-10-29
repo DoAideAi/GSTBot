@@ -219,3 +219,51 @@ describe("GstAdvisor", () => {
     expect(screen.queryByText("Do I need GST registration?")).not.toBeInTheDocument();
   });
 });
+
+describe("GstAdvisor when it unmounts mid-answer", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function endlessAnswer() {
+    let signal;
+    global.fetch = vi.fn((url, init) => {
+      signal = init.signal;
+      return Promise.resolve({
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${JSON.stringify({ t: "Part of it" })}\n\n`),
+            );
+          },
+        }),
+      });
+    });
+    return () => signal;
+  }
+
+  it("stops the answer it was streaming", async () => {
+    const signal = endlessAnswer();
+    const { unmount } = renderAdvisor();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Open GST AI Advisor"));
+    await user.type(screen.getByPlaceholderText("Ask a GST question..."), "Rate?{Enter}");
+    await waitFor(() => expect(screen.getByText(/Part of it/)).toBeInTheDocument());
+
+    unmount();
+
+    expect(signal()?.aborted).toBe(true);
+  });
+
+  it("keeps the answer coming when the panel is only closed", async () => {
+    const signal = endlessAnswer();
+    renderAdvisor();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Open GST AI Advisor"));
+    await user.type(screen.getByPlaceholderText("Ask a GST question..."), "Rate?{Enter}");
+    await waitFor(() => expect(screen.getByText(/Part of it/)).toBeInTheDocument());
+
+    await user.keyboard("{Escape}");
+
+    expect(signal()?.aborted).toBe(false);
+  });
+});

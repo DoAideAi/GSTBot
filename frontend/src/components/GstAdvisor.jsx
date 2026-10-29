@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useExclusivePanel } from "../lib/floatingLayout";
 import { advisorErrorMessage, streamAdvisor } from "../lib/advisor";
+import { isAbortError } from "../lib/api";
 import { formatMarkdown } from "../lib/format";
 import { track } from "../lib/track";
 
@@ -54,11 +55,18 @@ export default function GstAdvisor() {
     });
   }, []);
 
+  // Stopped if the panel unmounts mid-answer, for the reason AdvisorPage
+  // gives. Closing the panel only hides it, so that keeps its answer coming.
+  const inFlight = useRef(null);
+  useEffect(() => () => inFlight.current?.abort(), []);
+
   const sendMessage = useCallback(async (text, history) => {
     setError(null);
     setLoading(true);
     scrollToBottom();
 
+    const controller = new AbortController();
+    inFlight.current = controller;
     try {
       let added = false;
       await streamAdvisor(text, history, (partial) => {
@@ -73,12 +81,15 @@ export default function GstAdvisor() {
           });
         }
         scrollToBottom();
-      });
+      }, { signal: controller.signal });
     } catch (err) {
+      if (isAbortError(err)) return;
       setError(advisorErrorMessage(err));
     } finally {
-      setLoading(false);
-      scrollToBottom();
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        scrollToBottom();
+      }
     }
   }, [scrollToBottom]);
 

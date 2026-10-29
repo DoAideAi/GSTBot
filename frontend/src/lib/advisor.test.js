@@ -133,6 +133,49 @@ describe("streamAdvisor", () => {
     expect(await failure(streamAdvisor("Hi", [], () => {}))).toBe(ADVISOR_UNREACHABLE);
   });
 
+  it("lets go of the stream when its caller is gone", async () => {
+    // Leaving the page mid-answer read the stream to its end anyway: the
+    // connection stayed open, the server went on relaying a paid model answer
+    // nobody would see, and every chunk set state on an unmounted component.
+    let cancelled = false;
+    global.fetch = vi.fn((url, init) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ t: "GST " })}\n\n`));
+            init.signal.addEventListener("abort", () =>
+              controller.error(new DOMException("aborted", "AbortError")),
+            );
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      }),
+    );
+    const controller = new AbortController();
+    const seen = [];
+    const pending = streamAdvisor("Rate?", [], (t) => seen.push(t), { signal: controller.signal });
+    await vi.waitFor(() => expect(seen).toEqual(["GST "]));
+
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(global.fetch.mock.calls[0][1].signal).toBe(controller.signal);
+    expect(cancelled || controller.signal.aborted).toBe(true);
+  });
+
+  it("is not reported as unreachable when it was the caller that stopped it", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    global.fetch = vi.fn(() => Promise.reject(new DOMException("aborted", "AbortError")));
+    await expect(
+      streamAdvisor("Hi", [], () => {}, { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("replaces the browser's own error with a sentence", async () => {
     global.fetch = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
     expect(await failure(streamAdvisor("Hi", [], () => {}))).toBe(ADVISOR_UNREACHABLE);

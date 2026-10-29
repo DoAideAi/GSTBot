@@ -78,21 +78,24 @@ export function advisorErrorMessage(err) {
   return err instanceof AdvisorError ? err.message : ADVISOR_UNREACHABLE;
 }
 
-async function post(path, message, messages) {
+async function post(path, message, messages, signal) {
   try {
     return await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, history: advisorHistory(messages) }),
+      signal,
     });
-  } catch {
+  } catch (err) {
+    // A caller that stopped the request is not told the advisor is down.
+    if (signal?.aborted) throw err;
     throw new AdvisorError(ADVISOR_UNREACHABLE);
   }
 }
 
 /** The whole answer in one response — for a browser that cannot read a stream. */
-async function askOnce(message, messages, onChunk) {
-  const res = await post("/api/v1/advisor/ask", message, messages);
+async function askOnce(message, messages, onChunk, signal) {
+  const res = await post("/api/v1/advisor/ask", message, messages, signal);
   if (!res.ok) throw new AdvisorError(await advisorFailure(res));
   const reply = (await res.json().catch(() => null))?.reply;
   if (!reply) throw new AdvisorError("The advisor sent back an empty answer. Ask again.");
@@ -114,13 +117,22 @@ async function askOnce(message, messages, onChunk) {
  *
  * @param {string} message  The user's question.
  * @param {Array}  messages The conversation so far (before this question).
+ * `signal` stops it. Nothing did: a caller that went away — the page left
+ * mid-answer — read the stream to its end anyway, holding the connection open
+ * while the server relayed a paid model answer nobody would see, and calling
+ * `onChunk` into a component that was gone. Aborting rejects with the
+ * browser's `AbortError`, which callers treat as nothing to report.
+ *
  * @param {(cumulative: string) => void} onChunk Called with the growing text.
+ * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<string>} The complete answer.
  */
-export async function streamAdvisor(message, messages, onChunk) {
-  const res = await post("/api/v1/advisor/ask/stream", message, messages);
+export async function streamAdvisor(message, messages, onChunk, { signal } = {}) {
+  const res = await post("/api/v1/advisor/ask/stream", message, messages, signal);
   if (!res.ok) throw new AdvisorError(await advisorFailure(res));
-  if (typeof res.body?.getReader !== "function") return askOnce(message, messages, onChunk);
+  if (typeof res.body?.getReader !== "function") {
+    return askOnce(message, messages, onChunk, signal);
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -132,7 +144,8 @@ export async function streamAdvisor(message, messages, onChunk) {
       let chunk;
       try {
         chunk = await reader.read();
-      } catch {
+      } catch (err) {
+        if (signal?.aborted) throw err;
         break; // the connection dropped mid-answer; handled below
       }
       if (chunk.done) break;
@@ -158,6 +171,9 @@ export async function streamAdvisor(message, messages, onChunk) {
       }
     }
   } finally {
+    // Cancelled, not just released, when the caller has gone: a released
+    // reader leaves the body flowing into a buffer nobody reads.
+    if (signal?.aborted) reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 
