@@ -1267,11 +1267,8 @@ def latest_completed_run(
     dashboard loaded and decoded the whole report on every visit and read none
     of it.
     """
-    query = select(ReconciliationRun)
-    if not with_report:
-        query = query.options(defer(ReconciliationRun.report, raiseload=True))
-    return db.scalar(
-        query
+    query = (
+        select(ReconciliationRun)
         .where(
             ReconciliationRun.business_id == business_id,
             ReconciliationRun.period == period,
@@ -1281,6 +1278,9 @@ def latest_completed_run(
         .order_by(ReconciliationRun.created_at.desc(), ReconciliationRun.id.desc())
         .limit(1)
     )
+    if not with_report:
+        query = query.options(defer(ReconciliationRun.report, raiseload=True))
+    return db.scalar(query)
 
 
 def _safe_decimal(value: object) -> Decimal:

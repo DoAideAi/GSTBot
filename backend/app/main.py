@@ -27,6 +27,7 @@ from app.core.middleware import (
     TrailingSlashMiddleware,
 )
 from app.core.openapi import install_openapi
+from app.core.rate_limit import known_limit_names
 from app.core.redis_client import close as redis_close
 from app.core.redis_client import ping as redis_ping
 from app.core.storage import check_upload_dir
@@ -206,7 +207,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level, settings.log_format)
     logger.info("Starting %s", settings.app_name, extra=settings.startup_report())
 
-    for warning in validate_startup_config(settings):
+    for warning in validate_startup_config(settings, known_limits=known_limit_names()):
         logger.warning("Configuration warning: %s", warning)
 
     # Created at startup rather than on first upload, so a bad path or a

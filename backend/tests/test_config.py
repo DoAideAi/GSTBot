@@ -309,8 +309,14 @@ class TestStartupWarnings:
         def _every_limit_registered(self):
             import app.main  # noqa: F401  (imports every router, registering its limits)
 
+        @staticmethod
+        def _check(settings_obj):
+            from app.core.rate_limit import known_limit_names
+
+            return validate_startup_config(settings_obj, known_limits=known_limit_names())
+
         def test_a_misspelt_name_warns_and_says_which(self):
-            warnings = validate_startup_config(
+            warnings = self._check(
                 Settings(**prod(rate_limit_overrides="login_acount=5/15m,login=10/minute"))
             )
             (warning,) = [w for w in warnings if "RATE_LIMIT_OVERRIDES" in w]
@@ -340,9 +346,7 @@ class TestStartupWarnings:
              "link_account"],
         )
         def test_every_real_limit_is_accepted(self, name):
-            warnings = validate_startup_config(
-                Settings(**prod(rate_limit_overrides=f"{name}=5/15m"))
-            )
+            warnings = self._check(Settings(**prod(rate_limit_overrides=f"{name}=5/15m")))
             assert not [w for w in warnings if "RATE_LIMIT_OVERRIDES" in w]
 
     def test_a_missing_model_key_only_warns(self):

@@ -647,7 +647,9 @@ def redact_url(url: str) -> str:
     return f"{scheme}://{user}{':***' if sep else ''}@{host}"
 
 
-def validate_startup_config(settings_obj: Settings | None = None) -> list[str]:
+def validate_startup_config(
+    settings_obj: Settings | None = None, *, known_limits: frozenset[str] = frozenset()
+) -> list[str]:
     """Check the running configuration, returning non-fatal warnings.
 
     Anything that *must* stop the process has already raised out of the model
@@ -708,13 +710,12 @@ def validate_startup_config(settings_obj: Settings | None = None) -> list[str]:
                 f"is not — {provider} sign-in is offered and fails at the callback."
             )
 
-    # Checked against the limits the loaded routers registered, so only once
-    # they are loaded: a bare Settings check with no app has nothing to compare.
-    from app.core.rate_limit import known_limit_names
-
-    known = known_limit_names()
-    if len(known) > 1:
-        unknown = sorted(set(current.rate_limits) - known)
+    # Checked against the limits the loaded routers registered, which the caller
+    # passes in (``app.main`` does, once every router is imported). Handed in
+    # rather than imported here: the rate limiter imports Redis and security,
+    # both of which import this module, and the deferred import made a cycle.
+    if known_limits:
+        unknown = sorted(set(current.rate_limits) - known_limits)
         if unknown:
             found.append(
                 f"RATE_LIMIT_OVERRIDES names {', '.join(repr(n) for n in unknown)}, which no "
