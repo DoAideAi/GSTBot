@@ -1,12 +1,16 @@
 -r requirements.txt
 
-pytest>=8.2
-pytest-asyncio>=0.23
-pytest-cov>=5.0
-ruff>=0.16.0
+# Pinned exactly, unlike requirements.txt. These decide whether a commit is
+# green, and as floors they were whatever PyPI had on the day CI ran: pytest
+# 9.2, pytest-asyncio 1.4.1 and ruff 0.17.3 against floors of 8.2, 0.23 and
+# 0.16. A tool now moves only in a commit, which Dependabot opens and CI tests.
+pytest==9.2.0
+pytest-asyncio==1.4.1
+pytest-cov==7.1.0
+ruff==0.17.3
 
 # tests/test_ci.py reads .github/workflows/ci.yml. Nothing at runtime parses
 # YAML, and nothing else here depends on it — it was resolvable in a working
 # tree only by accident, which is exactly the way a suite passes locally and
 # fails on a clean checkout.
-PyYAML>=6.0
+PyYAML==6.0.3

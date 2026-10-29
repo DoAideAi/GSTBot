@@ -211,3 +211,20 @@ def test_ci_tests_the_versions_a_release_installs():
     assert lock < dev
     deploy = (BACKEND.parent / "deploy" / "deploy.sh").read_text()
     assert '--require-hashes -r "$LOCKFILE"' in deploy
+
+
+class TestTheToolsThatJudgeACommitArePinned:
+    """P39 M11: CI's verdict could change with no commit at all.
+
+    The runtime is pinned by requirements.lock, but CI installs the test and
+    lint tools from requirements-dev.txt on top, where they were floors. A
+    fresh install on 2026-10-30 resolved pytest 9.2, pytest-asyncio 1.4.1
+    (a major past its >=0.23 floor) and ruff 0.17.3: versions nothing had ever
+    chosen, picked by the day the run happened. The README warned that "a new
+    release can turn main red with no code change". Pinned, a tool moves only
+    in a commit, which Dependabot opens and CI tests.
+    """
+
+    def test_every_dev_tool_is_pinned_exactly(self):
+        loose = [str(req) for req in DEV if not any(s.operator == "==" for s in req.specifier)]
+        assert loose == []

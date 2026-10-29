@@ -226,5 +226,5 @@ supplier's and buyer's state codes, not by trusting the invoice.
 ## Committing
 
 Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`). Run
-`ruff check` and both suites before pushing — CI lints with an unpinned ruff, so
-a new release can turn `main` red with no code change.
+`ruff check` and both suites before pushing — CI runs the same pinned ruff and pytest
+(`backend/requirements-dev.txt`), so what passes here passes there.
