@@ -129,13 +129,26 @@ else
         total="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' 2>/dev/null | wc -l)"
         fail "no dump in $BACKUP_DIR newer than ${MAX_BACKUP_AGE_HOURS}h (${total// /} on disk)"
     fi
+fi
 
-    free_mb="$(df -Pm "$BACKUP_DIR" | awk 'NR == 2 { print $4 }')"
-    if [ "${free_mb:-0}" -ge "$MIN_FREE_MB" ]; then
-        ok "${free_mb}MiB free on $BACKUP_DIR"
-    else
-        fail "only ${free_mb}MiB free on $BACKUP_DIR, below the ${MIN_FREE_MB}MiB floor"
-    fi
+# ---- Disk -----------------------------------------------------------------
+# Outside the block above, not inside it. It used to sit in the branch where
+# the backup directory exists and is readable, so a missing or unreadable
+# directory — itself a problem worth reporting — also switched off the one
+# check covering all four products on this box. The space is measured on the
+# nearest directory that exists: when the backup directory is gone, the
+# filesystem it would have been on is still the one tonight's dump fills.
+disk_path="$BACKUP_DIR"
+while [ ! -d "$disk_path" ] && [ "$disk_path" != / ]; do
+    disk_path="$(dirname "$disk_path")"
+done
+free_mb="$(df -Pm "$disk_path" 2>/dev/null | awk 'NR == 2 { print $4 }' || true)"
+if [ -z "$free_mb" ]; then
+    fail "cannot read free space on $disk_path"
+elif [ "$free_mb" -ge "$MIN_FREE_MB" ]; then
+    ok "${free_mb}MiB free on $disk_path"
+else
+    fail "only ${free_mb}MiB free on $disk_path, below the ${MIN_FREE_MB}MiB floor"
 fi
 
 # ---- Serving --------------------------------------------------------------

@@ -1697,6 +1697,71 @@ class TestTheMonitor:
         # next scheduled one reports now.
         assert entry(timer, "Timer", "Persistent") == "false"
 
+    # ---- Run, not read --------------------------------------------------
+    # The checks above compare text. These run the script against stubs of
+    # the three commands that touch the box, so a check nested where it can
+    # be skipped is caught by what the script reports rather than by its
+    # shape.
+
+    def run_monitor(self, tmp_path: Path, backup_dir: Path, free_mb: int):
+        stubs = tmp_path / "bin"
+        stubs.mkdir()
+        for name, body in {
+            "systemctl": "echo active",
+            "curl": "exit 0",
+            # Answers for any path, as df does for one on a mounted
+            # filesystem, and records which one it was asked about.
+            "df": (
+                f'echo "$2" > {tmp_path}/df-path\n'
+                "echo 'Filesystem 1M-blocks Used Available Capacity Mounted'\n"
+                f"echo '/dev/sda1 38000 30000 {free_mb} 99% /'"
+            ),
+        }.items():
+            stub = stubs / name
+            stub.write_text(f"#!/bin/sh\n{body}\n")
+            stub.chmod(0o755)
+        env = {
+            "PATH": f"{stubs}:/usr/bin:/bin",
+            "GSTBOT_BACKUP_DIR": str(backup_dir),
+            "GSTBOT_MONITOR_MIN_FREE_MB": "1024",
+        }
+        return subprocess.run(
+            ["bash", str(MONITOR_SCRIPT)], capture_output=True, text=True, env=env
+        )
+
+    def test_a_full_disk_is_reported_when_the_backup_directory_is_missing(
+        self, tmp_path
+    ):
+        # The disk check used to live inside the branch for an existing,
+        # readable backup directory, so losing the directory also silenced
+        # the one alarm that covers every product on the box.
+        missing = tmp_path / "backups" / "gstbot"
+        result = self.run_monitor(tmp_path, missing, free_mb=200)
+        assert result.returncode == 1
+        assert f"{missing} does not exist" in result.stderr
+        assert "only 200MiB free" in result.stderr
+        # Measured on the nearest directory that does exist — the filesystem
+        # the dump would have landed on.
+        asked = Path((tmp_path / "df-path").read_text().strip())
+        assert asked.resolve() == tmp_path.resolve()
+
+    def test_a_full_disk_is_reported_alongside_a_fresh_backup(self, tmp_path):
+        backups = tmp_path / "backups"
+        backups.mkdir()
+        (backups / "gstbot-tonight.dump").write_bytes(b"x")
+        result = self.run_monitor(tmp_path, backups, free_mb=200)
+        assert result.returncode == 1
+        assert "a dump newer than" in result.stdout
+        assert f"only 200MiB free on {backups}" in result.stderr
+
+    def test_a_healthy_box_passes_every_check(self, tmp_path):
+        backups = tmp_path / "backups"
+        backups.mkdir()
+        (backups / "gstbot-tonight.dump").write_bytes(b"x")
+        result = self.run_monitor(tmp_path, backups, free_mb=5000)
+        assert result.returncode == 0, result.stderr
+        assert "All checks passed" in result.stdout
+
 
 class TestTheJobThatValidatesAllOfThis:
     """The CI job that runs the parsers this suite cannot.
