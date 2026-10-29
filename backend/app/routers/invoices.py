@@ -36,7 +36,7 @@ from app.schemas.invoice import (
     InvoiceUploadResponse,
 )
 from app.services import gst_calendar, invoice_service
-from app.services.reconciliation import COMPARED_FIELDS
+from app.services.reconciliation import COMPARED_FIELDS, release_orphaned_duplicate
 
 logger = logging.getLogger(__name__)
 
@@ -766,6 +766,10 @@ def update_invoice(
     """
     invoice = _owned_invoice(db, business, invoice_id)
     changes = payload.model_dump(exclude_unset=True)
+    # The identity a duplicate of this row would have been found by, before
+    # the edit can move it. See ``release_orphaned_duplicate``.
+    was_duplicate = invoice.status == InvoiceStatus.DUPLICATE
+    old_identity = (invoice.counterparty_gstin, invoice.invoice_number)
 
     # Rule 37 counts from the invoice date, so a payment before it is not a
     # payment — it is a mistyped year, and it would silently cancel a reversal
@@ -894,6 +898,9 @@ def update_invoice(
         # the row linked to the supplier it named, so the invoice stayed
         # attributed to a supplier it no longer says it came from.
         invoice.supplier_id = None
+    if not was_duplicate and old_identity != (invoice.counterparty_gstin, invoice.invoice_number):
+        db.flush()
+        release_orphaned_duplicate(db, business.id, invoice.invoice_type, *old_identity)
 
     db.commit()
     db.refresh(invoice)
@@ -1013,6 +1020,17 @@ def delete_invoice(
     """Soft-delete an invoice. The row and the stored file both stay."""
     invoice = _owned_invoice(db, business, invoice_id)
     invoice.soft_delete()
+    if invoice.status != InvoiceStatus.DUPLICATE:
+        # Deleting the original of a pair must not leave the copy excluded
+        # from every total as though it still had one.
+        db.flush()
+        release_orphaned_duplicate(
+            db,
+            business.id,
+            invoice.invoice_type,
+            invoice.counterparty_gstin,
+            invoice.invoice_number,
+        )
     db.commit()
     # The edit route leaves an audit line; removing an invoice from the books
     # is the larger change and left none. Period and type say which return it

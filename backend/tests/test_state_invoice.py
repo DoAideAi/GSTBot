@@ -378,3 +378,72 @@ class TestDeletedInvoiceIsSkipped:
             json={"taxable_value": "5000"},
         )
         assert resp.status_code == 404
+
+
+# -----------------------------------------------------------------------
+# DUPLICATE is released when the row it duplicates leaves
+# -----------------------------------------------------------------------
+
+class TestDuplicateReleasedWhenItsOriginalLeaves:
+    """A DUPLICATE is out of every register; it must not outlive its original.
+
+    The reparse refusal tells the user to "delete one of the two copies".
+    Deleting the original — or editing its number away — left the copy
+    excluded from the returns, the credit pool and the supplier score while it
+    was the only invoice of that number on file.
+    """
+
+    def _pair(self, db, business):
+        original = _upload(db, business, number="INV-SM-1", status=InvoiceStatus.MATCHED)
+        copy = _upload(db, business, number="INV/SM/01", status=InvoiceStatus.DUPLICATE)
+        return original, copy
+
+    def test_deleting_the_original_returns_the_copy_to_parsed(
+        self, auth_client, db_session, business
+    ):
+        original, copy = self._pair(db_session, business)
+        assert auth_client.delete(f"/api/v1/invoices/{original.id}").status_code == 204
+        db_session.refresh(copy)
+        assert copy.status == InvoiceStatus.PARSED
+
+    def test_editing_the_original_s_number_away_returns_the_copy_to_parsed(
+        self, auth_client, db_session, business
+    ):
+        original, copy = self._pair(db_session, business)
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{original.id}", json={"invoice_number": "INV-SM-9"}
+        )
+        assert resp.status_code == 200, resp.text
+        db_session.refresh(copy)
+        assert copy.status == InvoiceStatus.PARSED
+
+    def test_deleting_the_copy_leaves_the_original_alone(
+        self, auth_client, db_session, business
+    ):
+        original, copy = self._pair(db_session, business)
+        assert auth_client.delete(f"/api/v1/invoices/{copy.id}").status_code == 204
+        db_session.refresh(original)
+        assert original.status == InvoiceStatus.MATCHED
+
+    def test_only_the_earliest_of_several_copies_takes_the_original_s_place(
+        self, auth_client, db_session, business
+    ):
+        original, first = self._pair(db_session, business)
+        second = _upload(db_session, business, number="INV SM 001", status=InvoiceStatus.DUPLICATE)
+        assert auth_client.delete(f"/api/v1/invoices/{original.id}").status_code == 204
+        db_session.refresh(first)
+        db_session.refresh(second)
+        assert first.status == InvoiceStatus.PARSED
+        assert second.status == InvoiceStatus.DUPLICATE  # still a copy of `first`
+
+    def test_a_cosmetic_edit_of_the_original_releases_nothing(
+        self, auth_client, db_session, business
+    ):
+        # Same normalised number: the original still holds the identity.
+        original, copy = self._pair(db_session, business)
+        resp = auth_client.patch(
+            f"/api/v1/invoices/{original.id}", json={"invoice_number": "INV-SM-0001"}
+        )
+        assert resp.status_code == 200, resp.text
+        db_session.refresh(copy)
+        assert copy.status == InvoiceStatus.DUPLICATE

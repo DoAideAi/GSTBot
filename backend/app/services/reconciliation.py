@@ -131,6 +131,59 @@ def normalize_invoice_number(number: str | None) -> str:
     return "".join(tokens)
 
 
+def release_orphaned_duplicate(
+    db: Session,
+    business_id: int,
+    invoice_type: InvoiceType,
+    counterparty_gstin: str | None,
+    invoice_number: str | None,
+) -> Invoice | None:
+    """Give a ``DUPLICATE`` back its standing once nothing it duplicates is left.
+
+    A run marks the second of two same-supplier, same-number invoices
+    ``DUPLICATE``, and that row leaves the filing registers, the credit pool
+    and the supplier's score. The status only ever changed again by re-running
+    the period or by editing that row's own GSTIN or number. So a user who
+    followed the advice — "delete one of the two copies" — and deleted the
+    *original* left the copy excluded from every total while it was the only
+    one on file: the invoice was gone from the books though nothing had been
+    removed but a duplicate of it. Editing the original's number did the same.
+
+    Called after a row leaves (*counterparty_gstin*, *invoice_number*) — by
+    deletion or by an edit of either field. When no live row that is not
+    itself a ``DUPLICATE`` still holds that identity, the earliest duplicate
+    takes the original's place as ``PARSED``; any further copies stay
+    duplicates of it, so nothing is counted twice. ``PARSED`` rather than a
+    verdict, because no run has judged it on its own: the next one will.
+    """
+    key = normalize_invoice_number(invoice_number)
+    gstin = (counterparty_gstin or "").upper()
+    if not key and not gstin:
+        # The same both-blank rule ``match`` applies: no identity, no duplicate.
+        return None
+    candidates = [
+        invoice
+        for invoice in db.scalars(
+            select(Invoice)
+            .where(
+                Invoice.business_id == business_id,
+                Invoice.invoice_type == invoice_type,
+                Invoice.deleted_at.is_(None),
+                func.upper(func.coalesce(Invoice.counterparty_gstin, "")) == gstin,
+            )
+            .order_by(Invoice.id)
+        )
+        if normalize_invoice_number(invoice.invoice_number) == key
+    ]
+    if not candidates or any(
+        invoice.status is not InvoiceStatus.DUPLICATE for invoice in candidates
+    ):
+        return None
+    heir = candidates[0]
+    heir.status = InvoiceStatus.PARSED
+    return heir
+
+
 @dataclass
 class Difference:
     """One field on which the books and the portal disagree."""
