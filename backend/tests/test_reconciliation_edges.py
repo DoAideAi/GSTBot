@@ -1806,3 +1806,45 @@ class TestTheImportRouteAsksOnlyWhetherAStatementExists:
         ]
         assert reads, statements
         assert all("data" not in sql.split("FROM", 1)[0] for sql in reads), reads
+
+
+# ---------------------------------------------------------------------------
+# Invoice numbers written in another script
+# ---------------------------------------------------------------------------
+
+class TestNonLatinInvoiceNumbers:
+    """A bill printed with Indic numerals is still the invoice the 2B declares."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("INV-१२३", "INV123"),  # Devanagari digits
+            ("INV/૦૦૪૨", "INV42"),  # Gujarati digits, leading zeros still go
+            ("ＩＮＶ－００４２", "INV42"),  # full-width forms
+            ("बिल-१२", "बिल12"),  # letters in another script are letters, matras kept
+        ],
+    )
+    def test_digits_and_letters_in_any_script_survive(self, raw, expected):
+        assert reconciliation.normalize_invoice_number(raw) == expected
+
+    def test_indic_digits_match_the_ascii_number_in_the_2b(self):
+        result = reconciliation.match(
+            [book(id=1, invoice_number="INV-२०२६-००४२")],
+            [portal(invoice_number="INV-2026-0042")],
+            period=PERIOD,
+        )
+        assert categories(result) == [MatchCategory.MATCHED]
+        assert result.findings[0].matched_on == "normalized"
+
+    def test_two_bills_differing_only_in_indic_digits_are_not_duplicates(self):
+        # Both used to normalise to "INV", so the second was written off as a
+        # double claim of the first.
+        result = reconciliation.match(
+            [
+                book(id=1, invoice_number="INV-१२३"),
+                book(id=2, invoice_number="INV-४५६"),
+            ],
+            [],
+            period=PERIOD,
+        )
+        assert MatchCategory.DUPLICATE not in categories(result)

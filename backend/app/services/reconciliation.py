@@ -32,9 +32,10 @@ supply and the pool comes out too big.
 """
 from __future__ import annotations
 
+import itertools
 import logging
-import re
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -82,8 +83,14 @@ _JUDGED_FIELDS = (
     "counterparty_gstin", "invoice_number", "invoice_date", "period", *COMPARED_FIELDS
 )
 
-# Runs of letters and runs of digits, with every separator falling away.
-_TOKENS = re.compile(r"[A-Z]+|[0-9]+")
+def _token_kind(ch: str) -> str | None:
+    """``"9"`` for a digit in any script, ``"A"`` for a letter or the mark on
+    one, ``None`` for a separator."""
+    if ch.isdecimal():
+        return "9"
+    if unicodedata.category(ch)[0] in "LM":
+        return "A"
+    return None
 
 
 def normalize_invoice_number(number: str | None) -> str:
@@ -98,16 +105,29 @@ def normalize_invoice_number(number: str | None) -> str:
     between a buyer's books and a supplier's portal entry are usually inside
     the number (``2026/0042`` against ``2026/42``), not at the front of it.
 
+    Digits in any script count as the digits they are, and letters in any
+    script as letters. Only ``[A-Z0-9]`` used to: a bill printed with
+    Devanagari or Gujarati numerals (``INV-१२३``) lost every digit, so it never
+    matched the supplier's ``INV-123`` in the 2B, and two such bills from one
+    supplier (``INV-१२३``, ``INV-४५६``) both became ``INV`` and the second was
+    written off as a double claim. NFKC first, so full-width forms an OCR pass
+    produces (``ＩＮＶ－００４２``) fold to their ordinary ones.
+
     This is lossy by design — ``A-1-02`` and ``A-12`` collapse together — which
     is why :func:`match` only reaches for this key after an exact one has
     failed.
     """
     if not number:
         return ""
-    return "".join(
-        token.lstrip("0") or "0" if token.isdigit() else token
-        for token in _TOKENS.findall(number.upper())
-    )
+    text = unicodedata.normalize("NFKC", number).upper()
+    tokens: list[str] = []
+    for kind, run in itertools.groupby(text, key=_token_kind):
+        if kind == "9":
+            digits = "".join(str(unicodedata.decimal(ch)) for ch in run)
+            tokens.append(digits.lstrip("0") or "0")
+        elif kind == "A":
+            tokens.append("".join(run))
+    return "".join(tokens)
 
 
 @dataclass
