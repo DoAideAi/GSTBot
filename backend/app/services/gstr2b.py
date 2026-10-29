@@ -254,6 +254,12 @@ def _unwrap_docdata(payload: dict) -> dict:
             key in candidate for key in _INVOICE_SECTIONS + _NOTE_SECTIONS
         ):
             return candidate
+    # A nil statement. The portal issues a 2B every month, and one against
+    # which no supplier filed anything may carry no document block at all —
+    # but it still carries the portal's stamp of the month it covers, which a
+    # file that is not a 2B does not.
+    if _statement_period(payload):
+        return {}
     raise GSTR2BParseError(
         "No b2b or cdnr section found. Expected a GSTR-2B download from the GST portal."
     )
@@ -319,6 +325,24 @@ def recipient_gstin(content: bytes, filename: str | None = None) -> str | None:
         return _addressed_to(payload) if isinstance(payload, dict) else None
     except (ValueError, RecursionError):
         # Not readable as JSON, so :func:`parse` is about to say so properly.
+        return None
+
+
+def statement_period(content: bytes, filename: str | None = None) -> str | None:
+    """The month the portal stamped on this statement, or ``None``.
+
+    The file's own word, separate from the records because a nil statement has
+    none to carry it — and a statement with no invoices still has a month.
+    """
+    if not content:
+        return None
+    text = content.decode("utf-8-sig", errors="replace").lstrip()
+    if not (text.startswith(("{", "[")) or (filename or "").lower().endswith(".json")):
+        return None
+    try:
+        payload = json.loads(text)
+        return _statement_period(payload) if isinstance(payload, dict) else None
+    except (ValueError, RecursionError):
         return None
 
 

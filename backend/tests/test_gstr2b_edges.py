@@ -382,16 +382,20 @@ class TestTheImportEndpointRefusals:
         assert "gstr3b.pdf" in detail
         assert "portal" in detail
 
-    def test_a_valid_2b_containing_no_invoices_is_refused(self, auth_client):
-        # Parses cleanly, and yields nothing — a period with no inward
-        # supplies, or the wrong download. Importing it would silently mark
-        # every booked invoice as missing from the portal.
+    def test_a_valid_2b_containing_no_invoices_is_imported(self, auth_client):
+        # P30 M2: this was refused as "a period with no inward supplies, or
+        # the wrong download", for fear of marking every booked invoice as
+        # missing from the portal. The wrong download is refused elsewhere —
+        # by the recipient GSTIN and the stamped month — and for a statement
+        # that really is empty, every booked invoice *is* missing from it:
+        # that is the reconciliation the business most needs, since credit
+        # on invoices absent from GSTR-2B is not claimable.
         payload = portal_json()
         payload["data"]["docdata"]["b2b"] = []
         response = upload_2b(auth_client, content=json.dumps(payload).encode())
 
-        assert response.status_code == 422
-        assert "No invoices found" in response.json()["detail"]
+        assert response.status_code == 201, response.text
+        assert response.json()["period"] == "2026-04"
 
 
 class TestWhoseStatementThisIs:

@@ -206,11 +206,13 @@ async def import_gstr2b(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
 
-    if not records:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="No invoices found in the file. Check that this is a GSTR-2B download.",
-        )
+    # A statement with no invoices is still a statement. The portal issues a
+    # 2B every month, and one against which no supplier filed anything holds
+    # no documents — the month reconciliation matters most, since every
+    # purchase booked is then missing from it. Refusing it ("check that this
+    # is a GSTR-2B download") stopped the user exactly there. It needs a month,
+    # though, and with no invoices to infer one from, the stamp or the form
+    # has to give it: see below.
 
     # Which period this statement is filed under, in order of authority: an
     # explicit form value, the period the portal stamped into the download,
@@ -220,7 +222,7 @@ async def import_gstr2b(
     # newest of them.
     stamped = next(
         (record.statement_period for record in records if record.statement_period), None
-    )
+    ) or gstr2b.statement_period(content, filename)
     # The portal's stamp is the statement's own word on which month it covers,
     # so a form naming another month is a wrong file or a wrong pick, not a
     # preference. Letting the form win stored April's statement as May's,
@@ -244,7 +246,10 @@ async def import_gstr2b(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
-                "Could not determine the period from the file. Re-upload and set the "
+                "This statement lists no invoices and does not say which month it is for. "
+                "Choose the period and upload it again."
+                if not records
+                else "Could not determine the period from the file. Re-upload and set the "
                 "period explicitly."
             ),
         )

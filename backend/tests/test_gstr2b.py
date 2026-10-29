@@ -205,8 +205,15 @@ def test_bare_docdata_without_the_envelope_is_accepted():
 
 
 def test_json_without_a_b2b_section_is_rejected():
+    # No document block and no portal stamp: nothing says this is a 2B.
     with pytest.raises(gstr2b.GSTR2BParseError, match="No b2b or cdnr section"):
-        gstr2b.parse_json({"data": {"rtnprd": "042026"}})
+        gstr2b.parse_json({"data": {"gstin": "27AAPFU0939F1ZV"}})
+
+
+def test_a_stamped_statement_without_a_b2b_section_is_a_nil_2b():
+    # P30 M2: the portal's month stamp with no documents is the statement a
+    # month with no inward supplies gets, not a malformed file.
+    assert gstr2b.parse_json({"data": {"rtnprd": "042026"}}) == []
 
 
 def test_malformed_json_is_rejected_with_a_readable_message():
