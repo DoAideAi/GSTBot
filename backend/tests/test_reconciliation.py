@@ -1565,3 +1565,55 @@ class TestReconciliationRunAlwaysStartsRunning:
                         f"{py_file.relative_to(app_dir.parent)}:{node.lineno} "
                         "assigns or reads ReconciliationStatus.QUEUED"
                     )
+
+
+# ---------------------------------------------------------------------------
+# Self-assessed purchases are not expected in GSTR-2B
+# ---------------------------------------------------------------------------
+
+class TestASelfAssessedPurchaseIsNotMissingFrom2B:
+    """An import of services or reverse charge from an unregistered supplier
+    has no supplier GSTR-1 behind it. Matched, each came out missing_in_2b with
+    its whole tax counted as credit at risk, which no supplier could clear."""
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({}, True),
+            ({"reverse_charge": True}, True),  # registered supplier: 2B marks it rev
+            ({"reverse_charge": True, "counterparty_gstin": None}, False),
+            ({"reverse_charge": True, "is_import": True, "counterparty_gstin": None}, False),
+            ({"reverse_charge": True, "is_import": True}, False),
+        ],
+    )
+    def test_which_purchases_a_2b_could_declare(self, kwargs, expected):
+        from app.services.reconciliation import expected_in_2b
+
+        assert expected_in_2b(book(**{"is_import": False, **kwargs})) is expected
+
+    def test_a_run_leaves_them_out_of_the_credit_at_risk(self, db_session, business):
+        from app.services import reconciliation
+
+        db_session.add_all(
+            [
+                book(id=None, business_id=business.id),
+                book(
+                    id=None,
+                    business_id=business.id,
+                    invoice_number="AWS-0426",
+                    counterparty_gstin=None,
+                    counterparty_name="Amazon Web Services Inc",
+                    reverse_charge=True,
+                    is_import=True,
+                ),
+            ]
+        )
+        db_session.commit()
+        reconciliation.store_gstr2b(db_session, business.id, PERIOD, [portal()])
+
+        run = reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        assert run.missing_in_2b_count == 0
+        assert run.matched_count == 1
+        imported = db_session.query(Invoice).filter_by(invoice_number="AWS-0426").one()
+        assert imported.status is InvoiceStatus.PARSED

@@ -310,6 +310,23 @@ def _differences(
     return found
 
 
+def expected_in_2b(invoice: Invoice) -> bool:
+    """Whether a supplier's filing could ever put this purchase in GSTR-2B.
+
+    Not a self-assessed one. An import of services and a reverse-charge
+    purchase from an unregistered supplier have no supplier GSTR-1 behind them;
+    the buyer declares the tax in 3.1(d) and claims the credit on its own
+    self-invoice. Matched anyway, every one came out ``missing_in_2b`` with
+    its whole tax counted as credit at risk and its status overwritten to say
+    so, which no follow-up with any supplier could ever clear. A registered
+    supplier's reverse-charge invoice is still expected: it reaches 2B marked
+    ``rev``.
+    """
+    if not invoice.reverse_charge:
+        return True
+    return not (invoice.is_import or not invoice.counterparty_gstin)
+
+
 def _book_invoices(db: Session, business_id: int, period: str) -> list[Invoice]:
     """Purchase invoices in the books for *period*, oldest first.
 
@@ -1147,7 +1164,11 @@ def run_reconciliation(
     db.flush()
 
     try:
-        invoices = _book_invoices(db, business_id, period)
+        invoices = [
+            invoice
+            for invoice in _book_invoices(db, business_id, period)
+            if expected_in_2b(invoice)
+        ]
         records = records_from_return(gstr_return)
         result = match(
             invoices,
