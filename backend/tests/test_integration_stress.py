@@ -118,6 +118,30 @@ class TestRazorpayNetworkFailures:
         with patch.object(httpx, "post", side_effect=httpx.ConnectError("refused")):
             assert razorpay_client.create_order(9900) is None
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"id": 5, "amount": 9900, "currency": "INR"},  # id not a string
+            {"id": "order_1", "amount": "9900", "currency": "INR"},  # amount a string
+            {"id": "order_1", "amount": 9900, "currency": None},
+            {"id": "order_" + "a" * 100, "amount": 9900, "currency": "INR"},  # too long
+            {"id": "order/../payments", "amount": 9900, "currency": "INR"},
+        ],
+    )
+    def test_create_order_refuses_an_order_checkout_could_not_complete(self, body):
+        """P23 M5: the keys were checked, not their contents. A wrong type was
+        a 500 from the route's response model; an id unlike Razorpay's went to
+        the browser, was paid, and was then refused by verify-payment."""
+        resp = httpx.Response(200, json=body, request=httpx.Request("POST", "https://x"))
+        with patch.object(httpx, "post", return_value=resp):
+            assert razorpay_client.create_order(9900) is None
+
+    def test_a_well_formed_order_still_comes_back(self):
+        body = {"id": "order_Ab12_cd", "amount": 9900, "currency": "INR"}
+        resp = httpx.Response(200, json=body, request=httpx.Request("POST", "https://x"))
+        with patch.object(httpx, "post", return_value=resp):
+            assert razorpay_client.create_order(9900) == body
+
     def test_fetch_order_survives_a_500(self):
         resp = httpx.Response(500, request=httpx.Request("GET", "https://x"))
         with patch.object(httpx, "get", return_value=resp):

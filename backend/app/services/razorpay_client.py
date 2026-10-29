@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -60,6 +61,27 @@ def _object(resp: httpx.Response, *required: str) -> dict[str, Any]:
     return body
 
 
+# What verify-payment will accept back as the order id (``VerifyPaymentRequest``).
+_ORDER_ID = re.compile(r"order_[A-Za-z0-9_]{1,58}")
+
+
+def _require_order_shape(order: dict[str, Any]) -> None:
+    """Refuse an order whose fields are not the types checkout hands on.
+
+    ``_object`` checks the keys are present, not what is in them, and the
+    route builds its response straight from them: an ``"amount": "x"`` failed
+    the response model — a 500 for the customer — and an id that is not
+    shaped like Razorpay's went to the browser, which paid it and then had
+    the payment refused by verify-payment's id check. Raised here so the
+    caller's ``except`` turns it into the retryable 502 every other bad
+    answer gets, before any money moves.
+    """
+    if not (isinstance(order["id"], str) and _ORDER_ID.fullmatch(order["id"])):
+        raise ValueError("order id is not a Razorpay order id")
+    if paise(order["amount"]) is None or not isinstance(order["currency"], str):
+        raise ValueError("order amount or currency has the wrong type")
+
+
 def paise(value: object) -> int | None:
     """*value* as an amount in paise, or ``None`` when it is not one.
 
@@ -96,7 +118,9 @@ def create_order(
             timeout=15,
         )
         resp.raise_for_status()
-        return _object(resp, "id", "amount", "currency")
+        order = _object(resp, "id", "amount", "currency")
+        _require_order_shape(order)
+        return order
     except Exception as exc:
         logger.exception(
             "Razorpay create_order failed",
