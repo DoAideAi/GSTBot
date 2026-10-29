@@ -151,7 +151,7 @@ export default function BestGstTools() {
                 </ul>
                 <div style={{ display: "flex", gap: 16, alignItems: "center", fontSize: 13, color: "var(--text-secondary)" }}>
                   <span>⭐ {tool.rating}/5 ({tool.ratingCount} reviews)</span>
-                  {tool.link && <Link to={tool.link} style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 500 }}>
+                  {tool.link && <Link to={tool.link} style={{ color: "var(--brand-ink)", textDecoration: "none", fontWeight: 500 }}>
                     {tool.rank === 1 ? "Try Free →" : "See comparison →"}
                   </Link>}
                 </div>

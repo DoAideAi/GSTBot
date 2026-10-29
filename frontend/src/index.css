@@ -20,6 +20,11 @@
   --brand-dark: #D4A017;
   --brand-text: #0A0A0B;
   --brand-hover: #F7D070;
+  /* Gold as *text*. The same as --brand on dark grounds; on light ones the
+     gold is 1.8:1 and every link and gold heading failed WCAG AA, so the
+     light theme darkens these and leaves the gold fills alone. */
+  --brand-ink: #F0B429;
+  --brand-ink-hover: #F7D070;
   --good: #34D399;
   --warn: #FBBF24;
   --bad: #F87171;
@@ -56,6 +61,9 @@
      white on #F0B429 is 1.9:1. The dark-theme ink is 10.6:1. */
   --brand-text: #0A0A0B;
   --brand-hover: #D4A017;
+  /* 4.9:1 and up on every light ground, the border grey included. */
+  --brand-ink: #7A5C10;
+  --brand-ink-hover: #5C450D;
   /* Tailwind's 700s: the 600s were 3.6, 3.1 and 4.4:1 on the light grounds. */
   --good: #047857;
   --warn: #B45309;
@@ -100,7 +108,7 @@ h2 {
 }
 
 a {
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 .muted {
@@ -158,7 +166,7 @@ a {
 }
 .brand-accent {
   font-style: italic;
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .shell-nav {
   display: flex;
@@ -173,7 +181,7 @@ a {
 }
 .nav-link.is-active {
   background: rgba(240, 180, 41, 0.12);
-  color: var(--brand);
+  color: var(--brand-ink);
   font-weight: 600;
 }
 .nav-badge {
@@ -566,7 +574,7 @@ select[aria-invalid="true"]:focus {
   padding: 0;
 }
 .auth-switch button:hover {
-  color: var(--brand-hover);
+  color: var(--brand-ink-hover);
 }
 
 .auth-divider {
@@ -699,7 +707,7 @@ select[aria-invalid="true"]:focus {
   letter-spacing: -0.3px;
 }
 .landing-brand-text em {
-  color: var(--accent);
+  color: var(--brand-ink);
   font-style: italic;
 }
 
@@ -772,13 +780,13 @@ select[aria-invalid="true"]:focus {
   font-family: var(--doaide-font-mono, "IBM Plex Mono", ui-monospace, monospace);
   font-size: 15px;
   font-weight: 500;
-  color: var(--accent);
+  color: var(--brand-ink);
 }
 .landing-cursor {
   display: inline-block;
   margin-left: 1px;
   animation: cursor-blink 0.8s step-end infinite;
-  color: var(--accent);
+  color: var(--brand-ink);
 }
 @keyframes cursor-blink {
   0%, 100% { opacity: 1; }
@@ -961,7 +969,7 @@ select[aria-invalid="true"]:focus {
   gap: 16px;
 }
 .landing-faq-q:hover {
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .landing-faq-chevron {
   font-size: 1.25rem;
@@ -1027,7 +1035,7 @@ select[aria-invalid="true"]:focus {
   transition: color 0.2s;
 }
 .landing-footer-col a:hover {
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 @media (max-width: 860px) {
@@ -1130,7 +1138,7 @@ select[aria-invalid="true"]:focus {
   transition: color 0.2s;
 }
 .landing-footer-link:hover {
-  color: var(--accent);
+  color: var(--brand-ink);
 }
 .landing-footer-bottom {
   display: flex;
@@ -1149,7 +1157,7 @@ select[aria-invalid="true"]:focus {
   transition: color 0.2s;
 }
 .landing-footer-home:hover {
-  color: var(--accent);
+  color: var(--brand-ink);
 }
 .landing-footer-copy {
   color: var(--text-muted-landing);
@@ -2278,7 +2286,7 @@ a:focus-visible {
 .pricing-price {
   font-family: var(--doaide-font-display, 'Instrument Serif', Georgia, serif);
   font-size: 1.75rem;
-  color: var(--brand);
+  color: var(--brand-ink);
   margin-bottom: 1.25rem;
 }
 .pricing-features {
@@ -2409,7 +2417,7 @@ a:focus-visible {
   font-size: 0.8rem;
 }
 .doaide-footer-viewall a {
-  color: var(--brand);
+  color: var(--brand-ink);
   text-decoration: none;
 }
 .doaide-footer-viewall a:hover {
@@ -2436,7 +2444,7 @@ a:focus-visible {
   margin-bottom: 0.25rem;
 }
 .usage-tier strong {
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .usage-period {
   color: var(--ink-muted);
@@ -2504,7 +2512,7 @@ a:focus-visible {
 .blog-home-link {
   display: inline-block;
   font-size: 0.9rem;
-  color: var(--brand);
+  color: var(--brand-ink);
   text-decoration: none;
   margin-bottom: 1rem;
 }
@@ -2552,7 +2560,7 @@ a:focus-visible {
 .blog-read-more {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .blog-article {
   line-height: 1.7;
@@ -2622,7 +2630,7 @@ a:focus-visible {
   content: "□";
   position: absolute;
   left: 0;
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 /* Touch targets. Applied by input type rather than by width: a small laptop
@@ -2672,7 +2680,7 @@ a:focus-visible {
   margin-right: auto;
 }
 .tools-nav-brand em {
-  color: var(--brand);
+  color: var(--brand-ink);
   font-style: normal;
 }
 .tools-nav-links {
@@ -2690,7 +2698,7 @@ a:focus-visible {
 .tools-nav-link:hover,
 .tools-nav-link.active {
   background: var(--glass-feature-bg);
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
 }
 .tools-nav-cta {
   font-size: 0.85rem;
@@ -2825,7 +2833,7 @@ a:focus-visible {
   padding-top: 0.75rem;
   font-size: 1.1rem;
 }
-.calc-total strong { color: var(--brand); }
+.calc-total strong { color: var(--brand-ink); }
 .calc-note {
   margin: 0.75rem 0 0;
   font-size: 0.85rem;
@@ -3410,7 +3418,7 @@ a:focus-visible {
 .hsn-code {
   font-family: var(--doaide-font-mono, 'IBM Plex Mono', monospace);
   font-weight: 600;
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .hsn-rate {
   font-weight: 600;
@@ -3423,7 +3431,7 @@ a:focus-visible {
   font-size: 0.7rem;
   border-radius: 4px;
   background: var(--glass-feature-bg);
-  color: var(--brand);
+  color: var(--brand-ink);
   font-weight: 600;
   vertical-align: middle;
 }
@@ -3439,7 +3447,7 @@ a:focus-visible {
 }
 .hsn-copy-btn:hover {
   border-color: var(--brand);
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 .hsn-categories { margin-top: 2rem; }
@@ -3534,7 +3542,7 @@ a:focus-visible {
 .rate-big {
   font-size: 3rem;
   font-weight: 800;
-  color: var(--brand);
+  color: var(--brand-ink);
   line-height: 1;
 }
 .rate-label {
@@ -3650,10 +3658,10 @@ a:focus-visible {
   text-decoration: none;
 }
 .widget-powered:hover {
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
 }
 .widget-powered strong {
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 /* Tool info sections (below the card) */
@@ -3693,7 +3701,7 @@ a:focus-visible {
   gap: 0.5rem 1.5rem;
 }
 .seo-links li a {
-  color: var(--accent);
+  color: var(--brand-ink);
   text-decoration: none;
   font-size: 0.95rem;
 }
@@ -3770,7 +3778,7 @@ a:focus-visible {
 }
 .landing-trust-item strong {
   font-size: 1.2rem;
-  color: var(--brand);
+  color: var(--brand-ink);
   font-weight: 700;
 }
 .landing-trust-item span {
@@ -3832,7 +3840,7 @@ a:focus-visible {
 .landing-category-title {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--brand);
+  color: var(--brand-ink);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 0.75rem;
@@ -3841,7 +3849,7 @@ a:focus-visible {
 }
 .landing-tool-cta {
   font-size: 0.7rem;
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
   font-weight: 700;
   margin-top: auto;
   padding-top: 0.25rem;
@@ -3869,7 +3877,7 @@ a:focus-visible {
 }
 .landing-cta-secondary:hover {
   border-color: var(--brand);
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
 }
 .landing-tool-cards {
   display: grid;
@@ -3966,7 +3974,7 @@ a:focus-visible {
 }
 .landing-update-date {
   font-size: 0.75rem;
-  color: var(--brand);
+  color: var(--brand-ink);
   font-weight: 600;
   white-space: nowrap;
   min-width: 70px;
@@ -4017,7 +4025,7 @@ a:focus-visible {
 }
 .landing-popular-code {
   font-size: 0.85rem;
-  color: var(--brand);
+  color: var(--brand-ink);
   font-weight: 600;
 }
 .landing-popular-desc {
@@ -4121,7 +4129,7 @@ a:focus-visible {
   align-items: center;
 }
 .breadcrumb-item a {
-  color: var(--brand);
+  color: var(--brand-ink);
   text-decoration: none;
 }
 .breadcrumb-item a:hover {
@@ -4186,7 +4194,7 @@ a:focus-visible {
 .due-dates-filled { color: var(--ink); }
 .due-dates-empty { color: var(--ink-soft); opacity: 0.4; }
 .due-dates-annual-row { background: rgba(245, 158, 66, 0.08); }
-.due-dates-annual-row .due-dates-period { color: var(--brand); }
+.due-dates-annual-row .due-dates-period { color: var(--brand-ink); }
 
 /* ---- Save calculation button & saved list ---- */
 .calc-result-actions {
@@ -4199,10 +4207,10 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--brand);
+  color: var(--brand-ink);
   white-space: nowrap;
 }
-.save-calc-btn:hover { color: var(--brand-hover); }
+.save-calc-btn:hover { color: var(--brand-ink-hover); }
 
 .saved-calcs {
   margin: 1.5rem 0;
@@ -4321,7 +4329,7 @@ a:focus-visible {
 .deadline-days { color: var(--warn); font-weight: 700; }
 .deadline-days-urgent { color: var(--bad); font-weight: 700; }
 .deadline-banner-link {
-  color: var(--brand);
+  color: var(--brand-ink);
   text-decoration: none;
   font-weight: 500;
   white-space: nowrap;
@@ -4512,7 +4520,7 @@ a:focus-visible {
 .compare-price {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--brand);
+  color: var(--brand-ink);
   margin: 0 0 0.25rem;
 }
 .compare-price-detail {
@@ -4617,7 +4625,7 @@ a:focus-visible {
   cursor: pointer;
   gap: 1rem;
 }
-.compare-faq-q:hover { color: var(--brand); }
+.compare-faq-q:hover { color: var(--brand-ink); }
 .compare-faq-q span { font-size: 1.25rem; flex-shrink: 0; }
 .compare-faq-a {
   margin: 0 0 0.75rem;
@@ -4647,7 +4655,7 @@ a:focus-visible {
   background: var(--glass);
   border: 1px solid var(--glass-border);
   text-decoration: none;
-  color: var(--brand);
+  color: var(--brand-ink);
   transition: background var(--doaide-transition, 150ms ease);
 }
 .compare-links-grid a:hover {
@@ -4778,7 +4786,7 @@ a:focus-visible {
 }
 .cross-product-card strong {
   font-size: 0.9rem;
-  color: var(--doaide-gold) !important;
+  color: var(--doaide-gold-ink) !important;
 }
 .cross-product-card > span {
   font-size: 0.8rem;
@@ -4827,7 +4835,7 @@ a:focus-visible {
 }
 .related-tools-link strong {
   font-size: 0.88rem;
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
 }
 .related-tools-link span {
   font-size: 0.78rem;
@@ -4851,7 +4859,7 @@ a:focus-visible {
 }
 .related-tools-arrow {
   font-size: 0.85rem;
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
   font-weight: 600;
   margin-top: auto;
 }
@@ -4909,7 +4917,7 @@ a:focus-visible {
 .quiz-option.selected {
   background: var(--glass-feature-bg);
   border-color: var(--brand);
-  color: var(--brand);
+  color: var(--brand-ink);
   font-weight: 500;
 }
 .quiz-nav {
@@ -4928,7 +4936,7 @@ a:focus-visible {
 }
 .quiz-nav-btn:hover {
   border-color: var(--brand);
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 /* Calendar styles */
@@ -4962,7 +4970,7 @@ a:focus-visible {
 }
 .calendar-filter-btn:hover {
   border-color: var(--brand);
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .calendar-filter-btn.active {
   background: var(--brand);
@@ -5062,7 +5070,7 @@ a:focus-visible {
 }
 .hsn-category-btn:hover {
   border-color: var(--brand);
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 .hsn-category-count {
   font-size: 0.75rem;
@@ -5101,7 +5109,7 @@ a:focus-visible {
 .hsn-code-link {
   font-family: var(--font-mono, "IBM Plex Mono", monospace);
   font-weight: 500;
-  color: var(--brand) !important;
+  color: var(--brand-ink) !important;
 }
 .hsn-rate-badge {
   display: inline-block;
@@ -5184,7 +5192,7 @@ a:focus-visible {
 }
 .conversion-cta-inline-icon {
   flex-shrink: 0;
-  color: var(--brand);
+  color: var(--brand-ink);
   margin-top: 2px;
 }
 .conversion-cta-inline-text {
@@ -5406,7 +5414,7 @@ a:focus-visible {
   font-size: 2.5rem;
   font-weight: 800;
   line-height: 1;
-  color: var(--accent);
+  color: var(--brand-ink);
 }
 .deadline-countdown-urgent .deadline-countdown-num {
   color: #EF4444;
@@ -5568,7 +5576,7 @@ a:focus-visible {
   color: var(--ink);
 }
 .business-counter-text strong {
-  color: var(--accent);
+  color: var(--brand-ink);
   font-size: 1rem;
 }
 .business-counter-badge {

@@ -130,13 +130,13 @@ function MyReferralPanel() {
           borderRadius: "8px",
         }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--accent)" }}>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--brand-ink)" }}>
               {stats.total_visits}
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Total Visits</div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--accent)" }}>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--brand-ink)" }}>
               {stats.conversions}
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Signups</div>

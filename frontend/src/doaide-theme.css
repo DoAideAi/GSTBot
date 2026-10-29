@@ -3,6 +3,8 @@
   --doaide-bg: #0A0A0B; --doaide-bg-alt: #111113; --doaide-surface: #1A1A1D;
   --doaide-surface-hover: #222225; --doaide-border: #2A2A2D; --doaide-border-light: #333336;
   --doaide-gold: #F0B429; --doaide-gold-hover: #D4A017; --doaide-gold-light: #F7CC5F;
+  /* Gold as text: unchanged here, darkened in the light theme (see below). */
+  --doaide-gold-ink: #F0B429; --doaide-gold-ink-hover: #F7CC5F;
   --doaide-gold-dim: #8B6914; --doaide-gold-bg: rgba(240,180,41,0.1);
   --doaide-text: #E5E7EB; --doaide-text-secondary: #9CA3AF; --doaide-text-muted: #8B919C; /* #6B7280 was 3.6:1 on the surface (AA is 4.5) */
   --doaide-text-on-gold: #0A0A0B;
@@ -19,7 +21,7 @@ body { background-color: var(--doaide-bg) !important; color: var(--doaide-text) 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--doaide-bg); }
 ::-webkit-scrollbar-thumb { background: var(--doaide-border); border-radius: 4px; }
-a { color: var(--doaide-gold) !important; } a:hover { color: var(--doaide-gold-light) !important; }
+a { color: var(--doaide-gold-ink) !important; } a:hover { color: var(--doaide-gold-ink-hover) !important; }
 button[class*="primary"], .btn-primary, [class*="bg-indigo"], [class*="bg-blue-6"], [class*="bg-purple"], [class*="bg-brand"] { background-color: var(--doaide-gold) !important; color: var(--doaide-text-on-gold) !important; border-color: var(--doaide-gold) !important; }
 [class*="bg-white"], [class*="bg-gray-50"], [class*="bg-gray-100"], [class*="bg-slate-50"], [class*="bg-slate-100"] { background-color: var(--doaide-surface) !important; }
 [class*="bg-gray-200"], [class*="bg-slate-200"] { background-color: var(--doaide-surface-hover) !important; }
@@ -27,7 +29,7 @@ button[class*="primary"], .btn-primary, [class*="bg-indigo"], [class*="bg-blue-6
 [class*="text-gray-900"], [class*="text-gray-800"], [class*="text-slate-900"], [class*="text-slate-800"], [class*="text-black"] { color: var(--doaide-text) !important; }
 [class*="text-gray-700"], [class*="text-gray-600"], [class*="text-slate-700"], [class*="text-slate-600"] { color: var(--doaide-text) !important; }
 [class*="text-gray-500"], [class*="text-gray-400"], [class*="text-slate-500"], [class*="text-slate-400"] { color: var(--doaide-text-secondary) !important; }
-[class*="text-indigo"], [class*="text-blue-6"], [class*="text-purple"], [class*="text-brand"] { color: var(--doaide-gold) !important; }
+[class*="text-indigo"], [class*="text-blue-6"], [class*="text-purple"], [class*="text-brand"] { color: var(--doaide-gold-ink) !important; }
 input, textarea, select { background-color: var(--doaide-bg-alt) !important; border-color: var(--doaide-border) !important; color: var(--doaide-text) !important; }
 input:focus, textarea:focus, select:focus { border-color: var(--doaide-gold) !important; box-shadow: 0 0 0 2px var(--doaide-gold-bg) !important; }
 input::placeholder, textarea::placeholder { color: var(--doaide-text-muted) !important; }
@@ -39,7 +41,7 @@ tbody tr:hover { background-color: var(--doaide-surface) !important; }
 [class*="modal"], [class*="dialog"], [role="dialog"] { background-color: var(--doaide-bg-alt) !important; border-color: var(--doaide-border) !important; }
 nav, [class*="sidebar"], [class*="nav-"] { background-color: var(--doaide-bg) !important; border-color: var(--doaide-border) !important; }
 [class*="tooltip"] { background-color: var(--doaide-surface) !important; color: var(--doaide-text) !important; }
-[class*="badge"] { background-color: var(--doaide-gold-bg) !important; color: var(--doaide-gold) !important; }
+[class*="badge"] { background-color: var(--doaide-gold-bg) !important; color: var(--doaide-gold-ink) !important; }
 ::selection { background-color: var(--doaide-gold) !important; color: var(--doaide-text-on-gold) !important; }
 [class*="backdrop"], [class*="overlay"] { background-color: rgba(0,0,0,0.7) !important; }
 
@@ -50,6 +52,8 @@ nav, [class*="sidebar"], [class*="nav-"] { background-color: var(--doaide-bg) !i
      #B8860B 3.0, text-muted #71717A 4.4, success #059669 3.4, warning #D97706
      2.9, error #DC2626 4.4 — and white on gold 1.9, every primary button. */
   --doaide-gold-dim: #8B6914;
+  /* Links and gold text were the gold itself, 1.8:1 on these grounds. */
+  --doaide-gold-ink: #7A5C10; --doaide-gold-ink-hover: #5C450D;
   --doaide-text: #1A1A1D; --doaide-text-secondary: #52525B; --doaide-text-muted: #63636B;
   --doaide-text-on-gold: #0A0A0B;
   --doaide-success: #047857; --doaide-error: #B91C1C; --doaide-warning: #B45309; --doaide-info: #2563EB;
