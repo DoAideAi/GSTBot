@@ -475,6 +475,38 @@ describe("api", () => {
     await new Promise((r) => setTimeout(r, 0)); // no unhandled rejection
   });
 
+  describe("changing the password", () => {
+    // The endpoint existed with nothing in the app calling it, so a password
+    // that leaked could not be rotated by the person it belongs to.
+    it("posts both passwords and keeps the session on the token it returns", async () => {
+      setToken("tok-before");
+      global.fetch.mockResolvedValueOnce(jsonResponse({ access_token: "tok-after" }));
+      await api.changePassword("old-secret-1", "new-secret-2");
+      const [url, init] = global.fetch.mock.calls[0];
+      expect(url).toBe("/api/v1/auth/change-password");
+      expect(init.method).toBe("POST");
+      expect(init.headers.Authorization).toBe("Bearer tok-before");
+      expect(JSON.parse(init.body)).toEqual({
+        current_password: "old-secret-1",
+        new_password: "new-secret-2",
+      });
+      // The change ends every token issued before it, this one included:
+      // keeping the old token would sign the user out on their next click.
+      expect(getToken()).toBe("tok-after");
+    });
+
+    it("leaves the session alone when the change is refused", async () => {
+      setToken("tok-before");
+      global.fetch.mockResolvedValueOnce(
+        jsonResponse({ detail: "The current password is not correct." }, { status: 400 }),
+      );
+      await expect(api.changePassword("wrong", "new-secret-2")).rejects.toThrow(
+        "The current password is not correct.",
+      );
+      expect(getToken()).toBe("tok-before");
+    });
+  });
+
   it("does not call the server when there is no session to end", () => {
     setToken(null);
     api.logout();

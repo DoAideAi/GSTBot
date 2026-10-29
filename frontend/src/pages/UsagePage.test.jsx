@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StubAuth } from "../test/auth";
@@ -137,5 +137,66 @@ describe("UsagePage", () => {
     renderPage();
 
     expect(await screen.findByText("some_new_endpoint")).toBeInTheDocument();
+  });
+});
+
+describe("changing the password from the account page", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  function respond(fetch, body, status = 200) {
+    fetch.mockResolvedValueOnce({
+      ok: status >= 200 && status < 300,
+      status,
+      statusText: "",
+      text: async () => JSON.stringify(body),
+    });
+  }
+
+  async function fill(current, next, confirm = next) {
+    fireEvent.change(await screen.findByLabelText("Current password"), {
+      target: { value: current },
+    });
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: next } });
+    fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      target: { value: confirm },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+  }
+
+  it("changes it and says so", async () => {
+    const fetch = mockFetch(USAGE_RESPONSE);
+    respond(fetch, { access_token: "tok-new" });
+    renderPage();
+    await fill("old-secret-1", "new-secret-2");
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Password changed");
+    const [url, init] = fetch.mock.calls[1];
+    expect(url).toBe("/api/v1/auth/change-password");
+    expect(JSON.parse(init.body)).toEqual({
+      current_password: "old-secret-1",
+      new_password: "new-secret-2",
+    });
+    expect(localStorage.getItem("gstbot_token")).toBe("tok-new");
+  });
+
+  it("shows the server's reason when the change is refused", async () => {
+    const fetch = mockFetch(USAGE_RESPONSE);
+    respond(fetch, { detail: "The current password is not correct." }, 400);
+    renderPage();
+    await fill("wrong-one", "new-secret-2");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The current password is not correct.",
+    );
+  });
+
+  it("catches a mistyped confirmation before asking the server", async () => {
+    const fetch = mockFetch(USAGE_RESPONSE);
+    renderPage();
+    await fill("old-secret-1", "new-secret-2", "new-secret-3");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("do not match");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api } from "../lib/api";
 import Meter from "../components/Meter";
+import ChangePasswordForm from "../components/ChangePasswordForm";
 
 export default function UsagePage() {
   usePageTitle("Usage — DoAide GST");
@@ -24,9 +25,17 @@ export default function UsagePage() {
     return () => { cancelled = true; };
   }, []);
 
+  // The password form is the only place a login can rotate its password, so
+  // it stays reachable when the usage figures fail to load.
   if (loading) return <p>Loading usage data...</p>;
-  if (error) return <p className="text-error">{error}</p>;
-  if (!data) return null;
+  if (error || !data) {
+    return (
+      <div className="usage-page">
+        {error && <p className="text-error">{error}</p>}
+        <ChangePasswordForm />
+      </div>
+    );
+  }
 
   const ENDPOINT_LABELS = {
     invoice_uploads: "Invoices processed",
@@ -75,6 +84,8 @@ export default function UsagePage() {
           ))}
         </div>
       )}
+
+      <ChangePasswordForm />
     </div>
   );
 }

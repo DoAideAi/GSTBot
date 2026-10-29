@@ -466,6 +466,18 @@ export const api = {
 
   me: () => request("/auth/me"),
 
+  async changePassword(currentPassword, newPassword) {
+    // The change ends every token issued before it — this one included — so
+    // the session carries on only on the token the response hands back.
+    // Stored only on success: a refused change leaves the old one good.
+    const data = await request("/auth/change-password", {
+      method: "POST",
+      body: { current_password: currentPassword, new_password: newPassword },
+    });
+    setToken(data.access_token);
+    return data;
+  },
+
   // ---- Meta (public) ----
   validateGstin: (gstin) =>
     request(`/meta/gstin/${encodeURIComponent(gstin)}`, { auth: false }),
