@@ -987,16 +987,19 @@ def _forget_absent_suppliers(
     # JSON text, so it can over-select — the loop below decides — but never
     # under-select. A period is ``YYYY-MM`` and holds no LIKE wildcard, but it is
     # escaped anyway, as every LIKE here is (see ``test_sanitize``).
+    #
+    # No ``populate_existing`` here, unlike :func:`_suppliers_by_gstin`: this
+    # runs under the supplier lock, after the loop above has edited rows it
+    # has not flushed, and a forced reload put the stored history back over
+    # those edits. The rows it adds are read for the first time under the lock.
     rows = db.scalars(
-        select(Supplier)
-        .where(
+        select(Supplier).where(
             Supplier.business_id == business_id,
             Supplier.deleted_at.is_(None),
             cast(Supplier.filing_history, String).like(
                 f'%"{escape_like(period)}"%', escape="\\"
             ),
         )
-        .execution_options(populate_existing=True)
     ).all()
     for supplier in rows:
         if supplier.gstin in present:
