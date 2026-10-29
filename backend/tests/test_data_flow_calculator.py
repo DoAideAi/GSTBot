@@ -27,6 +27,7 @@ from app.services.gst_calculator import (
     check_rate,
     from_inclusive,
     on_taxable,
+    quoted_rate,
     resolve_state,
 )
 
@@ -190,6 +191,44 @@ class TestBuildInvoice:
         assert inv.sgst == ZERO
         assert inv.interstate
 
+    def test_an_interstate_invoice_charges_its_igst_in_the_total(self):
+        # Only the intra-state totals were asserted, so an IGST subtracted
+        # from the grand total instead of added to it went unnoticed.
+        items = [LineInput("Widget", Decimal("10"), Decimal("100"), Decimal("18"))]
+        inv = build_invoice(
+            items, supplier_state="27", place_of_supply="29", invoice_date=date(2026, 4, 1)
+        )
+        assert inv.total_tax == Decimal("180.00")
+        assert inv.grand_total == Decimal("1180.00")
+
+    def test_lines_are_numbered_from_one(self):
+        # Returned as ``line`` by the invoice action and quoted back in its
+        # missing-HSN warning, so it is the number a person looks for.
+        items = [
+            LineInput("A", Decimal("1"), Decimal("100"), Decimal("18")),
+            LineInput("B", Decimal("1"), Decimal("100"), Decimal("5")),
+        ]
+        inv = build_invoice(
+            items, supplier_state="27", place_of_supply="27", invoice_date=date(2026, 4, 1)
+        )
+        assert [line.number for line in inv.lines] == [1, 2]
+
+    def test_the_grand_total_is_rounded_to_the_rupee_unless_asked_otherwise(self):
+        items = [LineInput("Widget", Decimal("1"), Decimal("10.40"), Decimal("5"))]
+        inv = build_invoice(
+            items, supplier_state="27", place_of_supply="27", invoice_date=date(2026, 4, 1)
+        )
+        assert inv.grand_total == Decimal("11.00")
+        assert inv.round_off == Decimal("0.08")
+
+    @pytest.mark.parametrize("interstate", [True, False])
+    def test_every_split_says_which_kind_of_supply_it_is(self, interstate):
+        for split in (
+            on_taxable(Decimal("100"), Decimal("18"), interstate=interstate),
+            from_inclusive(Decimal("118"), Decimal("18"), interstate=interstate),
+        ):
+            assert split.interstate is interstate
+
     def test_discount_reduces_the_taxable_value(self):
         items = [LineInput(
             "Widget", Decimal("10"), Decimal("100"), Decimal("18"),
@@ -299,6 +338,21 @@ class TestAmountInWords:
         result = amount_in_words(Decimal("10000000"))
         assert "One Crore" in result
 
+    @pytest.mark.parametrize(
+        ("amount", "words"),
+        [
+            # The two seams of the spelling: below twenty a number has its own
+            # word, and at a thousand the grouping takes over from hundreds.
+            ("19", "Rupees Nineteen Only"),
+            ("20", "Rupees Twenty Only"),
+            ("999", "Rupees Nine Hundred Ninety Nine Only"),
+            ("1000", "Rupees One Thousand Only"),
+            ("0.20", "Rupees Zero and Twenty Paise Only"),
+        ],
+    )
+    def test_the_boundaries_of_the_spelling(self, amount, words):
+        assert amount_in_words(Decimal(amount)) == words
+
     def test_complex_amount(self):
         result = amount_in_words(Decimal("1234567.89"))
         assert "Twelve Lakh" in result
@@ -322,3 +376,21 @@ class TestCheckRate:
     def test_the_error_quotes_the_rate_back(self):
         with pytest.raises(GstInputError, match="17"):
             check_rate(Decimal("17"))
+
+
+class TestQuotedRate:
+    """A refused rate is echoed as typed, until it is too long to be typing."""
+
+    @pytest.mark.parametrize(
+        ("rate", "quoted"),
+        [
+            ("1E+12", "1000000000000"),
+            ("1E+13", "1E+13"),
+            ("1E-12", "0.000000000001"),
+            ("1E-13", "1E-13"),
+        ],
+    )
+    def test_a_dozen_digits_either_side_is_where_it_switches_to_exponents(
+        self, rate, quoted
+    ):
+        assert quoted_rate(Decimal(rate)) == quoted

@@ -69,6 +69,9 @@ def quoted_rate(rate: Decimal) -> str:
     return f"{normalized:f}" if abs(normalized.adjusted()) <= 12 else f"{normalized:E}"
 
 
+# ``frozen=True`` on this and the two input records below survives mutation:
+# nothing in the application assigns to one, so frozen and unfrozen behave
+# alike. It is kept for what it rules out, not for anything a test observes.
 @dataclass(frozen=True)
 class TaxSplit:
     taxable_value: Decimal
@@ -285,6 +288,9 @@ def _integer_words(n: int) -> str:
 def amount_in_words(amount: Decimal) -> str:
     amount = q(amount)
     rupees = int(amount)
+    # ``* 101`` survives mutation, and cannot be told apart: *amount* is
+    # already whole paise, so the fraction is k/100 for k < 100, and k/100 * 101
+    # is k + k/100 — which ``int`` truncates back to k for every k there is.
     paise = int((amount - rupees) * 100)
     words = f"Rupees {_integer_words(rupees)}"
     if paise:

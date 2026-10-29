@@ -426,6 +426,19 @@ TARGETS: tuple[Target, ...] = (
     # whether the guard catches them or not — so no test can tell the mutant
     # from the original. See the docstring there.
     Target("late_fee", "app/services/late_fee.py", ("tests/test_late_fee.py",)),
+    # The tax split and the invoice the GPT's generateInvoice action returns.
+    # Not test_gpt_actions.py, although it covers this module too: it reads
+    # frontend/src/lib/hsnData.js, which a workspace does not hold, so the
+    # round-trip refuses it before a single mutant runs.
+    #
+    # The four that survive are equivalent, and each is noted at its line:
+    # ``frozen=True`` on the three dataclasses, which nothing assigns to, and
+    # the paise multiplier in ``amount_in_words``.
+    Target(
+        "gst_calculator",
+        "app/services/gst_calculator.py",
+        ("tests/test_data_flow_calculator.py",),
+    ),
     Target(
         "itc",
         "app/services/itc.py",
