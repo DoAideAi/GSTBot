@@ -633,6 +633,12 @@ def apply_parsed(
     if invoice.invoice_type == InvoiceType.PURCHASE and counterparty:
         supplier = get_or_create_supplier(db, invoice.business_id, counterparty, counterparty_name)
         invoice.supplier_id = supplier.id
+    else:
+        # A re-read that found no GSTIN left the row linked to the supplier the
+        # previous read named — "no counterparty", and that supplier's id, in
+        # the API and the account export. The edit route already clears the
+        # link when a correction clears the GSTIN; this is the same rule.
+        invoice.supplier_id = None
 
     # Jev's supply category, compliance risk, tax route and (when the parser
     # found no code) HSN chapter. Stored beside the extraction for the review
