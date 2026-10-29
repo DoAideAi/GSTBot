@@ -74,10 +74,6 @@ CROSS_TENANT_BY_DESIGN: dict[tuple[str, str], str] = {
     ("services/invoice_service.py", "_record_failure"): (
         "Marks the parse's own row failed, only if it is still processing."
     ),
-    ("services/reconciliation.py", "_apply_statuses"): (
-        "Stamps each verdict onto the invoice the run itself loaded for this "
-        "business, by id and only while it still holds the judged figures."
-    ),
 }
 
 _QUERY_BUILDERS = frozenset({"select", "update", "delete"})

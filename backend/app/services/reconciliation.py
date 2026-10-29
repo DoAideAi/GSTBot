@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import String, cast, func, select, update
+from sqlalchemy import String, bindparam, cast, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import set_committed_value
@@ -971,6 +971,7 @@ def _apply_statuses(result: ReconciliationResult) -> None:
         MatchCategory.MISSING_IN_2B: InvoiceStatus.MISSING_IN_2B,
         MatchCategory.DUPLICATE: InvoiceStatus.DUPLICATE,
     }
+    pending: list[tuple[Invoice, InvoiceStatus]] = []
     for finding in result.findings:
         if finding.invoice is None or finding.carried:
             continue
@@ -978,35 +979,75 @@ def _apply_statuses(result: ReconciliationResult) -> None:
         new_status = status_for.get(finding.category)
         if new_status is None or invoice.status is new_status:
             continue
-        db = object_session(invoice)
-        if db is None:
+        if object_session(invoice) is None:
             invoice.status = new_status
             continue
-        # A verdict is about the figures this run read, and it is written as
-        # one: only onto a row that still holds them. The run loads the books,
-        # compares, and commits seconds later, and nothing stops a reviewer's
-        # correction or a reparse landing in between. Assigning the attribute
-        # wrote the status unconditionally over whatever had been committed —
-        # a corrected taxable value went back to reading ``matched``, the
-        # badge the PATCH had just withdrawn because no run had seen the new
-        # figure, and a row a reparse had claimed came out of ``processing``
-        # as a verdict mid-extraction. Under READ COMMITTED Postgres re-reads
-        # the row this UPDATE waits on, so the predicate is checked against
-        # the committed version and a row that moved is simply skipped: it
-        # keeps what its own writer gave it, and the next run judges it.
-        written = db.execute(
-            update(Invoice)
-            .where(
-                Invoice.id == invoice.id,
-                Invoice.deleted_at.is_(None),
-                Invoice.status == invoice.status,
-                *(getattr(Invoice, name) == getattr(invoice, name) for name in _JUDGED_FIELDS),
+        pending.append((invoice, new_status))
+    if not pending:
+        return
+
+    db = object_session(pending[0][0])
+    business_id = pending[0][0].business_id
+    # A verdict is about the figures this run read, and it is written as one:
+    # only onto a row that still holds them. The run loads the books, compares,
+    # and commits seconds later, and nothing stops a reviewer's correction or a
+    # reparse landing in between. Assigning the attribute wrote the status
+    # unconditionally over whatever had been committed — a corrected taxable
+    # value went back to reading ``matched``, the badge the PATCH had just
+    # withdrawn because no run had seen the new figure, and a row a reparse had
+    # claimed came out of ``processing`` as a verdict mid-extraction. Under READ
+    # COMMITTED Postgres re-reads the row this UPDATE waits on, so the predicate
+    # is checked against the committed version and a row that moved is simply
+    # skipped: it keeps what its own writer gave it, and the next run judges it.
+    #
+    # One statement with a parameter set per invoice, not one statement per
+    # invoice. Issued separately, a first run over a month of two thousand
+    # purchases made two thousand round trips inside the request the user was
+    # waiting on. The predicate is the same per row; ``IS NOT DISTINCT FROM``
+    # because a bound NULL compared with ``=`` matches nothing, and a judged
+    # field is often empty — an unread date, a GSTIN the document never had.
+    #
+    # The table rather than the mapped class: given a list of parameter sets,
+    # an ORM ``update(Invoice)`` becomes SQLAlchemy's bulk update by primary
+    # key, which takes the key from each set and drops the rest of the WHERE.
+    table = Invoice.__table__
+    judged = (
+        table.c.id == bindparam("b_id"),
+        table.c.business_id == business_id,
+        table.c.deleted_at.is_(None),
+        table.c.status == bindparam("b_old"),
+        *(
+            table.c[name].is_not_distinct_from(bindparam(f"b_{name}"))
+            for name in _JUDGED_FIELDS
+        ),
+    )
+    db.execute(
+        update(table).where(*judged).values(status=bindparam("b_new")),
+        [
+            {
+                "b_id": invoice.id,
+                "b_old": invoice.status,
+                "b_new": new_status,
+                **{f"b_{name}": getattr(invoice, name) for name in _JUDGED_FIELDS},
+            }
+            for invoice, new_status in pending
+        ],
+    )
+    # A batch reports one rowcount for all of it, not which rows it wrote, so
+    # the in-memory status is read back rather than assumed. A row another
+    # writer moved therefore carries that writer's status here as well, which
+    # is the one the database holds.
+    by_id = {invoice.id: invoice for invoice, _ in pending}
+    ids = list(by_id)
+    for start in range(0, len(ids), _SUPPLIER_LOOKUP_CHUNK):
+        rows = db.execute(
+            select(Invoice.id, Invoice.status).where(
+                Invoice.business_id == business_id,
+                Invoice.id.in_(ids[start : start + _SUPPLIER_LOOKUP_CHUNK]),
             )
-            .values(status=new_status)
-            .execution_options(synchronize_session=False)
-        ).rowcount
-        if written:
-            set_committed_value(invoice, "status", new_status)
+        ).all()
+        for invoice_id, status in rows:
+            set_committed_value(by_id[invoice_id], "status", status)
 
 
 def latest_gstr2b(db: Session, business_id: int, period: str) -> GSTRReturn | None:

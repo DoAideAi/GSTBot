@@ -20,7 +20,7 @@ from decimal import Decimal
 import pytest
 
 from app.models.gstr_return import GSTRReturn, ReturnType
-from app.models.invoice import InvoiceStatus
+from app.models.invoice import Invoice, InvoiceStatus
 from app.models.reconciliation_run import MatchCategory, ReconciliationRun, ReconciliationStatus
 from app.models.supplier import Supplier
 from app.services import reconciliation
@@ -749,6 +749,99 @@ class TestScoringDoesNotQueryPerSupplier:
         seen = self.run_with(db_session, business, 25, monkeypatch)
         # Three chunks, then the sweep for suppliers who have left the period.
         assert len(seen) == 4
+
+
+class TestVerdictsAreWrittenInOneStatement:
+    """A run stamped each invoice's verdict with an UPDATE of its own.
+
+    The statement is conditional per row — a verdict lands only on a row that
+    still holds the figures the run judged — and it was issued once per
+    invoice, so a first run over a month of two thousand purchases made two
+    thousand round trips inside the request the user waits on.
+    """
+
+    def invoice_updates(self, db, business, count) -> int:
+        from sqlalchemy import event
+
+        gstins = _valid_gstins(count)
+        for index, gstin in enumerate(gstins):
+            save(db, business.id, counterparty_gstin=gstin, invoice_number=f"INV-{index}")
+        import_2b(
+            db,
+            business.id,
+            [
+                portal(supplier_gstin=gstin, invoice_number=f"INV-{index}")
+                for index, gstin in enumerate(gstins)
+            ],
+        )
+        seen: list[str] = []
+
+        def record(_conn, _cursor, statement, *_args):
+            if statement.lstrip().upper().startswith("UPDATE INVOICES"):
+                seen.append(statement)
+
+        engine = db.get_bind()
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            run = reconciliation.run_reconciliation(db, business.id, PERIOD)
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        assert run.status is ReconciliationStatus.COMPLETED
+        assert run.matched_count == count
+        return len(seen)
+
+    def test_thirty_verdicts_take_one_statement(self, db_session, business):
+        assert self.invoice_updates(db_session, business, 30) == 1
+
+    def test_a_verdict_reaches_a_row_whose_judged_fields_are_empty(
+        self, db_session, business
+    ):
+        # Bound into one statement, an empty field is compared as a parameter,
+        # and ``= NULL`` matches nothing: the row would keep ``parsed`` forever.
+        invoice = save(
+            db_session, business.id, counterparty_gstin=None, invoice_number="NO-GSTIN"
+        )
+        import_2b(db_session, business.id, [portal(invoice_number="SOMETHING-ELSE")])
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        db_session.expire_all()
+        assert db_session.get(Invoice, invoice.id).status is InvoiceStatus.MISSING_IN_2B
+
+    def test_the_invoices_in_hand_say_what_was_written(self, db_session, business):
+        # One statement reports one rowcount, not which rows it wrote, so the
+        # statuses held in memory are read back: each written row says its
+        # verdict, and a row a concurrent correction moved says what that
+        # writer left — not a verdict that never reached the database.
+        from sqlalchemy import update
+
+        from app.services.reconciliation import Finding, ReconciliationResult, _apply_statuses
+
+        invoices = [
+            save(db_session, business.id, invoice_number=f"HELD-{n}") for n in range(3)
+        ]
+        moved = invoices[1]
+        db_session.execute(
+            update(Invoice)
+            .where(Invoice.id == moved.id)
+            .values(taxable_value=Decimal("1.00"))
+            .execution_options(synchronize_session=False)
+        )
+        result = ReconciliationResult(
+            findings=[
+                Finding(invoice=invoice, record=None, category=MatchCategory.MATCHED)
+                for invoice in invoices
+            ],
+            period=PERIOD,
+        )
+
+        _apply_statuses(result)
+
+        assert [invoice.status for invoice in invoices] == [
+            InvoiceStatus.MATCHED,
+            InvoiceStatus.PARSED,
+            InvoiceStatus.MATCHED,
+        ]
 
 
 # ---------------------------------------------------------------------------
