@@ -78,7 +78,7 @@ export default function CompositionSchemeGuide() {
         </table>
         <p>
           These rates are applied on the total turnover — not on individual invoices. The tax is
-          paid out of the taxpayer's margin, since composition dealers cannot charge GST to their
+          paid out of the taxpayer&apos;s margin, since composition dealers cannot charge GST to their
           customers.
         </p>
       </section>
@@ -102,7 +102,7 @@ export default function CompositionSchemeGuide() {
         <ul>
           <li><strong>No Input Tax Credit (ITC):</strong> you cannot claim ITC on purchases — the tax paid on inputs is a cost</li>
           <li><strong>No inter-state supply:</strong> you can only sell within your state; inter-state sales disqualify you</li>
-          <li><strong>Cannot collect GST:</strong> invoices must state "composition taxable person, not eligible to collect tax on supplies"</li>
+          <li><strong>Cannot collect GST:</strong> invoices must state &quot;composition taxable person, not eligible to collect tax on supplies&quot;</li>
           <li><strong>No e-commerce sales:</strong> you cannot sell through platforms like Amazon or Flipkart</li>
           <li><strong>Bill of supply:</strong> you must issue a bill of supply instead of a tax invoice</li>
           <li><strong>Limited to B2C:</strong> since you cannot issue tax invoices, B2B customers cannot claim ITC on purchases from you</li>

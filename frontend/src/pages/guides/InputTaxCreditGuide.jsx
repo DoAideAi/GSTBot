@@ -191,7 +191,7 @@ export default function InputTaxCreditGuide() {
               </ol>
               <p>
                 Additionally, the invoice must appear in your <strong>GSTR-2B</strong> (auto-populated
-                from supplier's GSTR-1), and payment must be made within <strong>180 days</strong>.
+                from supplier&apos;s GSTR-1), and payment must be made within <strong>180 days</strong>.
               </p>
             </section>
 
@@ -264,11 +264,11 @@ export default function InputTaxCreditGuide() {
               <p>
                 ABC Ltd buys office furniture for ₹2,00,000 + 18% GST (₹36,000). The furniture
                 is used for business, supplier has filed GSTR-1, and the invoice appears in
-                ABC's GSTR-2B. ABC can claim the full ₹36,000 as ITC.
+                ABC&apos;s GSTR-2B. ABC can claim the full ₹36,000 as ITC.
               </p>
               <h3>Example 2: Blocked Credit</h3>
               <p>
-                XYZ Corp buys a car for ₹15,00,000 + 40% GST (₹6,00,000) for the MD's
+                XYZ Corp buys a car for ₹15,00,000 + 40% GST (₹6,00,000) for the MD&apos;s
                 personal use. Even though the company is registered and has a valid invoice,
                 ITC on motor vehicles for personal use is blocked under Section 17(5). No ITC
                 can be claimed.

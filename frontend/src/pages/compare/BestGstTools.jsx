@@ -198,7 +198,7 @@ export default function BestGstTools() {
           </section>
 
           <section className="compare-cta">
-            <h2>Try India's Best Free GST Calculator</h2>
+            <h2>Try India&apos;s Best Free GST Calculator</h2>
             <p>
               Calculate GST instantly — no signup, no fees. CGST, SGST, IGST breakdown for
               all slab rates. Plus free GSTIN lookup, HSN search, and filing reminders.

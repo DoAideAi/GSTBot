@@ -97,8 +97,11 @@ export default [
   },
 
   {
-    // Config files are Node, not browser.
-    files: ["*.config.js", "vite.config.js"],
+    // Config files are Node, not browser, and so are the build scripts
+    // (scripts/*.mjs — the prerender), which the block above does not match:
+    // linted with no globals at all, every `process` and `console` in them
+    // was an error.
+    files: ["*.config.js", "vite.config.js", "**/*.mjs"],
     languageOptions: {
       globals: { ...globals.node },
     },

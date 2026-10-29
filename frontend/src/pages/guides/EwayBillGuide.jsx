@@ -118,7 +118,7 @@ export default function EwayBillGuide() {
         <div className="tool-container" style={{ maxWidth: 800 }}>
           <h1 className="tool-title">Complete E-Way Bill Guide for Businesses</h1>
           <p className="tool-subtitle">
-            Everything you need to know about e-way bills — when they're required,
+            Everything you need to know about e-way bills — when they&apos;re required,
             how to generate them, validity rules, and penalties. Updated for 2026.
           </p>
 
@@ -160,7 +160,7 @@ export default function EwayBillGuide() {
               <h2>When is an E-Way Bill Required?</h2>
               <p>An e-way bill must be generated when:</p>
               <ul>
-                <li>Goods worth more than <strong>₹50,000</strong> are transported — whether it's a sale, purchase, return, or transfer</li>
+                <li>Goods worth more than <strong>₹50,000</strong> are transported — whether it&apos;s a sale, purchase, return, or transfer</li>
                 <li><strong>Interstate movement</strong> of handicraft goods by exempted dealers — any value</li>
                 <li>Goods sent for <strong>job work</strong> — regardless of consignment value</li>
                 <li>Movement of goods by <strong>principal to job worker</strong> in another state — any value</li>
@@ -193,7 +193,7 @@ export default function EwayBillGuide() {
                   register using your GSTIN. First-time users get a username and password.
                 </li>
                 <li>
-                  <strong>Log in and select "Generate New":</strong> Navigate to E-Way Bill →
+                  <strong>Log in and select &quot;Generate New&quot;:</strong> Navigate to E-Way Bill →
                   Generate New from the menu.
                 </li>
                 <li>
@@ -261,7 +261,7 @@ export default function EwayBillGuide() {
                 <li>Empty cargo containers</li>
                 <li>Postal bags carried by the Department of Posts</li>
                 <li>Natural or cultured pearls and precious stones</li>
-                <li>Jewellery, goldsmiths' wares, and coins</li>
+                <li>Jewellery, goldsmiths&apos; wares, and coins</li>
                 <li>Used personal and household effects</li>
                 <li>Coral (unworked and worked)</li>
               </ul>
@@ -323,7 +323,7 @@ export default function EwayBillGuide() {
                 <li><strong>Uttar Pradesh:</strong> Certain goods require e-way bill even below ₹50,000 (tobacco, pan masala)</li>
               </ul>
               <p>
-                Always check your state's GST department notifications for the latest rules.
+                Always check your state&apos;s GST department notifications for the latest rules.
               </p>
             </section>
 

@@ -198,7 +198,7 @@ export default function GstRatePage() {
             </div>
           ) : (
             <div className="calc-card">
-              <p>We don't have a specific rate listing for "{display}" yet.</p>
+              <p>We don&apos;t have a specific rate listing for &quot;{display}&quot; yet.</p>
               <p>
                 <Link to="/hsn">Search the HSN code directory →</Link>
               </p>

@@ -151,14 +151,14 @@ export default function Gstr9ChecklistPage() {
   const toggle = useCallback((id) => {
     setChecked((prev) => {
       const next = { ...prev, [id]: !prev[id] };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* storage unavailable: nothing to keep */ }
       return next;
     });
   }, []);
 
   const resetAll = useCallback(() => {
     setChecked({});
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* storage unavailable: nothing to keep */ }
   }, []);
 
   const allItems = useMemo(() => SECTIONS.flatMap((s) => s.items), []);

@@ -256,7 +256,7 @@ export default function ItcEligibilityPage() {
             <h2>Input Tax Credit (ITC) Under GST</h2>
             <p>
               Input Tax Credit allows businesses to reduce their GST liability by claiming
-              credit for GST paid on business purchases. ITC is the backbone of GST's
+              credit for GST paid on business purchases. ITC is the backbone of GST&apos;s
               value-added tax mechanism.
             </p>
             <h3>Conditions for Claiming ITC (Section 16)</h3>

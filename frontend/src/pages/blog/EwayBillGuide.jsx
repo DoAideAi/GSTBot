@@ -41,7 +41,7 @@ export default function EwayBillGuide() {
         </p>
         <p>
           Some states have reduced the threshold below ₹50,000 for intra-state movement. Check
-          your state's notification for the applicable limit.
+          your state&apos;s notification for the applicable limit.
         </p>
       </section>
 

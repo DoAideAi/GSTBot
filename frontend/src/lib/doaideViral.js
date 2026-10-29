@@ -6,7 +6,7 @@ export function trackToolVisit(name, path) {
     const filtered = stored.filter(t => t.path !== path);
     filtered.unshift({ name, path, ts: Date.now() });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered.slice(0, 20)));
-  } catch {}
+  } catch { /* storage unavailable: nothing to keep */ }
 }
 
 export function getRecentTools(max = 5) {
@@ -76,7 +76,7 @@ export function trackReferral() {
     const url = new URL(window.location);
     url.searchParams.delete('ref');
     window.history.replaceState({}, '', url.pathname + url.search);
-  } catch {}
+  } catch { /* storage or history unavailable: the visit goes uncounted */ }
 }
 
 export function getReferralCount() {
@@ -96,7 +96,7 @@ export function shouldShowReferralBanner() {
 export function dismissReferralBanner() {
   try {
     localStorage.setItem('doaide_referral_dismissed', String(Date.now()));
-  } catch {}
+  } catch { /* storage unavailable: nothing to keep */ }
 }
 
 export const TRENDING_TOOLS = [
