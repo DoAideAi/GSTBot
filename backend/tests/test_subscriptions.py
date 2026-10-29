@@ -1700,3 +1700,55 @@ class TestAMalformedOrderIsRefusedNotA500:
         assert razorpay_client.paise(49900) == 49900
         for junk in ("49900", 499.0, None, True, [1], {"a": 1}):
             assert razorpay_client.paise(junk) is None
+
+
+class TestALowerPlanCannotBeBoughtOverAHigherOne:
+    """P21 M3: paying for Pro while the CA (Enterprise) plan ran replaced it at
+    once — tier and status move on verify, no proration — so a mistaken Pro
+    purchase ended the CA plan the business had paid for. The money is taken by
+    then, so the refusal is at create-order, before any order exists."""
+
+    def _on(self, db_session, business, tier, *, lapsed=False, status=SubscriptionStatus.ACTIVE):
+        from datetime import datetime, timedelta
+
+        end = datetime.now(UTC) + (timedelta(days=-1) if lapsed else timedelta(days=20))
+        db_session.add(
+            Subscription(
+                business_id=business.id,
+                tier=SubscriptionTier(tier),
+                status=status,
+                current_period_end=end,
+            )
+        )
+        db_session.commit()
+
+    def _order(self, client, tier):
+        with patch.object(razorpay_client, "is_configured", return_value=True), patch.object(
+            razorpay_client,
+            "create_order",
+            return_value={"id": "order_x", "amount": 49900, "currency": "INR"},
+        ):
+            return client.post("/api/v1/subscriptions/create-order", json={"tier": tier})
+
+    def test_a_downgrade_while_the_higher_plan_runs_is_refused(
+        self, auth_client, db_session, business
+    ):
+        self._on(db_session, business, "enterprise")
+        response = self._order(auth_client, "pro")
+        assert response.status_code == 409
+        assert "CA plan is active until" in response.json()["detail"]
+
+    @pytest.mark.parametrize(
+        ("current", "wanted", "kwargs"),
+        [
+            ("pro", "enterprise", {}),  # an upgrade
+            ("pro", "pro", {}),  # a renewal
+            ("enterprise", "pro", {"lapsed": True}),  # the higher plan has ended
+            ("enterprise", "pro", {"status": SubscriptionStatus.CANCELLED}),
+        ],
+    )
+    def test_every_other_purchase_goes_through(
+        self, auth_client, db_session, business, current, wanted, kwargs
+    ):
+        self._on(db_session, business, current, **kwargs)
+        assert self._order(auth_client, wanted).status_code == 200

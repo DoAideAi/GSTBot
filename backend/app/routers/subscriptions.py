@@ -93,6 +93,10 @@ def current_subscription(
     return SubscriptionOut.model_validate(sub)
 
 
+# Plans by what they include, for telling an upgrade from a downgrade.
+_TIER_RANK = {SubscriptionTier.FREE: 0, SubscriptionTier.PRO: 1, SubscriptionTier.ENTERPRISE: 2}
+
+
 @router.post(
     "/create-order",
     response_model=CreateOrderResponse,
@@ -106,6 +110,11 @@ def current_subscription(
     ),
     responses={
         400: {"description": "The free tier was requested; there is nothing to pay for."},
+        409: {
+            "description": (
+                "A higher paid plan is active; a lower one can be bought once it ends."
+            )
+        },
         502: {"description": "Razorpay did not create the order. Safe to retry."},
         503: {"description": "Payment processing is not configured on this server."},
     },
@@ -122,6 +131,27 @@ def create_order(
             detail=(
                 "The Free plan costs nothing, so there is nothing to pay for. "
                 "Choose SMB or CA to upgrade."
+            ),
+        )
+    # Paying for a lower plan while a higher one runs replaced it at once —
+    # tier and status move on verify, with no proration — so a CA who bought
+    # Pro by mistake lost the rest of the CA plan they had paid for. The money
+    # is already taken by the time verify runs, so the refusal is here, before
+    # any order exists.
+    current = usage_service.get_subscription(db, business.id)
+    if (
+        current is not None
+        and current.is_paid()
+        and _TIER_RANK[payload.tier] < _TIER_RANK[current.tier]
+    ):
+        ends = current.current_period_end
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Your {razorpay_client.TIER_PRICING[current.tier]['name']} plan is active"
+                + (f" until {ends:%d %b %Y}" if ends else "")
+                + ". Buying a lower plan now would end it immediately, without a refund; "
+                "choose the lower plan once it ends."
             ),
         )
     if not razorpay_client.is_configured():
