@@ -175,7 +175,10 @@ def reap_stalled_parses_task(self) -> dict:
                 requeued = len(lost)
                 logger.warning(
                     "Requeued uploads whose parse was never run",
-                    extra={"count": requeued, "invoice_ids": lost},
+                    extra={
+                        "count": requeued,
+                        "invoice_ids": lost[: invoice_service.SWEEP_LOGGED_IDS],
+                    },
                 )
             else:
                 # Not silent: an hour-old upload behind a queue that is not

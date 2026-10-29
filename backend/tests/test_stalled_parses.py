@@ -636,3 +636,42 @@ class TestAnUploadWhoseParseWasLost:
         assert invoice_tasks.reap_stalled_parses_task() == {"reaped": 0, "requeued": 0}
         assert queued == []
         assert any("not requeued" in record.getMessage() for record in caplog.records)
+
+
+class TestASweepIsBounded:
+    """P18 M10: both sweeps selected every matching id. After a long outage
+    that put tens of thousands of ids into one IN list — refused by Postgres
+    past 65,535 bind parameters, so the sweep then failed every hour — and
+    every id into one log line. Each sweep now takes a batch and the next one
+    continues."""
+
+    def test_a_backlog_of_stalled_parses_is_worked_down_in_batches(
+        self, db_session, business, monkeypatch
+    ):
+        monkeypatch.setattr(invoice_service, "SWEEP_BATCH", 2)
+        for _ in range(3):
+            _invoice(db_session, business, status=InvoiceStatus.PROCESSING, age_seconds=7200)
+
+        assert reap_stalled_parses(db_session) == 2
+        assert reap_stalled_parses(db_session) == 1
+        assert reap_stalled_parses(db_session) == 0
+
+    def test_lost_uploads_come_back_a_batch_at_a_time(self, db_session, business, monkeypatch):
+        monkeypatch.setattr(invoice_service, "SWEEP_BATCH", 2)
+        rows = [
+            _invoice(db_session, business, status=InvoiceStatus.UPLOADED, age_seconds=7200)
+            for _ in range(3)
+        ]
+        assert invoice_service.lost_uploads(db_session) == [rows[0].id, rows[1].id]
+
+    def test_the_log_line_names_a_bounded_number_of_ids(
+        self, db_session, business, monkeypatch, caplog
+    ):
+        monkeypatch.setattr(invoice_service, "SWEEP_LOGGED_IDS", 2)
+        for _ in range(3):
+            _invoice(db_session, business, status=InvoiceStatus.PROCESSING, age_seconds=7200)
+
+        reap_stalled_parses(db_session)
+        (line,) = [r for r in caplog.records if r.getMessage() == "Reaped stalled invoices"]
+        assert line.count == 3
+        assert len(line.invoice_ids) == 2

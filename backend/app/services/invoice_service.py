@@ -851,6 +851,16 @@ STALLED_PARSE_MESSAGE = (
 )
 
 
+# Rows one sweep handles, and ids one log line names. Both sweeps run hourly
+# and are idempotent, so a backlog larger than this is worked down over the
+# following hours. Unbounded, a long outage stranding tens of thousands of rows
+# put every id into one IN list — past Postgres's 65,535 bind parameters the
+# statement is refused and the sweep fails every hour from then on — and every
+# id into one log line.
+SWEEP_BATCH = 1_000
+SWEEP_LOGGED_IDS = 20
+
+
 def reap_stalled_parses(
     db: Session, *, now: datetime | None = None, stall_seconds: int | None = None
 ) -> int:
@@ -904,7 +914,12 @@ def reap_stalled_parses(
         Invoice.updated_at < cutoff,
     ]
     stalled_ids = list(
-        db.scalars(select(Invoice.id).where(*stalled_filter)).all()
+        db.scalars(
+            select(Invoice.id)
+            .where(*stalled_filter)
+            .order_by(Invoice.id)
+            .limit(SWEEP_BATCH)
+        ).all()
     )
     if stalled_ids:
         # Re-check the status: a concurrent ``process_invoice`` or reparse
@@ -926,7 +941,7 @@ def reap_stalled_parses(
             extra={
                 "count": len(stalled_ids),
                 "stale_seconds": seconds,
-                "invoice_ids": stalled_ids,
+                "invoice_ids": stalled_ids[:SWEEP_LOGGED_IDS],
             },
         )
         metrics.count("invoice_parse_stalled", len(stalled_ids))
@@ -957,11 +972,14 @@ def lost_uploads(
     )
     return list(
         db.scalars(
-            select(Invoice.id).where(
+            select(Invoice.id)
+            .where(
                 Invoice.status == InvoiceStatus.UPLOADED,
                 Invoice.deleted_at.is_(None),
                 Invoice.updated_at < now - timedelta(seconds=seconds),
             )
+            .order_by(Invoice.id)
+            .limit(SWEEP_BATCH)
         ).all()
     )
 
