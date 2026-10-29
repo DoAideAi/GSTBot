@@ -9,4 +9,4 @@ ruff>=0.16.0
 # YAML, and nothing else here depends on it — it was resolvable in a working
 # tree only by accident, which is exactly the way a suite passes locally and
 # fails on a clean checkout.
-PyYAML>=6.0
+PyYAML>=6.0.3
