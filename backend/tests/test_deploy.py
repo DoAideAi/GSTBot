@@ -30,6 +30,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -2382,3 +2383,59 @@ class TestAReleaseInstallsChangedUnits:
     def test_an_unchanged_release_touches_nothing(self, tmp_path):
         _, calls = self._run(tmp_path, {"a.service": "x\n"}, {"a.service": "x\n"})
         assert calls == []
+
+
+class TestARollbackPastAMigrationStillStarts:
+    """P25 M12: after any release that added a migration, `deploy.sh
+    <previous-sha>` stamped nothing new but ran `alembic upgrade head` from a
+    tree that lacks the database's revision. Alembic stops with "Can't locate
+    revision", gstbot-migrate fails, and the API and worker that Requires= it
+    refuse to start, on the rollback and on every boot after it."""
+
+    CHECK = DEPLOY / "migration_check.py"
+
+    def test_the_migration_unit_asks_first(self):
+        unit = parse_unit((SYSTEMD / "gstbot-migrate.service").read_text())
+        assert entries(unit, "Service", "ExecCondition") == [
+            "/opt/GSTBot/.venv/bin/python /opt/GSTBot/deploy/migration_check.py"
+        ]
+        assert self.CHECK.is_file()
+
+    def _check(self, url: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(self.CHECK)],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "DATABASE_URL": url},
+            capture_output=True,
+            text=True,
+        )
+
+    def _migrated(self, tmp_path) -> str:
+        url = f"sqlite:///{tmp_path / 'db.sqlite'}"
+        subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "DATABASE_URL": url},
+            check=True,
+            capture_output=True,
+        )
+        return url
+
+    def test_a_database_at_this_trees_head_is_migrated(self, tmp_path):
+        assert self._check(self._migrated(tmp_path)).returncode == 0
+
+    def test_a_database_ahead_of_this_tree_is_skipped(self, tmp_path):
+        import sqlite3
+
+        url = self._migrated(tmp_path)
+        with sqlite3.connect(tmp_path / "db.sqlite") as db:
+            db.execute("UPDATE alembic_version SET version_num = '0999_from_the_future'")
+        result = self._check(url)
+        # 1 is "skip" to systemd's ExecCondition; the unit is not failed.
+        assert result.returncode == 1
+        assert "0999_from_the_future" in result.stderr
+
+    def test_an_unreachable_database_fails_rather_than_skips(self):
+        # Skipping here would start the API on an unmigrated schema.
+        result = self._check("postgresql+psycopg://nobody@127.0.0.1:1/none")
+        assert result.returncode == 255

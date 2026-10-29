@@ -380,6 +380,13 @@ in both directions, so it works — but it is a decision to take with the data i
 front of you, not something a deploy script should do while an incident is in
 progress.
 
+Nor does it fail on one. The database is then on a revision the older tree
+does not have, and `alembic upgrade head` would stop with "Can't locate
+revision". `gstbot-migrate`'s `ExecCondition` (`deploy/migration_check.py`)
+sees that and skips the unit rather than failing it, so the API and worker
+that require it still start. `journalctl -u gstbot-migrate` says which revision
+the database is on.
+
 The sha can be any commit the box can fetch from `origin` — the deploy key
 described under "Releasing" is what makes that work.
 

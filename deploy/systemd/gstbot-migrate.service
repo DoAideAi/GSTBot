@@ -29,6 +29,10 @@ EnvironmentFile=/etc/gstbot/gstbot.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONUNBUFFERED=1
 
+# Exits 1 when the database is on a revision this tree does not have — a
+# rollback — and systemd skips the unit instead of failing it, so the API that
+# Requires= it still starts. See deploy/migration_check.py.
+ExecCondition=/opt/GSTBot/.venv/bin/python /opt/GSTBot/deploy/migration_check.py
 ExecStart=/opt/GSTBot/.venv/bin/alembic upgrade head
 
 # A migration that fails must stop the release, not retry into a loop.
