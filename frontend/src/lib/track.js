@@ -53,8 +53,21 @@ export function analyticsSafe(data) {
   );
 }
 
+/**
+ * Record *event*, and never throw.
+ *
+ * Callers sit inside the flows they measure — checkout calls this between
+ * creating the order and opening Razorpay — so an exception from here was an
+ * exception in the flow: a half-loaded Umami, or a blocker that stubs
+ * `window.umami` without a working `track`, turned "analytics failed" into
+ * "payment failed".
+ */
 export function track(event, data) {
-  if (typeof window !== "undefined" && typeof window.umami !== "undefined") {
-    window.umami.track(event, analyticsSafe(data));
+  try {
+    if (typeof window !== "undefined" && typeof window.umami?.track === "function") {
+      window.umami.track(event, analyticsSafe(data));
+    }
+  } catch {
+    // Analytics is never worth the flow it is measuring.
   }
 }

@@ -76,3 +76,19 @@ describe("what reaches analytics", () => {
     expect(window.umami.track).toHaveBeenCalledWith("gst_calculate", { amount: "1L-10L", rate: 18 });
   });
 });
+
+describe("track never breaks the flow it measures", () => {
+  afterEach(() => {
+    delete window.umami;
+  });
+
+  it("swallows an analytics script that throws", () => {
+    window.umami = { track: () => { throw new Error("blocked"); } };
+    expect(() => track("checkout_open", { tier: "pro" })).not.toThrow();
+  });
+
+  it("ignores a stub without a track function", () => {
+    window.umami = {};
+    expect(() => track("checkout_open")).not.toThrow();
+  });
+});
