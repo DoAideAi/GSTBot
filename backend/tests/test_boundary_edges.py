@@ -23,26 +23,34 @@ from tests.conftest import BUSINESS_GSTIN
 
 class TestGstinUnicodeLookalikes:
     """Fullwidth digits and Cyrillic letters look identical to their ASCII
-    counterparts in most fonts. A GSTIN built from them would pass a visual
-    check and fail silently on a government portal."""
+    counterparts in most fonts. A GSTIN *stored* with them would pass a visual
+    check and fail silently on a government portal.
 
-    def test_fullwidth_digits_in_a_gstin_are_rejected(self):
+    P29 M18: the two are different cases. Full-width forms are the same
+    characters by Unicode's own definition (NFKC), and a zero-width joiner is
+    no character at all, so both now fold to the plain-ASCII GSTIN — which is
+    what gets stored, so nothing non-ASCII ever reaches the portal. Refusing
+    them refused real GSTINs copied out of PDFs and web pages. A Cyrillic
+    letter is a different letter and is still refused."""
+
+    def test_fullwidth_digits_fold_to_the_ascii_gstin(self):
         # ２ is fullwidth '2', ７ is fullwidth '7'
         lookalike = "２７AAPFU0939F1ZV"
-        assert not gstin_service.is_valid(lookalike)
+        assert gstin_service.parse(lookalike).gstin == BUSINESS_GSTIN
+        assert gstin_service.parse(lookalike).gstin.isascii()
 
     def test_cyrillic_a_looks_like_latin_a_but_is_rejected(self):
         # А is Cyrillic 'А', visually identical to Latin 'A'
         lookalike = "27АAPFU0939F1ZV"
         assert not gstin_service.is_valid(lookalike)
 
-    def test_a_gstin_with_zero_width_joiners_is_rejected(self):
-        poisoned = "27‍AAPFU0939F1ZV"
-        assert not gstin_service.is_valid(poisoned)
+    def test_a_zero_width_joiner_is_removed_not_stored(self):
+        poisoned = "27\u200dAAPFU0939F1ZV"
+        assert gstin_service.parse(poisoned).gstin == BUSINESS_GSTIN
 
-    def test_normalize_strips_spaces_but_not_unicode_trickery(self):
-        normalized = gstin_service.normalize("２７AAPFU0939F1ZV")
-        assert normalized != BUSINESS_GSTIN
+    def test_normalize_leaves_a_different_letter_alone(self):
+        # The Cyrillic А is not folded: it stays, and the GSTIN is refused.
+        assert gstin_service.normalize("27АAPFU0939F1ZV") != BUSINESS_GSTIN
 
 
 class TestGstinControlCharsAndWhitespace:
@@ -73,10 +81,18 @@ class TestGstinAtRegistrationEndpoint:
         "full_name": "Edge Tester",
     }
 
-    def test_unicode_lookalike_gstin_is_rejected_at_registration(self, client):
+    def test_a_fullwidth_gstin_registers_as_the_ascii_one(self, client):
         resp = client.post(
             "/api/v1/auth/register",
             json={**self.REGISTER_BASE, "gstin": "２７AAPFU0939F1ZV"},
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["business"]["gstin"] == BUSINESS_GSTIN
+
+    def test_a_cyrillic_lookalike_gstin_is_rejected_at_registration(self, client):
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={**self.REGISTER_BASE, "gstin": "27АAPFU0939F1ZV"},
         )
         assert resp.status_code == 422
 
@@ -242,14 +258,15 @@ class TestInvoiceCorrectionBoundaries:
         assert resp.status_code == 422
         assert "gstin" in resp.text.lower()
 
-    def test_a_counterparty_gstin_with_fullwidth_chars_is_rejected(
+    def test_a_counterparty_gstin_with_fullwidth_chars_is_stored_as_ascii(
         self, auth_client, invoice
     ):
         resp = auth_client.patch(
             f"/api/v1/invoices/{invoice.id}",
-            json={"counterparty_gstin": "２７AAPFU0939F1ZV"},
+            json={"counterparty_gstin": "２９AAGCB7383J1Z4"},
         )
-        assert resp.status_code == 422
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["counterparty_gstin"] == "29AAGCB7383J1Z4"
 
     def test_a_counterparty_name_over_255_is_rejected(
         self, auth_client, invoice

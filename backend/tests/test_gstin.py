@@ -331,3 +331,39 @@ def test_interstate_is_none_when_either_side_is_unknown():
 def test_state_code_of():
     assert gstin_service.state_code_of(BUSINESS_GSTIN) == "27"
     assert gstin_service.state_code_of("not-a-gstin") is None
+
+
+# ---------------------------------------------------------------------------
+# What copying a GSTIN out of a PDF, a web page or a CSV brings with it
+# ---------------------------------------------------------------------------
+
+_VALID = "27AAPFU0939F1ZV"
+_FULL_WIDTH = "".join(chr(ord(c) + 0xFEE0) for c in _VALID)
+
+
+@pytest.mark.parametrize(
+    "pasted",
+    [
+        _VALID + "​",  # zero-width space, from a web page
+        "﻿" + _VALID,  # byte-order mark, the first cell of a CSV
+        "27­AAPFU0939F1ZV",  # soft hyphen, from a PDF
+        "27–AAPFU0939F1ZV",  # en dash, from a Word document
+        "27‑AAPFU0939F1ZV",  # non-breaking hyphen
+        "27−AAPFU0939F1ZV",  # minus sign
+        _FULL_WIDTH,  # full-width forms, from some Indic input methods
+        "27 aapfu0939f1zv",  # non-breaking space, lower case
+    ],
+)
+def test_a_gstin_with_invisible_or_typographic_characters_is_still_that_gstin(pasted):
+    # Each was refused with "this one has 16 characters" — about a value the
+    # user could see was 15 — or "should be a digit, but it is '２'".
+    assert gstin_service.normalize(pasted) == _VALID
+    assert gstin_service.parse(pasted).gstin == _VALID
+
+
+def test_a_real_letter_or_digit_is_never_dropped_as_a_separator():
+    # Only separators and invisible characters go: a wrong character still
+    # makes it the wrong GSTIN.
+    assert gstin_service.normalize("27AAPFU0939F1ZVX") == "27AAPFU0939F1ZVX"
+    with pytest.raises(gstin_service.InvalidGSTIN):
+        gstin_service.parse("27AAPFU0939F1Zé")

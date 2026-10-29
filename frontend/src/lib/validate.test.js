@@ -767,3 +767,27 @@ describe("invoiceDraftErrors with the ledger fields", () => {
     });
   });
 });
+
+
+describe("normalizeGstin with what copying brings along", () => {
+  // Mirrors app/services/gstin.normalize: the same paste must be the same
+  // GSTIN on both sides, or the form accepts what the API refuses.
+  const VALID = "27AAPFU0939F1ZV";
+  const fullWidth = [...VALID].map((c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0)).join("");
+  it.each([
+    ["zero-width space", VALID + "\u200b"],
+    ["byte-order mark", "\ufeff" + VALID],
+    ["soft hyphen", "27\u00adAAPFU0939F1ZV"],
+    ["en dash", "27\u2013AAPFU0939F1ZV"],
+    ["non-breaking hyphen", "27\u2011AAPFU0939F1ZV"],
+    ["minus sign", "27\u2212AAPFU0939F1ZV"],
+    ["full-width forms", fullWidth],
+  ])("strips a %s", (_label, pasted) => {
+    expect(normalizeGstin(pasted)).toBe(VALID);
+    expect(gstinShapeError(pasted)).toBe("");
+  });
+
+  it("never drops a real character", () => {
+    expect(normalizeGstin("27AAPFU0939F1ZVX")).toBe("27AAPFU0939F1ZVX");
+  });
+});

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import functools
 import re
+import unicodedata
 from dataclasses import dataclass
 
 # The check-digit alphabet, in value order: '0'-'9' are 0-9, 'A'-'Z' are 10-35.
@@ -101,8 +102,22 @@ def normalize(gstin: str) -> str:
 
     Users paste GSTINs out of PDFs and spreadsheets, where they routinely
     arrive as ``27 AAPFU0939F 1ZV`` or ``27-aapfu0939f1zv``.
+
+    And with what copying brings along: a zero-width space from a web page, a
+    byte-order mark on the first cell of a CSV, a soft hyphen or an en dash
+    from a PDF or a Word document, full-width forms from some Indic input
+    methods. Only the ASCII hyphen and whitespace were stripped, so each of
+    those was refused as "16 characters" about a value the user could see was
+    15. NFKC folds the full-width forms; then every separator (whitespace, any
+    dash, the minus sign) and every invisible format character goes. A letter
+    or digit is never removed. ``frontend/src/lib/validate.js`` does the same.
     """
-    return re.sub(r"[\s\-]", "", (gstin or "")).upper()
+    folded = unicodedata.normalize("NFKC", gstin or "")
+    return "".join(
+        ch
+        for ch in folded
+        if not (ch.isspace() or ch == "\u2212" or unicodedata.category(ch) in ("Cf", "Pd"))
+    ).upper()
 
 
 def compute_check_digit(first14: str) -> str:

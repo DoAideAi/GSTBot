@@ -143,7 +143,15 @@ export function gstinShapeError(value) {
 
 /** Strip the spaces and hyphens people paste in, and upper-case. */
 export function normalizeGstin(value) {
-  return String(value ?? "").replace(/[\s-]/g, "").toUpperCase();
+  // The same rule as app/services/gstin.normalize, so a pasted GSTIN is one
+  // GSTIN on both sides: full-width forms folded, then whitespace, every dash,
+  // the minus sign and invisible format characters (a zero-width space, a
+  // CSV's byte-order mark, a PDF's soft hyphen) removed. Only spaces and the
+  // ASCII hyphen were, and the rest made a valid GSTIN "16 characters".
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\s\p{Cf}\p{Pd}\u2212]/gu, "")
+    .toUpperCase();
 }
 
 /**
