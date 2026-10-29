@@ -3,8 +3,13 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 
-from app.models.invoice import Invoice
+import pytest
+from sqlalchemy import select
+
+from app.core.database import Base
+from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.user import UserRole
 from app.services import data_export
 from tests.conftest import BUSINESS_GSTIN, TEST_EMAIL
@@ -99,3 +104,93 @@ def test_taking_it_leaves_an_audit_line(auth_client, caplog):
         auth_client.get(URL)
     [line] = [r for r in caplog.records if r.getMessage() == "Account exported"]
     assert line.rows["users"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Streamed, not assembled
+# ---------------------------------------------------------------------------
+
+def _invoices(db, business_id, count, *, text_kb=0):
+    for n in range(count):
+        db.add(
+            Invoice(
+                business_id=business_id,
+                invoice_type=InvoiceType.PURCHASE,
+                status=InvoiceStatus.PARSED,
+                invoice_number=f"EXP-{n}",
+                raw_text="x" * (text_kb * 1024) or None,
+            )
+        )
+    db.commit()
+
+
+def _assembled(db, business, exported_at):
+    """What the export was before it streamed: every row in hand, then rendered."""
+    own = Base.metadata.tables["businesses"]
+    profile = db.execute(
+        select(*[c for c in own.columns if (own.name, c.name) not in data_export.WITHHELD])
+        .where(own.c.id == business.id)
+    ).one()
+
+    def rows(table):
+        cols = [c for c in table.columns if (table.name, c.name) not in data_export.WITHHELD]
+        order = [table.c.id] if "id" in table.c else []
+        result = db.execute(
+            select(*cols).where(table.c.business_id == business.id).order_by(*order)
+        )
+        return [{k: data_export._value(v) for k, v in r._mapping.items()} for r in result]
+
+    return {
+        "format_version": data_export.FORMAT_VERSION,
+        "exported_at": exported_at.isoformat(),
+        "business": {k: data_export._value(v) for k, v in profile._mapping.items()},
+        "tables": {t.name: rows(t) for t in data_export.exported_tables()},
+        "withheld": sorted(f"{t}.{c}" for t, c in data_export.WITHHELD),
+    }
+
+
+@pytest.mark.parametrize("count", [0, 1, 2, 3, 4, 6, 7])
+def test_batch_boundaries_join_into_the_same_document(db_session, business, monkeypatch, count):
+    # Three rows a batch, so every comma rule is crossed: none, one partial
+    # batch, exactly one batch, one and a bit, exactly two, two and a bit.
+    monkeypatch.setattr(data_export, "_BATCH_ROWS", 3)
+    _invoices(db_session, business.id, count)
+    at = datetime(2026, 10, 29, tzinfo=UTC)
+
+    streamed = "".join(data_export.iter_export(db_session, business, exported_at=at))
+
+    assert json.loads(streamed) == _assembled(db_session, business, at)
+    assert len(json.loads(streamed)["tables"]["invoices"]) == count
+
+
+def test_no_piece_holds_more_than_a_batch(db_session, business, monkeypatch):
+    # Thirty invoices with 20 KB of OCR text each: assembled, the document was
+    # held whole; streamed, the largest piece is one batch.
+    monkeypatch.setattr(data_export, "_BATCH_ROWS", 5)
+    _invoices(db_session, business.id, 30, text_kb=20)
+    counts: dict[str, int] = {}
+
+    pieces = list(
+        data_export.iter_export(
+            db_session, business, exported_at=datetime.now(UTC), counts=counts
+        )
+    )
+
+    total = sum(len(p) for p in pieces)
+    assert max(len(p) for p in pieces) < 6 * 21 * 1024 < total / 4
+    assert counts["invoices"] == 30
+
+
+def test_the_download_is_streamed_and_complete(auth_client, db_session, business, monkeypatch):
+    monkeypatch.setattr(data_export, "_BATCH_ROWS", 4)
+    _invoices(db_session, business.id, 10)
+
+    response = auth_client.get(URL)
+
+    assert response.status_code == 200
+    assert "content-length" not in response.headers  # chunked, not rendered whole
+    assert response.headers["content-type"].startswith("application/json")
+    assert "attachment" in response.headers["content-disposition"]
+    assert [r["invoice_number"] for r in response.json()["tables"]["invoices"]] == [
+        f"EXP-{n}" for n in range(10)
+    ]

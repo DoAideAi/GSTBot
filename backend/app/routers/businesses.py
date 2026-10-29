@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Iterator
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -435,19 +436,24 @@ def revoke_linked_login(
 def export_account(
     db: Session = Depends(get_db),
     business: Business = Depends(get_current_business),
-) -> JSONResponse:
+) -> StreamingResponse:
     now = datetime.now(UTC)
-    document = data_export.export_business(db, business, exported_at=now)
-    logger.info(
-        "Account exported",
-        extra={
-            "business_id": business.id,
-            "rows": {name: len(rows) for name, rows in document["tables"].items()},
-        },
-    )
-    who = business.gstin or f"business-{business.id}"
-    return JSONResponse(
-        document,
+    # Streamed, not assembled: see ``data_export._BATCH_ROWS``. The session is
+    # the request's, and FastAPI closes it only after the last piece is sent.
+    business_id = business.id
+    who = business.gstin or f"business-{business_id}"
+
+    def body() -> Iterator[str]:
+        counts: dict[str, int] = {}
+        yield from data_export.iter_export(db, business, exported_at=now, counts=counts)
+        # The audit line, once the counts exist — after the last row is written.
+        logger.info(
+            "Account exported", extra={"business_id": business_id, "rows": counts}
+        )
+
+    return StreamingResponse(
+        body(),
+        media_type="application/json",
         headers={
             "Content-Disposition": content_disposition(
                 f"doaide-gst-export-{who}-{now.date().isoformat()}.json"
