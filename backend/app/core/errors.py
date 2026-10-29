@@ -93,7 +93,9 @@ Branch on ``error.code``, not on ``detail`` (which is prose and may change).
     ``Retry-After`` header is set. Safe to retry after the indicated delay.
 
 ``upstream_timeout`` (504)
-    A dependency did not respond in time. Retry after a short delay.
+    A dependency did not respond in time. Retry after a short delay. Also
+    answered when the database stops a query at its statement timeout. There,
+    an identical retry runs the same query again, so narrow the request first.
 """
 from __future__ import annotations
 
@@ -521,6 +523,27 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _operational(
         request: Request, exc: OperationalError | PoolTimeoutError
     ) -> JSONResponse:
+        if _statement_timed_out(exc):
+            # Postgres stopped a statement at DB_STATEMENT_TIMEOUT_SECONDS.
+            # psycopg raises that as an OperationalError, but nothing is down:
+            # the request was too heavy. Retrying it in five seconds runs the
+            # same query again, and an ERROR "Database unavailable" line sends
+            # an operator looking for an outage that isn't there.
+            logger.warning(
+                "Database statement timed out",
+                extra={"path": request.url.path, "method": request.method},
+                exc_info=exc,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                content=error_body(
+                    504,
+                    "This request took too long to complete and was stopped. "
+                    "Try a smaller date range or fewer records; if it keeps "
+                    "happening, contact support.",
+                    code="upstream_timeout",
+                ),
+            )
         # A dropped connection or an exhausted pool: the request is retryable
         # and the caller should be told so, rather than shown a 500.
         #
@@ -582,6 +605,13 @@ def register_exception_handlers(app: FastAPI) -> None:
                 **security_headers(),
             },
         )
+
+
+def _statement_timed_out(exc: BaseException) -> bool:
+    """Whether *exc* is Postgres cancelling a statement, not a lost database."""
+    import psycopg
+
+    return isinstance(getattr(exc, "orig", None), psycopg.errors.QueryCanceled)
 
 
 def _opaque_message() -> str:

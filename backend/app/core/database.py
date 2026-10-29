@@ -38,6 +38,14 @@ def _engine_kwargs(url: str) -> dict:
         "pool_pre_ping": True,
         "future": True,
         "echo": settings.db_echo,
+        # Keep the bound values out of every exception's message. SQLAlchemy
+        # appends ``[parameters: ...]`` to the text, and each handler and task
+        # logs these exceptions with their traceback, so a conflicting insert
+        # into ``users`` wrote the email and the password hash to the journal.
+        # The logging module redacts those keys, but it can't see inside a
+        # formatted message. The statement itself is kept. Echo is the
+        # exception: someone who turned it on locally wants to see the values.
+        "hide_parameters": not settings.db_echo,
     }
 
     if url.startswith("sqlite"):

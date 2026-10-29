@@ -96,6 +96,40 @@ class TestEngineOptionsMatchTheBackend:
             assert _engine_kwargs(url)["pool_pre_ping"] is True
 
 
+class TestALoggedDatabaseErrorCarriesNoBoundValues:
+    """P36 M2: every logged database error carried the row it was writing.
+
+    SQLAlchemy puts ``[parameters: ...]`` in an exception's message, and every
+    handler and task logs that exception with its traceback. A conflicting
+    insert into ``users`` logged the email and the password hash beside it,
+    both keys the log formatter promises never to write. A key-based redaction
+    can't see inside a formatted message, so the engine has to leave the
+    values out. The statement stays, and so does Postgres's own reason.
+    """
+
+    def test_an_integrity_error_does_not_quote_the_values(self):
+        from sqlalchemy.exc import IntegrityError
+
+        engine = database._make_engine("sqlite:///:memory:")
+        with engine.begin() as connection:
+            connection.execute(
+                text("CREATE TABLE people (email TEXT UNIQUE, hashed_password TEXT)")
+            )
+        row = {"email": "owner@example.com", "hashed_password": "$2b$12$secrethash"}
+        with pytest.raises(IntegrityError) as caught, engine.begin() as connection:
+            for _ in range(2):
+                connection.execute(
+                    text("INSERT INTO people VALUES (:email, :hashed_password)"), row
+                )
+        message = str(caught.value)
+        assert "INSERT INTO people" in message
+        assert "owner@example.com" not in message
+        assert "secrethash" not in message
+
+    def test_the_postgres_engine_hides_them_too(self):
+        assert _engine_kwargs("postgresql+psycopg://u:p@db/gst")["hide_parameters"] is True
+
+
 class _RecordingSession:
     """A session that records the calls ``get_db`` makes on the way out."""
 

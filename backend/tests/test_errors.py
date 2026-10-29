@@ -12,8 +12,10 @@ turn it into a response, which would mean never reaching the code under test.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Literal
 
+import psycopg
 import pytest
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
@@ -50,6 +52,18 @@ async def _raise_integrity() -> None:
 @_boom.get("/operational")
 async def _raise_operational() -> None:
     raise OperationalError("SELECT 1", {}, Exception("server closed the connection"))
+
+
+@_boom.get("/statement-timeout")
+async def _raise_statement_timeout() -> None:
+    # What psycopg raises when Postgres cancels a statement at
+    # DB_STATEMENT_TIMEOUT_SECONDS. QueryCanceled subclasses psycopg's
+    # OperationalError, so SQLAlchemy wraps it as one.
+    raise OperationalError(
+        "SELECT * FROM invoices WHERE business_id = %(business_id)s",
+        {},
+        psycopg.errors.QueryCanceled("canceling statement due to statement timeout"),
+    )
 
 
 @_boom.get("/sqlalchemy")
@@ -285,6 +299,45 @@ def test_the_503_tells_the_caller_when_to_retry(raw_client):
 
 def test_a_dropped_connection_does_not_leak_the_query(raw_client):
     assert "SELECT 1" not in raw_client.get("/_test_errors/operational").text
+
+
+class TestAStatementTimeoutIsNotAnOutage:
+    """P36 M1: a query cancelled at the statement timeout said the database was down.
+
+    psycopg's ``QueryCanceled`` is an ``OperationalError``, so a statement the
+    server stopped at ``DB_STATEMENT_TIMEOUT_SECONDS`` went through the handler
+    for a dropped connection: "The database is temporarily unavailable",
+    ``Retry-After: 5``, and an ERROR "Database unavailable" line. Nothing was
+    unavailable. The request was too heavy, and retrying it in five seconds runs
+    the same 30-second query again. The log line told an operator to look for
+    an outage that wasn't there.
+    """
+
+    def test_it_is_a_timeout_not_service_unavailable(self, raw_client):
+        response = raw_client.get("/_test_errors/statement-timeout")
+        assert response.status_code == 504
+        assert response.json()["error"]["code"] == "upstream_timeout"
+
+    def test_it_does_not_tell_the_caller_the_database_is_down(self, raw_client):
+        response = raw_client.get("/_test_errors/statement-timeout")
+        assert "unavailable" not in response.json()["detail"].lower()
+        assert "too long" in response.json()["detail"]
+
+    def test_it_does_not_invite_an_immediate_retry_of_the_same_query(self, raw_client):
+        assert "Retry-After" not in raw_client.get("/_test_errors/statement-timeout").headers
+
+    def test_it_is_logged_as_a_slow_statement_not_an_outage(self, raw_client, caplog):
+        with caplog.at_level(logging.INFO, logger="app.core.errors"):
+            raw_client.get("/_test_errors/statement-timeout")
+        messages = [r.getMessage() for r in caplog.records if r.name == "app.core.errors"]
+        assert "Database unavailable" not in messages
+        assert "Database statement timed out" in messages
+
+    def test_it_does_not_leak_the_query(self, raw_client):
+        assert "SELECT" not in raw_client.get("/_test_errors/statement-timeout").text
+
+    def test_a_dropped_connection_is_still_the_retryable_503(self, raw_client):
+        assert raw_client.get("/_test_errors/operational").status_code == 503
 
 
 def test_an_unclassified_database_error_is_an_opaque_500(raw_client):
