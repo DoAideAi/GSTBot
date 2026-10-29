@@ -1917,7 +1917,7 @@ class TestCorrectionBoundaries:
 
         assert InvoiceUpdate(tax_rate=rate).tax_rate == Decimal(rate)
 
-    @pytest.mark.parametrize("hsn", ["abcd", "N/A", "123", "123456789", "84７1"])
+    @pytest.mark.parametrize("hsn", ["abcd", "N/A", "123", "123456789"])
     def test_an_hsn_that_is_not_4_to_8_digits_is_refused(self, hsn):
         from pydantic import ValidationError
 
@@ -1925,6 +1925,13 @@ class TestCorrectionBoundaries:
 
         with pytest.raises(ValidationError, match="4 to 8 digits"):
             InvoiceUpdate(hsn_code=hsn)
+
+    def test_a_full_width_digit_is_folded_rather_than_refused(self):
+        # The code the person meant, in the ASCII the portal takes; see
+        # hsn._ascii_digits. It used to be refused outright.
+        from app.schemas.invoice import InvoiceUpdate
+
+        assert InvoiceUpdate(hsn_code="84７1").hsn_code == "8471"
 
     def test_an_hsn_is_read_as_its_digits_and_blank_clears_it(self):
         from app.schemas.invoice import InvoiceUpdate
