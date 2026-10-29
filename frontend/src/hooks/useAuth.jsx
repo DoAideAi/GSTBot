@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { track } from "../lib/track";
 import {
   api,
@@ -19,6 +19,25 @@ export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+
+  // Which /auth/me answer may set the session: the one asked last. Answers
+  // were applied as they landed, and more than one can be in flight — boot,
+  // a business switch, and every sign-in or sign-out another tab makes — so
+  // the one asked first could be the one that stuck: a tab naming a login
+  // whose token it no longer held, or a sign-out made elsewhere undone by an
+  // answer already on its way. Ending the session takes a ticket too, which
+  // is what voids anything still in flight from before it.
+  const latest = useRef(0);
+  const confirm = useCallback(async () => {
+    const ticket = ++latest.current;
+    const me = await api.me();
+    if (ticket === latest.current) setUser(me);
+    return me;
+  }, []);
+  const endSession = useCallback(() => {
+    latest.current += 1;
+    setUser(null);
+  }, []);
   const [loading, setLoading] = useState(true);
 
   // The token expires after 24 hours and there is no refresh flow, so every
@@ -30,7 +49,7 @@ export function AuthProvider({ children }) {
   // bounced straight back to `/` — which is gated on `user`, not on the token.
   // The one screen that could fix it was the one screen unreachable. Clearing
   // the user here is what turns an expired token into a redirect to sign in.
-  useEffect(() => onUnauthorized(() => setUser(null)), []);
+  useEffect(() => onUnauthorized(endSession), [endSession]);
 
   // The token is shared by every tab and `user` is not. Signing out in one tab
   // left the others showing the books, their next request sent with no token
@@ -43,15 +62,15 @@ export function AuthProvider({ children }) {
     const onStorage = (e) => {
       if (e.key !== TOKEN_KEY && e.key !== null) return;
       if (!getToken()) {
-        setUser(null);
+        endSession();
         return;
       }
       // A refused token ends the session through `onUnauthorized` above.
-      api.me().then(setUser, () => {});
+      confirm().catch(() => {});
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [confirm, endSession]);
 
   // A stored token proves nothing on its own — it may be expired or belong to
   // a deleted user — so the session is confirmed against /auth/me on boot.
@@ -74,14 +93,12 @@ export function AuthProvider({ children }) {
     let cancelled = false;
     (async () => {
       try {
-        const me = await api.me();
-        if (!cancelled) setUser(me);
+        await confirm();
       } catch (err) {
         if (err?.status === 403 && getActiveBusinessId()) {
           setActiveBusinessId(null);
           try {
-            const home = await api.me();
-            if (!cancelled) setUser(home);
+            await confirm();
             return;
           } catch {
             // Fall through: the session itself is what is wrong, not the
@@ -96,26 +113,26 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [confirm]);
 
   // Counted after the server has accepted them, so the funnel's sign-ups are
   // accounts that exist rather than forms that were submitted.
   const login = useCallback(async (email, password) => {
     await api.login(email, password);
     track("login", { method: "password" });
-    setUser(await api.me());
-  }, []);
+    await confirm();
+  }, [confirm]);
 
   const register = useCallback(async (payload) => {
     await api.register(payload);
     track("signup_complete", { method: "password" });
-    setUser(await api.me());
-  }, []);
+    await confirm();
+  }, [confirm]);
 
   const logout = useCallback(() => {
     api.logout();
-    setUser(null);
-  }, []);
+    endSession();
+  }, [endSession]);
 
   /**
    * Act for another of the businesses this login holds.
@@ -135,12 +152,12 @@ export function AuthProvider({ children }) {
     const previous = getActiveBusinessId();
     setActiveBusinessId(businessId);
     try {
-      setUser(await api.me());
+      await confirm();
     } catch (err) {
       setActiveBusinessId(previous);
       throw err;
     }
-  }, []);
+  }, [confirm]);
 
   // May this session change the books it is currently looking at?
   //

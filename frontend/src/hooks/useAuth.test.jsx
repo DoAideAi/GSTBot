@@ -513,3 +513,71 @@ describe("a session changed in another tab", () => {
     expect(screen.getByTestId("user")).toHaveTextContent(USER.email);
   });
 });
+
+describe("answers to /auth/me that arrive out of order", () => {
+  // Every /auth/me answer was applied as it landed, so the one asked first
+  // could be the one that stuck: a tab followed another tab's sign-ins and
+  // ended up naming a login whose token it no longer held, or a sign-out made
+  // elsewhere was undone by an answer that had been in flight before it.
+  function heldFetch() {
+    const pending = new Map();
+    global.fetch = vi.fn(
+      (url, options = {}) =>
+        new Promise((resolve) => {
+          const token = (options.headers?.Authorization ?? "").replace("Bearer ", "");
+          pending.set(token, (email) =>
+            resolve({
+              ok: true,
+              status: 200,
+              statusText: "OK",
+              text: async () => JSON.stringify({ ...USER, email }),
+            }),
+          );
+        }),
+    );
+    return pending;
+  }
+
+  function otherTabWrites(newValue) {
+    if (newValue === null) localStorage.removeItem("gstbot_token");
+    else localStorage.setItem("gstbot_token", newValue);
+    window.dispatchEvent(new StorageEvent("storage", { key: "gstbot_token", newValue }));
+  }
+
+  it("keeps the login of the latest token, whichever answer lands last", async () => {
+    setToken("stored-token");
+    mockApi();
+    renderWithProvider();
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
+
+    const pending = heldFetch();
+    otherTabWrites("second-token");
+    otherTabWrites("third-token");
+    await waitFor(() => expect(pending.size).toBe(2));
+
+    pending.get("third-token")("third@example.com");
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("third@example.com"),
+    );
+    pending.get("second-token")("second@example.com");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByTestId("user")).toHaveTextContent("third@example.com");
+  });
+
+  it("does not let an answer from before a sign-out sign this tab back in", async () => {
+    setToken("stored-token");
+    const pending = heldFetch();
+    renderWithProvider();
+    await waitFor(() => expect(pending.size).toBe(1));
+
+    otherTabWrites(null);
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("anonymous"),
+    );
+    pending.get("stored-token")(USER.email);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByTestId("user")).toHaveTextContent("anonymous");
+  });
+});
