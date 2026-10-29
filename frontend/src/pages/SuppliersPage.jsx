@@ -3,11 +3,15 @@ import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import Meter from "../components/Meter";
 import { SkeletonTable } from "../components/Skeleton";
+import Pager from "../components/Pager";
 import TableScroll from "../components/TableScroll";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api, isAbortError } from "../lib/api";
 import { dateLabel, periodLabel, rupees } from "../lib/format";
+
+// The API's own page size; see Pager.
+const SUPPLIER_PAGE_SIZE = 50;
 
 const RISK = {
   low: { label: "Low risk", tone: "good" },
@@ -222,6 +226,9 @@ export default function SuppliersPage() {
   const [total, setTotal] = useState(0);
   const [risk, setRisk] = useState("");
   const [search, setSearch] = useState("");
+  // Paged: the list showed the API's first fifty under a heading counting
+  // them all. A new search or risk chip starts again from the first page.
+  const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -285,9 +292,12 @@ export default function SuppliersPage() {
   // limit that a fast typist would otherwise exhaust mid-word.
   useEffect(() => {
     const controller = new AbortController();
-    load({ risk_level: risk, search }, { signal: controller.signal });
+    load(
+      { risk_level: risk, search, limit: SUPPLIER_PAGE_SIZE, offset },
+      { signal: controller.signal },
+    );
     return () => controller.abort();
-  }, [load, risk, search, reloadToken]);
+  }, [load, risk, search, offset, reloadToken]);
 
   /**
    * Stop whatever the panel is waiting for from arriving in it, and put focus
@@ -404,7 +414,10 @@ export default function SuppliersPage() {
             type="search"
             placeholder="Search by name or GSTIN"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setOffset(0);
+              setSearch(e.target.value);
+            }}
           />
         </label>
         <div className="filter-row">
@@ -419,7 +432,10 @@ export default function SuppliersPage() {
               key={value || "all"}
               type="button"
               className={risk === value ? "chip chip-neutral is-active" : "chip chip-neutral"}
-              onClick={() => setRisk(value)}
+              onClick={() => {
+                setOffset(0);
+                setRisk(value);
+              }}
             >
               {label}
             </button>
@@ -457,6 +473,7 @@ export default function SuppliersPage() {
               type="button"
               className="btn btn-ghost"
               onClick={() => {
+                setOffset(0);
                 setRisk("");
                 setSearch("");
               }}
@@ -530,6 +547,9 @@ export default function SuppliersPage() {
               </tbody>
             </table>
           </TableScroll>
+        )}
+        {!loading && !loadFailed && (
+          <Pager offset={offset} total={total} pageSize={SUPPLIER_PAGE_SIZE} onPage={setOffset} />
         )}
       </section>
 

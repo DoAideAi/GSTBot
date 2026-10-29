@@ -1123,3 +1123,72 @@ describe("a viewer", () => {
     expect(screen.getByRole("button", { name: /Rescore all/ })).toBeInTheDocument();
   });
 });
+
+describe("SuppliersPage beyond the first page", () => {
+  // The heading counted every supplier ("120 suppliers") and the table showed
+  // the API's first page of fifty with no way on: the rest of the register —
+  // the lower-risk end, since the list is riskiest first — was out of reach
+  // except by searching for a name already known.
+  function server(total) {
+    const all = Array.from({ length: total }, (_, i) =>
+      supplier({ id: i + 1, legal_name: `Supplier ${i + 1}`, trade_name: null }),
+    );
+    global.fetch = vi.fn(async (url) => {
+      const u = new URL(String(url), "http://x");
+      const limit = Number(u.searchParams.get("limit") ?? 50);
+      const offset = Number(u.searchParams.get("offset") ?? 0);
+      return {
+        ok: true,
+        status: 200,
+        statusText: "",
+        text: async () => JSON.stringify({ items: all.slice(offset, offset + limit), total: all.length }),
+      };
+    });
+  }
+
+  function renderSuppliers() {
+    return render(
+      <MemoryRouter>
+        <StubAuth>
+          <SuppliersPage />
+        </StubAuth>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("pages through all of them", async () => {
+    server(120);
+    const user = userEvent.setup();
+    renderSuppliers();
+    expect(await screen.findByText("1–50 of 120")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("51–100 of 120")).toBeInTheDocument();
+    expect(await screen.findByText("Supplier 51")).toBeInTheDocument();
+    expect(String(global.fetch.mock.calls.at(-1)[0])).toContain("offset=50");
+  });
+
+  it("starts a new search from the first page", async () => {
+    server(120);
+    const user = userEvent.setup();
+    renderSuppliers();
+    await screen.findByText("1–50 of 120");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("51–100 of 120");
+
+    await user.type(screen.getByRole("searchbox"), "S");
+
+    await waitFor(() => expect(String(global.fetch.mock.calls.at(-1)[0])).not.toContain("offset=50"));
+  });
+
+  it("shows no pager when everything fits on one page", async () => {
+    server(3);
+    renderSuppliers();
+    await screen.findByText("Supplier 1");
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+  });
+});
