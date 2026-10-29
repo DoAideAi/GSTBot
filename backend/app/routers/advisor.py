@@ -273,34 +273,36 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                 json=payload,
             )
             if response.status_code == 200:
-                logger.info(
-                    "Advisor answered",
-                    extra={
-                        "model": model,
-                        "attempt": attempt,
-                        "duration_ms": int((time.monotonic() - started) * 1000),
-                        "history_turns": len(body.history),
-                    },
-                )
                 try:
                     parsed = response.json()
                 except ValueError:  # a 200 that is not JSON — a proxy's page
                     parsed = None
                 reply = _reply_text(parsed)
+                fields = {
+                    "model": model,
+                    "attempt": attempt,
+                    "duration_ms": int((time.monotonic() - started) * 1000),
+                    "history_turns": len(body.history),
+                }
                 if reply is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_502_BAD_GATEWAY,
-                        detail=(
-                            "The advisor produced no answer to that question. Try "
-                            "rephrasing it, or asking about one GST topic at a time."
-                        ),
+                    # Logged as what it is. "Advisor answered" used to be
+                    # written first, so a safety block read in the log as a
+                    # success followed by an unexplained 502.
+                    logger.warning(
+                        "Advisor got no usable answer",
+                        extra={**fields, **_why_no_text(parsed), "json": parsed is not None},
                     )
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY, detail=_NO_ANSWER
+                    )
+                logger.info("Advisor answered", extra={**fields, "reply_chars": len(reply)})
                 return {"reply": reply}
             logger.warning(
                 "Gemini %s returned %d: %s",
                 model,
                 response.status_code,
                 response.text[:200],
+                extra={"model": model, "attempt": attempt, "upstream_status": response.status_code},
             )
             if response.status_code not in _RETRYABLE:
                 break
@@ -328,10 +330,7 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                     "in a few minutes."
                 ),
             )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The AI service refused this question. Try rephrasing it.",
-        )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=_REFUSED)
 
     except HTTPException:
         raise
@@ -373,6 +372,35 @@ def _clean_reply(text: str) -> str:
     character in an otherwise good answer.
     """
     return encodable(text)[:MAX_REPLY_CHARS]
+
+
+# What the user is told when a model answered 200 with no text, and when the
+# question itself was refused. One wording for both endpoints: the stream said
+# "try again in a minute" for a refusal that no amount of waiting changes.
+_NO_ANSWER = (
+    "The advisor produced no answer to that question. Try rephrasing it, or "
+    "asking about one GST topic at a time."
+)
+_REFUSED = "The AI service refused this question. Try rephrasing it."
+
+
+def _why_no_text(data: object) -> dict[str, str | None]:
+    """Gemini's own reasons for a 200 that carries no text, for the log.
+
+    ``promptFeedback.blockReason`` is the question being refused before any
+    answer; ``finishReason`` on the candidate is how the answer stopped
+    (``SAFETY``, ``MAX_TOKENS`` spent thinking, ``RECITATION``). Without them
+    a "no answer" in the log could not be told apart from an outage.
+    """
+    feedback = data.get("promptFeedback") if isinstance(data, dict) else None
+    candidates = data.get("candidates") if isinstance(data, dict) else None
+    first = candidates[0] if isinstance(candidates, list) and candidates else None
+    block = feedback.get("blockReason") if isinstance(feedback, dict) else None
+    finish = first.get("finishReason") if isinstance(first, dict) else None
+    return {
+        "block_reason": block if isinstance(block, str) else None,
+        "finish_reason": finish if isinstance(finish, str) else None,
+    }
 
 
 def _reply_parts(data: object) -> str | None:
@@ -430,20 +458,6 @@ _MAX_STREAM_RAW_CHARS = 1_000_000
 _STREAM_DEADLINE_S = 120.0
 
 
-def _chunk_text(raw: str) -> str | None:
-    """Extract text from one Gemini SSE ``data:`` line.
-
-    Unstripped, unlike a whole reply: the model splits its answer mid-sentence,
-    so the space after "GST " belongs to this chunk, and stripping each one
-    printed "GSTis18%." for "GST is 18%.".
-    """
-    try:
-        data = _json.loads(raw)
-    except (ValueError, TypeError):
-        return None
-    return _reply_parts(data)
-
-
 async def _stream_from_gemini(
     api_key: str,
     payload: dict,
@@ -460,6 +474,7 @@ async def _stream_from_gemini(
     sent_chars = 0
     read_chars = 0
     overrun = None  # why the stream was stopped short, if it was
+    refused = False  # the question itself was blocked; no model will answer it
 
     for attempt, model in enumerate(_GEMINI_MODELS, start=1):
         if time.monotonic() - started > _STREAM_DEADLINE_S:
@@ -481,11 +496,17 @@ async def _stream_from_gemini(
                 await response.aclose()
                 logger.warning(
                     "Gemini %s stream returned %d: %s", model, response.status_code, body,
+                    extra={
+                        "model": model,
+                        "attempt": attempt,
+                        "upstream_status": response.status_code,
+                    },
                 )
                 if response.status_code not in _RETRYABLE:
                     break
                 continue
 
+            reasons: dict[str, str | None] = {}
             try:
                 async for line in response.aiter_lines():
                     read_chars += len(line)
@@ -497,7 +518,13 @@ async def _stream_from_gemini(
                         break
                     if not line.startswith("data: "):
                         continue
-                    text = _chunk_text(line[6:])
+                    try:
+                        data = _json.loads(line[6:])
+                    except (ValueError, TypeError):
+                        continue
+                    text = _reply_parts(data)
+                    if not text:
+                        reasons = {k: v for k, v in _why_no_text(data).items() if v} or reasons
                     if text:
                         text = text[: MAX_REPLY_CHARS - sent_chars]
                         if not text:
@@ -531,7 +558,16 @@ async def _stream_from_gemini(
                 # A 200 with no text — a safety block, an empty candidate. The
                 # next model may answer; if none does, the error below says so
                 # rather than a "done" over an empty bubble.
-                logger.warning("Gemini %s streamed no text", model)
+                logger.warning(
+                    "Gemini %s streamed no text",
+                    model,
+                    extra={"model": model, "attempt": attempt, **reasons},
+                )
+                if reasons.get("block_reason"):
+                    # The question was refused before any answer: the next
+                    # model refuses it too, and each try is a paid call.
+                    refused = True
+                    break
                 continue
 
             logger.info(
@@ -567,6 +603,10 @@ async def _stream_from_gemini(
         msg = "The answer was cut off. Ask again for the rest."
     elif last_status in (429, 503):
         msg = "The AI advisor is overloaded right now. Wait a minute and ask again."
+    elif refused:
+        msg = _REFUSED
+    elif last_status == 200:
+        msg = _NO_ANSWER  # every model answered, none with text
     else:
         msg = "The AI advisor could not answer just now. Try again in a minute."
     yield f"data: {_json.dumps({'error': msg})}\n\n"

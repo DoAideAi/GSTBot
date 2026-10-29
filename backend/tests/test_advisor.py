@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -758,3 +759,65 @@ class TestAConversationTheBrowserKeptBadly:
     def test_a_question_after_an_unanswered_one_is_one_user_turn(self):
         contents = self._contents([{"role": "user", "text": "Unanswered?"}], "Again?")
         assert contents == [{"role": "user", "parts": [{"text": "Unanswered?\n\nAgain?"}]}]
+
+
+class TestARefusalIsLoggedAsOne:
+    """P22 M11: a safety block was logged as "Advisor answered" and then
+    answered 502, with nothing in the log saying why; the stream logged "no
+    text" once per model — three paid calls for a question every model refuses
+    — and then told the user to wait a minute rather than to rephrase."""
+
+    _BLOCKED = {
+        "candidates": [{"finishReason": "SAFETY"}],
+        "promptFeedback": {"blockReason": "SAFETY"},
+    }
+
+    def test_the_plain_endpoint_logs_why_there_was_no_answer(self, client, caplog):
+        async def post(self, url, headers=None, json=None, **kw):
+            return httpx.Response(200, json=TestARefusalIsLoggedAsOne._BLOCKED)
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new=post),
+            caplog.at_level(logging.INFO, logger="app.routers.advisor"),
+        ):
+            response = client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+        assert response.status_code == 502
+        messages = [r.getMessage() for r in caplog.records]
+        assert "Advisor answered" not in messages
+        (record,) = [r for r in caplog.records if r.getMessage() == "Advisor got no usable answer"]
+        assert record.block_reason == "SAFETY" and record.finish_reason == "SAFETY"
+
+    def test_a_blocked_stream_stops_at_the_first_model_and_says_rephrase(self, client):
+        from app.routers import advisor
+
+        calls = []
+        body = ("data: " + json.dumps(self._BLOCKED) + "\n\n").encode()
+
+        async def fake_send(self, req, *, stream=False):
+            calls.append(req.url)
+            return _FakeStreamResponse(200, body)
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
+        assert len(calls) == 1
+        assert _events(response) == [{"error": advisor._REFUSED}]
+
+    def test_a_stream_with_no_text_says_what_the_plain_endpoint_says(self, client):
+        from app.routers import advisor
+
+        spent = {"candidates": [{"finishReason": "MAX_TOKENS"}]}
+        body = ("data: " + json.dumps(spent) + "\n\n").encode()
+
+        async def fake_send(self, req, *, stream=False):
+            return _FakeStreamResponse(200, body)
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
+        assert _events(response) == [{"error": advisor._NO_ANSWER}]
