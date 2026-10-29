@@ -103,6 +103,10 @@ def b2cl_threshold(period: str) -> Decimal:
 # envelope; the offline utility checks it.
 GSTR1_VERSION = "GST3.0.4"
 
+# The first return period whose Table 12 is split into B2B and B2C (HSN
+# reporting phase III). See :func:`_hsn_table`.
+HSN_SPLIT_FROM = "2025-05"
+
 
 class Severity(str, Enum):
     """Whether a finding stops a filing or merely ought to be looked at."""
@@ -1216,7 +1220,8 @@ def build_gstr1(
     b2b: dict[str, list[dict]] = {}
     b2cl: dict[str, list[dict]] = {}
     b2cs: dict[tuple[str, Decimal], dict] = {}
-    hsn: dict[tuple[str, Decimal], dict] = {}
+    # Keyed by section too: from HSN_SPLIT_FROM, Table 12 is two tables.
+    hsn: dict[tuple[str, str, Decimal], dict] = {}
 
     threshold = b2cl_threshold(period)
 
@@ -1277,11 +1282,12 @@ def build_gstr1(
                 bucket["samt"] += line.sgst
                 bucket["csamt"] += line.cess
 
+        section = "b2b" if _is_registered(invoice) else "b2c"
         for line in lines:
             if not line.hsn_code:
                 continue
             entry = hsn.setdefault(
-                (line.hsn_code, line.rate),
+                (section, line.hsn_code, line.rate),
                 {
                     "hsn_sc": line.hsn_code,
                     "uqc": "NOS",  # Not extracted yet; NOS is the portal's catch-all.
@@ -1324,13 +1330,40 @@ def build_gstr1(
     if b2cs:
         document["b2cs"] = [_floats(bucket) for _, bucket in sorted(b2cs.items())]
     if hsn:
-        document["hsn"] = {
-            "data": [
-                {"num": index, **_floats(entry)}
-                for index, (_, entry) in enumerate(sorted(hsn.items()), start=1)
-            ]
-        }
+        document["hsn"] = _hsn_table(hsn, period, _floats)
     return document
+
+
+def _hsn_table(hsn: dict, period: str, as_floats) -> dict:
+    """Table 12, in the shape the portal takes for *period*.
+
+    From the May 2025 return period (HSN reporting phase III) the summary is
+    two lists, ``hsn_b2b`` and ``hsn_b2c``, split by whether the supply went to
+    a registered buyer. A single ``data`` list is the earlier format, and for a
+    current period it filed every B2C line under B2B or was refused. An empty
+    list is left out rather than sent, because the portal rejects one.
+    Earlier periods keep the merged list they were always exported with.
+    """
+    def numbered(entries):
+        return [{"num": index, **as_floats(entry)} for index, entry in enumerate(entries, start=1)]
+
+    if period >= HSN_SPLIT_FROM:
+        table = {}
+        for section in ("b2b", "b2c"):
+            entries = [entry for (sec, *_), entry in sorted(hsn.items()) if sec == section]
+            if entries:
+                table[f"hsn_{section}"] = numbered(entries)
+        return table
+
+    merged: dict[tuple[str, Decimal], dict] = {}
+    for (_, code, rate), entry in sorted(hsn.items()):
+        if (code, rate) not in merged:
+            merged[(code, rate)] = dict(entry)
+            continue
+        target = merged[(code, rate)]
+        for key in ("qty", "txval", "iamt", "camt", "samt", "csamt"):
+            target[key] += entry[key]
+    return {"data": numbered(entry for _, entry in sorted(merged.items()))}
 
 
 # ---------------------------------------------------------------------------

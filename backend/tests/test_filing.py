@@ -17,6 +17,7 @@ from tests.conftest import (
     BUSINESS_GSTIN,
     SUPPLIER_GSTIN_OTHER_STATE,
     SUPPLIER_GSTIN_SAME_STATE,
+    hsn_rows,
 )
 
 PERIOD = "2026-04"
@@ -801,7 +802,7 @@ def test_gstr1_carries_the_state_split_and_cess_into_the_hsn_summary(db_session,
 
     document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-    (entry,) = document["hsn"]["data"]
+    (entry,) = hsn_rows(document)
     assert entry["hsn_sc"] == "84713010"
     assert entry["txval"] == 200000.00
     assert entry["camt"] == 18000.00
@@ -820,7 +821,7 @@ def test_gstr1_declares_the_hsn_quantity_it_does_not_yet_extract(db_session, bus
 
     document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-    (entry,) = document["hsn"]["data"]
+    (entry,) = hsn_rows(document)
     assert entry["qty"] == 0
     assert entry["uqc"] == "NOS"
 
@@ -1113,7 +1114,7 @@ class TestAnInvoiceThatMixesRates:
 
         document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-        data = {entry["hsn_sc"]: entry for entry in document["hsn"]["data"]}
+        data = {entry["hsn_sc"]: entry for entry in hsn_rows(document)}
         assert data["49019900"]["rt"] == 5.0
         assert data["49019900"]["txval"] == 50000.00
         assert data["49019900"]["camt"] == 1250.00
@@ -1132,7 +1133,7 @@ class TestAnInvoiceThatMixesRates:
 
         document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-        codes = {entry["hsn_sc"]: entry["rt"] for entry in document["hsn"]["data"]}
+        codes = {entry["hsn_sc"]: entry["rt"] for entry in hsn_rows(document)}
         # Normalised; and the unreadable one falls back to the invoice's code.
         assert codes == {"49019900": 5.0, "8471": 18.0}
 
@@ -1144,7 +1145,7 @@ class TestAnInvoiceThatMixesRates:
 
         document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-        data = {entry["hsn_sc"]: entry for entry in document["hsn"]["data"]}
+        data = {entry["hsn_sc"]: entry for entry in hsn_rows(document)}
         assert data["49019900"]["qty"] == 40
         assert data["84713010"]["qty"] == 10
 
@@ -1179,7 +1180,7 @@ class TestAnInvoiceThatMixesRates:
         items = document["b2b"][0]["inv"][0]["itms"]
         assert [item["itm_det"]["rt"] for item in items] == [5.0, 18.0]
         assert items[0]["itm_det"]["txval"] == 50000.00
-        assert len(document["hsn"]["data"]) == 3
+        assert len(hsn_rows(document)) == 3
 
     def test_validation_now_objects_to_the_blended_rate(self):
         """With no usable breakdown, the invoice still files at a snapped rate.
@@ -1418,7 +1419,7 @@ class TestAnInvoiceThatMixesRates:
 
         document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-        (entry,) = document["hsn"]["data"]
+        (entry,) = hsn_rows(document)
         assert entry["hsn_sc"] == "84713010"
 
     def test_the_csv_still_reports_the_invoice_as_one_row(self, db_session, business):
@@ -1527,11 +1528,11 @@ def test_gstr1_summarises_hsn_by_code_and_rate(db_session, business):
 
     document = filing_service.build_gstr1(db_session, business, PERIOD)
 
-    data = {entry["hsn_sc"]: entry for entry in document["hsn"]["data"]}
+    data = {entry["hsn_sc"]: entry for entry in hsn_rows(document)}
     assert data["84713010"]["txval"] == 200000.00
     assert data["84713010"]["iamt"] == 36000.00
     assert data["61091000"]["txval"] == 100000.00
-    assert [entry["num"] for entry in document["hsn"]["data"]] == [1, 2]
+    assert [entry["num"] for entry in hsn_rows(document)] == [1, 2]
 
 
 def test_gstr1_derives_a_missing_rate_from_the_figures(db_session, business):
@@ -2358,3 +2359,83 @@ def test_an_hsn_in_non_ascii_digits_is_an_error():
     """
     assert issues_for(sale(hsn_code="८४७१"))["hsn_code"] is Severity.ERROR
     assert "hsn_code" not in issues_for(sale(hsn_code="8471"))
+
+
+class TestTable12IsSplitIntoB2BAndB2C:
+    """From the May 2025 return period (HSN phase III) Table 12 is two lists,
+    ``hsn_b2b`` and ``hsn_b2c``. The export kept writing the single ``data``
+    list, filing B2C lines under B2B for every current period."""
+
+    def test_a_current_period_splits_by_buyer(self, db_session, business):
+        save(db_session, business.id, sale(invoice_number="B-1"))
+        save(
+            db_session,
+            business.id,
+            local_sale(invoice_number="C-1", counterparty_gstin=None),
+        )
+
+        table = filing_service.build_gstr1(db_session, business, PERIOD)["hsn"]
+
+        assert set(table) == {"hsn_b2b", "hsn_b2c"}
+        (b2b,) = table["hsn_b2b"]
+        (b2c,) = table["hsn_b2c"]
+        assert (b2b["num"], b2b["iamt"]) == (1, 18000.0)
+        assert (b2c["num"], b2c["camt"]) == (1, 9000.0)
+
+    def test_an_empty_side_is_left_out_not_sent_empty(self, db_session, business):
+        # The portal refuses an empty hsn_b2b array.
+        save(db_session, business.id, local_sale(counterparty_gstin=None))
+
+        table = filing_service.build_gstr1(db_session, business, PERIOD)["hsn"]
+
+        assert list(table) == ["hsn_b2c"]
+
+    def test_an_earlier_period_keeps_the_single_merged_list(self, db_session, business):
+        old = dict(period="2025-04", invoice_date=date(2025, 4, 15))
+        save(db_session, business.id, local_sale(invoice_number="B-1", **old))
+        save(
+            db_session,
+            business.id,
+            local_sale(invoice_number="C-1", counterparty_gstin=None, **old),
+        )
+
+        table = filing_service.build_gstr1(db_session, business, "2025-04")["hsn"]
+
+        (entry,) = table["data"]
+        assert entry["txval"] == 200000.0
+        assert entry["camt"] == 18000.0
+
+    def test_150_invoices_aggregate_to_the_register(self, db_session, business):
+        """Table 12 must reconcile to the invoices: each side to its own block,
+        and the whole to the register, to the paisa."""
+        codes = ["84713010", "998314", "39231090"]
+        rates = [Decimal("5"), Decimal("12"), Decimal("18"), Decimal("28")]
+        total = {"b2b": Decimal("0"), "b2c": Decimal("0")}
+        for n in range(150):
+            rate = rates[n % 4]
+            value = Decimal(1000 + n * 37) + Decimal("0.33")
+            half = (value * rate / 200).quantize(Decimal("0.01"))
+            registered = n % 3 != 0
+            save(
+                db_session,
+                business.id,
+                local_sale(
+                    invoice_number=f"S-{n}",
+                    counterparty_gstin=SUPPLIER_GSTIN_SAME_STATE if registered else None,
+                    hsn_code=codes[n % 3],
+                    tax_rate=rate,
+                    taxable_value=value,
+                    cgst=half,
+                    sgst=half,
+                    total_value=value + 2 * half,
+                ),
+            )
+            total["b2b" if registered else "b2c"] += value
+
+        table = filing_service.build_gstr1(db_session, business, PERIOD)["hsn"]
+
+        for side in ("b2b", "b2c"):
+            rows = table[f"hsn_{side}"]
+            assert [row["num"] for row in rows] == list(range(1, len(rows) + 1))
+            assert len({(row["hsn_sc"], row["rt"]) for row in rows}) == len(rows)
+            assert round(sum(Decimal(str(row["txval"])) for row in rows), 2) == total[side]

@@ -346,3 +346,16 @@ def stub_openrouter(monkeypatch):
         invoice_parser, "chat_json", lambda *args, **kwargs: dict(payload)
     )
     return payload
+
+
+def hsn_rows(document: dict) -> list[dict]:
+    """Every Table 12 row of a GSTR-1 document, in either of its formats.
+
+    From May 2025 the summary is ``hsn_b2b`` plus ``hsn_b2c``; before that it
+    is one ``data`` list. Tests about what a row holds use this, so they need
+    not care which period they happen to build.
+    """
+    table = document["hsn"]
+    if "data" in table:
+        return table["data"]
+    return [*table.get("hsn_b2b", []), *table.get("hsn_b2c", [])]

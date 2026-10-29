@@ -39,6 +39,7 @@ from tests.conftest import (
     SUPPLIER_GSTIN_SAME_STATE,
     TEST_EMAIL,
     TEST_PASSWORD,
+    hsn_rows,
     make_paid,
 )
 
@@ -2488,7 +2489,7 @@ class TestAnHsnCodeFromTheInvoiceToTheReturn:
         assert sale["hsn_code"] == "85044090"
 
         document = client.get("/api/v1/filing/gstr1", params={"period": PERIOD}).json()["document"]
-        codes = [row["hsn_sc"] for row in document["hsn"]["data"]]
+        codes = [row["hsn_sc"] for row in hsn_rows(document)]
         assert codes == ["85044090"]
 
         # The same rule on an edit: a labelled, dotted code is read as its

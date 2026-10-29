@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.services import filing as filing_service
+from tests.conftest import hsn_rows
 
 ZERO = Decimal("0.00")
 PERIOD = "2026-04"
@@ -117,7 +118,7 @@ class TestGstr1MoneyCrossFoot:
         _sale(db_session, business, number="S-2", hsn="8471", rate="18",
               taxable="5000", cgst="450", sgst="450", total="5900")
         doc = filing_service.build_gstr1(db_session, business, PERIOD)
-        hsn_entry = doc["hsn"]["data"][0]
+        hsn_entry = hsn_rows(doc)[0]
         assert hsn_entry["txval"] == 15000.0
         assert hsn_entry["camt"] == 1350.0
         assert hsn_entry["samt"] == 1350.0
