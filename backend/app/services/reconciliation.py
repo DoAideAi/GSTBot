@@ -826,12 +826,6 @@ def match(
 _SUPPLIER_LOOKUP_CHUNK = 500
 
 
-# The second key of the per-tenant supplier-records lock. Uploads hold
-# (business, 0), billing (business, 1) and a run's period claim (business,
-# YYYYMM); no period is 2.
-_SUPPLIER_LOCK_KEY = 2
-
-
 def _lock_supplier_records(db: Session, business_id: int) -> None:
     """Serialise every run's write to this tenant's supplier histories.
 
@@ -843,10 +837,11 @@ def _lock_supplier_records(db: Session, business_id: int) -> None:
     second erased the first's month, with the counters and score derived from
     it. Waited for rather than tried: the other run will finish, and this one's
     observation is as valid as its own. Held until the run commits.
+
+    The lock itself is :func:`app.services.supplier_score.lock_supplier_records`,
+    shared with ``rescore_all``, the other writer of supplier scores.
     """
-    if db.get_bind().dialect.name != "postgresql":
-        return
-    db.execute(select(func.pg_advisory_xact_lock(business_id, _SUPPLIER_LOCK_KEY)))
+    supplier_score.lock_supplier_records(db, business_id)
 
 
 def _suppliers_by_gstin(

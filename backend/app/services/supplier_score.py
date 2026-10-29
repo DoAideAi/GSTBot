@@ -501,6 +501,27 @@ def apply_score(supplier: Supplier, score: SupplierScore) -> Supplier:
     return supplier
 
 
+# The second key of the per-tenant supplier-records lock. Uploads hold
+# (business, 0), billing (business, 1) and a run's period claim (business,
+# YYYYMM); no period is 2.
+SUPPLIER_LOCK_KEY = 2
+
+
+def lock_supplier_records(db: Session, business_id: int) -> None:
+    """Serialise every write to this tenant's supplier histories and scores.
+
+    Two writers: a reconciliation run, which rewrites each supplier's
+    ``filing_history`` whole and rescores it, and :func:`rescore_all`. Held
+    until the caller's transaction ends. See
+    :func:`app.services.reconciliation._lock_supplier_records` for why runs of
+    different months need it; it lives here because both writers can import
+    this module. SQLite has one writer and no advisory locks.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.execute(select(func.pg_advisory_xact_lock(business_id, SUPPLIER_LOCK_KEY)))
+
+
 def rescore_all(
     db: Session, business_id: int, *, as_of_period: str | None = None
 ) -> list[SupplierScore]:
@@ -511,10 +532,15 @@ def rescore_all(
     reconciliations.
     """
     period = as_of_period or current_period()
+    # Under the lock a run holds, and reloading what the session already has.
+    # Without either, a rescore read the history a run was about to replace,
+    # waited on the run's row lock, and wrote its stale score over the run's
+    # fresh one — a score that disagreed with the history stored beside it.
+    lock_supplier_records(db, business_id)
     suppliers = db.scalars(
-        select(Supplier).where(
-            Supplier.business_id == business_id, Supplier.deleted_at.is_(None)
-        )
+        select(Supplier)
+        .where(Supplier.business_id == business_id, Supplier.deleted_at.is_(None))
+        .execution_options(populate_existing=True)
     ).all()
 
     scores: list[SupplierScore] = []
