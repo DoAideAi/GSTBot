@@ -264,7 +264,11 @@ export function normalizePlaceOfSupply(value) {
  * non-slab rate an error. Being a slab out of date here therefore costs a
  * missing hint, never a refused edit.
  */
-export const GST_RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28];
+// GST 2.0's 40% slab (from 22 September 2025) was missing here, so a 40%
+// invoice was flagged "not a GST rate" — a nudge to change a right rate to a
+// wrong one. 12 and 28 stay: invoices dated before the reform still carry
+// them. validate.test.js now fails if this list and the backend's drift.
+export const GST_RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40];
 
 /** Why a tax rate is unacceptable, or "". Mirrors `Field(ge=0, le=100)`. */
 export function taxRateError(value) {

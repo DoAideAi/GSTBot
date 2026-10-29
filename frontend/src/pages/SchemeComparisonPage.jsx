@@ -26,7 +26,8 @@ const BUSINESS_TYPES = [
 // none of them is a place a new composition registration can be taken in.
 const STATES = STATE_CODES.filter((s) => s.tax && s.code !== "25" && s.code !== "28");
 
-const GST_RATES = [5, 12, 18, 28];
+// 40 is GST 2.0's slab (from 22 September 2025); 12 and 28 stay for supplies before it.
+const GST_RATES = [5, 12, 18, 28, 40];
 
 const FEATURES = [
   { feature: "Input Tax Credit", regular: "Available", composition: "Not available" },

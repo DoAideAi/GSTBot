@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   GSTR2B_EXTENSIONS,
@@ -789,5 +791,31 @@ describe("normalizeGstin with what copying brings along", () => {
 
   it("never drops a real character", () => {
     expect(normalizeGstin("27AAPFU0939F1ZVX")).toBe("27AAPFU0939F1ZVX");
+  });
+});
+
+
+describe("GST_RATES", () => {
+  // It said it mirrored the backend's VALID_TAX_RATES and had stopped at 28:
+  // GST 2.0's 40% slab (from 22 September 2025) was missing, so a reviewer
+  // correcting a 40% invoice was told "40% is not a GST rate … the portal
+  // rejects anything else" — a nudge to change a right rate to a wrong one.
+  it("matches the backend's slabs, which /filing/validate holds a return to", () => {
+    const src = readFileSync(
+      resolve(__dirname, "../../../backend/app/services/invoice_parser.py"),
+      "utf8",
+    );
+    const body = src.slice(src.indexOf("VALID_TAX_RATES = ("));
+    const backend = [...body.slice(0, body.indexOf("\n)")).matchAll(/Decimal\("([\d.]+)"\)/g)]
+      .map((m) => Number(m[1]));
+    expect(backend.length).toBeGreaterThan(10);
+    expect([...GST_RATES].sort((a, b) => a - b)).toEqual(backend.sort((a, b) => a - b));
+  });
+
+  it("does not warn about a 40% invoice", () => {
+    const { warnings } = invoiceDraftErrors({
+      taxable_value: "1000", igst: "400", total_value: "1400", tax_rate: "40",
+    });
+    expect(warnings.join(" ")).not.toMatch(/not a GST rate/);
   });
 });
