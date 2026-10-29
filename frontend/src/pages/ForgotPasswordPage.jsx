@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api } from "../lib/api";
@@ -15,6 +15,13 @@ export default function ForgotPasswordPage() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState("");
   const [error, setError] = useState("");
+  // The control that had focus is replaced by this message, so focus moves to
+  // it: left alone it fell to <body>, and a status line inserted already
+  // holding its text is often not announced — the user heard nothing.
+  const sentRef = useRef(null);
+  useEffect(() => {
+    if (sent) sentRef.current?.focus();
+  }, [sent]);
 
   async function submit(e) {
     e.preventDefault();
@@ -35,7 +42,9 @@ export default function ForgotPasswordPage() {
       <div className="auth-card">
         <h1>Reset your password</h1>
         {sent ? (
-          <p role="status">{sent}</p>
+          <p role="status" tabIndex={-1} ref={sentRef}>
+            {sent}
+          </p>
         ) : (
           <form onSubmit={submit}>
             <p className="muted">We will email you a link to choose a new one.</p>

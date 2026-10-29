@@ -63,3 +63,15 @@ describe("UnsubscribePage", () => {
     expect(screen.queryByRole("button", { name: "Unsubscribe" })).not.toBeInTheDocument();
   });
 });
+
+describe("UnsubscribePage after the button is pressed", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("moves focus to the confirmation the button is replaced by", async () => {
+    global.fetch = vi.fn(() => respond({ unsubscribed: true, message: "You've been unsubscribed." }));
+    land();
+    await userEvent.click(screen.getByRole("button", { name: "Unsubscribe" }));
+
+    expect(await screen.findByRole("status")).toHaveFocus();
+  });
+});

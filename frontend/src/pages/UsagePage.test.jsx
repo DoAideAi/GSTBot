@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StubAuth } from "../test/auth";
@@ -198,5 +198,21 @@ describe("changing the password from the account page", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("do not match");
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the password form's confirmation", () => {
+  // "Password changed." was a status line inserted with its text already in
+  // it, which screen readers often do not announce. The region is there from
+  // the start and empty, and the confirmation is a change to it.
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("is a live region that exists before anything is said in it", async () => {
+    mockFetch(USAGE_RESPONSE);
+    renderPage();
+    const form = (await screen.findByLabelText("Current password")).closest("form");
+    const region = within(form).getByRole("status");
+    expect(region).toBeEmptyDOMElement();
   });
 });

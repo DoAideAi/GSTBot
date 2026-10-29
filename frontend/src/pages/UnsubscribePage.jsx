@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api } from "../lib/api";
@@ -19,6 +19,13 @@ export default function UnsubscribePage() {
   const token = params.get("token") || "";
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState("");
+  // The control that had focus is replaced by this message, so focus moves to
+  // it: left alone it fell to <body>, and a status line inserted already
+  // holding its text is often not announced — the user heard nothing.
+  const doneRef = useRef(null);
+  useEffect(() => {
+    if (done) doneRef.current?.focus();
+  }, [done]);
   const [error, setError] = useState(
     email && token ? "" : "This page needs the unsubscribe link from a reminder email.",
   );
@@ -42,7 +49,9 @@ export default function UnsubscribePage() {
       <div className="auth-card">
         <h1>Filing reminders</h1>
         {done ? (
-          <p role="status">{done}</p>
+          <p role="status" tabIndex={-1} ref={doneRef}>
+            {done}
+          </p>
         ) : (
           email && token && (
             <>

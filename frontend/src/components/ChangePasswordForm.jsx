@@ -80,7 +80,10 @@ export default function ChangePasswordForm() {
             {error}
           </p>
         )}
-        {done && <p role="status">Password changed.</p>}
+        {/* There from the start and empty, so "Password changed." is a change to
+            a live region — which is announced — rather than one inserted
+            already full, which often is not. */}
+        <p role="status">{done ? "Password changed." : ""}</p>
         <button type="submit" disabled={busy}>
           Change password
         </button>

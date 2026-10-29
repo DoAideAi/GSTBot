@@ -123,3 +123,26 @@ describe("the sign-in form", () => {
     );
   });
 });
+
+describe("the confirmation after asking for a link", () => {
+  // The form — and the button that had focus — was replaced by a status line
+  // inserted with its text already in it: focus fell to <body>, and a live
+  // region that arrives already full is often not announced at all. Pressing
+  // "Email me a link" told a screen-reader user nothing.
+  afterEach(() => vi.restoreAllMocks());
+
+  it("takes focus, so it is read out and the user is not left at the top", async () => {
+    global.fetch = vi.fn(() => respond(202, { detail: "A link is on its way." }));
+    render(
+      <MemoryRouter>
+        <ForgotPasswordPage />
+      </MemoryRouter>,
+    );
+    await userEvent.type(screen.getByLabelText("Email"), "owner@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Email me a link" }));
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("A link is on its way.");
+    expect(status).toHaveFocus();
+  });
+});
