@@ -402,9 +402,16 @@ class TestANewJobGetsOnePeriodBeforeSilenceCounts:
         assert statuses["filing-deadline-sweep"].stale is True
 
     def test_the_worker_starts_watching_when_it_is_ready(self, monkeypatch):
-        from app import celery_app as celery_module
+        from celery.signals import worker_ready
+
+        from app.tasks import alert_tasks
 
         called = []
         monkeypatch.setattr(job_health, "watch_scheduled_jobs", lambda: called.append(True))
-        celery_module._watch_scheduled_jobs()
+        alert_tasks._watch_scheduled_jobs()
         assert called == [True]
+        # Connected to the signal, not merely defined.
+        assert any(
+            getattr(receiver(), "__name__", "") == "_watch_scheduled_jobs"
+            for _, receiver in worker_ready.receivers
+        )

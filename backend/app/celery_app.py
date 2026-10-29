@@ -21,7 +21,6 @@ from celery.signals import (
     setup_logging,
     task_postrun,
     task_prerun,
-    worker_ready,
     worker_shutdown,
 )
 
@@ -232,14 +231,6 @@ def _clear_task_correlation_id(**_: Any) -> None:
     an unrelated upload.
     """
     set_correlation_id("")
-
-
-@worker_ready.connect
-def _watch_scheduled_jobs(**_: Any) -> None:
-    """Start the clock on any scheduled job not yet watched (job_health)."""
-    from app.services import job_health
-
-    job_health.watch_scheduled_jobs()
 
 
 @worker_shutdown.connect

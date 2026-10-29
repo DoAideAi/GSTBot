@@ -11,11 +11,25 @@ from __future__ import annotations
 
 import logging
 
+from celery.signals import worker_ready
+
 from app.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.services import alert_delivery, alerting, job_health
 
 logger = logging.getLogger(__name__)
+
+
+@worker_ready.connect
+def _watch_scheduled_jobs(**_: object) -> None:
+    """Start the clock on any scheduled job not yet watched (job_health).
+
+    Here rather than in app.celery_app: job_health imports celery_app to ping
+    the workers, so connecting it there made the two modules import each
+    other (test_import_graph). The worker loads this module, through the
+    app's ``include``, before it signals ready.
+    """
+    job_health.watch_scheduled_jobs()
 
 
 @celery_app.task(
