@@ -224,6 +224,12 @@ serving, and swapped in only once it has produced an `index.html`; the build it
 replaces is kept as `frontend/dist.prev`. A build that fails therefore stops the
 release with the previous site still up, rather than an emptied `dist`.
 
+The restart clears each unit's failed state first, which also resets its start
+counter. The units allow five starts in five minutes so that a crash loop stops;
+a release's restart used to count against that, and the third release inside
+five minutes was refused with `start-limit-hit`, leaving the API down until it
+was started by hand.
+
 The dump is the nightly backup unit, started synchronously — see "Backups". It
 runs because the migration is the one step of a release that redeploying the
 previous revision does not undo: the code goes back, a dropped column does not.
@@ -308,6 +314,17 @@ workstation; `--universal` keeps the markers that let the same file resolve on
 both. `backend/tests/test_requirements.py` fails if a floor is raised without
 the lock being recompiled, or if the lock stops being a complete hash-checked
 closure — the two ways this arrangement rots.
+
+The lock is also everything the server has. `pip install -r` adds and upgrades
+but never removes, so a release then runs `deploy/lock_extras.py` and uninstalls
+whatever the virtualenv holds that the lock does not name (pip, setuptools and
+the project's own install aside). Before that, packages dropped from the lock
+stayed installed for good, two with published vulnerabilities, out of sight of
+any audit of the lock. To see what it would remove:
+
+```sh
+/opt/GSTBot/.venv/bin/python /opt/GSTBot/deploy/lock_extras.py /opt/GSTBot/backend/requirements.lock
+```
 
 ## Operating
 
@@ -441,6 +458,12 @@ tell anybody. So the checks are the failures that are silent by construction:
 | 1 GiB free where the dumps go | the disk fills, and it takes out four products |
 | `/health/ready` on the bridge | the API is not serving |
 | `/health/live` through Caddy | DNS, TLS or `knol-caddy` — the part the bridge check cannot see |
+| what `/health/jobs` says | a worker that is running but takes no tasks, the broker unreadable, more than `GSTBOT_MONITOR_MAX_QUEUE_DEPTH` (100) tasks waiting, a scheduled job that has not run on time |
+| what `/health` says | the database, Redis or storage reported anything but `ok` |
+
+Both health endpoints answer 200 while degraded, on purpose, so the last two
+read the body (`deploy/monitor_health.py` turns it into one problem per line)
+rather than the status code.
 
 The last two are separate on purpose: only the public one failing means the
 edge, and knowing that before logging in is most of the value.
