@@ -493,6 +493,10 @@ UNGATED_MUTATIONS = {
     # Ending one's own session. A viewer must be able to sign out as surely as
     # anyone; refusing it would leave their token live after they had left.
     "/api/v1/auth/logout",
+    # A forgotten password: there is no session, and the emailed link is the
+    # proof of who is asking, as the password is at login.
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
     # These two manage *this login's* access, not any business's books. They
     # resolve through ``get_current_user`` and never through a tenant, and
     # linking is proven by the other account's own password — a role on some

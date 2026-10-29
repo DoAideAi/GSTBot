@@ -94,6 +94,9 @@ class TestSetOffNeedsAToken:
             # Authentication is what these two hand out; they cannot require it.
             "/api/v1/auth/login",
             "/api/v1/auth/register",
+            # A forgotten password has no session to send; the link is the proof.
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/reset-password",
             # Pricing is read by the landing page before sign-in.
             "/api/v1/subscriptions/pricing",
             # Razorpay webhook — called by Razorpay servers, not by users.

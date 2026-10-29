@@ -20,7 +20,7 @@ import hashlib
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
@@ -39,9 +39,13 @@ from app.core.rate_limit import (
 )
 from app.core.ratespec import Rate, parse_rate
 from app.core.security import (
+    RESET_TOKEN_MINUTES,
     create_access_token,
+    create_reset_token,
     decode_access_claims,
     hash_password,
+    reset_token_matches,
+    reset_token_subject,
     verify_password,
 )
 from app.models.business import Business, BusinessPlan
@@ -51,13 +55,16 @@ from app.routers import referrals
 from app.schemas.auth import (
     BusinessOut,
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     MeOut,
     RegisterRequest,
     RegisterResponse,
+    ResetPasswordRequest,
     Token,
     UserOut,
 )
 from app.services import gstin as gstin_service
+from app.services.email_sender import EmailSendError, send_email
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +80,10 @@ _me_limit = RateLimit("me", "120/minute")
 # Per caller: each attempt is a bcrypt round against the current password, and
 # a session that has been taken is exactly what would try a few.
 _change_password_limit = RateLimit("change_password", "10/hour")
+# A reset email per request, to an address the caller only names: few enough
+# that the endpoint cannot be used to flood someone's inbox.
+_forgot_password_limit = RateLimit("forgot_password", "5/hour", by="ip")
+_reset_password_limit = RateLimit("reset_password", "20/hour", by="ip")
 
 # The per-account failure budget, spent by wrong passwords and refunded the
 # moment a right one arrives. Ten in a quarter of an hour: a person who has
@@ -452,6 +463,115 @@ def change_password(
         )
     logger.info("Password changed", extra={"user_id": current_user.id})
     return Token(access_token=create_access_token(current_user.id))
+
+
+# One answer whether or not the address has an account here, so the endpoint
+# cannot be used to find out which do.
+_RESET_REQUESTED = {
+    "detail": (
+        "If an account signs in with that email and a password, a link to reset "
+        f"it is on its way. It works once, for {RESET_TOKEN_MINUTES} minutes."
+    )
+}
+
+
+def _send_reset_link(email: str, token: str) -> None:
+    """Email the link. After the response, so its timing says nothing either."""
+    link = f"{settings.frontend_origin}/reset-password#token={token}"
+    body = "\n".join([
+        "Someone — we hope you — asked to reset the password for this DoAide GST login.",
+        "",
+        f"Choose a new one here (the link works once, for {RESET_TOKEN_MINUTES} minutes):",
+        link,
+        "",
+        "If you did not ask, ignore this email: your password stays as it is.",
+    ])
+    try:
+        send_email(to=email, subject="Reset your DoAide GST password", body=body)
+    except EmailSendError:
+        logger.warning("Password reset email could not be sent", exc_info=True)
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Email a link to reset a forgotten password",
+    description=(
+        "Always 202, with the same body, whether or not the address has an "
+        "account: the endpoint must not tell anyone which do. An active login "
+        "with a password is emailed a link that works once, for "
+        f"{RESET_TOKEN_MINUTES} minutes. A login that signs in with a provider "
+        "has no password here, and is sent nothing."
+    ),
+    dependencies=[Depends(_forgot_password_limit)],
+)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """There was no way back from a forgotten password, so it locked a user out."""
+    email = payload.email.lower()
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None or not user.is_active or user.hashed_password is None:
+        return _RESET_REQUESTED
+    if not settings.alerts_email_enabled or not settings.smtp_host:
+        logger.warning(
+            "Password reset requested but email is not configured; nothing sent",
+            extra={"user_id": user.id},
+        )
+        return _RESET_REQUESTED
+    background.add_task(
+        _send_reset_link, user.email, create_reset_token(user.id, user.hashed_password)
+    )
+    logger.info("Password reset link sent", extra={"user_id": user.id})
+    return _RESET_REQUESTED
+
+
+@router.post(
+    "/reset-password",
+    response_model=Token,
+    summary="Set a new password with a reset link",
+    description=(
+        "The token from the emailed link and the new password, which follows "
+        "the registration rules. Every token issued before the reset stops "
+        "working, the link included; the response signs the caller in."
+    ),
+    responses={
+        400: {"description": "The link has expired, was already used, or is not one."},
+        422: {"description": "The new password is too short, too common, or too long."},
+    },
+    dependencies=[Depends(_reset_password_limit)],
+)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> Token:
+    refused = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="This reset link has expired or has already been used. Ask for a new one.",
+    )
+    user_id = reset_token_subject(payload.token)
+    user = db.get(User, user_id) if user_id is not None else None
+    if (
+        user is None
+        or not user.is_active
+        or not reset_token_matches(payload.token, user.id, user.hashed_password)
+    ):
+        raise refused
+    # Over the hash the link was issued against, as the change route does: two
+    # uses of one link at once both pass the check, and only one may land.
+    changed = db.execute(
+        update(User)
+        .where(User.id == user.id, User.hashed_password == user.hashed_password)
+        .values(
+            hashed_password=hash_password(payload.new_password),
+            password_changed_at=datetime.now(UTC).replace(microsecond=0),
+        )
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    db.commit()
+    if not changed:
+        raise refused
+    logger.info("Password reset", extra={"user_id": user.id})
+    return Token(access_token=create_access_token(user.id))
 
 
 @router.get(

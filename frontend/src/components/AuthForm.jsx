@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import ErrorBanner from "./ErrorBanner";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
@@ -290,6 +290,12 @@ export default function AuthForm() {
         <button type="submit" className="auth-submit" disabled={busy}>
           {busy ? "Please wait…" : registering ? "Create account" : "Sign in"}
         </button>
+        {/* There was no way back from a forgotten password. */}
+        {!registering && (
+          <p className="auth-forgot">
+            <Link to="/forgot-password">Forgot your password?</Link>
+          </p>
+        )}
       </form>
 
       <div className="auth-divider">

@@ -44,3 +44,12 @@ describe("where a sign-in returns to", () => {
     }
   });
 });
+
+describe("the password pages are not destinations either", () => {
+  beforeEach(() => sessionStorage.clear());
+
+  it.each(["/forgot-password", "/reset-password#token=x"])("%s", (target) => {
+    rememberReturnTo(target);
+    expect(takeReturnTo()).toBe("/");
+  });
+});

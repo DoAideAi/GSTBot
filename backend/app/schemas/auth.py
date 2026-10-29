@@ -239,6 +239,20 @@ class ChangePasswordRequest(BaseModel):
         return self
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=2048)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _not_obviously_weak(cls, v: str) -> str:
+        return RegisterRequest._not_obviously_weak(v)
+
+
 class RegisterResponse(BaseModel):
     """Registration returns a usable session, not just a created row."""
 

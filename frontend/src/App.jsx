@@ -46,6 +46,8 @@ const UploadPage = lazy(() => import("./pages/UploadPage"));
 const UsagePage = lazy(() => import("./pages/UsagePage"));
 const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const GstComplianceChecklist = lazy(() => import("./pages/blog/GstComplianceChecklist"));
 const GstFilingGuide = lazy(() => import("./pages/blog/GstFilingGuide"));
 const HsnCodeLookup = lazy(() => import("./pages/blog/HsnCodeLookup"));
@@ -241,6 +243,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/auth/callback" element={<Lazy><AuthCallbackPage /></Lazy>} />
+        <Route path="/forgot-password" element={<Lazy><ForgotPasswordPage /></Lazy>} />
+        <Route path="/reset-password" element={<Lazy><ResetPasswordPage /></Lazy>} />
         <Route path="/pricing" element={<Lazy><PricingPage /></Lazy>} />
         <Route path="/blog" element={<Lazy><BlogLayout /></Lazy>}>
           <Route index element={<Lazy><BlogIndex /></Lazy>} />

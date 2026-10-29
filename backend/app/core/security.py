@@ -1,6 +1,8 @@
 """Authentication primitives: password hashing and JWT access tokens."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
@@ -113,6 +115,66 @@ def decode_access_claims(token: str) -> dict[str, Any] | None:
     if payload.get("type") != "access":
         return None
     return payload
+
+
+# How long a password-reset link stays good. Long enough to find the email and
+# use it; short enough that a link sitting in an inbox is not a standing key.
+RESET_TOKEN_MINUTES = 30
+
+
+def _password_fingerprint(hashed_password: str) -> str:
+    """A digest of the stored hash, carried in a reset token.
+
+    The token is good only while the password it was issued against is the
+    password: the reset changes the hash, so every link issued before it —
+    including the one just used — stops working. That is what makes a link
+    single-use without a table of spent ones.
+    """
+    return hashlib.sha256(hashed_password.encode("utf-8")).hexdigest()[:32]
+
+
+def create_reset_token(user_id: int, hashed_password: str) -> str:
+    """A signed, short-lived token that can reset this one password, once."""
+    now = datetime.now(UTC)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "exp": now + timedelta(minutes=RESET_TOKEN_MINUTES),
+        "iat": int(now.timestamp()),
+        "type": "password_reset",
+        "pwh": _password_fingerprint(hashed_password),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def reset_token_matches(token: str, user_id: int, hashed_password: str | None) -> bool:
+    """Whether *token* is a live reset link for this user's current password."""
+    if hashed_password is None:
+        return False
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except jwt.PyJWTError:
+        return False
+    return (
+        payload.get("type") == "password_reset"
+        and payload.get("sub") == str(user_id)
+        and hmac.compare_digest(
+            str(payload.get("pwh", "")), _password_fingerprint(hashed_password)
+        )
+    )
+
+
+def reset_token_subject(token: str) -> int | None:
+    """The user id a reset token names, if it is one at all; not proof of validity."""
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except jwt.PyJWTError:
+        return None
+    if payload.get("type") != "password_reset":
+        return None
+    try:
+        return int(payload.get("sub"))
+    except (TypeError, ValueError):
+        return None
 
 
 def decode_access_token(token: str) -> str | None:

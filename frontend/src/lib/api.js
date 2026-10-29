@@ -467,6 +467,21 @@ export const api = {
 
   me: () => request("/auth/me"),
 
+  // A forgotten password. The answer is the same whether or not the address
+  // has an account, so it is only ever shown, never branched on.
+  forgotPassword: (email) =>
+    request("/auth/forgot-password", { method: "POST", body: { email }, auth: false }),
+
+  async resetPassword(token, newPassword) {
+    const data = await request("/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+      auth: false,
+    });
+    setToken(data.access_token);
+    return data;
+  },
+
   async changePassword(currentPassword, newPassword) {
     // The change ends every token issued before it — this one included — so
     // the session carries on only on the token the response hands back.

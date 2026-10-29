@@ -17,7 +17,7 @@
  */
 const KEY = "gstbot_return_to";
 const SAME_SITE_PATH = /^\/(?![/\\])/;
-const NOT_A_DESTINATION = /^\/(login|auth\/)/;
+const NOT_A_DESTINATION = /^\/(login|auth\/|forgot-password|reset-password)/;
 
 function usable(target) {
   return (
