@@ -145,6 +145,15 @@ def create_order(
         and _TIER_RANK[payload.tier] < _TIER_RANK[current.tier]
     ):
         ends = current.current_period_end
+        logger.info(
+            "Checkout refused: a lower plan over a running higher one",
+            extra={
+                "business_id": business.id,
+                "current_tier": current.tier.value,
+                "requested_tier": payload.tier.value,
+                "period_end": ends.isoformat() if ends else None,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -219,7 +228,9 @@ def create_order(
         "the order was created for this business and tier at the tier's price, "
         "and activates (or renews) the subscription. Idempotent: re-submitting "
         "the same payment id returns the existing subscription without extending "
-        "it, so a network retry cannot buy a free period."
+        "it, so a network retry cannot buy a free period. A payment for a lower "
+        "plan while a higher one is active is recorded but not applied: the "
+        "higher plan is returned unchanged and the payment is flagged for a refund."
     ),
     responses={
         400: {
@@ -323,6 +334,7 @@ def verify_payment(
 
     period_end = _period_end_for(order, payload, sub)
     renewal = sub is not None
+    downgrade_refused = False
     if sub is None:
         sub = Subscription(
             business_id=business.id,
@@ -343,10 +355,30 @@ def verify_payment(
                     "Create a new order instead of verifying a payment against it."
                 ),
             )
-        sub.current_period_end = period_end
-        sub.tier = payload.tier
-        sub.status = SubscriptionStatus.ACTIVE
-        sub.razorpay_subscription_id = payload.razorpay_payment_id
+        if sub.is_paid() and _TIER_RANK[payload.tier] < _TIER_RANK[sub.tier]:
+            # Two orders opened before either was paid (say Pro and CA, both
+            # from Free) slip past create-order's guard. The money for the
+            # lower one is taken, but applying it would end the higher plan
+            # at once, so the higher plan stays and the payment is recorded
+            # (never re-applied) and flagged for a refund.
+            downgrade_refused = True
+            logger.warning(
+                "Lower plan paid over a running higher one; kept the higher plan, refund due",
+                extra={
+                    "business_id": business.id,
+                    "user_id": current_user.id,
+                    "current_tier": sub.tier.value,
+                    "paid_tier": payload.tier.value,
+                    "razorpay_payment_id": payload.razorpay_payment_id,
+                    "razorpay_order_id": payload.razorpay_order_id,
+                    "amount_paise": order.get("amount"),
+                },
+            )
+        else:
+            sub.current_period_end = period_end
+            sub.tier = payload.tier
+            sub.status = SubscriptionStatus.ACTIVE
+            sub.razorpay_subscription_id = payload.razorpay_payment_id
     db.add(
         SubscriptionPayment(
             business_id=business.id,
@@ -372,6 +404,8 @@ def verify_payment(
         sub = usage_service.get_subscription(db, business.id)
         return SubscriptionOut.model_validate(sub)
     db.refresh(sub)
+    if downgrade_refused:
+        return SubscriptionOut.model_validate(sub)
 
     # Enough to answer a dispute from the log alone: which payment bought what,
     # for whom, at what price, until when.

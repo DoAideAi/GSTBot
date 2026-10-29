@@ -1752,3 +1752,72 @@ class TestALowerPlanCannotBeBoughtOverAHigherOne:
     ):
         self._on(db_session, business, current, **kwargs)
         assert self._order(auth_client, wanted).status_code == 200
+
+
+class TestTwoOrdersOpenedBeforeEitherIsPaid:
+    """P21 M9/M11: create-order's downgrade guard sees only the plan running
+    when the order is opened. Two orders opened from Free (Pro and CA) both
+    pass it; paying CA then Pro used to end the CA plan at once. The Pro
+    payment is now recorded, flagged for a refund, and the CA plan kept."""
+
+    def _verify(self, client, business, tier, payment_id):
+        order = dict(_paid_order(business.id, tier), id=f"order_{payment_id}")
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(razorpay_client, "fetch_order", return_value=order):
+            return client.post(
+                "/api/v1/subscriptions/verify-payment",
+                json={
+                    "razorpay_order_id": order["id"],
+                    "razorpay_payment_id": payment_id,
+                    "razorpay_signature": "valid_sig",
+                    "tier": tier,
+                },
+            )
+
+    def test_the_lower_payment_keeps_the_higher_plan_and_is_flagged(
+        self, auth_client, db_session, business, caplog
+    ):
+        from app.models.subscription_payment import SubscriptionPayment
+
+        assert self._verify(auth_client, business, "enterprise", "pay_ca").status_code == 200
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="app.routers.subscriptions"):
+            response = self._verify(auth_client, business, "pro", "pay_pro")
+        assert response.status_code == 200
+        assert response.json()["tier"] == "enterprise"
+        flagged = [r for r in caplog.records if "refund due" in r.getMessage()]
+        assert len(flagged) == 1
+        assert flagged[0].paid_tier == "pro" and flagged[0].current_tier == "enterprise"
+        ledger = db_session.query(SubscriptionPayment).filter_by(razorpay_payment_id="pay_pro")
+        assert ledger.count() == 1  # recorded, so a retry is not applied either
+        again = self._verify(auth_client, business, "pro", "pay_pro")
+        assert again.json()["tier"] == "enterprise"
+
+    def test_the_other_order_is_still_applied(self, auth_client, business):
+        assert self._verify(auth_client, business, "pro", "pay_pro").status_code == 200
+        response = self._verify(auth_client, business, "enterprise", "pay_ca")
+        assert response.json()["tier"] == "enterprise"  # an upgrade goes through
+
+    def test_a_refused_checkout_is_logged(self, auth_client, db_session, business, caplog):
+        from datetime import datetime, timedelta
+
+        db_session.add(
+            Subscription(
+                business_id=business.id,
+                tier=SubscriptionTier.ENTERPRISE,
+                status=SubscriptionStatus.ACTIVE,
+                current_period_end=datetime.now(UTC) + timedelta(days=20),
+            )
+        )
+        db_session.commit()
+        with caplog.at_level(logging.INFO, logger="app.routers.subscriptions"), patch.object(
+            razorpay_client, "is_configured", return_value=True
+        ):
+            response = auth_client.post(
+                "/api/v1/subscriptions/create-order", json={"tier": "pro"}
+            )
+        assert response.status_code == 409
+        refused = [r for r in caplog.records if r.getMessage().startswith("Checkout refused")]
+        assert len(refused) == 1
+        assert refused[0].requested_tier == "pro" and refused[0].business_id == business.id
