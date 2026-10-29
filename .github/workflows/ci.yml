@@ -178,6 +178,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Bundle budget
+        # What a phone downloads before it shows anything. Budgets and why are
+        # in the script; it prints the sizes either way.
+        run: node scripts/check-bundle-budget.mjs dist
+
   docker:
     name: Docker images build
     runs-on: ubuntu-latest
