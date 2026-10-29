@@ -53,10 +53,18 @@ def normalize_hsn_code(value: object, *, cut_long: bool = False) -> str | None:
     """
     if value is None or isinstance(value, bool):
         return None
+    if isinstance(value, float):
+        # A code a model emitted as a JSON number: 8471.30 arrives as 8471.3,
+        # its trailing zero already gone, and its digits read as the wrong code
+        # (84713). Only a whole number is a code that survived the trip.
+        if not value.is_integer():
+            return None
+        value = int(value)
     digits = re.sub(r"[.\s]", "", _HSN_LABEL.sub("", str(value)))
     if cut_long and len(digits) > 8 and digits.isascii() and digits.isdigit():
         digits = digits[:8]
-    if digits.isascii() and digits.isdigit() and 4 <= len(digits) <= 8:
+    # Chapter 00 does not exist: HSN chapters run 01-98 and SAC codes are 99.
+    if digits.isascii() and digits.isdigit() and 4 <= len(digits) <= 8 and digits[:2] != "00":
         return digits
     return None
 

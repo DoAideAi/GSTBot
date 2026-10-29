@@ -662,3 +662,27 @@ class TestAnHsnCodeIsReadLikeTheEditFormReadsIt:
         from app.schemas.invoice import InvoiceUpdate
 
         assert InvoiceUpdate(hsn_code="HSN: 8471.30").hsn_code == "847130"
+
+
+class TestAnHsnCodeThatIsNotOne:
+    """P21 M6: two inputs the P20 rule still accepted as codes."""
+
+    def test_a_fractional_number_is_not_read_as_a_wrong_code(self):
+        from app.services.hsn import normalize_hsn_code
+
+        # 8471.30 emitted as a JSON number arrives as 8471.3; its digits are a
+        # different code (84713), so it is dropped rather than misread.
+        assert normalize_hsn_code(8471.3) is None
+        assert normalize_hsn_code(84713010.0) == "84713010"
+
+    @pytest.mark.parametrize("code", ["0000", "00000000", "0012"])
+    def test_chapter_00_does_not_exist(self, code):
+        from app.services.hsn import normalize_hsn_code
+
+        assert normalize_hsn_code(code) is None
+
+    def test_the_lowest_and_highest_chapters_still_pass(self):
+        from app.services.hsn import normalize_hsn_code
+
+        assert normalize_hsn_code("01012100") == "01012100"
+        assert normalize_hsn_code("998314") == "998314"
