@@ -308,6 +308,16 @@ async def import_gstr2b(
             f". {len(other_periods)} other period(s) present: {', '.join(other_periods)}"
         )
 
+    unread = gstr2b.unread_sections(content, filename)
+    if unread:
+        # Their credit is in the statement and not in the totals returned
+        # with it, which the user compares against the portal. Said here so a
+        # month of bill-of-entry IGST does not read as "Imported 0 invoices".
+        message += (
+            f". Not reconciled here: {gstr2b.describe_unread(unread)} — their "
+            "credit is not in these totals; take it from the portal's 2B summary"
+        )
+
     return GSTR2BImportOut(
         **{key: getattr(stored, key) for key in (
             "id", "period", "return_type", "status", "invoice_count",
@@ -317,6 +327,7 @@ async def import_gstr2b(
         other_periods=other_periods,
         replaced_previous=had_previous,
         unchanged=unchanged,
+        unread_sections=unread,
         message=message,
     )
 

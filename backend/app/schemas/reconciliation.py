@@ -37,6 +37,10 @@ class GSTR2BImportOut(BaseModel):
     # The upload was the statement already on file: nothing was stored or
     # replaced, and the route answers 200 rather than 201.
     unchanged: bool = False
+    # Documents in sections of the statement this import does not read —
+    # bills of entry, ISD credit, e-commerce operator supplies — by section.
+    # Their credit is in the portal's 2B but not in the totals above.
+    unread_sections: dict[str, int] = Field(default_factory=dict)
     message: str = ""
 
 

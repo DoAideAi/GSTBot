@@ -238,6 +238,31 @@ def _money(value: object) -> Decimal:
 _INVOICE_SECTIONS = ("b2b", "b2ba")
 _NOTE_SECTIONS = ("cdnr", "cdnra")
 
+# Sections a real 2B carries that this import does not read, each the credit
+# of a supply that is not a supplier's invoice to match against the books:
+# IGST paid on imports (``impg``, ``impgsez``), credit passed on by an input
+# service distributor (``isd``, ``isda``), and supplies through an e-commerce
+# operator (``ecom``, ``ecoma``). They were passed over without a word, so an
+# importer was told "Imported 0 invoices" for a month of bill-of-entry credit.
+# :func:`unread_sections` counts them so the import can say so.
+_UNREAD_SECTIONS: dict[str, tuple[str, str]] = {
+    "impg": ("bill of entry (imports)", "bills of entry (imports)"),
+    "impgsez": ("bill of entry from an SEZ", "bills of entry from SEZs"),
+    "isd": ("ISD credit document", "ISD credit documents"),
+    "isda": ("amended ISD credit document", "amended ISD credit documents"),
+    "ecom": (
+        "supply through an e-commerce operator",
+        "supplies through an e-commerce operator",
+    ),
+    "ecoma": (
+        "amended supply through an e-commerce operator",
+        "amended supplies through an e-commerce operator",
+    ),
+}
+# Where a section nests its documents under the supplier that issued them.
+# ``impg`` does not: each entry there is a bill of entry itself.
+_NESTED_DOCUMENTS = ("inv", "nt", "doclist", "boe")
+
 
 def _unwrap_docdata(payload: dict) -> dict:
     """Find the ``docdata`` block, wherever this particular export buried it.
@@ -251,7 +276,8 @@ def _unwrap_docdata(payload: dict) -> dict:
         payload,
     ):
         if isinstance(candidate, dict) and any(
-            key in candidate for key in _INVOICE_SECTIONS + _NOTE_SECTIONS
+            key in candidate
+            for key in (*_INVOICE_SECTIONS, *_NOTE_SECTIONS, *_UNREAD_SECTIONS)
         ):
             return candidate
     # A nil statement. The portal issues a 2B every month, and one against
@@ -344,6 +370,46 @@ def statement_period(content: bytes, filename: str | None = None) -> str | None:
         return _statement_period(payload) if isinstance(payload, dict) else None
     except (ValueError, RecursionError):
         return None
+
+
+def unread_sections(content: bytes, filename: str | None = None) -> dict[str, int]:
+    """How many documents sit in each section of this 2B the import skips.
+
+    Empty for a statement read whole, and for a CSV export, which arrives one
+    sheet at a time and so carries no other section to count.
+    """
+    if not content:
+        return {}
+    text = content.decode("utf-8-sig", errors="replace").lstrip()
+    if not (text.startswith(("{", "[")) or (filename or "").lower().endswith(".json")):
+        return {}
+    try:
+        payload = json.loads(text)
+        docdata = _unwrap_docdata(payload) if isinstance(payload, dict) else {}
+    except (ValueError, RecursionError, GSTR2BParseError):
+        # Not a 2B :func:`parse` can read either, and it is about to say so.
+        return {}
+    counts: dict[str, int] = {}
+    for section in _UNREAD_SECTIONS:
+        total = 0
+        for entry in _as_list(docdata.get(section)):
+            if not isinstance(entry, dict):
+                continue
+            nested = next(
+                (entry[key] for key in _NESTED_DOCUMENTS if isinstance(entry.get(key), list)),
+                None,
+            )
+            total += len(nested) if nested is not None else 1
+        if total:
+            counts[section] = total
+    return counts
+
+
+def describe_unread(counts: dict[str, int]) -> str:
+    """``counts`` from :func:`unread_sections` as words, "" when there are none."""
+    return ", ".join(
+        f"{n} {_UNREAD_SECTIONS[section][0 if n == 1 else 1]}" for section, n in counts.items()
+    )
 
 
 def _as_list(value: object) -> list:
