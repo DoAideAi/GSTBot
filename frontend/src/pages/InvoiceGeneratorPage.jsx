@@ -325,7 +325,7 @@ ${invoiceRef.current.innerHTML}
           {!showPreview ? (
             <div className="calc-card">
               <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "1rem" }}>Invoice Details</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+              <div className="invgen-grid invgen-grid-3">
                 <label className="calc-label">
                   Invoice Number
                   <input className="calc-input" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="Auto-generated" />
@@ -341,7 +341,7 @@ ${invoiceRef.current.innerHTML}
               </div>
 
               <h2 style={{ fontSize: "1.1rem", fontWeight: 600, margin: "1.25rem 0 0.75rem" }}>Seller Details</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div className="invgen-grid invgen-grid-2">
                 <label className="calc-label">
                   Business Name *
                   <input className="calc-input" value={seller.name} onChange={(e) => updateSeller("name", e.target.value)} placeholder="Your business name" />
@@ -373,7 +373,7 @@ ${invoiceRef.current.innerHTML}
               </div>
 
               <h2 style={{ fontSize: "1.1rem", fontWeight: 600, margin: "1.25rem 0 0.75rem" }}>Buyer Details</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div className="invgen-grid invgen-grid-2">
                 <label className="calc-label">
                   Business Name *
                   <input className="calc-input" value={buyer.name} onChange={(e) => updateBuyer("name", e.target.value)} placeholder="Buyer business name" />
@@ -418,25 +418,25 @@ ${invoiceRef.current.innerHTML}
                 {!isInterstate && seller.state && buyer.state && <span style={{ fontSize: "0.8rem", fontWeight: 400, color: "#34d399", marginLeft: "0.5rem" }}>(Intrastate — CGST+SGST)</span>}
               </h2>
               {items.map((item, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 0.7fr 1fr 1fr auto", gap: "0.5rem", alignItems: "end", marginBottom: "0.5rem" }}>
+                <div key={i} className="invgen-grid invgen-item">
                   <label className="calc-label" style={{ margin: 0 }}>
-                    {i === 0 && "Description *"}
+                    <span className={i === 0 ? undefined : "invgen-later-label"}>Description *</span>
                     <input className="calc-input" value={item.description} onChange={(e) => updateItem(i, "description", e.target.value)} placeholder="Item description" />
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
-                    {i === 0 && "HSN/SAC"}
+                    <span className={i === 0 ? undefined : "invgen-later-label"}>HSN/SAC</span>
                     <input className="calc-input" value={item.hsn} onChange={(e) => updateItem(i, "hsn", e.target.value)} placeholder="Code" />
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
-                    {i === 0 && "Qty"}
+                    <span className={i === 0 ? undefined : "invgen-later-label"}>Qty</span>
                     <input type="number" className="calc-input" value={item.qty} onChange={(e) => updateItem(i, "qty", e.target.value)} min="0" step="1" inputMode="numeric" />
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
-                    {i === 0 && "Rate (₹)"}
+                    <span className={i === 0 ? undefined : "invgen-later-label"}>Rate (₹)</span>
                     <input type="number" className="calc-input" value={item.rate} onChange={(e) => updateItem(i, "rate", e.target.value)} placeholder="0.00" min="0" step="0.01" inputMode="decimal" />
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
-                    {i === 0 && "GST %"}
+                    <span className={i === 0 ? undefined : "invgen-later-label"}>GST %</span>
                     <select className="calc-select" value={item.gstRate} onChange={(e) => updateItem(i, "gstRate", e.target.value)}>
                       {gstRatesFor(invoiceDate, item.gstRate).map((r) => <option key={r} value={r}>{rateLabel(r, invoiceDate)}</option>)}
                     </select>

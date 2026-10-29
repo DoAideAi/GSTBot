@@ -51,6 +51,17 @@ describe("InvoiceGeneratorPage", () => {
     expect(screen.getByText("Buyer Details")).toBeInTheDocument();
   });
 
+  it("labels every line item's fields, not just the first row's", async () => {
+    // The headings used to render on row one only, so a second item's
+    // inputs had no accessible name — and on a phone, where rows stack,
+    // nothing on screen said which box was the rate.
+    renderPage();
+    await userEvent.click(screen.getByText("+ Add Item"));
+    for (const name of ["Description *", "HSN/SAC", "Qty", "Rate (₹)", "GST %"]) {
+      expect(screen.getAllByLabelText(name)).toHaveLength(2);
+    }
+  });
+
   it("shows the add item button", () => {
     renderPage();
     expect(screen.getByText("+ Add Item")).toBeInTheDocument();
