@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SeoHead from "../components/SeoHead";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { api } from "../lib/api";
+import { announceSubscriptionChange, api } from "../lib/api";
 import { track } from "../lib/track";
 
 /** How close to the end of a paid period the renewal is called out. */
@@ -113,6 +113,7 @@ export default function PricingPage() {
             setSuccess(`Subscribed to ${TIER_LABELS[tier]} plan!`);
             const sub = await api.currentSubscription();
             setCurrentSub(sub);
+            announceSubscriptionChange();
           } catch (err) {
             // Paid but not activated: the step a support ticket follows.
             track("upgrade_failed", { ...step, stage: "verify" });
@@ -156,6 +157,7 @@ export default function PricingPage() {
       setSuccess("Subscription cancelled. You are now on the Free plan.");
       const sub = await api.currentSubscription();
       setCurrentSub(sub);
+      announceSubscriptionChange();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -220,7 +222,9 @@ export default function PricingPage() {
       {success && (
         <div className="pricing-success" role="status">
           <span>{success}</span>
-          <Link to="/dashboard" className="btn btn-primary">Go to dashboard</Link>
+          {/* "/", where the dashboard is: /dashboard is no route, and this
+              button sent a customer who had just paid to the 404 page. */}
+          <Link to="/" className="btn btn-primary">Go to dashboard</Link>
         </div>
       )}
 

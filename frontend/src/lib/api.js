@@ -188,6 +188,17 @@ async function request(
 }
 
 /** `/reconciliation/12/report.pdf?x=1` -> `/reconciliation/:id/report.pdf`. */
+/**
+ * The plan just changed (a payment verified, or a cancellation). Anything
+ * showing the plan listens for this: the header's premium badge was fetched
+ * once per business and went on saying "free" after a payment until a reload.
+ */
+export const SUBSCRIPTION_CHANGED = "gst:subscription-changed";
+
+export function announceSubscriptionChange() {
+  window.dispatchEvent(new Event(SUBSCRIPTION_CHANGED));
+}
+
 export function featurePath(path) {
   return path.split("?")[0].replace(/\/\d+(?=\/|$)/g, "/:id");
 }

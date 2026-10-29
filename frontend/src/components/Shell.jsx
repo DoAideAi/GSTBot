@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { api } from "../lib/api";
+import { SUBSCRIPTION_CHANGED, api } from "../lib/api";
 import BusinessSwitcher from "./BusinessSwitcher";
 import ExportAccountButton from "./ExportAccountButton";
 import ThemeToggle from "./ThemeToggle";
@@ -44,12 +44,20 @@ export default function Shell({ children }) {
   useEffect(() => {
     if (!businessId) return;
     let stale = false;
-    api.currentSubscription()
-      // Only an active plan earns the badge: a paid period that ran out comes
-      // back as status "expired" with its tier still set.
-      .then((sub) => { if (!stale) setSubTier(sub?.status === "active" ? sub.tier : "free"); })
-      .catch(() => {});
-    return () => { stale = true; };
+    const load = () =>
+      api.currentSubscription()
+        // Only an active plan earns the badge: a paid period that ran out comes
+        // back as status "expired" with its tier still set.
+        .then((sub) => { if (!stale) setSubTier(sub?.status === "active" ? sub.tier : "free"); })
+        .catch(() => {});
+    load();
+    // And again when the plan changes in this tab: fetched only per business,
+    // the badge stayed off after a payment until the page was reloaded.
+    window.addEventListener(SUBSCRIPTION_CHANGED, load);
+    return () => {
+      stale = true;
+      window.removeEventListener(SUBSCRIPTION_CHANGED, load);
+    };
   }, [businessId]);
 
   useEffect(() => fetchAlertCount(), [fetchAlertCount]);

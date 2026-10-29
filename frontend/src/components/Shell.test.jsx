@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../hooks/useAuth";
-import { getToken, setToken } from "../lib/api";
+import { SUBSCRIPTION_CHANGED, getToken, setToken } from "../lib/api";
 import Shell from "./Shell";
 
 function jsonResponse(body, { status = 200 } = {}) {
@@ -145,6 +145,34 @@ describe("Shell", () => {
     renderShell();
 
     expect(screen.getByRole("link", { name: "Alerts" })).toHaveAttribute("href", "/alerts");
+  });
+
+  it("shows the premium badge as soon as a payment lands, without a reload", async () => {
+    // P24 M18: the plan was fetched once per business, so after paying the
+    // badge stayed off until the page was reloaded.
+    setToken("stored-token");
+    let tier = "free";
+    global.fetch = vi.fn((url) => {
+      if (String(url).includes("/subscriptions/current")) {
+        return Promise.resolve(jsonResponse({ tier, status: "active" }));
+      }
+      if (String(url).includes("/alerts")) {
+        return Promise.resolve(jsonResponse({ items: [], total: 0, open_total: 0, limit: 1, offset: 0 }));
+      }
+      return Promise.resolve(
+        jsonResponse({ id: 1, email: "owner@acme.in", business: { id: 1, legal_name: "Acme" } }),
+      );
+    });
+    renderShell();
+    await waitFor(() =>
+      expect(global.fetch.mock.calls.some(([u]) => String(u).includes("/subscriptions/current"))).toBe(true),
+    );
+    expect(screen.queryByTitle("Premium plan active")).toBeNull();
+
+    tier = "pro";
+    window.dispatchEvent(new Event(SUBSCRIPTION_CHANGED));
+
+    expect(await screen.findByTitle("Premium plan active")).toBeInTheDocument();
   });
 
   it("shows a badge when there are open alerts", async () => {

@@ -316,6 +316,22 @@ describe("the upgrade funnel", () => {
     expect(events()).not.toContain("upgrade_failed");
   });
 
+  it("after paying, leads to the dashboard and tells the rest of the app", async () => {
+    // P24 M18: the button went to /dashboard, which is no route (the 404
+    // page), and nothing told the header its plan had changed.
+    const announced = vi.fn();
+    window.addEventListener("gst:subscription-changed", announced);
+    await chooseSmb(ORDER, { id: 1 }, { ...SUBSCRIPTION_RESPONSE, tier: "pro" });
+    await waitFor(() => expect(checkout).not.toBeNull());
+
+    await checkout.handler(PAYMENT);
+
+    const dashboard = await screen.findByRole("link", { name: "Go to dashboard" });
+    expect(dashboard).toHaveAttribute("href", "/");
+    await waitFor(() => expect(announced).toHaveBeenCalledTimes(1));
+    window.removeEventListener("gst:subscription-changed", announced);
+  });
+
   it("records walking away from checkout", async () => {
     await chooseSmb(ORDER);
     await waitFor(() => expect(checkout).not.toBeNull());
