@@ -65,18 +65,21 @@ connection="$(DATABASE_URL="$DATABASE_URL" python3 - <<'PY'
 import os
 import shlex
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 url = urlsplit(os.environ["DATABASE_URL"])
-database = url.path.lstrip("/")
+# Decoded: a URL carries a password with "@", "/" or "%" in it percent-encoded,
+# and urlsplit hands the parts back still encoded, so PGPASSWORD was "p%40ss"
+# for "p@ss" and every dump failed to authenticate.
+database = unquote(url.path.lstrip("/"))
 if not url.hostname or not database:
     sys.exit("DATABASE_URL names no host or no database")
 
 for name, value in (
     ("PGHOST", url.hostname),
     ("PGPORT", str(url.port or 5432)),
-    ("PGUSER", url.username or ""),
-    ("PGPASSWORD", url.password or ""),
+    ("PGUSER", unquote(url.username or "")),
+    ("PGPASSWORD", unquote(url.password or "")),
     ("PGDATABASE", database),
 ):
     print(f"export {name}={shlex.quote(value)}")

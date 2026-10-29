@@ -26,6 +26,7 @@ from __future__ import annotations
 import os
 import re
 import secrets
+import shlex
 import shutil
 import stat
 import subprocess
@@ -2279,3 +2280,42 @@ class TestAReleaseRestartIsNotACrashLoop:
         # it is for: a unit that keeps crashing on its own.
         api = (DEPLOY / "systemd" / "gstbot-api.service").read_text()
         assert "StartLimitBurst=5" in api and "Restart=always" in api
+
+
+class TestTheBackupReadsAnEncodedPassword:
+    """P25 M2: backup.sh split DATABASE_URL with urlsplit, which returns the
+    user, password and database still percent-encoded, so a password holding
+    "@", "/" or "%" (written p%40ss in the URL) reached pg_dump as the literal
+    p%40ss and every dump, nightly and pre-release, failed to authenticate."""
+
+    def _connection(self, url):
+        script = BACKUP_SCRIPT.read_text()
+        start = script.index("python3 - <<'PY'\n") + len("python3 - <<'PY'\n")
+        body = script[start : script.index("\nPY\n", start)]
+        result = subprocess.run(
+            ["python3", "-c", body],
+            env={**os.environ, "DATABASE_URL": url},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
+        exported = {}
+        for line in result.stdout.splitlines():
+            name, _, value = line.removeprefix("export ").partition("=")
+            exported[name] = shlex.split(value)[0] if value else ""
+        return exported
+
+    def test_the_parts_reach_libpq_decoded(self):
+        env = self._connection("postgresql+psycopg://gst%2Buser:p%40ss%2Fw0rd@db.local:5433/gst%5Fdb")
+        assert env == {
+            "PGHOST": "db.local",
+            "PGPORT": "5433",
+            "PGUSER": "gst+user",
+            "PGPASSWORD": "p@ss/w0rd",
+            "PGDATABASE": "gst_db",
+        }
+
+    def test_a_plain_url_is_unchanged(self):
+        env = self._connection("postgresql://gstbot:secret@172.18.0.1/gstbot")
+        assert (env["PGUSER"], env["PGPASSWORD"], env["PGPORT"]) == ("gstbot", "secret", "5432")
