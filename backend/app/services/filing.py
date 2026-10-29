@@ -1195,8 +1195,9 @@ def build_gstr1(
     * ``b2b`` — supplies to a registered person, grouped by their GSTIN. These
       are what become the buyer's GSTR-2B, which is why the counterparty GSTIN
       has to be right: a typo here is a credit the customer cannot claim.
-    * ``b2cl`` — inter-state supplies to unregistered persons above ₹2.5 lakh,
-      reported invoice by invoice.
+    * ``b2cl`` — inter-state supplies to unregistered persons above ₹1 lakh
+      (₹2.5 lakh for periods before November 2024; see
+      :func:`b2cl_threshold`), reported invoice by invoice.
     * ``b2cs`` — everything else to unregistered persons, summarised by place
       of supply and rate rather than listed.
     * ``hsn`` — the rate-wise summary by HSN, which the portal requires

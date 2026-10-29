@@ -272,9 +272,10 @@ def itc_claim_deadline(moment: date) -> date:
     whichever is earlier" — is deliberately not modelled. GSTR-9 is outside
     what this product handles, so it has no way to know that a business filed
     one in September and brought their own deadline forward. That makes this
-    date the *outer* bound: it is never later than the true one, so an alert
-    raised against it is never raised too late. A business that files GSTR-9
-    early has less time than this says, not more, and the wording says so.
+    date the *outer* bound: the true deadline is never later than it, and is
+    earlier for a business that files GSTR-9 before 30 November. Such a
+    business has less time than this says, not more, and the alert wording
+    says so.
     """
     return date(
         financial_year_end(moment).year,
