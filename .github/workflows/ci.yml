@@ -50,11 +50,19 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
+          cache-dependency-path: |
+            backend/requirements.lock
+            backend/requirements-dev.txt
 
       - name: Install dependencies
+        # The lock first, with its hashes, exactly as deploy.sh installs it, and
+        # the test tools on top: the floors in requirements.txt are already met
+        # by the locked versions, so nothing locked is moved. Installing the
+        # floors alone resolved whatever PyPI had that day (SQLAlchemy 2.1 while
+        # production ran 2.0), so the suite passed on versions no release ran.
         run: |
           python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
           pip install -r requirements-dev.txt
 
       - name: Lint

@@ -295,11 +295,13 @@ tree costs more than the seconds of downtime it removes.
 
 ## Dependencies
 
-`backend/requirements.txt` holds floors (`>=`) and is what CI installs — that
-is deliberate, and it is what makes a Dependabot bump self-verifying. The
-server installs `backend/requirements.lock` instead: the same set resolved to
-exact versions, with hashes, so a release cannot quietly differ from the one
-the suite ran against.
+`backend/requirements.txt` holds floors (`>=`); `backend/requirements.lock` is
+the same set resolved to exact versions, with hashes. The server installs the
+lock, and so does CI, before adding the test tools on top — so a release cannot
+quietly differ from the one the suite ran against. (CI used to install the
+floors alone, which resolved whatever PyPI had that day: the suite ran on
+SQLAlchemy 2.1 while production ran 2.0.) A Dependabot bump to a floor still
+verifies itself: `test_requirements.py` fails until the lock is recompiled.
 
 Recompile the lock on a workstation whenever `requirements.txt` changes, and
 commit both in the same change:

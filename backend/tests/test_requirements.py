@@ -198,3 +198,16 @@ class TestTheLockIsWhatTheServerInstalls:
             if canonicalize_name(source) not in LOCK
         }
         assert dangling == set()
+
+
+def test_ci_tests_the_versions_a_release_installs():
+    """P24 M17: CI installed the floors, which resolved the newest of
+    everything (SQLAlchemy 2.1 while production ran 2.0), so the suite passed
+    on versions no release ever ran. It installs the lock first now, as
+    deploy.sh does, and the test tools on top."""
+    workflow = (BACKEND.parent / ".github" / "workflows" / "ci.yml").read_text()
+    lock = workflow.index("pip install --require-hashes -r requirements.lock")
+    dev = workflow.index("pip install -r requirements-dev.txt")
+    assert lock < dev
+    deploy = (BACKEND.parent / "deploy" / "deploy.sh").read_text()
+    assert '--require-hashes -r "$LOCKFILE"' in deploy
