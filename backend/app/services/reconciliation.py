@@ -1549,6 +1549,29 @@ def store_gstr2b(
             db.delete(existing)
         else:
             existing.soft_delete()
+        # The verdicts the old statement earned are withdrawn with it. Each
+        # purchase's matched / mismatched / missing was judged against the
+        # statement then in force, and they all stood after a new one came in:
+        # a supplier who had since filed was still quoted on the supplier screen
+        # as owing credit at risk, and an invoice they had amended away still
+        # read "matched". Back to parsed, as an edit to a compared field does in
+        # update_invoice; the next run restores whatever the new statement
+        # earns. A duplicate is a finding about the books, not the statement,
+        # and stays.
+        db.execute(
+            update(Invoice)
+            .where(
+                Invoice.business_id == business_id,
+                Invoice.period == period,
+                Invoice.invoice_type == InvoiceType.PURCHASE,
+                Invoice.deleted_at.is_(None),
+                Invoice.status.in_(
+                    (InvoiceStatus.MATCHED, InvoiceStatus.MISMATCHED, InvoiceStatus.MISSING_IN_2B)
+                ),
+            )
+            .values(status=InvoiceStatus.PARSED)
+            .execution_options(synchronize_session=False)
+        )
         db.flush()
 
     totals = summarise_records(records)
