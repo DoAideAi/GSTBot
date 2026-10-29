@@ -363,14 +363,22 @@ class TestAnUploadedStatement:
         ],
         ids=["1e300", "1e20", "infinity", "-infinity", "nan", "forty-digits"],
     )
-    def test_an_amount_no_column_could_hold_is_dropped_not_stored(
+    def test_an_amount_no_column_could_hold_refuses_the_file(
         self, raw_client, auth_client, content
     ):
+        # Not clamped: that invents a figure of ninety-nine thousand crore. And
+        # (P37 M18) not dropped to zero either, which this used to do. A
+        # statement's records have no reviewer, so one bad line in five hundred
+        # became a supplier "declaring" nothing, invisible inside a plausible
+        # total, and reconciliation judged the books against it. Refused, and
+        # nothing stored, so the user downloads the statement again.
         response = self._import(raw_client, auth_client, content)
-        assert response.status_code == 201
-        # Discarded rather than clamped: a zero a reviewer can see is missing
-        # beats a fabricated ninety-nine thousand crore that reconciles.
-        assert Decimal(response.json()["total_taxable_value"]) == Decimal("0.00")
+        assert response.status_code == 422
+        assert "INV-2B-1" in response.json()["detail"]
+        later = raw_client.get(
+            "/api/v1/reconciliation/gstr2b/periods", headers=auth_client.headers
+        )
+        assert PERIOD not in later.text
 
     @pytest.mark.parametrize(
         "content",
@@ -380,7 +388,7 @@ class TestAnUploadedStatement:
     def test_every_later_read_of_that_period_still_answers(
         self, raw_client, auth_client, content
     ):
-        assert self._import(raw_client, auth_client, content).status_code == 201
+        assert self._import(raw_client, auth_client, content).status_code == 422
         assert_every_screen_answers(raw_client, auth_client)
         later = raw_client.get(
             f"/api/v1/reconciliation?period={PERIOD}", headers=auth_client.headers

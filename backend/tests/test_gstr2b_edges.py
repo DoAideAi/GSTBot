@@ -794,3 +794,45 @@ class TestAHalfPairInTheFileIsNotStoredAsWritten:
         assert upload_2b(auth_client, content=json.dumps(payload).encode()).status_code == 201
         run = auth_client.post("/api/v1/reconciliation/run", json={"period": PERIOD})
         assert run.status_code == 201, run.text
+
+
+class TestAnAmountThePortalWouldNeverWriteRefusesTheStatement:
+    """P37 M18: an unreadable amount in a portal statement became zero, silently.
+
+    Every amount went through ``to_money(value) or ZERO``, so text, a bare
+    ``Infinity`` or a figure past the column's ceiling was read as a supplier
+    declaring nothing on that line. No one reviews a statement record by
+    record, so the zero sat inside a plausible total and reconciliation judged
+    the books against it. The portal writes numbers. Anything else means the
+    file was edited or damaged, and the import says so, naming the invoice.
+    Absent amounts are still zero: the portal leaves zero fields out.
+    """
+
+    @staticmethod
+    def _with_item(**item):
+        payload = portal_json()
+        invoice = payload["data"]["docdata"]["b2b"][0]["inv"][0]
+        invoice["items"] = [{"rt": 18, "txval": 1000, "igst": 180, **item}]
+        return payload
+
+    @pytest.mark.parametrize("bad", ["abc", "12,34,5x", float("inf"), 10**20, True])
+    def test_a_value_that_is_not_an_amount_is_refused(self, bad):
+        with pytest.raises(GSTR2BParseError) as caught:
+            parse_json(self._with_item(txval=bad))
+        message = str(caught.value)
+        assert "INV-2026-0042" in message and "txval" in message
+
+    def test_a_bad_invoice_total_is_refused_too(self):
+        payload = self._with_item()
+        payload["data"]["docdata"]["b2b"][0]["inv"][0]["val"] = "N/A"
+        with pytest.raises(GSTR2BParseError, match="val"):
+            parse_json(payload)
+
+    def test_an_absent_or_null_amount_is_still_zero(self):
+        (record,) = parse_json(self._with_item(cgst=None, sgst=""))
+        assert record.cgst == Decimal("0.00") and record.sgst == Decimal("0.00")
+        assert record.igst == Decimal("180")
+
+    def test_an_amount_written_as_a_string_is_still_read(self):
+        (record,) = parse_json(self._with_item(txval="1000.50"))
+        assert record.taxable_value == Decimal("1000.50")

@@ -229,6 +229,39 @@ def _money(value: object) -> Decimal:
     return to_money(value) or ZERO
 
 
+_PLAIN_AMOUNT = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _portal_money(value: object, *, field: str, invoice_number: str | None) -> Decimal:
+    """An amount from the portal's JSON: zero when absent, refused when not one.
+
+    :func:`_money` reads an unreadable value as zero, which suits a hand-made
+    spreadsheet whose blank cells hold "-" or "NIL". The portal's JSON is not
+    hand-made: it writes numbers, and leaves zero amounts out. Text, a bare
+    ``Infinity`` or a figure no money column holds therefore means the file
+    was edited or damaged. Read as zero, it was a supplier declaring nothing
+    on that line, which nobody sees inside a plausible total and which
+    reconciliation then judged the books against. So the statement is
+    refused, naming the invoice and the field, before anything is stored.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return ZERO
+    # A string is read only if it is a plain number. ``to_money`` finds a number
+    # inside text, which an invoice photo needs ("Rs. 1,000") and the portal's
+    # JSON never does: "12,34,5x" was read as 12345.
+    plain = not isinstance(value, str) or _PLAIN_AMOUNT.fullmatch(value.strip())
+    amount = None if isinstance(value, bool) or not plain else to_money(value, default=None)
+    if amount is None:
+        shown = str(value)
+        shown = shown if len(shown) <= 20 else shown[:20] + "…"
+        raise GSTR2BParseError(
+            f"Invoice {_quoted(invoice_number)} has '{shown}' as its {field}, which is "
+            "not an amount the GST portal would write. The file may have been edited "
+            "or damaged; download the GSTR-2B from the portal again and import that."
+        )
+    return amount
+
+
 # ---------------------------------------------------------------------------
 # Portal JSON
 # ---------------------------------------------------------------------------
@@ -470,7 +503,7 @@ def _record_from_document(
             document.get("dt") or document.get("nt_dt") or document.get("ntdt")
         ),
         place_of_supply=str(document.get("pos") or "").strip()[:2] or None,
-        total_value=_money(document.get("val")),
+        total_value=ZERO,
         itc_available=_flag(document.get("itcavl"), default=True),
         reverse_charge=_flag(document.get("rev"), default=False),
         # ``ntty`` is what the note sections carry in the exports built off the
@@ -498,20 +531,25 @@ def _record_from_document(
         or None,
     )
 
+    def amount(source: dict, key: str) -> Decimal:
+        return _portal_money(source.get(key), field=key, invoice_number=record.invoice_number)
+
+    record.total_value = amount(document, "val")
     for item in items:
-        record.taxable_value += _money(item.get("txval"))
-        record.cgst += _money(item.get("cgst"))
-        record.sgst += _money(item.get("sgst"))
-        record.igst += _money(item.get("igst"))
-        record.cess += _money(item.get("cess"))
+        line = {key: amount(item, key) for key in ("txval", "cgst", "sgst", "igst", "cess")}
+        record.taxable_value += line["txval"]
+        record.cgst += line["cgst"]
+        record.sgst += line["sgst"]
+        record.igst += line["igst"]
+        record.cess += line["cess"]
         record.rate_items.append(
             {
                 "rate": str(to_decimal(item.get("rt"), default=None) or ""),
-                "taxable_value": str(_money(item.get("txval"))),
-                "cgst": str(_money(item.get("cgst"))),
-                "sgst": str(_money(item.get("sgst"))),
-                "igst": str(_money(item.get("igst"))),
-                "cess": str(_money(item.get("cess"))),
+                "taxable_value": str(line["txval"]),
+                "cgst": str(line["cgst"]),
+                "sgst": str(line["sgst"]),
+                "igst": str(line["igst"]),
+                "cess": str(line["cess"]),
             }
         )
 
