@@ -235,6 +235,22 @@ frontend_staged=""
 # that then failed stopped the release with the new UI already live against the
 # old API, and a release that went well served that mix for the length of the
 # migration. Called once the migrations are in, just before the restart.
+# The frontend trees belong to root, readable by everyone and writable by no one
+# else, however the build arrived. One uploaded with `rsync -a` keeps its
+# sender's owner when root receives it: production's dist and dist.prev, 2,465
+# files, were owned by uid 501, a developer laptop's user id that names no
+# account on this shared box. Whatever account or container later held that id
+# would own the JavaScript served to every user. Run on every release, so a
+# tree that arrived that way is put right even when nothing is rebuilt.
+own_frontend_trees() {
+    local tree
+    for tree in "$FRONTEND/dist" "$FRONTEND/dist.prev" "$FRONTEND/dist.next"; do
+        [ -d "$tree" ] || continue
+        chown -R root:root "$tree"
+        chmod -R u=rwX,go=rX "$tree"
+    done
+}
+
 publish_frontend() {
     [ -n "$frontend_staged" ] || return 0
     rm -rf "$FRONTEND/dist.prev"
@@ -428,6 +444,7 @@ SERVICES=(gstbot-api.service gstbot-web.service gstbot-worker.service gstbot-bea
 # process, so it names the code that process loaded: an API that failed to
 # restart keeps answering 200 with the previous one, and that is now visible.
 printf '%s\n' "$REVISION" > "$ROOT/backend/.release"
+own_frontend_trees
 publish_frontend
 systemctl reset-failed "${SERVICES[@]}" 2>/dev/null || true
 systemctl restart "${SERVICES[@]}" \

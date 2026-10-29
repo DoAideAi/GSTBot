@@ -3281,3 +3281,59 @@ class TestWhatAKilledBackupLeftBehindIsCleared:
         )
         sweep = commands.index("sweep_abandoned\n")
         assert sweep < commands.index('df -Pm "$DEST"') < commands.index("pg_dump --format=custom")
+
+
+class TestTheServedFrontendBelongsToRoot:
+    """P39 M14: the live site's files belonged to whoever's laptop built them.
+
+    A build made elsewhere is uploaded with ``rsync -a`` and staged as it
+    arrived, and rsync run as root on the receiving end keeps the sender's
+    owner. Production's frontend/dist and dist.prev, 2,465 files, were owned
+    by uid 501, a developer machine's user id that names no account on this
+    shared box today. Any account later given that id, or a container
+    process running as it, would own the JavaScript served to every user.
+    Every release now gives the frontend trees to root, readable by all and
+    writable by no one else, whether the build was uploaded or made here.
+    """
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _function(self):
+        start = self.SCRIPT.index("own_frontend_trees() {")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def test_each_tree_present_is_given_to_root_and_closed_to_writers(self, tmp_path):
+        frontend = tmp_path / "frontend"
+        for tree in ("dist", "dist.next"):
+            (frontend / tree / "assets").mkdir(parents=True)
+            asset = frontend / tree / "assets" / "app.js"
+            asset.write_text("x")
+            asset.chmod(0o666)
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        record = tmp_path / "chown.log"
+        (bin_dir / "chown").write_text(f'#!/bin/sh\necho "$@" >> "{record}"\n')
+        (bin_dir / "chown").chmod(0o755)
+
+        run = subprocess.run(
+            ["bash", "-c", f'set -euo pipefail\nFRONTEND="{frontend}"\n' + self._function()
+             + "own_frontend_trees"],
+            capture_output=True, text=True, timeout=20,
+            env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        )
+
+        assert run.returncode == 0, run.stderr
+        calls = record.read_text().splitlines()
+        assert sorted(calls) == sorted(
+            [f"-R root:root {frontend / 'dist'}", f"-R root:root {frontend / 'dist.next'}"]
+        )
+        # dist.prev was absent and is not invented; group and others lose write.
+        assert not (frontend / "dist.prev").exists()
+        assert stat.S_IMODE((frontend / "dist" / "assets" / "app.js").stat().st_mode) == 0o644
+
+    def test_every_release_runs_it_before_the_site_is_published(self):
+        commands = "\n".join(
+            line for line in self.SCRIPT.splitlines() if not line.lstrip().startswith("#")
+        )
+        assert "own_frontend_trees\n" in commands
+        assert commands.index("own_frontend_trees\n") < commands.index("publish_frontend\n")
