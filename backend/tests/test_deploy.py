@@ -2591,3 +2591,53 @@ class TestTheNewFrontendWaitsForTheMigration:
         assert (frontend / "dist" / "index.html").read_text() == "new"
         assert (frontend / "dist.prev" / "index.html").read_text() == "old"
         assert not (frontend / "dist.next").exists()
+
+
+class TestRestorePointsAreThinnedNotJustAged:
+    """P30 M7: every release takes a restore point, and retention was age alone.
+
+    backup.sh pruned dumps older than RETENTION_DAYS and nothing else, so the
+    count was set by how often anyone deployed: 162 dumps on the box after a
+    day of releases, a run of identical ones per hour. Tiny while the database
+    is, and a full disk — which fails the backup, which stops every release
+    before it migrates — once it is not. Capping the count instead would let a
+    burst of releases delete the nightly dumps a late-noticed problem needs.
+    """
+
+    SCRIPT = BACKUP_SCRIPT.read_text()
+
+    def _thin(self):
+        start = self.SCRIPT.index("thin_dumps() {")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def _dump(self, directory, stamp, age_hours):
+        import os
+        import time
+
+        path = directory / f"gstbot-{stamp}.dump"
+        path.write_text(stamp)
+        when = time.time() - age_hours * 3600
+        os.utime(path, (when, when))
+        return path.name
+
+    def test_older_dumps_keep_the_newest_of_each_day_and_today_keeps_all(self, tmp_path):
+        today = [self._dump(tmp_path, f"20261029T1{n}0000Z", 1 + n) for n in range(3)]
+        three_days = [
+            self._dump(tmp_path, "20261026T024000Z", 80),
+            self._dump(tmp_path, "20261026T133700Z", 74),
+            self._dump(tmp_path, "20261026T142200Z", 73),
+        ]
+        five_days = [self._dump(tmp_path, "20261024T024100Z", 122)]
+
+        run = subprocess.run(
+            ["bash", "-c", f'set -euo pipefail\nDEST="{tmp_path}"\n' + self._thin() + "thin_dumps"],
+            capture_output=True, text=True, timeout=20,
+        )
+
+        assert run.returncode == 0, run.stderr
+        left = sorted(p.name for p in tmp_path.iterdir())
+        assert left == sorted([*today, three_days[-1], *five_days])
+
+    def test_thinning_runs_after_a_verified_dump(self):
+        verified = self.SCRIPT.index('mv "$partial" "$target"')
+        assert verified < self.SCRIPT.index("\nthin_dumps\n")

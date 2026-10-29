@@ -129,5 +129,29 @@ log "Wrote $target ($(du -h "$target" | cut -f1))"
 find "$DEST" -maxdepth 1 -type f -name '*.dump' -mtime "+$RETENTION_DAYS" -print -delete \
     | sed 's/^/Pruned /'
 
+# Every release takes a restore point as well as the nightly run, so age alone
+# let the count follow how often anyone deployed — 162 dumps after one busy
+# day, mostly identical. Past a day old only one a day is worth keeping: the
+# newest of that day. Within the last day every one stays, since the latest
+# release's restore point is the one a rollback reaches for. Thinning rather
+# than a count cap, which a burst of releases would turn into deleting the
+# nightly dumps a problem noticed late needs. Names carry a UTC stamp, so they
+# sort in time order without anything GNU-only.
+thin_dumps() {
+    local path name day previous=""
+    find "$DEST" -maxdepth 1 -type f -name '*.dump' -mtime +0 | sort -r |
+    while IFS= read -r path; do
+        name="${path##*/}"
+        day="$(printf '%s\n' "$name" | sed -nE 's/.*-([0-9]{8})T[0-9]{6}Z\.dump$/\1/p')"
+        [ -n "$day" ] || continue
+        if [ "$day" = "$previous" ]; then
+            rm -f -- "$path"
+            echo "Thinned $name"
+        fi
+        previous="$day"
+    done
+}
+thin_dumps
+
 kept="$(find "$DEST" -maxdepth 1 -type f -name '*.dump' | wc -l)"
 log "$kept dump(s) in $DEST, keeping ${RETENTION_DAYS} days"
