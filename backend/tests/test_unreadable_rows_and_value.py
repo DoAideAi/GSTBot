@@ -18,7 +18,7 @@ which one is wrong.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
 import pytest
@@ -342,3 +342,84 @@ class TestReverseChargeOnTheDocument:
 
         assert summary.available.total == Decimal("18000.00")
         assert summary.reverse_charge.invoice_count == 0
+
+
+# ---------------------------------------------------------------------------
+# A row with no period is not missing from every period's validation
+# ---------------------------------------------------------------------------
+
+class TestRowsWithNoPeriod:
+    """A row's period comes from a date the extraction read.
+
+    A fresh upload, a failed extraction and a parse that found no date all sit
+    at ``period IS NULL``, and validation selected by ``period ==``. A month
+    whose only failed sales extraction was its first parse came back ``ok``,
+    with that supply missing from the GSTR-1.
+    """
+
+    def _undated(self, db, business, *, status, uploaded_on, number="S-ND-1"):
+        invoice = Invoice(
+            business_id=business.id,
+            invoice_type=InvoiceType.SALES,
+            status=status,
+            invoice_number=number,
+            taxable_value=Decimal("10000.00"),
+            igst=Decimal("1800.00"),
+            total_value=Decimal("11800.00"),
+            parse_error="unreadable scan" if status is InvoiceStatus.FAILED else None,
+            created_at=datetime.combine(uploaded_on, time(12), tzinfo=UTC),
+        )
+        db.add(invoice)
+        db.commit()
+        return invoice
+
+    def _issues(self, db, business, period=PERIOD):
+        report = filing_service.validate_period(db, business, period)
+        return report, {issue.invoice_id: issue for issue in report.issues}
+
+    @pytest.mark.parametrize(
+        "status", [InvoiceStatus.FAILED, InvoiceStatus.UPLOADED, InvoiceStatus.PROCESSING]
+    )
+    def test_an_unread_upload_blocks_the_month_it_arrived_in(self, db_session, business, status):
+        row = self._undated(db_session, business, status=status, uploaded_on=date(2026, 4, 20))
+        report, issues = self._issues(db_session, business)
+        assert not report.ok
+        assert issues[row.id].field == "status"
+
+    def test_october_bills_uploaded_in_november_block_october(self, db_session, business):
+        # The usual order: a month's invoices arrive after it ends, before the 11th.
+        row = self._undated(
+            db_session, business, status=InvoiceStatus.FAILED, uploaded_on=date(2026, 5, 2)
+        )
+        report, issues = self._issues(db_session, business)
+        assert not report.ok and row.id in issues
+
+    def test_a_month_that_began_after_the_upload_is_not_blocked(self, db_session, business):
+        self._undated(
+            db_session, business, status=InvoiceStatus.FAILED, uploaded_on=date(2026, 3, 30)
+        )
+        report, _ = self._issues(db_session, business)
+        assert report.ok
+
+    def test_a_read_invoice_with_no_date_says_to_enter_the_date(self, db_session, business):
+        row = self._undated(
+            db_session, business, status=InvoiceStatus.PARSED, uploaded_on=date(2026, 4, 20)
+        )
+        report, issues = self._issues(db_session, business)
+        assert not report.ok
+        assert "Enter its date" in issues[row.id].message
+
+    def test_through_the_api(self, auth_client, db_session, business):
+        self._undated(
+            db_session, business, status=InvoiceStatus.FAILED, uploaded_on=date(2026, 4, 20)
+        )
+        body = auth_client.get(f"/api/v1/filing/validate?period={PERIOD}").json()
+        assert body["ok"] is False
+        assert "unreadable scan" in body["issues"][0]["message"]
+
+    def test_a_dated_row_of_another_month_is_still_not_named(self, db_session, business):
+        other = sale(db_session, business.id, number="S-MAY", status=InvoiceStatus.FAILED)
+        other.period = "2026-05"
+        db_session.commit()
+        report, _ = self._issues(db_session, business)
+        assert report.ok

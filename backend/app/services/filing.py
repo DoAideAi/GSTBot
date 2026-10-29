@@ -28,11 +28,11 @@ import io
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer
 
@@ -499,6 +499,12 @@ def _unreadable_issue(invoice: Invoice) -> ValidationIssue:
             "same supplier and number. It is left out of the return to avoid "
             "double-declaring the supply. Correct the identifying fields or delete it."
         )
+    elif invoice.status not in UNCOUNTABLE_STATUSES:
+        # Read, but with no date: it is in no period, so in no return.
+        message = (
+            "No invoice date could be read, so this invoice is in no period and "
+            "is left out of every return. Enter its date."
+        )
     elif invoice.status is InvoiceStatus.FAILED:
         reason = invoice.parse_error or "the extraction gave up"
         message = (
@@ -947,7 +953,25 @@ def _invoices(
 def _unreadable_invoices(
     db: Session, business_id: int, period: str, invoice_type: InvoiceType
 ) -> list[Invoice]:
-    """The rows :func:`_invoices` leaves out, so validation can name them."""
+    """The rows :func:`_invoices` leaves out, so validation can name them.
+
+    Including the ones that have no period at all. A row only gets one from a
+    date the extraction read, so a fresh upload, a failed extraction and a
+    parse that found no date all sit at ``period IS NULL`` — and a filter on
+    ``period ==`` never saw them. The case :func:`validate_period` exists to
+    catch, a month whose failed sales extraction is missing from GSTR-1, was
+    therefore answered ``ok: true`` whenever the failure was the first parse,
+    which is when it nearly always is: it only reached rows that had held a
+    period before.
+
+    Such a row could belong to any month up to the day it was uploaded, so it
+    is named against every period that had begun by then — the October bills
+    uploaded on 2 November block October — and against none that started after
+    it arrived.
+    """
+    opened = datetime.combine(
+        gst_calendar.period_start(period), time(), tzinfo=gst_calendar.IST
+    ).astimezone(UTC)
     return list(
         db.scalars(
             select(Invoice)
@@ -956,8 +980,13 @@ def _unreadable_invoices(
                 Invoice.business_id == business_id,
                 Invoice.deleted_at.is_(None),
                 Invoice.invoice_type == invoice_type,
-                Invoice.period == period,
-                Invoice.status.in_(UNCOUNTABLE_STATUSES),
+                or_(
+                    and_(
+                        Invoice.period == period,
+                        Invoice.status.in_(UNCOUNTABLE_STATUSES),
+                    ),
+                    and_(Invoice.period.is_(None), Invoice.created_at >= opened),
+                ),
             )
             .order_by(Invoice.id.asc())
         ).all()
