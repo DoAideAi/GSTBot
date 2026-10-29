@@ -157,29 +157,38 @@ def release_orphaned_duplicate(
     verdict, because no run has judged it on its own: the next one will.
     """
     key = normalize_invoice_number(invoice_number)
-    gstin = (counterparty_gstin or "").upper()
-    if not key and not gstin:
+    if not key and not counterparty_gstin:
         # The same both-blank rule ``match`` applies: no identity, no duplicate.
         return None
+    # Three columns, not the row, and the stored GSTIN compared as stored. A
+    # GSTIN only reaches the column through ``gstin.parse`` or the parser, both
+    # canonical, so the value passed in — read off a row — is already in the
+    # column's form; wrapping the column in ``upper()`` instead kept the
+    # (business, type, GSTIN, number) index from narrowing past the type, and
+    # loading whole rows carried every one of a supplier's OCR texts and
+    # extractions off the database on each delete, to compare one string.
+    same_party = (
+        Invoice.counterparty_gstin == counterparty_gstin
+        if counterparty_gstin
+        else Invoice.counterparty_gstin.is_(None)
+    )
     candidates = [
-        invoice
-        for invoice in db.scalars(
-            select(Invoice)
+        row
+        for row in db.execute(
+            select(Invoice.id, Invoice.invoice_number, Invoice.status)
             .where(
                 Invoice.business_id == business_id,
                 Invoice.invoice_type == invoice_type,
+                same_party,
                 Invoice.deleted_at.is_(None),
-                func.upper(func.coalesce(Invoice.counterparty_gstin, "")) == gstin,
             )
             .order_by(Invoice.id)
         )
-        if normalize_invoice_number(invoice.invoice_number) == key
+        if normalize_invoice_number(row.invoice_number) == key
     ]
-    if not candidates or any(
-        invoice.status is not InvoiceStatus.DUPLICATE for invoice in candidates
-    ):
+    if not candidates or any(row.status is not InvoiceStatus.DUPLICATE for row in candidates):
         return None
-    heir = candidates[0]
+    heir = db.get(Invoice, candidates[0].id)
     heir.status = InvoiceStatus.PARSED
     return heir
 

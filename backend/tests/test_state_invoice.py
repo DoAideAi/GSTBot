@@ -447,3 +447,46 @@ class TestDuplicateReleasedWhenItsOriginalLeaves:
         assert resp.status_code == 200, resp.text
         db_session.refresh(copy)
         assert copy.status == InvoiceStatus.DUPLICATE
+
+
+class TestDuplicateReleaseReadsOnlyWhatItCompares:
+    """Every delete runs this over all of a supplier's invoices.
+
+    It loaded them whole — OCR text and extraction included, tens of kilobytes
+    a row — to compare a number, and wrapped the GSTIN column in ``upper()``,
+    which kept the (business, type, GSTIN, number) index from narrowing to the
+    supplier.
+    """
+
+    def test_the_candidate_read_is_three_columns_on_the_bare_gstin(
+        self, auth_client, db_session, business
+    ):
+        from sqlalchemy import event
+
+        original = _upload(db_session, business, number="INV-SM-1", status=InvoiceStatus.MATCHED)
+        copy = _upload(db_session, business, number="INV/SM/01", status=InvoiceStatus.DUPLICATE)
+        engine = db_session.get_bind()
+        statements: list[str] = []
+
+        def record(_conn, _cursor, statement, *_args):
+            statements.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            assert auth_client.delete(f"/api/v1/invoices/{original.id}").status_code == 204
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+
+        db_session.refresh(copy)
+        assert copy.status == InvoiceStatus.PARSED  # still does its job
+        reads = [
+            sql for sql in statements
+            if sql.lstrip().upper().startswith("SELECT")
+            and "FROM invoices" in sql
+            and "ORDER BY invoices.id" in sql
+        ]
+        assert reads, statements
+        for sql in reads:
+            selected = sql.split("FROM", 1)[0]
+            assert "raw_text" not in selected and "extraction" not in selected, sql
+            assert "upper(" not in sql.lower(), sql
