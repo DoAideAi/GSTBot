@@ -106,3 +106,46 @@ class TestAParseThatFoundADuplicate:
         assert line.business_id == business.id
         assert line.duplicate_of == first["id"]
         assert line.status == InvoiceStatus.FAILED.value
+
+
+class TestAParseOvertakenByAnEdit:
+    """P24 M8: invoice_parse_superseded was counted but not one of the known
+    metrics events, and count() raises on an unknown name. So every parse
+    an edit had overtaken, which is a correct outcome, was caught as a failure:
+    logged at ERROR with a traceback and counted as invoice_parse_failed."""
+
+    def test_it_is_logged_as_superseded_not_as_a_failure(
+        self, auth_client, monkeypatch, caplog
+    ):
+        counted = []
+        monkeypatch.setattr(invoice_service, "_still_processing", lambda db, invoice_id: False)
+        monkeypatch.setattr(invoice_service.metrics, "get_redis", lambda: None)
+        real_count = invoice_service.metrics.count
+        monkeypatch.setattr(
+            invoice_service.metrics,
+            "count",
+            lambda event, n=1, **kw: (counted.append(event), real_count(event, n, **kw)),
+        )
+        with caplog.at_level(logging.INFO, logger=_LOGGER):
+            upload(auth_client, invoice_text(), name="overtaken.txt")
+        messages = [r.getMessage() for r in caplog.records if r.name == _LOGGER]
+        assert any("changed while it was parsed" in m for m in messages)
+        assert not [r for r in caplog.records if r.name == _LOGGER and r.levelno >= logging.ERROR]
+        assert counted == ["invoice_parse_superseded"]
+
+
+def test_every_counted_event_is_a_known_one():
+    """The guard in count() only fires when the line runs; this reads them all."""
+    import re
+    from pathlib import Path
+
+    from app.core import metrics
+
+    app_dir = Path(metrics.__file__).parents[1]
+    named = {
+        match.group(1)
+        for path in app_dir.rglob("*.py")
+        for match in re.finditer(r'metrics\.count\(\s*"([a-z_]+)"', path.read_text())
+    }
+    assert named, "found no metrics.count calls to check"
+    assert named <= set(metrics.EVENTS), named - set(metrics.EVENTS)

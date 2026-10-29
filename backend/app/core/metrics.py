@@ -48,6 +48,11 @@ EVENTS = (
     "invoice_duplicate",
     "invoice_parse_failed",
     "invoice_parse_stalled",
+    # An edit or a delete landed while the model was reading, so the
+    # extraction was thrown away. It was missing here, and ``count`` raises on
+    # an unknown name: every one of these was logged as "failed to parse",
+    # with a traceback, and counted as invoice_parse_failed.
+    "invoice_parse_superseded",
 )
 
 
