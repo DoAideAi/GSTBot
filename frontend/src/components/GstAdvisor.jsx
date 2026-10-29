@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useExclusivePanel } from "../lib/floatingLayout";
 import { advisorErrorMessage, streamAdvisor } from "../lib/advisor";
 import { formatMarkdown } from "../lib/format";
@@ -22,6 +22,29 @@ export default function GstAdvisor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const bodyRef = useRef(null);
+  const inputRef = useRef(null);
+  const launcherRef = useRef(null);
+  const wasOpen = useRef(false);
+
+  // Focus follows the panel. The launcher is unmounted when the panel opens
+  // and the close button when it closes, so focus fell to <body> both ways and
+  // a keyboard user had to tab the whole page to find either one. Escape
+  // closes it, as it does the feedback form beside it. Nothing moves on the
+  // first render: the launcher is on every page and must not steal focus.
+  useEffect(() => {
+    if (open) {
+      inputRef.current?.focus();
+      const onKeyDown = (e) => {
+        if (e.key === "Escape") setOpen(false);
+      };
+      document.addEventListener("keydown", onKeyDown);
+      wasOpen.current = true;
+      return () => document.removeEventListener("keydown", onKeyDown);
+    }
+    if (wasOpen.current) launcherRef.current?.focus();
+    wasOpen.current = false;
+    return undefined;
+  }, [open]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -96,6 +119,7 @@ export default function GstAdvisor() {
     <>
       {!open && (
         <button
+          ref={launcherRef}
           type="button"
           className="advisor-float"
           onClick={() => { setOpen(true); track("advisor_open"); }}
@@ -127,7 +151,15 @@ export default function GstAdvisor() {
               ×
             </button>
           </div>
-          <div className="advisor-body" ref={bodyRef}>
+          {/* A log: each answer is read out as it streams in, which a screen
+              reader user otherwise only learnt of by going looking. */}
+          <div
+            className="advisor-body"
+            ref={bodyRef}
+            role="log"
+            aria-live="polite"
+            aria-label="Conversation"
+          >
             {messages.length === 0 && (
               <div className="advisor-welcome">
                 <p className="advisor-welcome-title">Ask me anything about GST</p>
@@ -160,15 +192,16 @@ export default function GstAdvisor() {
             ))}
             {loading && (messages.length === 0 || messages[messages.length - 1].role !== "assistant") && (
               <div className="advisor-msg advisor-msg-assistant">
-                <div className="advisor-typing" aria-label="Thinking">
+                <div className="advisor-typing" role="status" aria-label="Thinking">
                   <span /><span /><span />
                 </div>
               </div>
             )}
-            {error && <div className="advisor-error">{error}</div>}
+            {error && <div className="advisor-error" role="alert">{error}</div>}
           </div>
           <div className="advisor-footer">
             <textarea
+              ref={inputRef}
               className="advisor-input"
               aria-label="Your GST question"
               placeholder="Ask a GST question..."
