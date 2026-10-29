@@ -152,11 +152,13 @@ def _openrouter_breaker_closed():
     otherwise open it for every test after, which would then never reach the
     transport they script.
     """
-    from app.services import openrouter_client
+    from app.services import email_sender, openrouter_client
 
     openrouter_client.reset_breaker()
+    email_sender.reset_breaker()
     yield
     openrouter_client.reset_breaker()
+    email_sender.reset_breaker()
 
 
 @pytest.fixture()

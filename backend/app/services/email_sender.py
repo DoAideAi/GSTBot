@@ -35,6 +35,7 @@ import logging
 import random
 import re
 import smtplib
+import threading
 import time
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -136,6 +137,68 @@ def _transient_code(code: object) -> bool:
         return False
 
 
+# The circuit breaker. Every send retried a transient failure up to
+# smtp_max_attempts times, each attempt with its own connection timeout, and
+# nothing carried the relay's state from one send to the next — so with the
+# relay down a reminder run paid that whole cost per subscriber until the
+# worker's time limit killed it, and its retry paid it again. After
+# BREAKER_THRESHOLD sends in a row fail because the relay is unreachable, sends
+# fail at once with EmailSendError — which every caller already handles, and
+# which leaves the row for the next run — for BREAKER_COOLDOWN_SECONDS, and then
+# one probe is let through. A refusal of a recipient or of the message is the
+# relay answering, and resets the count. Per process, like the other breakers.
+BREAKER_THRESHOLD = 3
+BREAKER_COOLDOWN_SECONDS = 300.0
+_breaker_lock = threading.Lock()
+_breaker = {"failures": 0, "open_until": 0.0, "probing": False}
+
+
+def _monotonic() -> float:
+    return time.monotonic()
+
+
+def reset_breaker() -> None:
+    """Close the breaker. For tests, which must not inherit another's outage."""
+    with _breaker_lock:
+        _breaker.update(failures=0, open_until=0.0, probing=False)
+
+
+def _breaker_refuses() -> bool:
+    with _breaker_lock:
+        if not _breaker["open_until"]:
+            return False
+        if _monotonic() < _breaker["open_until"] or _breaker["probing"]:
+            return True
+        _breaker["probing"] = True
+        return False
+
+
+def _relay_answered() -> None:
+    with _breaker_lock:
+        _breaker.update(failures=0, open_until=0.0, probing=False)
+
+
+def _relay_unavailable() -> None:
+    with _breaker_lock:
+        _breaker["failures"] += 1
+        was_open = bool(_breaker["open_until"])
+        _breaker["probing"] = False
+        if _breaker["failures"] >= BREAKER_THRESHOLD:
+            _breaker["open_until"] = _monotonic() + BREAKER_COOLDOWN_SECONDS
+            if not was_open:
+                logger.warning(
+                    "Mail relay unavailable for %s sends in a row; not trying it for %ss",
+                    _breaker["failures"],
+                    BREAKER_COOLDOWN_SECONDS,
+                    extra={"failures": _breaker["failures"]},
+                )
+
+
+def _relay_is_down(exc: BaseException) -> bool:
+    """A failure about the relay rather than this message or its recipient."""
+    return _is_transient(exc) and not isinstance(exc, smtplib.SMTPRecipientsRefused)
+
+
 def _deliver(message: EmailMessage) -> None:
     """One attempt: connect, upgrade, authenticate, send. Raises smtplib's own."""
     # Not ``with smtplib.SMTP(...)``: its ``__exit__`` sends QUIT and raises
@@ -197,6 +260,11 @@ def send_email(
     exception raised after the last one is the failure that kept happening,
     not a generic "gave up", so the log line names the relay's own words.
     """
+    if _breaker_refuses():
+        raise EmailSendError(
+            "the mail relay is unavailable; not trying it again until the breaker's "
+            f"{BREAKER_COOLDOWN_SECONDS:.0f}s cooldown has passed"
+        )
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = settings.smtp_from_address
@@ -247,6 +315,10 @@ def send_email(
                 # character in the traceback the caller logs.
                 raise failure from None
             if attempt == attempts or not _is_transient(exc):
+                if _relay_is_down(exc):
+                    _relay_unavailable()
+                else:
+                    _relay_answered()
                 raise failure from exc
 
             delay = _BACKOFF_BASE_SECONDS * 2 ** (attempt - 1) + _jitter()
@@ -266,6 +338,8 @@ def send_email(
                         "budget_seconds": budget,
                     },
                 )
+                if _relay_is_down(exc):
+                    _relay_unavailable()
                 raise failure from exc
 
             logger.info(
@@ -279,6 +353,7 @@ def send_email(
             _sleep(delay)
             waited += delay
         else:
+            _relay_answered()
             logger.info(
                 "Email delivered",
                 extra={"attempt": attempt, "attempts": attempts},
