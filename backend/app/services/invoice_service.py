@@ -293,11 +293,17 @@ def find_duplicate(
     invoice_type: InvoiceType | None = None,
     counterparty_gstin: str | None = None,
     invoice_number: str | None = None,
+    excluding_id: int | None = None,
 ) -> Invoice | None:
     """An existing invoice that this upload would duplicate, if any.
 
     Two ways to be a duplicate, checked in this order: the identical file
     (same SHA-256), or the same invoice number from the same counterparty.
+    The number is compared without regard to case: a supplier's number is
+    unique in a financial year (Rule 46) whatever its case, and "INV-1" and
+    "inv-1" from one supplier were stored as two invoices and credited twice.
+    *excluding_id* leaves out the invoice being checked, so its own row can
+    never stand in front of a real clash.
     """
     if digest:
         existing = db.scalar(
@@ -310,15 +316,16 @@ def find_duplicate(
         if existing:
             return existing
     if invoice_type and counterparty_gstin and invoice_number:
-        return db.scalar(
-            select(Invoice).where(
-                Invoice.business_id == business_id,
-                Invoice.invoice_type == invoice_type,
-                Invoice.counterparty_gstin == counterparty_gstin,
-                Invoice.invoice_number == invoice_number,
-                Invoice.deleted_at.is_(None),
-            )
+        query = select(Invoice).where(
+            Invoice.business_id == business_id,
+            Invoice.invoice_type == invoice_type,
+            Invoice.counterparty_gstin == counterparty_gstin,
+            func.upper(Invoice.invoice_number) == invoice_number.upper(),
+            Invoice.deleted_at.is_(None),
         )
+        if excluding_id is not None:
+            query = query.where(Invoice.id != excluding_id)
+        return db.scalar(query.order_by(Invoice.id).limit(1))
     return None
 
 
@@ -713,6 +720,20 @@ def process_invoice(
             )
             if clash is not None:
                 raise SalesNumberTaken(clash)
+        elif counterparty and number:
+            # The unique index below catches the same number exactly as typed.
+            # The same number in another case is the same invoice, and only a
+            # case-blind check can see it.
+            clash = find_duplicate(
+                db,
+                business_id,
+                invoice_type=invoice.invoice_type,
+                counterparty_gstin=counterparty,
+                invoice_number=number,
+                excluding_id=invoice.id,
+            )
+            if clash is not None:
+                raise SalesNumberTaken(clash)
         db.commit()
         # The success line. Until this existed a parse that worked left no
         # trace at all — the task's return value goes to a result backend
@@ -730,8 +751,9 @@ def process_invoice(
             metrics.count("invoice_parsed_heuristic")
     except SalesNumberTaken as exc:
         # This business's own invoice number, already used by another sale
-        # this financial year: the same sale scanned twice. Handled as the
-        # indexed duplicate below is, with the clash already in hand.
+        # this financial year, or a purchase's number already on file from the
+        # same supplier in another case: the same document twice. Handled as
+        # the indexed duplicate below is, with the clash already in hand.
         db.rollback()
         _record_failure(db, invoice.id, _duplicate_message(number, exc.existing))
         logger.info(
@@ -891,7 +913,8 @@ def sales_number_clash(
         Invoice.business_id == business_id,
         Invoice.invoice_type == InvoiceType.SALES,
         Invoice.deleted_at.is_(None),
-        Invoice.invoice_number == number,
+        # Case-blind, as a supplier's number is (see find_duplicate).
+        func.upper(Invoice.invoice_number) == number.upper(),
         Invoice.invoice_date.between(year_start, year_end),
         # A row whose figures were never read is not a sale on file.
         Invoice.status.not_in(UNREADABLE_STATUSES),

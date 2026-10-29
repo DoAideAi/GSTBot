@@ -131,3 +131,67 @@ class TestPatchIdentityFieldWithdrawsDuplicate:
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == InvoiceStatus.PARSED.value
+
+
+class TestTheSameNumberInAnotherCaseIsTheSameInvoice:
+    """P39 M12: "INV-1" and "inv-1" from one supplier were two invoices.
+
+    A supplier's invoice number is unique within a financial year (Rule 46),
+    whatever its case. The guard against booking a document twice was the
+    unique index on (business, type, supplier GSTIN, number), which compares
+    the number exactly as typed, and the sales check compared it the same way.
+    The same purchase scanned once from a PDF and once typed in lower case was
+    stored twice, and the ITC summary claimed its credit twice until a
+    reconciliation happened to mark one a duplicate. A number that differs
+    only in case is now the invoice already on file, at every door.
+    """
+
+    def _sale_text(self, number):
+        return _invoice_text(number).replace(
+            f"GSTIN: {SUPPLIER_GSTIN_OTHER_STATE}", f"GSTIN: {BUSINESS_GSTIN}", 1
+        ).replace(f"Bill To:\nUMANG TRADERS\nGSTIN: {BUSINESS_GSTIN}",
+                  f"Bill To:\nACME\nGSTIN: {SUPPLIER_GSTIN_SAME_STATE}")
+
+    def test_a_purchase_repeated_in_another_case_is_refused(self, auth_client, db_session):
+        first = _upload(auth_client, _invoice_text("INV-2026-0042"), name="a.txt")
+        again = _upload(auth_client, _invoice_text("inv-2026-0042"), name="b.txt")
+
+        assert first.json()["invoice"]["status"] == "parsed"
+        repeat = db_session.get(Invoice, again.json()["invoice"]["id"])
+        assert repeat.status is InvoiceStatus.FAILED
+        assert "already on file" in (repeat.parse_error or "")
+
+    def test_its_credit_is_claimed_once(self, auth_client, paid_business):
+        _upload(auth_client, _invoice_text("INV-2026-0042"), name="a.txt")
+        _upload(auth_client, _invoice_text("inv-2026-0042"), name="b.txt")
+
+        itc = auth_client.get("/api/v1/itc?period=2026-04").json()
+        assert itc["available"]["igst"] == "18000.00"
+
+    def test_a_sale_repeated_in_another_case_is_refused(self, auth_client, db_session):
+        first = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("s1.txt", self._sale_text("S-77").encode(), "text/plain")},
+            data={"invoice_type": "sales"},
+        )
+        again = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": ("s2.txt", self._sale_text("s-77").encode(), "text/plain")},
+            data={"invoice_type": "sales"},
+        )
+        assert first.json()["invoice"]["status"] != "failed"
+        repeat = db_session.get(Invoice, again.json()["invoice"]["id"])
+        assert repeat.status is InvoiceStatus.FAILED
+
+    def test_a_correction_onto_another_invoice_in_another_case_is_refused(self, auth_client):
+        _upload(auth_client, _invoice_text("INV-1"), name="a.txt")
+        other = _upload(auth_client, _invoice_text("INV-2"), name="b.txt").json()["invoice"]["id"]
+
+        response = auth_client.patch(f"/api/v1/invoices/{other}", json={"invoice_number": "inv-1"})
+        assert response.status_code == 409
+
+    def test_correcting_only_the_case_of_its_own_number_is_allowed(self, auth_client):
+        mine = _upload(auth_client, _invoice_text("INV-9"), name="a.txt").json()["invoice"]["id"]
+
+        response = auth_client.patch(f"/api/v1/invoices/{mine}", json={"invoice_number": "inv-9"})
+        assert response.status_code == 200, response.text

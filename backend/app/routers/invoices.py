@@ -855,8 +855,9 @@ def update_invoice(
             invoice_type=invoice.invoice_type,
             counterparty_gstin=counterparty,
             invoice_number=number,
+            excluding_id=invoice.id,
         )
-        if clash is not None and clash.id != invoice.id:
+        if clash is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
