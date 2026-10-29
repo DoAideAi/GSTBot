@@ -671,3 +671,49 @@ class TestAnUnusualReplyStillSerialises:
         response = self._ask(client, body)
         assert response.status_code == 200
         assert len(response.json()["reply"]) == MAX_REPLY_CHARS
+
+
+class TestAStreamThatWillNotStop:
+    """P22 M5: the per-chunk read timeout never trips for an upstream that keeps
+    sending, and the stream had no other bound — a whole reply was capped at
+    MAX_REPLY_CHARS, a streamed one relayed every chunk for as long as they
+    came."""
+
+    def _stream(self, client, response_obj):
+        async def fake_send(self, req, *, stream=False):
+            return response_obj
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            return client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
+
+    def test_the_text_sent_is_capped_like_a_whole_reply(self, client):
+        from app.routers import advisor
+
+        chunk = "x" * 1000
+        count = advisor.MAX_REPLY_CHARS // 1000 + 20
+        events = _events(self._stream(client, _FakeStreamResponse(200, _sse_body([chunk] * count))))
+        sent = "".join(e.get("t", "") for e in events)
+        assert len(sent) == advisor.MAX_REPLY_CHARS
+        assert events[-1] == {"done": True}
+
+    def test_lines_carrying_no_text_are_bounded_too(self, client, monkeypatch):
+        from app.routers import advisor
+
+        monkeypatch.setattr(advisor, "_MAX_STREAM_RAW_CHARS", 5_000)
+        body = _sse_body(["first "]) + b": keepalive " + b"y" * 200 + b"\n" * 1
+        body += (b": " + b"z" * 200 + b"\n") * 100  # comments, no data, forever
+        events = _events(self._stream(client, _FakeStreamResponse(200, body)))
+        assert events[0] == {"t": "first "}
+        assert "error" in events[-1] and "cut off" in events[-1]["error"]
+
+    def test_a_stream_past_its_deadline_is_ended(self, client, monkeypatch):
+        from app.routers import advisor
+
+        monkeypatch.setattr(advisor, "_STREAM_DEADLINE_S", -1.0)
+        events = _events(self._stream(client, _FakeStreamResponse(200, _sse_body(["late"]))))
+        assert events == [
+            {"error": "The AI advisor could not answer just now. Try again in a minute."}
+        ]

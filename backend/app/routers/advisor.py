@@ -409,6 +409,15 @@ def _reply_text(data: object) -> str | None:
 
 _STREAM_TIMEOUT = httpx.Timeout(5.0, read=30.0)
 
+# The read timeout is per chunk, so an upstream that keeps sending never trips
+# it: the non-streaming reply was bounded by MAX_REPLY_CHARS and this one was
+# not bounded at all — every chunk relayed, for as long as they came. Three
+# limits: the text the browser is sent (the same cap as a whole reply), the
+# raw SSE read to produce it (JSON framing, or lines carrying no text at all),
+# and the wall clock across every model tried.
+_MAX_STREAM_RAW_CHARS = 1_000_000
+_STREAM_DEADLINE_S = 120.0
+
 
 def _chunk_text(raw: str) -> str | None:
     """Extract text from one Gemini SSE ``data:`` line.
@@ -437,8 +446,13 @@ async def _stream_from_gemini(
     # would start a second answer from its first word, appended to the first
     # answer's half. From then on a failure ends the stream with an error.
     sent_text = False
+    sent_chars = 0
+    read_chars = 0
+    overrun = None  # why the stream was stopped short, if it was
 
     for attempt, model in enumerate(_GEMINI_MODELS, start=1):
+        if time.monotonic() - started > _STREAM_DEADLINE_S:
+            break  # the next model would start an answer nobody is waiting for
         last_model = model
         url = _GEMINI_STREAM_URL.format(model=model)
         try:
@@ -463,14 +477,44 @@ async def _stream_from_gemini(
 
             try:
                 async for line in response.aiter_lines():
+                    read_chars += len(line)
+                    if read_chars > _MAX_STREAM_RAW_CHARS:
+                        overrun = "raw"
+                        break
+                    if time.monotonic() - started > _STREAM_DEADLINE_S:
+                        overrun = "deadline"
+                        break
                     if not line.startswith("data: "):
                         continue
                     text = _chunk_text(line[6:])
                     if text:
+                        text = text[: MAX_REPLY_CHARS - sent_chars]
+                        if not text:
+                            overrun = "reply"
+                            break
                         sent_text = True
+                        sent_chars += len(text)
                         yield f"data: {_json.dumps({'t': text})}\n\n"
             finally:
                 await response.aclose()
+
+            if overrun is not None:
+                logger.warning(
+                    "Advisor stream from %s stopped short: %s limit",
+                    model,
+                    overrun,
+                    extra={
+                        "limit": overrun,
+                        "sent_chars": sent_chars,
+                        "read_chars": read_chars,
+                        "duration_ms": int((time.monotonic() - started) * 1000),
+                    },
+                )
+                if overrun == "reply":
+                    # As a whole reply is: cut at the cap and delivered.
+                    yield f"data: {_json.dumps({'done': True})}\n\n"
+                    return
+                break
 
             if not sent_text:
                 # A 200 with no text — a safety block, an empty candidate. The
