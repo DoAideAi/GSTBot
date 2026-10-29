@@ -90,6 +90,63 @@ class TestReferralMyCode:
         code2 = auth_client.get("/api/v1/referrals/my-code").json()["referral_code"]
         assert code1 == code2
 
+    def test_a_code_claimed_by_a_concurrent_first_call_is_not_overwritten(
+        self, auth_client, db_session, monkeypatch
+    ):
+        """Two first calls both read no code and each generated one; the later
+        commit replaced the earlier, so a code already handed out — and maybe
+        shared — stopped existing. The other request's claim is made here
+        between this request's read and its write, which is where it lands
+        when the two interleave."""
+        from sqlalchemy import update
+
+        from app.models.user import User
+        from app.routers import referrals
+
+        user = db_session.query(User).filter_by(email=TEST_EMAIL).one()
+        real_generate = referrals._generate_code
+
+        def generate_while_another_request_claims_first():
+            db_session.execute(
+                update(User).where(User.id == user.id).values(referral_code="CA-first")
+            )
+            db_session.commit()
+            return real_generate()
+
+        monkeypatch.setattr(
+            referrals, "_generate_code", generate_while_another_request_claims_first
+        )
+        r = auth_client.get("/api/v1/referrals/my-code")
+        assert r.status_code == 200
+        assert r.json()["referral_code"] == "CA-first"
+        db_session.expire_all()
+        assert db_session.get(User, user.id).referral_code == "CA-first"
+
+    def test_the_code_that_stuck_still_tracks_visits(
+        self, auth_client, client, db_session, monkeypatch
+    ):
+        from sqlalchemy import update
+
+        from app.models.user import User
+        from app.routers import referrals
+
+        user = db_session.query(User).filter_by(email=TEST_EMAIL).one()
+        real_generate = referrals._generate_code
+
+        def generate_while_another_request_claims_first():
+            db_session.execute(
+                update(User).where(User.id == user.id).values(referral_code="CA-first")
+            )
+            db_session.commit()
+            return real_generate()
+
+        monkeypatch.setattr(
+            referrals, "_generate_code", generate_while_another_request_claims_first
+        )
+        auth_client.get("/api/v1/referrals/my-code")
+        r = client.post("/api/v1/referrals/track", json={"referral_code": "CA-first"})
+        assert r.json() == {"tracked": True}
+
 
 class TestReferralMyStats:
     """GET /referrals/my-stats — authenticated, shows the caller's stats."""

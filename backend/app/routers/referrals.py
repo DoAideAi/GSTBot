@@ -243,8 +243,21 @@ def my_code(
         code = _generate_code()
         while db.query(User).filter_by(referral_code=code).first() is not None:
             code = _generate_code()
-        current_user.referral_code = code
+        # Claimed only if still unclaimed, and then read back. Assigning it
+        # outright let two first calls — two tabs, or two components asking at
+        # once — each generate a code and each commit it, the later one
+        # overwriting the earlier. The first caller had already been handed its
+        # code and may have shared it; once overwritten it answered
+        # ``unknown_code`` at /track, and every visit through that link was
+        # dropped with nothing to say why. Whichever request claims first, both
+        # now return the code that stuck.
+        db.execute(
+            update(User)
+            .where(User.id == current_user.id, User.referral_code.is_(None))
+            .values(referral_code=code)
+        )
         db.commit()
+        db.refresh(current_user)
     return {"referral_code": current_user.referral_code}
 
 
