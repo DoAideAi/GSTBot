@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { setToken } from "../lib/api";
+import { takeReturnTo } from "../lib/returnTo";
 import { track } from "../lib/track";
 
 /**
@@ -34,7 +35,8 @@ export default function AuthCallbackPage() {
       track(fragment.get("new") === "1" ? "signup_complete" : "login", { method });
       // A full load so the auth provider starts from the stored token, and
       // `replace` so the URL carrying it does not stay in the back history.
-      window.location.replace("/");
+      // To the page the sign-in interrupted, when there was one.
+      window.location.replace(takeReturnTo());
     } else {
       navigate("/login", { replace: true });
     }

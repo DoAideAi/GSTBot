@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getToken } from "../lib/api";
+import { rememberReturnTo } from "../lib/returnTo";
 import { track } from "../lib/track";
 import AuthCallbackPage from "./AuthCallbackPage";
 
@@ -58,5 +59,30 @@ describe("AuthCallbackPage", () => {
     land("");
 
     expect(track).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthCallbackPage returning to the page that was asked for", () => {
+  let replace;
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    replace = vi.fn();
+    vi.stubGlobal("location", { ...window.location, replace });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("goes back to the deep link the sign-in interrupted", () => {
+    rememberReturnTo("/reconcile?period=2026-09");
+    land("token=tok&provider=google");
+    expect(replace).toHaveBeenCalledWith("/reconcile?period=2026-09");
+  });
+
+  it("will not be sent off the site by what was stored", () => {
+    sessionStorage.setItem("gstbot_return_to", "//evil.example/");
+    land("token=tok&provider=google");
+    expect(replace).toHaveBeenCalledWith("/");
   });
 });

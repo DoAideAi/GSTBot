@@ -230,3 +230,16 @@ describe("dismissing a refused sign-in", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
   });
 });
+
+describe("a deep link opened while signed out", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it("is remembered, so signing in can come back to it", async () => {
+    installBackend();
+    renderApp("/invoices?status=failed");
+    await waitFor(() => expect(sessionStorage.getItem("gstbot_return_to")).toBe("/invoices?status=failed"));
+  });
+});

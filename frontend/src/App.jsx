@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { rememberReturnTo } from "./lib/returnTo";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Shell from "./components/Shell";
 import { SkeletonPanel } from "./components/Skeleton";
@@ -161,6 +162,16 @@ function LazyFallback() {
   );
 }
 
+// A signed-out visit to a page that needs an account still goes home, but the
+// page is remembered so that signing in — either way — comes back to it.
+function SignInFirst() {
+  const { pathname, search } = useLocation();
+  useEffect(() => {
+    rememberReturnTo(pathname + search);
+  }, [pathname, search]);
+  return <Navigate to="/" replace />;
+}
+
 function Protected({ children }) {
   const { user, loading } = useAuth();
   if (loading) {
@@ -170,7 +181,7 @@ function Protected({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/" replace />;
+  if (!user) return <SignInFirst />;
   // Keyed on the tenant so switching GSTIN remounts the page and re-fetches
   // data rather than showing one business's numbers under another's name.
   return (

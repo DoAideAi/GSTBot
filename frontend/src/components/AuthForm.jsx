@@ -4,6 +4,7 @@ import ErrorBanner from "./ErrorBanner";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
 import { gstinShapeError, normalizeGstin, registrationErrors } from "../lib/validate";
+import { takeReturnTo } from "../lib/returnTo";
 import { track } from "../lib/track";
 
 const EMPTY = {
@@ -143,7 +144,7 @@ export default function AuthForm() {
       } else {
         await login(form.email, form.password);
       }
-      navigate("/");
+      navigate(takeReturnTo());
     } catch (err) {
       setError(err.message);
     } finally {
