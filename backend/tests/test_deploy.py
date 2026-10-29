@@ -866,10 +866,15 @@ class TestTheSiteBlock:
         assert directives["default-src"] == "'self'"
         # Exactly these origins. Each is there for one named reason — Umami,
         # and Razorpay Checkout's script — and anything else is a widening
-        # somebody should have to justify here.
+        # somebody should have to justify here. The one hash is the inline
+        # service-worker registration index.html carried until a863c71, kept
+        # so stale copies of the page can run it and pick up the
+        # self-removing sw.js; never 'unsafe-inline'.
         assert directives["script-src"] == (
             "'self' https://analytics.doaide.com https://checkout.razorpay.com"
+            " 'sha256-P3upB5nSJgaMZ66JypQ23kO70VzvIaT2MSedNexWFNk='"
         )
+        assert "'unsafe-inline'" not in directives["script-src"]
         assert "'unsafe-inline'" not in directives["script-src"]
         assert "'unsafe-eval'" not in policy
         # Same-origin plus the named services only. A script that did get onto
