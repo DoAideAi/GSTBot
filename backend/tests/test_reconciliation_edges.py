@@ -1548,3 +1548,46 @@ class TestASupplierAmendmentFindsTheInvoiceItAmends:
         )
         run = reconciliation.run_reconciliation(db_session, business.id, PERIOD)
         assert run.missing_in_books_count == 0
+
+
+class TestACsvAmendmentKeepsItsOriginal:
+    """P18 M2: the portal's B2BA sheet names the amended document in an
+    "Original Invoice number" column. The JSON route kept it (``oinum``); the
+    CSV route had no column for it, so a renumbered correction imported as CSV
+    was still reported twice — the booked original missing from 2B, the
+    correction missing from the books."""
+
+    CSV = (
+        "GSTIN of supplier,Trade/Legal name,Original Invoice number,Original Invoice date,"
+        "Invoice number,Invoice Date,Invoice Value,Place of supply,Rate,Taxable Value,"
+        "Integrated Tax\n"
+        f"{SUPPLIER_GSTIN_OTHER_STATE},Northwind,INV-OLD-7,10/03/2026,INV-NEW-7,10/04/2026,"
+        "531000,27,18,450000,81000\n"
+    )
+
+    def test_the_original_number_survives_the_csv_import(self):
+        from app.services import gstr2b
+
+        (record,) = gstr2b.parse_csv(self.CSV)
+        assert record.invoice_number == "INV-NEW-7"
+        assert record.original_invoice_number == "INV-OLD-7"
+
+    def test_and_matches_the_booked_original(self):
+        from app.services import gstr2b
+
+        records = gstr2b.parse_csv(self.CSV)
+        result = reconciliation.match(
+            [book(invoice_number="INV-OLD-7")], records, period=PERIOD
+        )
+        assert categories(result) == [MatchCategory.MATCHED]
+        assert result.findings[0].matched_on == "amended"
+
+    def test_a_plain_b2b_sheet_has_no_original(self):
+        from app.services import gstr2b
+
+        plain = (
+            "GSTIN of supplier,Invoice number,Invoice Date,Taxable Value,Integrated Tax\n"
+            f"{SUPPLIER_GSTIN_OTHER_STATE},INV-1,10/04/2026,100,18\n"
+        )
+        (record,) = gstr2b.parse_csv(plain)
+        assert record.original_invoice_number is None

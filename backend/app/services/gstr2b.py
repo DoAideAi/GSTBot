@@ -535,6 +535,13 @@ _CSV_COLUMNS: dict[str, str] = {
     "gstr1gstr5period": "supplier_filing_period",
     "gstr1iffgstr5period": "supplier_filing_period",
     "gstr1period": "supplier_filing_period",
+    # The B2BA and CDNRA sheets of the portal's export: the document the row
+    # amends. Read from JSON as ``oinum``; without these the CSV route lost it,
+    # and a renumbered correction was reported twice (see ``match``).
+    "originalinvoicenumber": "original_invoice_number",
+    "originalinvoiceno": "original_invoice_number",
+    "originaldocumentnumber": "original_invoice_number",
+    "originalnotenumber": "original_invoice_number",
     "invoicetype": "document_type",
     "documenttype": "document_type",
     "notetype": "document_type",
@@ -693,6 +700,8 @@ def parse_csv(content: str | bytes) -> list[GSTR2BRecord]:
                 document_type=declared_type or "R",
                 supplier_filing_date=to_date(values.get("supplier_filing_date")),
                 supplier_filing_period=period_from_portal(values.get("supplier_filing_period")),
+                original_invoice_number=(values.get("original_invoice_number") or "").strip()
+                or None,
             )
             merged[key] = record
             order.append(key)
