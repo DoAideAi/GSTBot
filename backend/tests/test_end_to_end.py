@@ -2183,3 +2183,38 @@ class TestTheSameStatementUploadedTwice:
         stored = db_session.query(GSTRReturn).filter_by(return_type=ReturnType.GSTR2B).count()
         assert stored == 1
         assert reconcile(client, PERIOD)["matched_count"] == 1
+
+
+class TestAnHsnCodeFromTheInvoiceToTheReturn:
+    """P20 M20: the model reads the tariff form printed on the invoice
+    ('8504.40.90'). Before P20 an upload stored it cut to '8504.40.', which
+    then went into the GSTR-1 HSN summary; the edit form already read it as
+    digits. Upload, return, edit and refusal now follow one rule."""
+
+    def test_the_printed_code_reaches_the_hsn_summary_as_digits(
+        self, signed_in, db_session, stub_openrouter
+    ):
+        client = signed_in
+        sale = upload(
+            client,
+            stub_openrouter,
+            text=SALES_TEXT,
+            extraction=dict(SALES_EXTRACTION, hsn_code="8504.40.90"),
+            invoice_type="sales",
+            name="sale-0101.txt",
+        )
+        assert sale["hsn_code"] == "85044090"
+
+        document = client.get("/api/v1/filing/gstr1", params={"period": PERIOD}).json()["document"]
+        codes = [row["hsn_sc"] for row in document["hsn"]["data"]]
+        assert codes == ["85044090"]
+
+        # The same rule on an edit: a labelled, dotted code is read as its
+        # digits, and something that is not a code is refused with a reason.
+        edited = client.patch(f"/api/v1/invoices/{sale['id']}", json={"hsn_code": "HSN: 8517.62"})
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["hsn_code"] == "851762"
+        refused = client.patch(f"/api/v1/invoices/{sale['id']}", json={"hsn_code": "N/A"})
+        assert refused.status_code == 422
+        assert "hsn_code: " in refused.json()["error"]["message"]
+        assert "4 to 8 digits" in refused.json()["error"]["message"]
