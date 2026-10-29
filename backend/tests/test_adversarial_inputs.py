@@ -121,6 +121,10 @@ class TestPathTraversalInUploadFilename:
     @pytest.mark.parametrize("name", TRAVERSAL_FILENAMES)
     def test_upload_with_traversal_filename_does_not_escape(self, auth_client, name):
         content = b"Invoice No: TRAV-001\nDate: 01/05/2026\nTotal: 1000.00\n"
+        if name.lower().endswith(".pdf"):
+            # A name ending .pdf is read as a PDF, so its bytes must be one
+            # (see TestAFileIsWhatItSaysItIs); this test is about the name.
+            content = b"%PDF-1.4\n" + content
         resp = auth_client.post(
             "/api/v1/invoices/upload",
             files={"file": (name, io.BytesIO(content), "text/plain")},

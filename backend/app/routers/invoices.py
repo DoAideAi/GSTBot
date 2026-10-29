@@ -159,6 +159,58 @@ def _media_type(raw: str | None) -> str | None:
     return media if fits and _MEDIA_TYPE.match(media) else None
 
 
+# What the first bytes of each binary format are. A file that claims one of
+# these by its extension or its content type has to be one: the type check
+# below passes on either claim, and before this nothing looked at the bytes —
+# a Windows executable sent as application/pdf, a random blob named .xlsx or a
+# truncated header named .png were stored and "parsed" into an invoice with no
+# number, no date and a ₹0 total, counted against the monthly allowance, and
+# (with a vision model configured) sent to it as a picture. Text formats need
+# no signature. .xls is left out on purpose: what accounting software exports
+# under that name is as often an HTML table or tab-separated text as it is an
+# Excel 97 workbook, and the reader copes with all three.
+_SIGNATURES: dict[str, tuple[str, ...]] = {
+    "PDF": (".pdf",),
+    "JPEG": (".jpg", ".jpeg"),
+    "PNG": (".png",),
+    "WebP": (".webp",),
+    "HEIC": (".heic",),
+    "Excel (.xlsx)": (".xlsx", ".xlsm"),
+}
+_KIND_OF_TYPE = {
+    "application/pdf": "PDF",
+    "image/jpeg": "JPEG",
+    "image/jpg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WebP",
+    "image/heic": "HEIC",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel (.xlsx)",
+}
+
+
+def _looks_like(kind: str, content: bytes) -> bool:
+    if kind == "PDF":
+        # The header may follow a little junk; readers look in the first 1 KB.
+        return b"%PDF-" in content[:1024]
+    if kind == "JPEG":
+        return content.startswith(b"\xff\xd8\xff")
+    if kind == "PNG":
+        return content.startswith(b"\x89PNG\r\n\x1a\n")
+    if kind == "WebP":
+        return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+    if kind == "HEIC":
+        return content[4:8] == b"ftyp"
+    return content.startswith(b"PK\x03\x04")  # .xlsx and .xlsm are zip files
+
+
+def _claimed_kinds(filename: str, content_type: str | None) -> set[str]:
+    lowered = filename.lower()
+    kinds = {kind for kind, exts in _SIGNATURES.items() if lowered.endswith(exts)}
+    if content_type in _KIND_OF_TYPE:
+        kinds.add(_KIND_OF_TYPE[content_type])
+    return kinds
+
+
 def _check_file_shape(filename: str, content_type: str | None, content: bytes) -> None:
     """The three checks every upload has to pass before it touches the database.
 
@@ -217,6 +269,17 @@ def _check_file_shape(filename: str, content_type: str | None, content: bytes) -
                 f"{filename} is {len(content) / (1024 * 1024):.1f} MB, over the "
                 f"{settings.max_upload_mb} MB limit. Re-export it at a lower "
                 "resolution or split it."
+            ),
+        )
+    claimed = _claimed_kinds(filename, content_type)
+    if claimed and not any(_looks_like(kind, content) for kind in claimed):
+        names = " or ".join(sorted(claimed))
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=(
+                f"{filename} is named or sent as {names}, but its contents are not "
+                f"{'one' if len(claimed) == 1 else 'any of them'}. It may be damaged "
+                "or only partly downloaded; open it to check, then export it again."
             ),
         )
 

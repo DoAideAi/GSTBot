@@ -13,7 +13,12 @@ from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.models.supplier import Supplier
 from app.services import gst_calendar, invoice_service
 from app.services import itc as itc_service
-from tests.conftest import BUSINESS_GSTIN, SUPPLIER_GSTIN_OTHER_STATE, SUPPLIER_GSTIN_SAME_STATE
+from tests.conftest import (
+    BUSINESS_GSTIN,
+    SAMPLE_INVOICE_TEXT,
+    SUPPLIER_GSTIN_OTHER_STATE,
+    SUPPLIER_GSTIN_SAME_STATE,
+)
 
 
 def upload(client, text: str, *, name: str = "invoice.txt", invoice_type: str = "purchase"):
@@ -2216,3 +2221,55 @@ def test_a_deleted_invoice_leaves_an_audit_line(auth_client, sample_invoice_text
     (line,) = [r for r in caplog.records if r.getMessage() == "Invoice deleted"]
     assert line.invoice_id == invoice_id
     assert line.invoice_type == "purchase"
+
+
+class TestAFileIsWhatItSaysItIs:
+    """P24 M5: the type check passes on the extension or the content type, and
+    nothing looked at the bytes. An executable sent as application/pdf, or a
+    file named .xlsx that is not a workbook, was stored and "parsed" into an
+    invoice with no number, no date and a ₹0 total, counted against the
+    monthly allowance."""
+
+    @pytest.mark.parametrize(
+        ("name", "content", "content_type"),
+        [
+            ("bill.pdf", b"MZ\x90\x00 an executable", "application/pdf"),
+            ("bill.pdf", b"just some text", "text/plain"),  # the name decides: read as PDF
+            ("scan.jpg", b"GIF89a not a jpeg", "image/jpeg"),
+            ("scan.png", b"<html>not a png</html>", "image/png"),
+            ("sheet.xlsx", b"Name,Amount\n", "application/octet-stream"),
+            ("upload", b"MZ\x90\x00", "application/pdf"),  # no name: the type decides
+        ],
+    )
+    def test_contents_that_are_not_the_claimed_format_are_refused(
+        self, auth_client, name, content, content_type
+    ):
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": (name, content, content_type)},
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code == 415, response.text
+        assert "its contents are not" in response.json()["detail"]
+        assert auth_client.get("/api/v1/subscriptions/usage").json()["usage"][0]["call_count"] == 0
+
+    @pytest.mark.parametrize(
+        ("name", "content", "content_type"),
+        [
+            ("bill.pdf", b"junk first\n%PDF-1.7\n%%EOF", "application/pdf"),
+            ("scan.jpg", b"\xff\xd8\xff\xe0 jpeg", "image/jpeg"),
+            ("scan.png", b"\x89PNG\r\n\x1a\n rest", "image/png"),
+            ("scan.webp", b"RIFF\x00\x00\x00\x00WEBPVP8 ", "image/webp"),
+            ("photo.heic", b"\x00\x00\x00\x18ftypheic", "image/heic"),
+            ("sheet.xlsx", b"PK\x03\x04 zip", "application/octet-stream"),
+            ("export.xls", b"<table><tr><td>INV-1</td></tr></table>", "application/vnd.ms-excel"),
+            ("bill.txt", SAMPLE_INVOICE_TEXT.encode(), "text/plain"),
+        ],
+    )
+    def test_the_real_formats_still_go_through(self, auth_client, name, content, content_type):
+        response = auth_client.post(
+            "/api/v1/invoices/upload",
+            files={"file": (name, content, content_type)},
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code == 201, response.text
