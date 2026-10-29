@@ -393,3 +393,49 @@ class TestThePublicLeaderboardNamesNoOne:
         )
         board = raw_client.get("/api/v1/referrals/leaderboard").json()
         assert [row["name"] for row in board["leaders"]] == ["Still H."]
+
+    def test_a_deactivated_referrer_does_not_cost_an_active_one_their_place(
+        self, raw_client, db_session, business
+    ):
+        """The top twenty were taken before the deactivated were dropped.
+
+        So each deactivated account in the twenty shortened the board by one,
+        and the active referrer ranked twenty-first was never shown however
+        many places stood empty above them.
+        """
+        firsts = ["Ana", "Ben", "Cia", "Dev", "Eli", "Fay", "Gul", "Hari", "Ira", "Jai",
+                  "Kai", "Lea", "Mir", "Nia", "Om", "Pia", "Raj", "Sia", "Tia", "Uma"]
+        people = [("Gone Away", "gone@example.com", False)] + [
+            (f"{first} Rao", f"{first.lower()}@example.com", True) for first in firsts
+        ]
+        self._rank(db_session, business, *people)
+
+        board = raw_client.get("/api/v1/referrals/leaderboard").json()["leaders"]
+
+        assert len(board) == 20
+        assert "Gone A." not in [row["name"] for row in board]
+        assert board[-1]["name"] == "Uma R."
+
+    def test_it_is_one_query(self, raw_client, db_session, business):
+        """Public and uncached, so its cost is paid per visitor: one statement,
+        not a ranking followed by a second round trip for the names."""
+        from sqlalchemy import event
+
+        self._rank(
+            db_session,
+            business,
+            ("Asha Rao", "asha@example.com", True),
+            ("Ravi Iyer", "ravi@example.com", True),
+        )
+        seen = []
+        engine = db_session.get_bind()
+
+        def count(conn, cursor, statement, *args):
+            seen.append(statement)
+
+        event.listen(engine, "before_cursor_execute", count)
+        try:
+            assert raw_client.get("/api/v1/referrals/leaderboard").status_code == 200
+        finally:
+            event.remove(engine, "before_cursor_execute", count)
+        assert len(seen) == 1, seen

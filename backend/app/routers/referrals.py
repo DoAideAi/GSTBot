@@ -180,35 +180,28 @@ def track_referral(
     dependencies=[Depends(_leaderboard_limit)],
 )
 def leaderboard(db: Session = Depends(get_db)) -> dict[str, Any]:
-    rows = (
-        db.query(
-            Referral.referrer_user_id,
-            sa_func.count(Referral.id).label("referral_count"),
-        )
-        .group_by(Referral.referrer_user_id)
-        .order_by(sa_func.count(Referral.id).desc())
+    # One statement, with the deactivated left out before the limit rather
+    # than after it. The top twenty used to be ranked first and their users
+    # read in a second round trip, where the deactivated were dropped — so
+    # each one in the twenty shortened the board by a place, and the active
+    # referrer ranked twenty-first never appeared however many places stood
+    # empty. Public and uncached, so the second round trip was per visitor.
+    referral_count = sa_func.count(Referral.id).label("referral_count")
+    rows = db.execute(
+        select(User.full_name, referral_count)
+        .join(User, User.id == Referral.referrer_user_id)
+        .where(User.is_active.is_(True))
+        .group_by(User.id, User.full_name)
+        .order_by(referral_count.desc(), User.id)
         .limit(20)
-        .all()
-    )
+    ).all()
 
-    user_ids = [r[0] for r in rows]
-    # A deactivated account is not someone to put on a public page.
-    users = {
-        u.id: u
-        for u in db.query(User).filter(User.id.in_(user_ids), User.is_active.is_(True)).all()
-    } if user_ids else {}
-
-    leaders = []
-    for uid, count in rows:
-        user = users.get(uid)
-        if user is None:
-            continue
-        leaders.append({
-            "name": _public_name(user.full_name),
-            "referral_count": count,
-        })
-
-    return {"leaders": leaders}
+    return {
+        "leaders": [
+            {"name": _public_name(full_name), "referral_count": count}
+            for full_name, count in rows
+        ]
+    }
 
 
 def _public_name(full_name: str | None) -> str:
