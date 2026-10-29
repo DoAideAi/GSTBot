@@ -195,3 +195,41 @@ class TestOneInboxCannotBeFlooded:
         known = auth_client.post(FORGOT, json={"email": TEST_EMAIL})
 
         assert {a.text for a in unknown} == {known.text}
+
+
+class TestAResetLiftsTheLockoutItIsTheWayOutOf:
+    """P35 M16: a reset left the login's failed-attempt lockout in place.
+
+    Ten wrong passwords in a quarter of an hour lock an account's login (429),
+    checked before the password is even looked at, and only a successful
+    login refunded the count — which the lockout itself prevents. The person
+    most likely to be locked out is the one who forgot their password; they
+    reset it by email, proving they hold the account, and their new password
+    was then refused for up to fifteen more minutes.
+    """
+
+    def test_the_new_password_works_at_once(
+        self, auth_client, outbox, rate_limited, pinned_window
+    ):
+        for _ in range(10):
+            _login(auth_client, "a-wrong-guess-1")
+        assert _login(auth_client, TEST_PASSWORD).status_code == 429
+
+        auth_client.post(FORGOT, json={"email": TEST_EMAIL})
+        reset = auth_client.post(RESET, json={"token": _token_from(outbox[0]), "new_password": NEW})
+        assert reset.status_code == 200, reset.text
+
+        assert _login(auth_client, NEW).status_code == 200
+
+    def test_a_password_change_lifts_it_too(self, auth_client, rate_limited, pinned_window):
+        for _ in range(10):
+            _login(auth_client, "a-wrong-guess-1")
+        assert _login(auth_client, TEST_PASSWORD).status_code == 429
+
+        changed = auth_client.post(
+            "/api/v1/auth/change-password",
+            json={"current_password": TEST_PASSWORD, "new_password": NEW},
+        )
+        assert changed.status_code == 200, changed.text
+
+        assert _login(auth_client, NEW).status_code == 200

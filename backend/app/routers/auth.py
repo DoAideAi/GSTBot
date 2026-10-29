@@ -105,6 +105,12 @@ def _account_rate() -> Rate:
     return parse_rate(settings.rate_limits.get(_LOGIN_ACCOUNT_LIMIT, _LOGIN_ACCOUNT_SPEC))
 
 
+def _lift_login_lockout(email: str) -> None:
+    """Refund *email*'s per-account login budget, as a successful login does."""
+    if settings.rate_limit_enabled:
+        forget(_account_key(email), _account_rate())
+
+
 def _account_key(username: str) -> str:
     """The counter key for the account *username* names.
 
@@ -466,6 +472,9 @@ def change_password(
                 "this change was not made. Sign in again with the current password."
             ),
         )
+    # Proven by the current password, so the lockout it may have collected is
+    # lifted as a login would lift it; see reset_password.
+    _lift_login_lockout(current_user.email)
     logger.info("Password changed", extra={"user_id": current_user.id})
     return Token(access_token=create_access_token(current_user.id))
 
@@ -585,6 +594,12 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     db.commit()
     if not changed:
         raise refused
+    # The login's failed-attempt budget, refunded as a successful login would
+    # refund it: a reset by emailed link is the stronger proof of the two. Only
+    # a login refunded it, which the lockout itself prevents — so the person
+    # most likely to be locked out, the one who forgot their password, reset
+    # it and had the new one refused for up to fifteen more minutes.
+    _lift_login_lockout(user.email)
     logger.info("Password reset", extra={"user_id": user.id})
     return Token(access_token=create_access_token(user.id))
 
