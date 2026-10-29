@@ -429,3 +429,14 @@ describe("StatusPage", () => {
     });
   });
 });
+
+describe("whenLabel", () => {
+  it("reads day first and in India time, whatever the viewer's locale and zone", async () => {
+    const { whenLabel } = await import("./StatusPage");
+    // 04:15 UTC is 09:45 in India. A bare toLocaleString() followed the
+    // browser: month first on a US-locale machine, in the machine's zone.
+    expect(whenLabel("2026-10-29T04:15:48Z")).toMatch(/^29 Oct 2026, 9:45\s?[ap]m IST$/i);
+    expect(whenLabel(null)).toBe("Never");
+    expect(whenLabel("not a date")).toBe("Unknown");
+  });
+});

@@ -69,12 +69,26 @@ function Chip({ tone, children }) {
   return <span className={`chip chip-${tone}`}>{children}</span>;
 }
 
-/** An ISO timestamp as something readable, or a dash. Never "Invalid Date". */
-function whenLabel(iso) {
+/**
+ * An ISO timestamp as something readable, or a dash. Never "Invalid Date".
+ *
+ * Day first and in India time, as every other date in the app is (dateLabel).
+ * A bare toLocaleString() followed the viewer's browser, so a US-locale one
+ * read the sweep's last run as 10/29/2026 — month first — in whatever zone
+ * the machine happened to be set to.
+ */
+export function whenLabel(iso) {
   if (!iso) return "Never";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "Unknown";
-  return at.toLocaleString();
+  return `${at.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })} IST`;
 }
 
 function DependencyRows({ checks }) {

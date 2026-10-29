@@ -109,6 +109,8 @@ describe("BulkGstinPage", () => {
     await userEvent.click(box());
     await userEvent.paste(many.join("\n"));
     expect(screen.getByRole("alert")).toHaveTextContent(/at most 100/);
+    // The box itself says it is invalid, not only the message under it.
+    expect(box()).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("button", { name: /validate/i })).toBeDisabled();
     expect(mockBulk).not.toHaveBeenCalled();
   });

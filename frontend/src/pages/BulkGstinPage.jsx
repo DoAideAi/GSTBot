@@ -128,6 +128,7 @@ export default function BulkGstinPage() {
             placeholder={"27AAPFU0939F1ZV\n29AAACB1234C1Z5"}
             spellCheck={false}
             aria-describedby="bulk-gstin-count"
+            aria-invalid={tooMany || undefined}
           />
           <p
             id="bulk-gstin-count"
