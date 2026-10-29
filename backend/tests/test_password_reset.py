@@ -142,3 +142,56 @@ def test_where_email_is_off_it_still_answers_and_sends_nothing(auth_client, outb
     monkeypatch.setattr(settings, "alerts_email_enabled", False)
     assert auth_client.post(FORGOT, json={"email": TEST_EMAIL}).status_code == 202
     assert outbox == []
+
+
+class TestOneInboxCannotBeFlooded:
+    """P34 M1: the reset email was limited per caller's IP, and only that.
+
+    Five an hour from one address, unlimited across addresses: anyone rotating
+    IPs could send a victim reset email after reset email, every one through
+    this product's relay and against its sending reputation. P33 M16's commit
+    said "rate-limited per address"; it was not. Past the per-address budget
+    nothing is sent — and the answer stays the same 202, so the budget cannot
+    be used to tell which addresses have accounts.
+    """
+
+    def test_an_address_gets_a_few_links_an_hour_however_many_callers_ask(
+        self, auth_client, outbox, rate_limited, pinned_window, monkeypatch
+    ):
+        # As if every request came from a different host: the per-IP limit
+        # is out of the way, so only the per-address budget is under test.
+        monkeypatch.setattr(settings, "rate_limit_overrides", "forgot_password=1000/hour")
+
+        answers = [auth_client.post(FORGOT, json={"email": TEST_EMAIL}) for _ in range(8)]
+
+        assert {a.status_code for a in answers} == {202}
+        assert len({a.text for a in answers}) == 1
+        assert len(outbox) == auth_router.RESET_EMAILS_PER_ADDRESS
+
+    def test_another_address_has_its_own_budget(
+        self, auth_client, client, outbox, rate_limited, pinned_window, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "rate_limit_overrides", "forgot_password=1000/hour")
+        for _ in range(auth_router.RESET_EMAILS_PER_ADDRESS + 2):
+            auth_client.post(FORGOT, json={"email": TEST_EMAIL})
+        client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "second@example.com",
+                "password": "another-long-pass1",
+                "legal_name": "S",
+            },
+        )
+
+        auth_client.post(FORGOT, json={"email": "second@example.com"})
+
+        assert outbox[-1]["to"] == "second@example.com"
+
+    def test_an_unknown_address_spends_nothing_that_shows(
+        self, auth_client, outbox, rate_limited, pinned_window, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "rate_limit_overrides", "forgot_password=1000/hour")
+        unknown = [auth_client.post(FORGOT, json={"email": "nobody@example.com"}) for _ in range(6)]
+        known = auth_client.post(FORGOT, json={"email": TEST_EMAIL})
+
+        assert {a.text for a in unknown} == {known.text}

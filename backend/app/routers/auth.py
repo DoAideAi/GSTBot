@@ -84,6 +84,11 @@ _change_password_limit = RateLimit("change_password", "10/hour")
 # that the endpoint cannot be used to flood someone's inbox.
 _forgot_password_limit = RateLimit("forgot_password", "5/hour", by="ip")
 _reset_password_limit = RateLimit("reset_password", "20/hour", by="ip")
+# And per address, which the IP limit is not: anyone rotating hosts could send
+# one inbox reset email after reset email, each through this product's relay.
+# Past this nothing is sent, and the answer is the same 202 as ever.
+RESET_EMAILS_PER_ADDRESS = 3
+_RESET_EMAIL_RATE = f"{RESET_EMAILS_PER_ADDRESS}/hour"
 
 # The per-account failure budget, spent by wrong passwords and refunded the
 # moment a right one arrives. Ten in a quarter of an hour: a person who has
@@ -518,6 +523,16 @@ def forgot_password(
     if not settings.alerts_email_enabled or not settings.smtp_host:
         logger.warning(
             "Password reset requested but email is not configured; nothing sent",
+            extra={"user_id": user.id},
+        )
+        return _RESET_REQUESTED
+    # Counted under the address hashed, for the reason _account_key gives.
+    if settings.rate_limit_enabled and not charge(
+        "reset_email:" + hashlib.sha256(email.encode("utf-8")).hexdigest(),
+        parse_rate(_RESET_EMAIL_RATE),
+    ).allowed:
+        logger.warning(
+            "Password reset email not sent: this address's hourly budget is spent",
             extra={"user_id": user.id},
         )
         return _RESET_REQUESTED
