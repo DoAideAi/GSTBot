@@ -1900,6 +1900,129 @@ class TestABusinessChoosingBetweenPlans:
         )
 
 
+class _FakeGemini:
+    """Gemini as the advisor sees it: records every conversation it is sent
+    and answers from a script, one entry per call. An entry is a status code,
+    an answer string, or ``None`` for a 200 with no text."""
+
+    def __init__(self, *script):
+        self.script = list(script)
+        self.sent: list[dict] = []
+
+    def _next(self, request_json):
+        self.sent.append(request_json)
+        return self.script.pop(0) if self.script else "OK."
+
+    def patches(self):
+        from contextlib import ExitStack
+        from unittest.mock import patch
+
+        import httpx
+
+        fake = self
+
+        def sse(answer):
+            if answer is None:
+                return b'data: {"candidates": [{"finishReason": "MAX_TOKENS"}]}\n\n'
+            words = [w + " " for w in answer.split(" ")]
+            return "".join(
+                "data: " + json.dumps({"candidates": [{"content": {"parts": [{"text": w}]}}]})
+                + "\n\n"
+                for w in words
+            ).encode()
+
+        class Stream:
+            def __init__(self, status_code, body):
+                self.status_code, self._body = status_code, body
+
+            async def aiter_lines(self):
+                for line in self._body.decode().splitlines():
+                    yield line
+
+            async def aread(self):
+                return self._body
+
+            async def aclose(self):
+                pass
+
+        async def send(client, request, *, stream=False):
+            answer = fake._next(json.loads(request.content))
+            if isinstance(answer, int):
+                return Stream(answer, b'{"error": {}}')
+            return Stream(200, sse(answer))
+
+        stack = ExitStack()
+        stack.enter_context(patch("app.routers.advisor._get_api_key", return_value="k"))
+        stack.enter_context(patch.object(httpx.AsyncClient, "send", new=send))
+        return stack
+
+
+def _ask_stream(client, message, history):
+    """One question the way the browser asks it; the answer and the events."""
+    response = client.post(
+        "/api/v1/advisor/ask/stream", json={"message": message, "history": history}
+    )
+    assert response.status_code == 200, response.text
+    events = [
+        json.loads(line[6:]) for line in response.text.split("\n") if line.startswith("data: ")
+    ]
+    return "".join(e.get("t", "") for e in events).strip(), events
+
+
+class TestAConversationWithTheAdvisor:
+    """P22 M20: a conversation as the chat keeps it — each answer appended to
+    the history the next question carries — through the failures this pass
+    fixed: an unanswered question, an empty bubble, a refusal, and a model
+    that no longer exists."""
+
+    def test_a_conversation_survives_a_failed_turn_and_reaches_the_model_clean(
+        self, client
+    ):
+        gemini = _FakeGemini("ITC is input tax credit.", 503, 503, 503, "Yes, within limits.")
+        history: list[dict] = []
+        with gemini.patches():
+            answer, events = _ask_stream(client, "What is ITC?", history)
+            assert answer == "ITC is input tax credit." and events[-1] == {"done": True}
+            history += [{"role": "user", "text": "What is ITC?"},
+                        {"role": "model", "text": answer}]
+
+            # Every model overloaded: the widget keeps the question, no reply.
+            _, events = _ask_stream(client, "Can I claim it on a car?", history)
+            assert "overloaded" in events[-1]["error"]
+            history += [{"role": "user", "text": "Can I claim it on a car?"},
+                        {"role": "model", "text": ""}]  # the bubble left empty
+
+            answer, events = _ask_stream(client, "For a taxi business?", history)
+        assert answer == "Yes, within limits."
+
+        last = gemini.sent[-1]["contents"]
+        roles = [turn["role"] for turn in last]
+        assert roles == ["user", "model", "user"]  # alternating, no blank turn
+        assert last[-1]["parts"][0]["text"] == (
+            "Can I claim it on a car?\n\nFor a taxi business?"
+        )
+        assert "systemInstruction" in gemini.sent[-1]
+
+    def test_the_plain_and_streamed_answers_agree_on_a_refusal(self, client):
+        blocked = None  # a 200 with no text, from every model
+        gemini = _FakeGemini(blocked, blocked, blocked)
+        with gemini.patches():
+            _, events = _ask_stream(client, "Something odd", [])
+        from app.routers import advisor
+
+        assert events == [{"error": advisor._NO_ANSWER}]
+
+    def test_a_retired_model_is_skipped_mid_conversation(self, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "gemini_models", "gemini-gone,gemini-here")
+        gemini = _FakeGemini(404, "18% on laptops.")
+        with gemini.patches():
+            answer, events = _ask_stream(client, "Rate on laptops?", [])
+        assert answer == "18% on laptops." and events[-1] == {"done": True}
+        assert len(gemini.sent) == 2
+
+
 class TestABusinessThatGetsEachStepWrongFirst:
     """P16 M20: the error path as one journey.
 
