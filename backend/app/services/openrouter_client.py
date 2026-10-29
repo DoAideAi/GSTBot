@@ -36,7 +36,6 @@ import json
 import logging
 import random
 import re
-import threading
 import time
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -44,6 +43,7 @@ from typing import Any
 
 import httpx
 
+from app.core.breaker import Breaker
 from app.core.config import settings
 from app.core.sanitize import encodable
 
@@ -72,51 +72,25 @@ _RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 # outage's worth.
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN_SECONDS = 120.0
-_breaker_lock = threading.Lock()
-_breaker = {"failures": 0, "open_until": 0.0, "probing": False}
 
 
 def _monotonic() -> float:
     return time.monotonic()
 
 
+# Read through _monotonic at call time, so a test that replaces it moves this
+# breaker's clock. See app/core/breaker.py.
+BREAKER = Breaker(
+    "OpenRouter",
+    threshold=BREAKER_THRESHOLD,
+    cooldown=BREAKER_COOLDOWN_SECONDS,
+    clock=lambda: _monotonic(),
+)
+
+
 def reset_breaker() -> None:
     """Close the breaker. For tests, which must not inherit another's outage."""
-    with _breaker_lock:
-        _breaker.update(failures=0, open_until=0.0, probing=False)
-
-
-def _breaker_refuses() -> bool:
-    """Whether to skip the provider now. Lets one caller probe once it is due."""
-    with _breaker_lock:
-        if not _breaker["open_until"]:
-            return False
-        if _monotonic() < _breaker["open_until"] or _breaker["probing"]:
-            return True
-        _breaker["probing"] = True
-        return False
-
-
-def _provider_answered() -> None:
-    """It answered — success or a refusal of our request. Either way it is up."""
-    with _breaker_lock:
-        _breaker.update(failures=0, open_until=0.0, probing=False)
-
-
-def _provider_unavailable() -> None:
-    with _breaker_lock:
-        _breaker["failures"] += 1
-        was_open = bool(_breaker["open_until"])
-        _breaker["probing"] = False
-        if _breaker["failures"] >= BREAKER_THRESHOLD:
-            _breaker["open_until"] = _monotonic() + BREAKER_COOLDOWN_SECONDS
-            if not was_open:
-                logger.warning(
-                    "OpenRouter unavailable for %s calls in a row; skipping it for %ss",
-                    _breaker["failures"],
-                    BREAKER_COOLDOWN_SECONDS,
-                    extra={"failures": _breaker["failures"]},
-                )
+    BREAKER.reset()
 
 
 # The wait before the first retry when the provider does not say. Doubles per
@@ -259,7 +233,7 @@ def chat_completion(
     """
     if not is_configured():
         raise OpenRouterError("OPENROUTER_API_KEY is not set")
-    if _breaker_refuses():
+    if not BREAKER.allow():
         raise OpenRouterError(
             "OpenRouter is unavailable; not calling it again until the breaker's "
             f"{BREAKER_COOLDOWN_SECONDS:.0f}s cooldown has passed"
@@ -274,6 +248,15 @@ def chat_completion(
     url = f"{settings.openrouter_base_url.rstrip('/')}/chat/completions"
     request_timeout = timeout or settings.openrouter_timeout_seconds
 
+    # Guarded, so the breaker's probe is released however the call ends — an
+    # exception neither path below reports would otherwise hold it, and every
+    # call after would be refused until the process restarted.
+    with BREAKER.guard():
+        return _call_with_retries(url, payload, request_timeout)
+
+
+def _call_with_retries(url: str, payload: dict[str, Any], request_timeout: float) -> str:
+    """The attempts for one completion; see :func:`chat_completion`."""
     attempts = max(1, settings.openrouter_max_attempts)
     budget = settings.openrouter_retry_max_wait_seconds
     waited = 0.0
@@ -311,7 +294,7 @@ def chat_completion(
         except httpx.HTTPError as exc:
             # Everything else httpx raises is about the request we built, and
             # rebuilding it identically would fail identically.
-            _provider_answered()
+            BREAKER.succeeded()
             raise OpenRouterError(f"OpenRouter request failed: {exc}") from exc
         else:
             if response.status_code in _RETRYABLE_STATUS:
@@ -320,7 +303,7 @@ def chat_completion(
                 )
                 retry_after = _retry_after_seconds(response)
             elif response.status_code >= 400:
-                _provider_answered()
+                BREAKER.succeeded()
                 raise OpenRouterError(
                     f"OpenRouter returned {response.status_code}: {response.text[:500]}"
                 )
@@ -342,7 +325,7 @@ def chat_completion(
                         "latency_ms": round((time.perf_counter() - started) * 1000, 2),
                     },
                 )
-                _provider_answered()
+                BREAKER.succeeded()
                 return _completion_text(response)
 
         if attempt == attempts:
@@ -382,7 +365,7 @@ def chat_completion(
         _sleep(delay)
         waited += delay
 
-    _provider_unavailable()
+    BREAKER.failed()
     raise last_error or OpenRouterError("OpenRouter request failed")
 
 
