@@ -110,7 +110,9 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
     def test_the_public_allowlist_is_what_it_has_always_been(self):
         """Pins the set, so opening a route to the world is a visible diff."""
         public = sorted(
-            route.path for route in _real_routes() if not is_guarded(route)
+            route.path
+            for route in _real_routes()
+            if not is_guarded(route) and route.methods != {"HEAD"}
         )
         assert public == [
             "/",
@@ -179,8 +181,13 @@ class TestRateLimitedIsDocumentedWhereItCanHappen:
         assert "429" not in documented[("/api/v1/health/live", "get")]
 
     def test_it_is_the_only_route_exempt_from_the_limiter(self):
+        # The HEAD twins of the health probes (P16) mirror their GET route —
+        # tests/test_misc.py holds each to its GET's dependencies — so each
+        # path is counted once, by its GET.
         unmetered = sorted(
-            route.path for route in _real_routes() if not is_metered(route)
+            route.path
+            for route in _real_routes()
+            if not is_metered(route) and route.methods != {"HEAD"}
         )
         assert unmetered == ["/api/v1/health/live"]
 
@@ -197,7 +204,7 @@ class TestTheRefusalsTheClientsActOnAreDocumented:
     @pytest.mark.parametrize(
         ("method", "path", "codes"),
         [
-            ("post", "/api/v1/subscriptions/create-order", {"400", "502", "503"}),
+            ("post", "/api/v1/subscriptions/create-order", {"400", "409", "502", "503"}),
             ("post", "/api/v1/subscriptions/verify-payment", {"400", "409", "502"}),
             ("post", "/api/v1/subscriptions/cancel", {"400", "409", "502"}),
             ("post", "/api/v1/advisor/ask", {"502", "503", "504"}),
