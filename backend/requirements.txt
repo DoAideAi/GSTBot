@@ -15,7 +15,7 @@ pydantic-settings>=2.3
 PyJWT>=2.10
 bcrypt>=4.1
 python-multipart>=0.0.32
-email-validator>=2.1
+email-validator>=2.3.0
 httpx>=0.28.1
 # TypeSafe AI's Jev (System One): advisory HSN-chapter, supply-category,
 # compliance-risk and tax-route classification (services/jev_service.py).
