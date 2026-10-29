@@ -890,3 +890,60 @@ class TestTwoSweepsAtOnce:
         result = alerting.sweep_filing_deadlines(db_session, today=date(2026, 5, 18))
         assert result.raised >= 1
         assert db_session.query(Alert).count() == result.raised
+
+
+class TestTheSweepPaysAFixedCostPerTenant:
+    """P38 M8: every tenant was read twice, and nothing said what it cost.
+
+    The sweep commits after each business, so one tenant's bad data costs only
+    its own alerts, and a commit expires every object in the session. The next
+    business in the loop had been loaded as an ORM row and was read again from
+    the database on first touch: one SELECT on ``businesses`` per tenant, every
+    day, on top of the one that had already loaded it. The docstring said "two
+    queries each", and a sweep measured at eight per tenant went unnoticed for
+    the same reason that reload did. The sweep reads only id and created_at,
+    so it now loads those as plain rows, which a commit cannot expire, and this
+    pins what a tenant costs.
+    """
+
+    @staticmethod
+    def _sweep_statements(db, count, start=0):
+        from sqlalchemy import event
+
+        from app.services.gstin import compute_check_digit
+
+        for i in range(start, start + count):
+            body = f"27AAGCB{8000 + i:04d}J1Z"
+            db.add(Business(gstin=body + compute_check_digit(body), legal_name=f"T{i}"))
+        db.commit()
+        statements: list[str] = []
+
+        def record(conn, cursor, statement, *args):
+            statements.append(" ".join(statement.split()).lower())
+
+        engine = db.get_bind()
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            alerting.sweep_filing_deadlines(db, today=date(2026, 11, 15))
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        return statements
+
+    def test_businesses_are_read_once_however_many_there_are(self, db_session):
+        statements = self._sweep_statements(db_session, 6)
+        reads = [s for s in statements if s.startswith("select") and "from businesses" in s]
+        assert len(reads) == 1, reads
+
+    def test_each_tenant_costs_the_same_fixed_number_of_statements(self, db_session):
+        two = len(self._sweep_statements(db_session, 2))
+        # Only fresh tenants in the second sweep too: the first two now have
+        # their alerts, which is less work, not the same work twice.
+        for business in db_session.query(Business).all():
+            business.is_active = False
+        db_session.commit()
+        six = len(self._sweep_statements(db_session, 6, start=2))
+        per_tenant = (six - two) / 4
+        assert per_tenant == int(per_tenant)
+        # Two returns' standings, existing alerts and the alerts it raises, and
+        # the s.16(4) pass's purchases. A ninth is new work per tenant per day.
+        assert per_tenant <= 7, per_tenant

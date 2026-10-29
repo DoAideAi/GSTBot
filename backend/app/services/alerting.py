@@ -49,7 +49,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import Row, func, select
 from sqlalchemy.orm import Session
 
 from app.models.alert import (
@@ -169,7 +169,7 @@ def wording(standing: filing_service.ReturnStanding) -> tuple[str, str]:
     )
 
 
-def _first_period(business: Business) -> str | None:
+def _first_period(business: Business | Row) -> str | None:
     """The earliest period this business can be told anything about.
 
     ``None`` when the row has not been flushed and has no ``created_at`` yet,
@@ -229,7 +229,7 @@ def _existing(
 
 
 def sweep_business(
-    db: Session, business: Business, *, today: date
+    db: Session, business: Business | Row, *, today: date
 ) -> SweepResult:
     """Bring one tenant's deadline alerts into line with what they have filed.
 
@@ -414,7 +414,7 @@ def _existing_itc(db: Session, business_id: int) -> dict[str, Alert]:
 
 
 def sweep_itc_deadlines(
-    db: Session, business: Business, *, today: date
+    db: Session, business: Business | Row, *, today: date
 ) -> SweepResult:
     """Keep one tenant's s.16(4) alerts in step with what is still unclaimed.
 
@@ -550,15 +550,21 @@ def _sweep_filing_deadlines(db: Session, *, today: date | None = None) -> SweepR
     for a day and nothing else — and because the sweep is idempotent, the next
     morning tries again from the same starting point.
 
-    One pass loads every active business and issues two queries each. That is
-    fine at the scale this runs at and is not fine at every scale; the shape to
-    reach for when it stops being fine is batching by period across tenants,
-    not a longer interval.
+    One pass loads every active business, then costs each one a fixed seven
+    statements: two returns' standings and existing alerts, the s.16(4) pass's
+    purchases, and the alerts it writes (``TestTheSweepPaysAFixedCostPerTenant``
+    pins it). That is fine at the scale this runs at and is not fine at every
+    scale; the shape to reach for when it stops being fine is batching by
+    period across tenants, not a longer interval.
+
+    The businesses are loaded as plain (id, created_at) rows, which is all the
+    sweep reads. As ORM objects, the commit after each tenant expired the rest,
+    and each was read from the database a second time on first touch.
     """
     today = today or gst_calendar.today_ist()
 
-    businesses = db.scalars(
-        select(Business)
+    businesses = db.execute(
+        select(Business.id, Business.created_at)
         .where(Business.deleted_at.is_(None), Business.is_active.is_(True))
         .order_by(Business.id)
     ).all()
