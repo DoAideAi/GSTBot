@@ -468,6 +468,20 @@ class Settings(BaseSettings):
                 "OAUTH_REDIRECT_BASE must be the public https origin when a sign-in "
                 f"provider is configured in production (got '{self.oauth_redirect_base}')."
             )
+        # And it must be the site's origin, not merely an https one. Authlib
+        # keeps the sign-in's state in the session cookie, set on the site's
+        # origin when the sign-in starts; a callback on any other origin — a
+        # previous domain left in the env file, as BACKEND_CORS_ORIGINS once
+        # was — arrives without it, and every provider sign-in fails its state
+        # check after the user has consented.
+        if self.oauth_providers_configured and (
+            self.oauth_redirect_base.rstrip("/") != self.public_site_url.rstrip("/")
+        ):
+            raise ValueError(
+                "OAUTH_REDIRECT_BASE must be the site's own origin, PUBLIC_SITE_URL "
+                f"('{self.public_site_url}'), when a sign-in provider is configured in "
+                f"production (got '{self.oauth_redirect_base}')."
+            )
         return self
 
     # ------------------------------------------------------------------

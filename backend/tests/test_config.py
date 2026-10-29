@@ -99,10 +99,32 @@ class TestProductionRefusesToStart:
             **prod(
                 github_client_id="gid",
                 github_client_secret="gs",
-                oauth_redirect_base="https://gst.example.com",
+                oauth_redirect_base="https://app.example.com",
             )
         )
         assert s.oauth_providers_configured == ["github"]
+
+    @pytest.mark.parametrize(
+        "base", ["https://gstbot.aiknol.com", "https://www.app.example.com", "https://app.example.com:8443"]
+    )
+    def test_a_redirect_base_on_another_origin_is_fatal(self, base):
+        """P35 M15: https was all that was asked of it.
+
+        Authlib keeps the sign-in's state in the session cookie, set on the
+        site's origin when the sign-in starts. A callback on any other origin —
+        a previous domain still in the env file, as BACKEND_CORS_ORIGINS once
+        was — arrives without that cookie, the state check fails, and every
+        provider sign-in ends on "could not be completed", after the user has
+        already consented.
+        """
+        with pytest.raises(ValidationError, match="OAUTH_REDIRECT_BASE"):
+            Settings(**prod(google_client_id="gid", google_client_secret="gs",
+                            oauth_redirect_base=base))
+
+    def test_the_sites_own_origin_builds_with_or_without_a_trailing_slash(self):
+        for base in ("https://app.example.com", "https://app.example.com/"):
+            Settings(**prod(google_client_id="gid", google_client_secret="gs",
+                            oauth_redirect_base=base))
 
     def test_no_oauth_provider_leaves_the_redirect_base_unchecked(self):
         # Production today: no client ids, OAUTH_REDIRECT_BASE unset.
@@ -361,7 +383,7 @@ class TestStartupWarnings:
     def test_an_oauth_client_id_without_its_secret_warns(self):
         warnings = validate_startup_config(
             Settings(
-                **prod(microsoft_client_id="mid", oauth_redirect_base="https://gst.example.com")
+                **prod(microsoft_client_id="mid", oauth_redirect_base="https://app.example.com")
             )
         )
         assert any("MICROSOFT_CLIENT_SECRET" in w for w in warnings)

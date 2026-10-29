@@ -65,3 +65,10 @@ class TestTheRedirect:
         monkeypatch.setattr(settings, "public_site_url", "https://staging.gst.example")
         location = oauth._login_error("x").headers["location"]
         assert location.startswith("https://staging.gst.example/")
+
+
+def test_a_trailing_slash_on_the_redirect_base_does_not_double_the_path(monkeypatch):
+    # P35 M15: "https://site/" made ".../ /api/v1/..." with two slashes — not
+    # the URI registered with the provider, which refuses the sign-in.
+    monkeypatch.setattr(settings, "oauth_redirect_base", "https://gst.doaide.com/")
+    assert oauth._callback_url("google") == "https://gst.doaide.com/api/v1/auth/google/callback"

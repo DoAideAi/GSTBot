@@ -94,7 +94,10 @@ _PROVIDER_LABELS = {"google": "Google", "github": "GitHub", "microsoft": "Micros
 
 
 def _callback_url(provider: str) -> str:
-    return f"{settings.oauth_redirect_base}{settings.api_v1_prefix}/auth/{provider}/callback"
+    # Trimmed: "https://site/" gave a doubled slash, which is not the URI
+    # registered with the provider, and the provider refuses the sign-in.
+    base = settings.oauth_redirect_base.rstrip("/")
+    return f"{base}{settings.api_v1_prefix}/auth/{provider}/callback"
 
 
 def _configured_client(provider: str) -> Any:
