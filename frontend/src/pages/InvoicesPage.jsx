@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
+import { stepBackOffset } from "../components/Pager";
 import { SkeletonTable } from "../components/Skeleton";
 import TableScroll from "../components/TableScroll";
 import { useAuth } from "../hooks/useAuth";
@@ -54,9 +55,18 @@ export default function InvoicesPage() {
     setLoading(true);
     setError("");
     try {
-      setData(
-        await api.listInvoices({ ...filters, sort, limit: PAGE_SIZE, offset }, { signal }),
+      const page = await api.listInvoices(
+        { ...filters, sort, limit: PAGE_SIZE, offset },
+        { signal },
       );
+      // A page past the end, because invoices left the list since the pager
+      // was drawn: back to the last page there is, never "No invoices yet".
+      const back = stepBackOffset(page, offset, PAGE_SIZE);
+      if (back !== null) {
+        setOffset(back);
+        return;
+      }
+      setData(page);
       setLoadFailed(false);
     } catch (err) {
       // A superseded request has already been replaced by a newer one, which

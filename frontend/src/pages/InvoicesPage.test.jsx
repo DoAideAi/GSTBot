@@ -677,4 +677,42 @@ describe("a viewer", () => {
       screen.queryByText("An owner or an accountant can upload the first one."),
     ).toBeNull();
   });
+
+  describe("a page that emptied behind the user", () => {
+    // P36 M9: another login deletes invoices while this one is paging. Next
+    // was enabled by the old total, the page it asks for is past the end, and
+    // the answer is an empty page whose total is still positive. Rendered as
+    // it came, that was "No invoices yet. Upload your first invoice" over a
+    // book of twenty invoices, with no pager to get back by.
+    function mockShrinking() {
+      const offsets = [];
+      global.fetch = vi.fn(async (url) => {
+        const from = Number(new URL(String(url), "http://localhost").searchParams.get("offset"));
+        offsets.push(from);
+        const body =
+          offsets.length === 1
+            ? { items: [invoice()], total: 60 }
+            : from >= 20
+              ? { items: [], total: 20 }
+              : { items: [invoice({ id: 7, invoice_number: "INV-STILL-HERE" })], total: 20 };
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => JSON.stringify({ ...body, limit: PAGE_SIZE, offset: from }),
+        };
+      });
+      return offsets;
+    }
+
+    it("steps back to the last page there is, not to the empty state", async () => {
+      const offsets = mockShrinking();
+      renderPage();
+      await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+      expect(await screen.findByText("INV-STILL-HERE")).toBeInTheDocument();
+      expect(screen.queryByText("No invoices yet.")).not.toBeInTheDocument();
+      expect(offsets).toEqual([0, 25, 0]);
+    });
+  });
 });

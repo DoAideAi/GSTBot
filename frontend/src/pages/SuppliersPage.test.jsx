@@ -1191,4 +1191,41 @@ describe("SuppliersPage beyond the first page", () => {
     await screen.findByText("Supplier 1");
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
+
+  describe("a page that emptied behind the user", () => {
+    // P36 M9, as on the invoice register: a page past the end came back empty
+    // and read as "No suppliers yet" over suppliers that exist.
+    it("steps back to the last page there is", async () => {
+      const offsets = [];
+      global.fetch = vi.fn(async (url) => {
+        const target = String(url);
+        const from = Number(new URL(target, "http://localhost").searchParams.get("offset") ?? 0);
+        offsets.push(from);
+        const body =
+          offsets.length === 1
+            ? { items: [supplier()], total: 120 }
+            : from >= 30
+              ? { items: [], total: 30 }
+              : { items: [supplier({ id: 9, legal_name: "Still Here Traders", trade_name: "Still Here Traders" })], total: 30 };
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => JSON.stringify({ ...body, limit: 50, offset: from }),
+        };
+      });
+      render(
+        <MemoryRouter>
+          <StubAuth>
+            <SuppliersPage />
+          </StubAuth>
+        </MemoryRouter>,
+      );
+      await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+      expect(await screen.findByText("Still Here Traders")).toBeInTheDocument();
+      expect(screen.queryByText(/No suppliers yet/)).not.toBeInTheDocument();
+      expect(offsets).toEqual([0, 50, 0]);
+    });
+  });
 });

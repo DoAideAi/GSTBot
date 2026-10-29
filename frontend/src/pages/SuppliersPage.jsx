@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import Meter from "../components/Meter";
 import { SkeletonTable } from "../components/Skeleton";
-import Pager from "../components/Pager";
+import Pager, { stepBackOffset } from "../components/Pager";
 import TableScroll from "../components/TableScroll";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -256,6 +256,13 @@ export default function SuppliersPage() {
     setError("");
     try {
       const data = await api.listSuppliers(params, { signal });
+      // A page past the end, because suppliers left the list since the pager
+      // was drawn: back to the last page there is, never "No suppliers yet".
+      const back = stepBackOffset(data, params.offset ?? 0, params.limit);
+      if (back !== null) {
+        setOffset(back);
+        return;
+      }
       setItems(data.items);
       setTotal(data.total);
       setLoadFailed(false);

@@ -6,6 +6,21 @@
  * and a heading counting the whole list, so everything past fifty was there
  * by count and nowhere to be seen.
  */
+/**
+ * Where to go when a page came back empty although the list is not: the
+ * offset of the last page there is, or null when there is nothing to fix.
+ *
+ * Rows can leave a list while someone pages through it (another login
+ * deletes some, the sweep closes alerts), so Next, enabled by the total
+ * fetched one page ago, can ask for a page past the end. Rendered as it
+ * came, that empty page read as an empty list under the list's own
+ * "nothing here yet" message, with no pager to get back by.
+ */
+export function stepBackOffset({ items, total }, offset, pageSize) {
+  if (items.length > 0 || !(total > 0) || offset === 0) return null;
+  return Math.max(0, Math.ceil(total / pageSize) - 1) * pageSize;
+}
+
 export default function Pager({ offset, total, pageSize, onPage }) {
   if (total <= pageSize && offset === 0) return null;
   return (
