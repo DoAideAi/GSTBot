@@ -157,3 +157,19 @@ class TestOgImage:
             png = _render_og_image("Fallback test")
         assert isinstance(png, bytes)
         assert "DejaVu fonts not found" in caplog.text
+
+
+def test_an_og_image_is_rendered_once_per_title(client):
+    # P18 M8: each render is ~300 ms of PIL on the API worker, and crawlers ask
+    # for the site's same few titles over and over.
+    from app.routers import seo
+
+    seo._render_og_image.cache_clear()
+    params = {"title": "GST Calculator", "subtitle": "Free"}
+    first = client.get("/api/v1/seo/og-image", params=params)
+    second = client.get("/api/v1/seo/og-image", params=params)
+    assert first.status_code == second.status_code == 200
+    assert first.content == second.content
+    info = seo._render_og_image.cache_info()
+    assert (info.hits, info.misses) == (1, 1)
+    assert info.maxsize is not None  # bounded: titles come from the query string

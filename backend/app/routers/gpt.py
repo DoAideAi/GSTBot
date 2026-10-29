@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from functools import lru_cache
 from pathlib import Path as FilePath
 from typing import Any
 
@@ -468,9 +469,14 @@ def filing_dates_for(
     dependencies=[Depends(_gpt_limit)],
 )
 def openapi_spec() -> PlainTextResponse:
+    return PlainTextResponse(_spec_text(), media_type="application/yaml")
+
+
+@lru_cache(maxsize=1)
+def _spec_text() -> str:
+    """The served spec, read once: it is a file in the release, not data."""
     # The file names the production origin; a deployment elsewhere serves its own.
-    spec = _SPEC_FILE.read_text(encoding="utf-8").replace("https://gst.doaide.com", SITE)
-    return PlainTextResponse(spec, media_type="application/yaml")
+    return _SPEC_FILE.read_text(encoding="utf-8").replace("https://gst.doaide.com", SITE)
 
 
 PRIVACY_HTML = """<!doctype html>

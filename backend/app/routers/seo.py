@@ -13,6 +13,7 @@ import io
 import logging
 import textwrap
 from datetime import date
+from functools import lru_cache
 
 from fastapi import APIRouter, Depends, Query, Response
 from PIL import Image, ImageDraw, ImageFont
@@ -311,6 +312,12 @@ def _wrap_text(text: str, max_chars: int = 35) -> list[str]:
     return textwrap.wrap(text, width=max_chars) or [""]
 
 
+# Rendered once per title, not per request. A render is ~300 ms of PIL on the
+# API worker, and the titles are the site's own page names: every crawler and
+# chat app that unfurls a link asks for the same few dozen images, each a fresh
+# render behind a Cache-Control the server itself never honoured. ~30 KB a PNG,
+# so the bound is a few MB per worker even under a flood of made-up titles.
+@lru_cache(maxsize=128)
 def _render_og_image(title: str, subtitle: str | None = None) -> bytes:
     img = Image.new("RGB", (_OG_WIDTH, _OG_HEIGHT), _BG_COLOR)
     draw = ImageDraw.Draw(img)
