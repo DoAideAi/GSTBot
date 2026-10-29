@@ -45,6 +45,19 @@ class Breaker:
         with self._lock:
             self._failures, self._open_until, self._probing = 0, 0.0, False
 
+    @property
+    def is_open(self) -> bool:
+        """Whether calls are being refused right now. Claims nothing.
+
+        For a check made before the caller knows it will go on to call, such
+        as a dependency ahead of the rate limits: :meth:`allow` claims the
+        probe, and a caller that then stopped for another reason would hold it.
+        """
+        with self._lock:
+            return bool(self._open_until) and (
+                self._clock() < self._open_until or self._probing
+            )
+
     def allow(self) -> bool:
         """Whether to call the service now. Claims the probe when one is due."""
         with self._lock:

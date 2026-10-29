@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.breaker import Breaker
 from app.core.config import settings
 from app.core.rate_limit import RateLimit
 from app.core.sanitize import encodable, visible_text
@@ -49,9 +50,46 @@ _advisor_site_daily = RateLimit(
         "back tomorrow; the free calculators and lookups still work in the meantime."
     ),
 )
+# The breaker, as OpenRouter, SMTP and Redis each have one. Without it, in a
+# Gemini outage every question tried each model in turn, up to 20 s each,
+# before failing, and was charged to the visitor's daily allowance and the
+# site's on the way in: an afternoon of outage could leave the advisor refusing
+# everyone after Gemini came back. Same figures as the OpenRouter breaker.
+BREAKER_THRESHOLD = 3
+BREAKER_COOLDOWN_SECONDS = 120.0
+BREAKER = Breaker(
+    "Gemini",
+    threshold=BREAKER_THRESHOLD,
+    cooldown=BREAKER_COOLDOWN_SECONDS,
+    clock=time.monotonic,
+)
+_UNAVAILABLE = (
+    "The AI advisor is unavailable right now because the AI service behind it is "
+    "failing. Try again in a few minutes; the GST calculators and guides work in "
+    "the meantime."
+)
+
+
+def reset_breaker() -> None:
+    """Close the breaker. For tests, which must not inherit another's outage."""
+    BREAKER.reset()
+
+
+def _advisor_available() -> None:
+    """Refuse at once while the breaker is open, before any allowance is charged.
+
+    Reads the breaker without claiming its probe: a question refused next by a
+    rate limit would otherwise hold the probe and keep the advisor shut.
+    """
+    if BREAKER.is_open:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_UNAVAILABLE)
+
+
 # In this order: a caller refused for their own minute or day is never
 # charged against everyone's ceiling.
 _ADVISOR_LIMITS = [
+    # First, so a question refused while Gemini is down is charged to nobody.
+    Depends(_advisor_available),
     Depends(_advisor_limit),
     Depends(_advisor_daily),
     Depends(_advisor_site_daily),
@@ -263,6 +301,14 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
 
     payload = _build_payload(body.history, body.message)
 
+    if not BREAKER.allow():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_UNAVAILABLE)
+    with BREAKER.guard():
+        return await _ask_gemini(api_key, payload, body)
+
+
+async def _ask_gemini(api_key: str, payload: dict, body: AdvisorRequest) -> dict:
+    """The attempts for one question, reporting to the breaker how they ended."""
     started = time.monotonic()
     models = settings.advisor_models
     model = models[0]
@@ -286,6 +332,9 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                     "duration_ms": int((time.monotonic() - started) * 1000),
                     "history_turns": len(body.history),
                 }
+                # Gemini answered, with text or with a refusal of the question:
+                # either way the service is up.
+                BREAKER.succeeded()
                 if reply is None:
                     # Logged as what it is. "Advisor answered" used to be
                     # written first, so a safety block read in the log as a
@@ -310,6 +359,10 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                 _report_missing_model(model)
             if response.status_code not in _RETRYABLE:
                 break
+        if response.status_code in _RETRYABLE and response.status_code != 404:
+            BREAKER.failed()
+        else:
+            BREAKER.succeeded()  # the request was refused as asked; Gemini is up
         logger.error(
             "Advisor gave no answer: no Gemini model accepted the request",
             extra={
@@ -339,6 +392,7 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
     except HTTPException:
         raise
     except httpx.TimeoutException:
+        BREAKER.failed()
         logger.warning(
             "Advisor request to Gemini timed out",
             extra={"model": model, "duration_ms": int((time.monotonic() - started) * 1000)},
@@ -350,7 +404,9 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                 "questions are answered faster."
             ),
         ) from None
-    except Exception:
+    except Exception as exc:
+        if isinstance(exc, httpx.TransportError):
+            BREAKER.failed()
         logger.exception("Advisor proxy error")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -475,6 +531,35 @@ async def _stream_from_gemini(
     payload: dict,
     started: float,
 ) -> AsyncIterator[str]:
+    """The stream, reporting to the breaker once it ends.
+
+    Gemini answering at all, with text or with a refusal of the question, is
+    the service up. Running out of models on timeouts, 429s or 5xx is a failure.
+    A visitor who closes the tab mid-stream reports nothing either way.
+    """
+    # Claimed inside the stream, not in the handler: a response whose body was
+    # never iterated (a client gone before it started) would otherwise hold the
+    # probe for good. An open breaker was already refused with a 503 by
+    # _advisor_available; this is the moment a probe is already out.
+    if not BREAKER.allow():
+        yield f"data: {_json.dumps({'error': _UNAVAILABLE})}\n\n"
+        return
+    outcome = {"up": False}
+    with BREAKER.guard():
+        async for line in _stream_attempts(api_key, payload, started, outcome):
+            yield line
+        if outcome["up"]:
+            BREAKER.succeeded()
+        else:
+            BREAKER.failed()
+
+
+async def _stream_attempts(
+    api_key: str,
+    payload: dict,
+    started: float,
+    outcome: dict,
+) -> AsyncIterator[str]:
     """Try models in order; yield ``data: …`` SSE lines as text arrives."""
     client = _client()
     models = settings.advisor_models
@@ -503,6 +588,8 @@ async def _stream_from_gemini(
             )
             response = await client.send(req, stream=True)
             last_status = response.status_code
+            if response.status_code == 200 or response.status_code not in _RETRYABLE:
+                outcome["up"] = True
 
             if response.status_code != 200:
                 body = (await response.aread()).decode(errors="replace")[:200]

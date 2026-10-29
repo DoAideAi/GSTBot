@@ -108,3 +108,17 @@ def test_a_mail_probe_that_fails_on_a_non_ascii_password_does_not_wedge_mail(mon
     with pytest.raises(EmailSendError):
         send_email(to="a@example.com", subject="s", body="b")
     assert len(calls) == sent + 1  # tried again, not refused forever
+
+
+def test_is_open_reads_the_state_without_claiming_the_probe(breaker, clock):
+    # P39 M13: the advisor checks this ahead of its rate limits. Claiming the
+    # probe there, then being refused by a limit, would hold it and keep the
+    # breaker shut until the process restarted.
+    assert not breaker.is_open
+    _trip(breaker)
+    assert breaker.is_open
+    clock["now"] += 61
+    assert not breaker.is_open  # a probe is due
+    assert not breaker.is_open  # and reading twice still leaves it there
+    assert breaker.allow()
+    assert breaker.is_open  # while it is out, everyone else is refused

@@ -861,3 +861,97 @@ class TestTheModelListIsConfiguration:
 
         with pytest.raises(ValidationError):
             Settings(gemini_models=value)
+
+
+class TestAGeminiOutageIsRefusedFastAndCostsNoAllowance:
+    """P39 M13: the advisor called Gemini however long it had been failing.
+
+    OpenRouter, SMTP and Redis each sit behind a breaker; the advisor had none.
+    In a Gemini outage every question tried each model in turn, up to 20 s
+    each, before failing, so every visitor waited the better part of a minute
+    for an error. Every one of those questions was also charged to the
+    visitor's daily allowance and the site's 5,000 a day, so an afternoon of
+    outage could leave the advisor refusing everyone after Gemini recovered. The
+    advisor now has a breaker: once it opens, a question is refused at once,
+    before the allowances are charged.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _closed(self):
+        from app.routers import advisor
+
+        advisor.reset_breaker()
+        yield
+        advisor.reset_breaker()
+
+    @staticmethod
+    def _failing_post(calls):
+        async def fake_post(self, *args, **kwargs):
+            calls.append(args)
+            return httpx.Response(503, text="unavailable")
+
+        return fake_post
+
+    def test_after_repeated_failures_questions_stop_reaching_gemini(self, client):
+        from app.routers import advisor
+
+        calls: list = []
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new=self._failing_post(calls)),
+        ):
+            for _ in range(advisor.BREAKER_THRESHOLD):
+                assert client.post("/api/v1/advisor/ask", json={"message": "Hi"}).status_code == 503
+            reached = len(calls)
+            refused = client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+
+        assert refused.status_code == 503
+        assert "unavailable" in refused.json()["detail"].lower()
+        assert len(calls) == reached, "an open breaker still called Gemini"
+
+    def test_a_refused_question_is_not_charged_to_the_allowances(
+        self, client, monkeypatch, rate_limited
+    ):
+        from app.core.ratespec import parse_rate
+        from app.routers import advisor
+
+        monkeypatch.setattr(advisor._advisor_daily, "_rate", parse_rate("100/day"))
+        calls: list = []
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new=self._failing_post(calls)),
+        ):
+            for _ in range(advisor.BREAKER_THRESHOLD):
+                client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+            for _ in range(5):
+                client.post("/api/v1/advisor/ask", json={"message": "Hi"})
+
+        from app.core.rate_limit import peek
+
+        used = 100 - peek("advisor_daily:ip:testclient", advisor._advisor_daily.rate).remaining
+        assert used == advisor.BREAKER_THRESHOLD
+
+    def test_the_stream_is_refused_the_same_way(self, client):
+        from app.routers import advisor
+
+        for _ in range(advisor.BREAKER_THRESHOLD):
+            advisor.BREAKER.failed()
+        with patch("app.routers.advisor._get_api_key", return_value="k"):
+            response = client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
+        assert response.status_code == 503
+
+    def test_an_answer_closes_it_again(self, client):
+        from app.routers import advisor
+
+        ok = httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+        async def fake_post(self, *args, **kwargs):
+            return ok
+
+        advisor.BREAKER.failed()
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new=fake_post),
+        ):
+            assert client.post("/api/v1/advisor/ask", json={"message": "Hi"}).status_code == 200
+        assert not advisor.BREAKER.is_open
