@@ -48,6 +48,7 @@ from app.models.invoice import (
 )
 from app.services import gst_calendar, invoice_parser, invoice_service
 from app.services import gstin as gstin_service
+from app.services import hsn as hsn_service
 from app.services import itc as itc_service
 
 logger = logging.getLogger(__name__)
@@ -1049,8 +1050,11 @@ def _line_item_rate_lines(invoice: Invoice) -> list[RateLine] | None:
         taxable = invoice_parser.to_money(item.get("taxable_value"), default=None)
         if taxable is None or taxable < ZERO:
             return None
-        hsn = item.get("hsn_code")
-        hsn = str(hsn).strip() if hsn else None
+        # Read off the document by the model, like the invoice's own code, and
+        # held to the same rule: it lands in the HSN summary's ``hsn_sc``, and
+        # "HSN 8471.30" or a sentence there was a GSTR-1 the portal refuses.
+        # One the rule cannot read falls back to the invoice's code.
+        hsn = hsn_service.normalize_hsn_code(item.get("hsn_code"), cut_long=True)
         quantity = invoice_parser.to_decimal(item.get("quantity"), default=None) or ZERO
         bucket = groups.setdefault(
             (rate, hsn or invoice.hsn_code), {"taxable": ZERO, "quantity": ZERO}

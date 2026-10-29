@@ -1120,6 +1120,22 @@ class TestAnInvoiceThatMixesRates:
         assert data["84713010"]["rt"] == 18.0
         assert data["84713010"]["camt"] == 4500.00
 
+    def test_a_line_hsn_as_the_model_wrote_it_is_filed_as_the_portal_takes_it(
+        self, db_session, business
+    ):
+        """P22 M2: line-item codes come from the model unchecked and went into
+        ``hsn_sc`` as written; the invoice's own code was already normalised."""
+        lines = self.mixed().line_items
+        lines[0]["hsn_code"] = "HSN 4901.99.00"
+        lines[1]["hsn_code"] = "see attached schedule"
+        save(db_session, business.id, self.mixed(line_items=lines, hsn_code="8471"))
+
+        document = filing_service.build_gstr1(db_session, business, PERIOD)
+
+        codes = {entry["hsn_sc"]: entry["rt"] for entry in document["hsn"]["data"]}
+        # Normalised; and the unreadable one falls back to the invoice's code.
+        assert codes == {"49019900": 5.0, "8471": 18.0}
+
     def test_the_hsn_summary_reports_the_quantity_the_lines_carry(
         self, db_session, business
     ):
