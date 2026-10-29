@@ -35,7 +35,10 @@
     <meta name="author" content="DoAide by Apprend Technologies" />
     <meta name="geo.region" content="IN" />
     <meta name="geo.placename" content="India" />
-    <script defer src="https://analytics.doaide.com/script.js" data-website-id="b2dddc29-9da3-4726-a6ba-4f4b7d998981"></script>
+    <!-- data-exclude-hash: OAuth hands the session token to /auth/callback in the
+         fragment, and without it Umami reports location.href whole — every
+         sign-in sent its token to the analytics server. -->
+    <script defer src="https://analytics.doaide.com/script.js" data-website-id="b2dddc29-9da3-4726-a6ba-4f4b7d998981" data-exclude-hash="true"></script>
 
     <!-- Open Graph -->
     <meta property="og:title" content="DoAide GST - Free GST Calculator, GSTIN Lookup & HSN Codes" />

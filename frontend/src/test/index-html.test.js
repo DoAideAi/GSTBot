@@ -27,3 +27,21 @@ describe("index.html under the site's CSP", () => {
     expect(worker).toContain("self.registration.unregister()");
   });
 });
+
+describe("the analytics tag and the sign-in token", () => {
+  // OAuth hands the session token to /auth/callback in the URL fragment, so it
+  // never reaches a server log. Umami's tracker reports location.href with the
+  // fragment unless told data-exclude-hash="true" (its `e.hash=""` runs only
+  // then), and it sends a pageview on load and the URL with every track() — so
+  // each Google, GitHub or Microsoft sign-in sent its 24-hour token to
+  // analytics.doaide.com.
+  const tag = html.match(/<script\b[^>]*analytics\.doaide\.com[^>]*>/)?.[0] ?? "";
+
+  it("is present", () => {
+    expect(tag).not.toBe("");
+  });
+
+  it("never reports the URL fragment", () => {
+    expect(tag).toMatch(/\sdata-exclude-hash="true"/);
+  });
+});
