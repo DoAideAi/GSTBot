@@ -597,3 +597,81 @@ def test_every_section_heading_agrees_with_the_summary(auth_client, db_session, 
         ("Matched", run.matched_count),
     ):
         assert re.search(rf"(?<!\w){re.escape(heading)} \({count or 0}[,)]", text), heading
+
+
+class TestAReportPaidForWithoutTheBrowserComingBack:
+    """P35 M11: an order.paid for a report was dropped as "unmatched".
+
+    A report purchase was recorded only by /report/verify, which the browser
+    calls after Razorpay's checkout succeeds. A closed tab, a dropped
+    connection, or a phone switching apps for UPI, and the customer had paid
+    ₹99 with no purchase recorded and no report — and the order.paid webhook,
+    which Razorpay sends whatever the browser does, was acknowledged without
+    a word because only subscription receipts were recovered from it.
+    """
+
+    def _webhook(self, client, business, run, *, payment="pay_rpt_hook", **order_overrides):
+        import json
+
+        order = _paid_order(business.id, run.id, **order_overrides)
+        body = {
+            "event": "order.paid",
+            "payload": {
+                "order": {"entity": order},
+                "payment": {
+                    "entity": {"id": payment, "order_id": order["id"], "status": "captured"}
+                },
+            },
+        }
+        with (
+            patch.object(razorpay_client, "verify_webhook_signature", return_value=True),
+            patch.object(razorpay_client, "fetch_order", return_value=order),
+        ):
+            return client.post(
+                "/api/v1/subscriptions/webhook",
+                content=json.dumps(body).encode(),
+                headers={"X-Razorpay-Signature": "v"},
+            )
+
+    def _purchases(self, db_session, business):
+        return db_session.scalars(
+            select(ReportPurchase).where(ReportPurchase.business_id == business.id)
+        ).all()
+
+    def test_the_webhook_records_the_purchase(self, client, db_session, business):
+        run = _run(db_session, business)
+
+        response = self._webhook(client, business, run)
+
+        assert response.status_code == 200
+        bought = self._purchases(db_session, business)
+        assert [(p.run_id, p.razorpay_payment_id, p.amount_paise) for p in bought] == [
+            (run.id, "pay_rpt_hook", PRICE)
+        ]
+
+    def test_the_browser_arriving_afterwards_finds_it_bought(
+        self, client, auth_client, db_session, business
+    ):
+        run = _run(db_session, business)
+        self._webhook(client, business, run, payment="pay_rpt")
+
+        response = _buy(auth_client, business, run)
+
+        assert response.status_code == 200, response.text
+        assert len(self._purchases(db_session, business)) == 1
+
+    def test_an_order_short_of_the_price_is_not_recorded(self, client, db_session, business):
+        run = _run(db_session, business)
+
+        response = self._webhook(client, business, run, amount_paid=PRICE - 1)
+
+        assert response.status_code == 200
+        assert self._purchases(db_session, business) == []
+
+    def test_a_run_that_is_not_this_business_s_records_nothing(self, client, db_session, business):
+        run = _run(db_session, business)
+
+        response = self._webhook(client, business, run, receipt=f"rpt_{business.id}_{run.id + 99}")
+
+        assert response.status_code == 200
+        assert self._purchases(db_session, business) == []

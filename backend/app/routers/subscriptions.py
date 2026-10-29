@@ -803,6 +803,61 @@ def usage_summary(
 
 
 _CHECKOUT_RECEIPT = re.compile(r"^biz_(\d{1,18})_([a-z]+)$")
+# razorpay_client.report_receipt: the business, then the run whose report it buys.
+_REPORT_RECEIPT = re.compile(r"^rpt_(\d{1,18})_(\d{1,18})$")
+
+
+def _recover_report_purchase(db: Session, order: dict, payment: dict, match: re.Match) -> dict:
+    """Record a report the browser never confirmed, from ``order.paid``.
+
+    A report was recorded only by /report/verify, which the browser calls once
+    Razorpay's checkout succeeds; a closed tab, a dropped connection or a phone
+    switching apps for UPI, and the customer had paid with nothing recorded and
+    no report — and this webhook acknowledged the order as "unmatched". It now
+    runs the same recording as the browser path (the order re-read from
+    Razorpay and matched the same way), and whichever arrives second finds the
+    payment recorded. Refusals a retry cannot change are acknowledged and
+    logged; Razorpay being unreachable is a 502, so Razorpay retries.
+    """
+    # Imported here: the reconciliation router is the one place a report
+    # purchase is recorded, and it does not import this module.
+    from app.routers.reconciliation import _reportable_run, apply_report_payment
+
+    business = db.get(Business, int(match.group(1)))
+    order_id, payment_id = order.get("id"), payment.get("id")
+    if business is None or not isinstance(order_id, str) or not isinstance(payment_id, str):
+        logger.warning(
+            "order.paid for a report this server cannot place",
+            extra={"event": "order.paid", "outcome": "malformed", "receipt": order.get("receipt")},
+        )
+        metrics.count("razorpay_webhook_malformed")
+        return {"status": "ok"}
+    try:
+        run = _reportable_run(db, business, int(match.group(2)))
+        apply_report_payment(db, business, run, order_id, payment_id, actor_user_id=None)
+    except HTTPException as exc:
+        db.rollback()
+        if exc.status_code in (502, 503, 504):
+            raise
+        logger.warning(
+            "order.paid for a report not recorded: %s", exc.detail,
+            extra={
+                "event": "order.paid",
+                "outcome": "ignored",
+                "business_id": business.id,
+                "razorpay_order_id": order_id,
+                "status_code": exc.status_code,
+            },
+        )
+        metrics.count("razorpay_webhook_ignored")
+        return {"status": "ok"}
+    logger.info(
+        "order.paid recorded a report purchase",
+        extra={"event": "order.paid", "outcome": "applied", "business_id": business.id,
+               "razorpay_order_id": order_id},
+    )
+    metrics.count("razorpay_webhook_applied")
+    return {"status": "ok"}
 
 
 def _recover_paid_order(db: Session, payload: dict) -> dict:
@@ -829,11 +884,13 @@ def _recover_paid_order(db: Session, payload: dict) -> dict:
     order = _dig(payload, "payload", "order", "entity")
     payment = _dig(payload, "payload", "payment", "entity")
     receipt = order.get("receipt")
+    report = _REPORT_RECEIPT.match(receipt) if isinstance(receipt, str) else None
+    if report is not None:
+        return _recover_report_purchase(db, order, payment, report)
     match = _CHECKOUT_RECEIPT.match(receipt) if isinstance(receipt, str) else None
     business = db.get(Business, int(match.group(1))) if match else None
     if business is None:
-        # A report purchase (rpt_…) is confirmed by its own route, and any
-        # other receipt is not an order this server created.
+        # Not a receipt this server wrote: neither a checkout nor a report.
         logger.info(
             "order.paid acknowledged: not a checkout this server can apply",
             extra={"event": "order.paid", "outcome": "unmatched", "receipt": receipt},

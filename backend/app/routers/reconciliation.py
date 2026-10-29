@@ -691,6 +691,111 @@ _UNMATCHED_PAYMENT = (
 )
 
 
+def apply_report_payment(
+    db: Session,
+    business: Business,
+    run: ReconciliationRun,
+    order_id: str,
+    payment_id: str,
+    *,
+    actor_user_id: int | None,
+) -> ReportPurchaseOut:
+    """Record a paid report order against *run*, or say why not.
+
+    Shared by /report/verify, after it has checked the checkout's signature,
+    and by the order.paid webhook, whose own signature was checked — so a
+    purchase whose browser never came back is recorded all the same. The order
+    is re-read from Razorpay and matched the same way on both paths, and
+    whichever arrives second finds the payment already recorded.
+    """
+    done = ReportPurchaseOut(run_id=run.id, purchased=True, download_path=_download_path(run.id))
+
+    def _recorded() -> ReportPurchase | None:
+        return db.scalar(
+            select(ReportPurchase).where(
+                ReportPurchase.business_id == business.id,
+                ReportPurchase.razorpay_payment_id == payment_id,
+            )
+        )
+
+    def _already(existing: ReportPurchase) -> ReportPurchaseOut:
+        if existing.run_id == run.id:
+            return done
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This payment has already been applied to a different report.",
+        )
+
+    existing = _recorded()
+    if existing is not None:
+        return _already(existing)
+
+    order = razorpay_client.fetch_order(order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Could not confirm the payment with the payment provider. Try again "
+                "in a moment — if you were charged, it will not be lost."
+            ),
+        )
+    price = razorpay_client.REPORT_PRICE_PAISE
+    problems = []
+    if order.get("receipt") != razorpay_client.report_receipt(business.id, run.id):
+        problems.append("receipt")
+    if razorpay_client.paise(order.get("amount")) != price:
+        problems.append("amount")
+    amount_paid = razorpay_client.paise(order.get("amount_paid"))
+    if order.get("status") != "paid" or amount_paid is None or amount_paid < price:
+        problems.append("status")
+    if problems:
+        logger.warning(
+            "Report payment refused: order does not match the request",
+            extra={
+                "business_id": business.id,
+                "run_id": run.id,
+                "razorpay_order_id": order_id,
+                "mismatch": problems,
+                "order_status": order.get("status"),
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_UNMATCHED_PAYMENT)
+
+    db.add(
+        ReportPurchase(
+            business_id=business.id,
+            run_id=run.id,
+            razorpay_order_id=order_id,
+            razorpay_payment_id=payment_id,
+            amount_paise=price,
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError:
+        # Checkout's handler and a retry of it can both get here with the same
+        # payment; the unique constraint keeps one row, and the loser answers
+        # from it.
+        db.rollback()
+        existing = _recorded()
+        if existing is None:
+            raise
+        return _already(existing)
+
+    logger.info(
+        "Report purchased",
+        extra={
+            "business_id": business.id,
+            "user_id": actor_user_id,
+            "run_id": run.id,
+            "razorpay_payment_id": payment_id,
+            "razorpay_order_id": order_id,
+            "amount_paise": price,
+        },
+    )
+    return done
+
+
 @router.post(
     "/report/verify",
     response_model=ReportPurchaseOut,
@@ -723,7 +828,6 @@ def verify_report_payment(
     current_user: User = Depends(get_current_user),
 ) -> ReportPurchaseOut:
     run = _reportable_run(db, business, payload.run_id)
-    done = ReportPurchaseOut(run_id=run.id, purchased=True, download_path=_download_path(run.id))
 
     if not razorpay_client.verify_payment_signature(
         payload.razorpay_order_id, payload.razorpay_payment_id, payload.razorpay_signature
@@ -745,90 +849,10 @@ def verify_report_payment(
             ),
         )
 
-    def _recorded() -> ReportPurchase | None:
-        return db.scalar(
-            select(ReportPurchase).where(
-                ReportPurchase.business_id == business.id,
-                ReportPurchase.razorpay_payment_id == payload.razorpay_payment_id,
-            )
-        )
-
-    def _already(existing: ReportPurchase) -> ReportPurchaseOut:
-        if existing.run_id == run.id:
-            return done
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This payment has already been applied to a different report.",
-        )
-
-    existing = _recorded()
-    if existing is not None:
-        return _already(existing)
-
-    order = razorpay_client.fetch_order(payload.razorpay_order_id)
-    if order is None:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "Could not confirm the payment with the payment provider. Try again "
-                "in a moment — if you were charged, it will not be lost."
-            ),
-        )
-    price = razorpay_client.REPORT_PRICE_PAISE
-    problems = []
-    if order.get("receipt") != razorpay_client.report_receipt(business.id, run.id):
-        problems.append("receipt")
-    if razorpay_client.paise(order.get("amount")) != price:
-        problems.append("amount")
-    amount_paid = razorpay_client.paise(order.get("amount_paid"))
-    if order.get("status") != "paid" or amount_paid is None or amount_paid < price:
-        problems.append("status")
-    if problems:
-        logger.warning(
-            "Report payment refused: order does not match the request",
-            extra={
-                "business_id": business.id,
-                "run_id": run.id,
-                "razorpay_order_id": payload.razorpay_order_id,
-                "mismatch": problems,
-                "order_status": order.get("status"),
-            },
-        )
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_UNMATCHED_PAYMENT)
-
-    db.add(
-        ReportPurchase(
-            business_id=business.id,
-            run_id=run.id,
-            razorpay_order_id=payload.razorpay_order_id,
-            razorpay_payment_id=payload.razorpay_payment_id,
-            amount_paise=price,
-        )
+    return apply_report_payment(
+        db, business, run, payload.razorpay_order_id, payload.razorpay_payment_id,
+        actor_user_id=current_user.id,
     )
-    try:
-        db.commit()
-    except IntegrityError:
-        # Checkout's handler and a retry of it can both get here with the same
-        # payment; the unique constraint keeps one row, and the loser answers
-        # from it.
-        db.rollback()
-        existing = _recorded()
-        if existing is None:
-            raise
-        return _already(existing)
-
-    logger.info(
-        "Report purchased",
-        extra={
-            "business_id": business.id,
-            "user_id": current_user.id,
-            "run_id": run.id,
-            "razorpay_payment_id": payload.razorpay_payment_id,
-            "razorpay_order_id": payload.razorpay_order_id,
-            "amount_paise": price,
-        },
-    )
-    return done
 
 
 @router.get(
