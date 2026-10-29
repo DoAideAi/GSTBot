@@ -61,15 +61,16 @@ _ADVISOR_LIMITS = [
 # already met: gemini-3.8-flash answered 503 "high demand" for long enough that
 # every visitor got the apology below and nothing else. Overload and quota are
 # per model, so the next one in the list usually answers when the first will
-# not. Only those two kinds of failure move on — a 400 means the request itself
-# is wrong and every model would refuse it the same way.
-_GEMINI_MODELS = ("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite")
+# not. Those two kinds of failure move on — a 400 means the request itself is
+# wrong and every model would refuse it the same way — and so does a 404: the
+# model has been retired, and stopping there turned one stale name into
+# "refused, try rephrasing" for every question. The list is GEMINI_MODELS.
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 _GEMINI_STREAM_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "{model}:streamGenerateContent?alt=sse"
 )
-_RETRYABLE = frozenset({429, 500, 502, 503, 504})
+_RETRYABLE = frozenset({404, 429, 500, 502, 503, 504})
 
 SYSTEM_PROMPT = (
     "You are GSTIndia AI Advisor, an expert on India's Goods and Services Tax. "
@@ -263,10 +264,11 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
     payload = _build_payload(body.history, body.message)
 
     started = time.monotonic()
-    model = _GEMINI_MODELS[0]
+    models = settings.advisor_models
+    model = models[0]
     try:
         client = _client()
-        for attempt, model in enumerate(_GEMINI_MODELS, start=1):
+        for attempt, model in enumerate(models, start=1):
             response = await client.post(
                 _GEMINI_URL.format(model=model),
                 headers={"x-goog-api-key": api_key},
@@ -304,6 +306,8 @@ async def ask_advisor(body: AdvisorRequest) -> dict[str, str]:
                 response.text[:200],
                 extra={"model": model, "attempt": attempt, "upstream_status": response.status_code},
             )
+            if response.status_code == 404:
+                _report_missing_model(model)
             if response.status_code not in _RETRYABLE:
                 break
         logger.error(
@@ -372,6 +376,15 @@ def _clean_reply(text: str) -> str:
     character in an otherwise good answer.
     """
     return encodable(text)[:MAX_REPLY_CHARS]
+
+
+def _report_missing_model(model: str) -> None:
+    """A 404 is a configuration fault, not an outage: say which name to fix."""
+    logger.error(
+        "Gemini model %s does not exist (404); remove it from GEMINI_MODELS",
+        model,
+        extra={"model": model, "configured": settings.gemini_models},
+    )
 
 
 # What the user is told when a model answered 200 with no text, and when the
@@ -453,9 +466,8 @@ _STREAM_TIMEOUT = httpx.Timeout(5.0, read=30.0)
 # not bounded at all — every chunk relayed, for as long as they came. Three
 # limits: the text the browser is sent (the same cap as a whole reply), the
 # raw SSE read to produce it (JSON framing, or lines carrying no text at all),
-# and the wall clock across every model tried.
+# and the wall clock across every model tried (ADVISOR_STREAM_DEADLINE_SECONDS).
 _MAX_STREAM_RAW_CHARS = 1_000_000
-_STREAM_DEADLINE_S = 120.0
 
 
 async def _stream_from_gemini(
@@ -465,7 +477,8 @@ async def _stream_from_gemini(
 ) -> AsyncIterator[str]:
     """Try models in order; yield ``data: …`` SSE lines as text arrives."""
     client = _client()
-    last_model = _GEMINI_MODELS[0]
+    models = settings.advisor_models
+    last_model = models[0]
     last_status = 0
     # Once any text has reached the browser, falling through to the next model
     # would start a second answer from its first word, appended to the first
@@ -476,8 +489,8 @@ async def _stream_from_gemini(
     overrun = None  # why the stream was stopped short, if it was
     refused = False  # the question itself was blocked; no model will answer it
 
-    for attempt, model in enumerate(_GEMINI_MODELS, start=1):
-        if time.monotonic() - started > _STREAM_DEADLINE_S:
+    for attempt, model in enumerate(models, start=1):
+        if time.monotonic() - started > settings.advisor_stream_deadline_seconds:
             break  # the next model would start an answer nobody is waiting for
         last_model = model
         url = _GEMINI_STREAM_URL.format(model=model)
@@ -502,6 +515,8 @@ async def _stream_from_gemini(
                         "upstream_status": response.status_code,
                     },
                 )
+                if response.status_code == 404:
+                    _report_missing_model(model)
                 if response.status_code not in _RETRYABLE:
                     break
                 continue
@@ -513,7 +528,7 @@ async def _stream_from_gemini(
                     if read_chars > _MAX_STREAM_RAW_CHARS:
                         overrun = "raw"
                         break
-                    if time.monotonic() - started > _STREAM_DEADLINE_S:
+                    if time.monotonic() - started > settings.advisor_stream_deadline_seconds:
                         overrun = "deadline"
                         break
                     if not line.startswith("data: "):

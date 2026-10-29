@@ -711,9 +711,9 @@ class TestAStreamThatWillNotStop:
         assert "error" in events[-1] and "cut off" in events[-1]["error"]
 
     def test_a_stream_past_its_deadline_is_ended(self, client, monkeypatch):
-        from app.routers import advisor
+        from app.core.config import settings
 
-        monkeypatch.setattr(advisor, "_STREAM_DEADLINE_S", -1.0)
+        monkeypatch.setattr(settings, "advisor_stream_deadline_seconds", -1.0)
         events = _events(self._stream(client, _FakeStreamResponse(200, _sse_body(["late"]))))
         assert events == [
             {"error": "The AI advisor could not answer just now. Try again in a minute."}
@@ -821,3 +821,43 @@ class TestARefusalIsLoggedAsOne:
         ):
             response = client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
         assert _events(response) == [{"error": advisor._NO_ANSWER}]
+
+
+class TestTheModelListIsConfiguration:
+    """P22 M15: the models were a constant and a 404 stopped the loop, so one
+    retired model name answered every question with "refused, rephrase"
+    until a release replaced it."""
+
+    def test_a_retired_model_falls_through_to_the_next(self, client, monkeypatch, caplog):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "gemini_models", "gemini-gone,gemini-here")
+        tried = []
+
+        async def post(self, url, headers=None, json=None, **kw):
+            tried.append(url)
+            if "gemini-gone" in url:
+                return httpx.Response(404, json={"error": {"message": "not found"}})
+            return httpx.Response(
+                200, json={"candidates": [{"content": {"parts": [{"text": "18%"}]}}]}
+            )
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="k"),
+            patch("httpx.AsyncClient.post", new=post),
+            caplog.at_level(logging.ERROR, logger="app.routers.advisor"),
+        ):
+            response = client.post("/api/v1/advisor/ask", json={"message": "Rate?"})
+        assert response.status_code == 200
+        assert response.json() == {"reply": "18%"}
+        assert ["gemini-gone" in u for u in tried] == [True, False]
+        assert any("remove it from GEMINI_MODELS" in r.getMessage() for r in caplog.records)
+
+    @pytest.mark.parametrize("value", ["", " , ", "gemini/../x", "Gemini Pro"])
+    def test_a_list_that_is_not_model_names_is_refused_at_startup(self, value):
+        from pydantic import ValidationError
+
+        from app.core.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(gemini_models=value)

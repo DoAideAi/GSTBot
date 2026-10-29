@@ -14,6 +14,7 @@ Two rules this module enforces, both at startup rather than at first use:
 """
 from __future__ import annotations
 
+import re
 import warnings
 from functools import lru_cache
 
@@ -208,6 +209,13 @@ class Settings(BaseSettings):
     # Read when GEMINI_API_KEY is empty, so the key can live outside the env
     # file. Empty disables the fallback.
     gemini_api_key_file: str = "/opt/GSTBot/keys/gemini-api-key"
+    # Tried in order, comma-separated. A setting rather than code because
+    # Google retires model names: the list was a constant, so a retired first
+    # model could only be replaced by a release.
+    gemini_models: str = "gemini-3.8-flash,gemini-3.5-flash,gemini-3.5-flash-lite"
+    # Wall clock for one streamed answer across every model tried; the read
+    # timeout is per chunk, so this is what ends a stream that never stops.
+    advisor_stream_deadline_seconds: float = Field(default=120.0, gt=0, le=600)
 
     # ---- Email (filing-deadline alert digests) ----
     # Off by default: no deployment has SMTP infrastructure until it sets this,
@@ -302,6 +310,18 @@ class Settings(BaseSettings):
     def public_site_host(self) -> str:
         """The site's host name, for text that shows it without a scheme."""
         return self.public_site_url.split("://", 1)[1]
+
+    @field_validator("gemini_models")
+    @classmethod
+    def _gemini_models_named(cls, value: str) -> str:
+        names = [n.strip() for n in value.split(",") if n.strip()]
+        if not names:
+            raise ValueError("GEMINI_MODELS must name at least one model")
+        for name in names:
+            # Each goes into the request path; nothing but a model id belongs there.
+            if not re.fullmatch(r"[a-z0-9][a-z0-9.\-]{0,63}", name):
+                raise ValueError(f"GEMINI_MODELS: {name!r} is not a model name")
+        return ",".join(names)
 
     @field_validator("environment")
     @classmethod
@@ -473,6 +493,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.backend_cors_origins.split(",") if o.strip()]
+
+    @property
+    def advisor_models(self) -> tuple[str, ...]:
+        """The Gemini models the advisor tries, in order."""
+        return tuple(self.gemini_models.split(","))
 
     @property
     def plan_limits(self) -> dict[str, int]:
