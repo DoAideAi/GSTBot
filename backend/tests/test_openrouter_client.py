@@ -1190,3 +1190,54 @@ def test_the_backoff_sleep_is_a_real_sleep():
     _REAL_SLEEP(0.01)
 
     assert _time.perf_counter() - before >= 0.005
+
+
+class TestAnErrorInsideA200IsNotASuccess:
+    """P37 M13: OpenRouter's in-body errors were counted as the provider working.
+
+    When the model provider behind OpenRouter fails after the request was
+    accepted, OpenRouter answers HTTP 200 with ``{"error": {"code": 502, ...}}``
+    and no ``choices``. The 2xx branch called ``BREAKER.succeeded()`` before
+    reading the body. Each such call failed ("no choices") but counted as a
+    success and cleared whatever failures the breaker had counted. The breaker
+    could never open on the commonest outage a free model has, so every upload
+    paid the whole call before falling back. A 502 or 429 in the body is also
+    as transient as one in the status line, and it was never retried.
+    """
+
+    @staticmethod
+    def _error_body(code, message="Provider returned error"):
+        return _FakeResponse(200, payload={"error": {"code": code, "message": message}})
+
+    def test_an_upstream_failure_in_the_body_is_retried(self, configured, monkeypatch):
+        bodies = iter([self._error_body(502), _FakeResponse(payload=_completion("read it"))])
+        calls = []
+
+        def scripted(url, **kwargs):
+            calls.append(url)
+            return next(bodies)
+
+        monkeypatch.setattr(httpx, "post", scripted)
+        assert chat_completion(MESSAGES) == "read it"
+        assert len(calls) == 2
+
+    def test_repeated_upstream_failures_open_the_breaker(self, configured, transport):
+        transport["state"]["response"] = self._error_body(502)
+        for _ in range(openrouter_client.BREAKER_THRESHOLD):
+            with pytest.raises(OpenRouterError):
+                chat_completion(MESSAGES)
+        sent = len(transport["calls"])
+
+        with pytest.raises(OpenRouterError, match="unavailable"):
+            chat_completion(MESSAGES)
+        assert len(transport["calls"]) == sent, "an open breaker still called the provider"
+
+    def test_an_error_about_the_request_is_not_retried_or_held_against_the_provider(
+        self, configured, transport
+    ):
+        transport["state"]["response"] = self._error_body(400, "Invalid model")
+        for _ in range(openrouter_client.BREAKER_THRESHOLD + 1):
+            with pytest.raises(OpenRouterError, match="400"):
+                chat_completion(MESSAGES)
+        # One request per call, and the breaker never opened on our own mistake.
+        assert len(transport["calls"]) == openrouter_client.BREAKER_THRESHOLD + 1

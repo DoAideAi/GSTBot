@@ -297,7 +297,21 @@ def _call_with_retries(url: str, payload: dict[str, Any], request_timeout: float
             BREAKER.succeeded()
             raise OpenRouterError(f"OpenRouter request failed: {exc}") from exc
         else:
-            if response.status_code in _RETRYABLE_STATUS:
+            embedded = _embedded_error_status(response)
+            if embedded is not None and (embedded in _RETRYABLE_STATUS or embedded >= 500):
+                # The provider behind OpenRouter failed after the request was
+                # accepted: a 200 whose body is an error. Counted as a success,
+                # it kept the breaker closed through exactly the outage it is
+                # for, and the transient failure it reports was never retried.
+                last_error = OpenRouterError(
+                    f"OpenRouter returned {embedded} inside a 200: {response.text[:500]}"
+                )
+            elif embedded is not None:
+                BREAKER.succeeded()
+                raise OpenRouterError(
+                    f"OpenRouter returned {embedded} inside a 200: {response.text[:500]}"
+                )
+            elif response.status_code in _RETRYABLE_STATUS:
                 last_error = OpenRouterError(
                     f"OpenRouter returned {response.status_code}: {response.text[:500]}"
                 )
@@ -367,6 +381,35 @@ def _call_with_retries(url: str, payload: dict[str, Any], request_timeout: float
 
     BREAKER.failed()
     raise last_error or OpenRouterError("OpenRouter request failed")
+
+
+def _embedded_error_status(response: Any) -> int | None:
+    """The status of an error OpenRouter reported inside a 2xx body, if it did.
+
+    OpenRouter answers 200 and puts ``{"error": {"code": ..., "message": ...}}``
+    in the body when the provider fails after the request was accepted. Only a
+    body with an error object and no ``choices`` counts. A code that is not a
+    number is reported as 502, since the provider failed in a way it didn't
+    name.
+    """
+    if not 200 <= response.status_code < 300:
+        return None
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or data.get("choices") or not isinstance(
+        data.get("error"), dict
+    ):
+        return None
+    code = data["error"].get("code")
+    if isinstance(code, bool):
+        return 502
+    if isinstance(code, int):
+        return code
+    if isinstance(code, str) and code.isdigit():
+        return int(code)
+    return 502
 
 
 def _completion_text(response: Any) -> str:
