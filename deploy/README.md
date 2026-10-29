@@ -370,7 +370,8 @@ Its `checks.integrations` block says which optional features this server can
 offer, from configuration alone (nothing is called): `advisor` (the GST advisor
 chat, needs `GEMINI_API_KEY` or `GEMINI_API_KEY_FILE`), `payments`
 (`RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`; `webhooks` is whether
-`RAZORPAY_WEBHOOK_SECRET` is set) and `email` (deadline alert emails:
+`RAZORPAY_WEBHOOK_SECRET` is set) and `email` (every email the product sends —
+alert digests, subscribers' deadline reminders, password-reset links:
 `ALERTS_EMAIL_ENABLED` and `SMTP_HOST`). `unconfigured` or `disabled` there is
 a feature switched off, not a fault, and does not change `status`;
 `misconfigured` (email switched on with no `SMTP_HOST`) is a mistake to fix.
@@ -565,6 +566,14 @@ still appears in the product with `channel` staying null. Filling in
 `SMTP_HOST` and the credentials in the env file's "Email" section turns it on
 without a redeploy — the schedule is already running, waiting for something to
 send.
+
+The same switch carries two things that have no in-app fallback, so "off" is not
+free: the daily `subscriber-deadline-reminders` task (08:00 IST), which emails
+the people who signed up on the public site three days before each GSTR-1 and
+GSTR-3B due date, and the password-reset link `/forgot-password` sends. With
+email off, subscribers get nothing and a forgotten password cannot be reset —
+the reset page still says a link is on its way, because it must not reveal which
+addresses have accounts.
 
 Two operational facts about it:
 

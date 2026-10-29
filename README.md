@@ -127,7 +127,7 @@ backend/app/
   schemas/    Pydantic request/response models. Validation belongs here.
   models/     SQLAlchemy ORM.
   core/       config, database, security, deps, rate_limit, middleware, errors.
-  tasks/      Celery tasks (invoice parsing, alert digests, sweeps).
+  tasks/      Celery tasks (invoice parsing, alert digests, subscriber reminders, sweeps).
 backend/tests/    One file per unit, plus route-table sweeps.
 backend/tools/    mutation.py — a targeted mutation tester. Not deployed.
 frontend/src/     pages/, components/, hooks/, lib/. Tests sit next to sources.
