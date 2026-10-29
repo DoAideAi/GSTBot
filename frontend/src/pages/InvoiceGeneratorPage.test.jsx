@@ -184,3 +184,27 @@ describe("InvoiceGeneratorPage", () => {
     expect(screen.getByText("More Free GST Tools")).toBeInTheDocument();
   });
 });
+
+describe("the GSTIN fields to a screen reader", () => {
+  // The format message sat inside the <label>, so it became part of the
+  // field's name — "GSTIN A GSTIN is 15 characters; this one is 5" — and the
+  // field never said it was invalid.
+  it.each([["Your GSTIN", 0], ["Buyer GSTIN", 1]])("%s is named, flagged and described", async (_, index) => {
+    renderPage();
+    const field = screen.getAllByRole("textbox", { name: "GSTIN" })[index];
+    await userEvent.type(field, "27AAP");
+
+    expect(field).toHaveAccessibleName("GSTIN");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/A GSTIN is 15 characters/);
+  });
+
+  it("is not flagged once the format is right", async () => {
+    renderPage();
+    const field = screen.getAllByRole("textbox", { name: "GSTIN" })[0];
+    await userEvent.type(field, "27AAPFU0939F1ZV");
+
+    expect(field).not.toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/Valid format/);
+  });
+});

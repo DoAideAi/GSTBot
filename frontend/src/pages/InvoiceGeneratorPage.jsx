@@ -346,11 +346,15 @@ ${invoiceRef.current.innerHTML}
                   Business Name *
                   <input className="calc-input" value={seller.name} onChange={(e) => updateSeller("name", e.target.value)} placeholder="Your business name" />
                 </label>
+                {/* Named by its own span, not the whole label: the message below
+                    is inside the label too, and was read as part of the name
+                    ("GSTIN A GSTIN is 15 characters…") with nothing saying the
+                    field was invalid. It is the field's description instead. */}
                 <label className="calc-label">
-                  GSTIN
-                  <input className="calc-input" value={seller.gstin} onChange={(e) => updateSeller("gstin", e.target.value.toUpperCase())} placeholder="e.g. 27AAPFU0939F1ZV" maxLength={15} style={seller.gstin && gstinShapeError(seller.gstin) ? { borderColor: "#ef4444" } : undefined} />
+                  <span id="seller-gstin-name">GSTIN</span>
+                  <input className="calc-input" aria-labelledby="seller-gstin-name" aria-invalid={seller.gstin && gstinShapeError(seller.gstin) ? true : undefined} aria-describedby={seller.gstin ? "seller-gstin-note" : undefined} value={seller.gstin} onChange={(e) => updateSeller("gstin", e.target.value.toUpperCase())} placeholder="e.g. 27AAPFU0939F1ZV" maxLength={15} style={seller.gstin && gstinShapeError(seller.gstin) ? { borderColor: "#ef4444" } : undefined} />
                   {seller.gstin && (
-                    <div style={gstinShapeError(seller.gstin) ? fieldError : fieldOk}>
+                    <div id="seller-gstin-note" style={gstinShapeError(seller.gstin) ? fieldError : fieldOk}>
                       {gstinShapeError(seller.gstin) || "✓ Valid format"}
                     </div>
                   )}
@@ -379,14 +383,14 @@ ${invoiceRef.current.innerHTML}
                   <input className="calc-input" value={buyer.name} onChange={(e) => updateBuyer("name", e.target.value)} placeholder="Buyer business name" />
                 </label>
                 <label className="calc-label">
-                  GSTIN
+                  <span id="buyer-gstin-name">GSTIN</span>
                   {/* An unregistered buyer has no GSTIN to take the state from, so
                       the state below becomes the place of supply and decides the
                       tax split on its own. The invoice prints "URP", the term the
                       GST portal itself uses, rather than leaving the field blank. */}
-                  <input className="calc-input" value={buyer.unregistered ? "URP" : buyer.gstin} disabled={buyer.unregistered} onChange={(e) => updateBuyer("gstin", e.target.value.toUpperCase())} placeholder="e.g. 29AABCU9603R1ZM" maxLength={15} style={buyer.gstin && gstinShapeError(buyer.gstin) ? { borderColor: "#ef4444" } : undefined} />
+                  <input className="calc-input" aria-labelledby="buyer-gstin-name" aria-invalid={buyer.gstin && gstinShapeError(buyer.gstin) ? true : undefined} aria-describedby={buyer.gstin ? "buyer-gstin-note" : undefined} value={buyer.unregistered ? "URP" : buyer.gstin} disabled={buyer.unregistered} onChange={(e) => updateBuyer("gstin", e.target.value.toUpperCase())} placeholder="e.g. 29AABCU9603R1ZM" maxLength={15} style={buyer.gstin && gstinShapeError(buyer.gstin) ? { borderColor: "#ef4444" } : undefined} />
                   {buyer.gstin && (
-                    <div style={gstinShapeError(buyer.gstin) ? fieldError : fieldOk}>
+                    <div id="buyer-gstin-note" style={gstinShapeError(buyer.gstin) ? fieldError : fieldOk}>
                       {gstinShapeError(buyer.gstin) || "✓ Valid format"}
                     </div>
                   )}

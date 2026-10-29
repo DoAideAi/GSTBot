@@ -112,8 +112,22 @@ describe("EwayBillGeneratorPage", () => {
   it("a malformed transporter ID is flagged", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.type(screen.getByLabelText(/Transporter ID/), "12345");
-    expect(screen.getByRole("alert")).toHaveTextContent(/15 characters/);
+    const field = screen.getByLabelText(/Transporter ID/);
+    await user.type(field, "12345");
+    // Described and flagged, not an alert re-fired on every keystroke.
+    expect(field).toHaveAccessibleName("Transporter ID (GSTIN or TRANSIN, optional)");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/15 characters/);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("an unlikely vehicle number is described, not folded into the field's name", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const field = screen.getByLabelText("Vehicle number");
+    await user.type(field, "XYZ");
+    expect(field).toHaveAccessibleName("Vehicle number");
+    expect(field).toHaveAccessibleDescription(/does not look like a registration number/);
   });
 
   it("items can be added and removed", async () => {
@@ -184,5 +198,21 @@ describe("EwayBillGeneratorPage", () => {
     for (const q of FAQ_SCHEMA.mainEntity) {
       expect(screen.getByRole("heading", { name: q.name })).toBeInTheDocument();
     }
+  });
+});
+
+describe("the GSTIN fields to a screen reader", () => {
+  // role="alert" on a message that changes with every keystroke ("this one is
+  // 3", "this one is 4") interrupted the user on each character typed, and the
+  // message, inside the <label>, was read as part of the field's name.
+  it("names the field, flags it and describes the problem without an alert", async () => {
+    renderPage();
+    const field = screen.getByLabelText("Supplier GSTIN");
+    await userEvent.type(field, "27AAP");
+
+    expect(field).toHaveAccessibleName("Supplier GSTIN");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/A GSTIN is 15 characters/);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

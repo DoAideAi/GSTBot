@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Breadcrumb from "../components/Breadcrumb";
 import { InlineCTA, StickyMobileCTA } from "../components/ConversionCTA";
@@ -104,6 +104,7 @@ const BREADCRUMBS = [
 
 function PartyFields({ title, party, onChange, allowUrp }) {
   const error = !party.unregistered && gstinShapeError(party.gstin);
+  const id = useId();
   return (
     <fieldset className="calc-card" style={{ border: "none", margin: 0 }}>
       <legend style={{ fontSize: "1.1rem", fontWeight: 600 }}>{title}</legend>
@@ -111,10 +112,16 @@ function PartyFields({ title, party, onChange, allowUrp }) {
         {title} name
         <input className="calc-input" value={party.name} onChange={(e) => onChange({ name: e.target.value })} />
       </label>
+      {/* Named by its span and described by the message. The message used to
+          be part of the name, and an alert on every keystroke — "this one is
+          3", "this one is 4" — interrupting each character typed. */}
       <label className="calc-label">
-        {title} GSTIN
+        <span id={`${id}-name`}>{title} GSTIN</span>
         <input
           className="calc-input"
+          aria-labelledby={`${id}-name`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           value={party.unregistered ? "URP" : party.gstin}
           disabled={party.unregistered}
           maxLength={15}
@@ -125,7 +132,7 @@ function PartyFields({ title, party, onChange, allowUrp }) {
             onChange(state ? { gstin, state: state.code } : { gstin });
           }}
         />
-        {error && <span role="alert" style={{ color: "#ef4444", fontSize: "0.85rem" }}>{error}</span>}
+        {error && <span id={`${id}-error`} style={{ color: "#ef4444", fontSize: "0.85rem" }}>{error}</span>}
       </label>
       {allowUrp && (
         <label className="calc-checkbox-label">
@@ -271,9 +278,9 @@ export default function EwayBillGeneratorPage() {
             </label>
             {mode === "road" ? (
               <label className="calc-label">
-                Vehicle number
-                <input className="calc-input" value={vehicleNo} placeholder="e.g. MH12AB1234" onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} />
-                {vehicleWarning && <span style={{ color: "#f59e42", fontSize: "0.85rem" }}>That does not look like a registration number — check it before entering it on the portal.</span>}
+                <span id="vehicle-no-name">Vehicle number</span>
+                <input className="calc-input" aria-labelledby="vehicle-no-name" aria-describedby={vehicleWarning ? "vehicle-no-note" : undefined} value={vehicleNo} placeholder="e.g. MH12AB1234" onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} />
+                {vehicleWarning && <span id="vehicle-no-note" style={{ color: "#f59e42", fontSize: "0.85rem" }}>That does not look like a registration number — check it before entering it on the portal.</span>}
               </label>
             ) : (
               <label className="calc-label">
@@ -282,9 +289,9 @@ export default function EwayBillGeneratorPage() {
               </label>
             )}
             <label className="calc-label">
-              Transporter ID (GSTIN or TRANSIN, optional)
-              <input className="calc-input" value={transporterId} maxLength={15} onChange={(e) => setTransporterId(e.target.value.toUpperCase())} />
-              {transporterError && <span role="alert" style={{ color: "#ef4444", fontSize: "0.85rem" }}>{transporterError}</span>}
+              <span id="transporter-id-name">Transporter ID (GSTIN or TRANSIN, optional)</span>
+              <input className="calc-input" aria-labelledby="transporter-id-name" aria-invalid={transporterError ? true : undefined} aria-describedby={transporterError ? "transporter-id-error" : undefined} value={transporterId} maxLength={15} onChange={(e) => setTransporterId(e.target.value.toUpperCase())} />
+              {transporterError && <span id="transporter-id-error" style={{ color: "#ef4444", fontSize: "0.85rem" }}>{transporterError}</span>}
             </label>
             <label className="calc-label">
               Approximate distance (km)
