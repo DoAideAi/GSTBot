@@ -665,3 +665,78 @@ describe("a viewer", () => {
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
 });
+
+describe("AlertsPage beyond the first page", () => {
+  // The list asked for no page, so it showed the API's first fifty: a backlog
+  // past that was there in the badge's count and nowhere on screen.
+  const OPEN = ["pending", "sent", "read", "failed"];
+
+  function server(count) {
+    const store = Array.from({ length: count }, (_, i) =>
+      alert({ id: i + 1, title: `Alert ${i + 1}` }),
+    );
+    global.fetch = vi.fn(async (url, init) => {
+      const u = new URL(String(url), "http://x");
+      const respond = (body) => ({
+        ok: true, status: 200, statusText: "", text: async () => JSON.stringify(body),
+      });
+      const dismissed = u.pathname.match(/\/alerts\/(\d+)\/dismiss$/);
+      if (dismissed && init?.method === "POST") {
+        const row = store.find((a) => a.id === Number(dismissed[1]));
+        row.status = "dismissed";
+        return respond(row);
+      }
+      const scope = u.searchParams.get("scope") ?? "open";
+      const limit = Number(u.searchParams.get("limit") ?? 50);
+      const offset = Number(u.searchParams.get("offset") ?? 0);
+      const inScope = store.filter((a) => (scope === "open") === OPEN.includes(a.status));
+      return respond({
+        items: inScope.slice(offset, offset + limit),
+        total: inScope.length,
+        open_total: store.filter((a) => OPEN.includes(a.status)).length,
+        limit,
+        offset,
+      });
+    });
+  }
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("pages through the whole backlog", async () => {
+    server(120);
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText("1–50 of 120")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("51–100 of 120")).toBeInTheDocument();
+    expect(await screen.findByText("Alert 51")).toBeInTheDocument();
+  });
+
+  it("brings the next alert up after a dismissal instead of skipping it", async () => {
+    server(51);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("1–50 of 51");
+    expect(screen.queryByText("Alert 51")).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /Dismiss/ })[0]);
+
+    expect(await screen.findByText("Alert 51")).toBeInTheDocument();
+  });
+
+  it("starts another tab from its first page", async () => {
+    server(120);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("1–50 of 120");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("51–100 of 120");
+
+    await user.click(screen.getByRole("button", { name: "Closed" }));
+
+    await waitFor(() => expect(String(global.fetch.mock.calls.at(-1)[0])).not.toContain("offset=50"));
+  });
+});

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
+import Pager from "../components/Pager";
 import { SkeletonPanel } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -12,6 +13,9 @@ const SEVERITY = {
   warning: { label: "Due soon", tone: "warn" },
   info: { label: "Upcoming", tone: "neutral" },
 };
+
+// The API's own page size; see Pager.
+const ALERT_PAGE_SIZE = 50;
 
 const SCOPES = [
   ["open", "Open"],
@@ -110,6 +114,12 @@ export default function AlertsPage() {
   const [items, setItems] = useState([]);
   const [openTotal, setOpenTotal] = useState(0);
   const [scope, setScope] = useState("open");
+  // Paged: the list showed the API's first fifty, so a backlog past that was
+  // in the badge's count and nowhere on screen. Another tab starts at page one.
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  // Bumped to ask for the page again after a row leaves it; see `apply`.
+  const [reloadToken, setReloadToken] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   // Whether the list on screen failed to load, as opposed to loading and
@@ -137,12 +147,22 @@ export default function AlertsPage() {
   // *started* from — the one thing the answer must not assume is still up.
   const shownScope = useRef(scope);
 
-  const load = useCallback(async (target, { signal } = {}) => {
+  const load = useCallback(async (target, from, { signal } = {}) => {
     setLoading(true);
     setError("");
     try {
-      const data = await api.listAlerts({ scope: target }, { signal });
+      const data = await api.listAlerts(
+        { scope: target, limit: ALERT_PAGE_SIZE, offset: from },
+        { signal },
+      );
+      // A page left empty behind the user — the last rows on it closed, here
+      // or by the sweep — steps back to the last page there is.
+      if (data.items.length === 0 && data.total > 0 && from > 0) {
+        setOffset(Math.max(0, Math.ceil(data.total / ALERT_PAGE_SIZE) - 1) * ALERT_PAGE_SIZE);
+        return;
+      }
       setItems(data.items);
+      setTotal(data.total ?? data.items.length);
       setOpenTotal(data.open_total);
       setLoadFailed(false);
     } catch (err) {
@@ -173,9 +193,9 @@ export default function AlertsPage() {
   useEffect(() => {
     const controller = new AbortController();
     shownScope.current = scope;
-    load(scope, { signal: controller.signal });
+    load(scope, offset, { signal: controller.signal });
     return () => controller.abort();
-  }, [load, scope]);
+  }, [load, scope, offset, reloadToken]);
 
   /**
    * Apply one action and fold the server's answer back into the row.
@@ -220,6 +240,15 @@ export default function AlertsPage() {
           ? prev.filter((alert) => alert.id !== id)
           : prev.map((alert) => (alert.id === id ? updated : alert)),
       );
+      // A row that left the page is replaced by asking for the page again
+      // when there is anything beyond it: the server's next page now starts
+      // one row further on, so the alert that moves up onto this one would
+      // otherwise be on neither. A list that fits on one page has nothing to
+      // bring up, and drops the row as before.
+      if (target === "open" && !["pending", "sent", "read", "failed"].includes(updated.status)) {
+        setTotal((t) => Math.max(0, t - 1));
+        if (offset > 0 || total > ALERT_PAGE_SIZE) setReloadToken((n) => n + 1);
+      }
       // Recomputed from the same response set rather than decremented blindly:
       // marking an alert read does not change the open count, and dismissing
       // one that was already closed does not either.
@@ -273,7 +302,10 @@ export default function AlertsPage() {
               type="button"
               className={scope === value ? "chip chip-neutral is-active" : "chip chip-neutral"}
               aria-pressed={scope === value}
-              onClick={() => setScope(value)}
+              onClick={() => {
+                setOffset(0);
+                setScope(value);
+              }}
             >
               {label}
               {value === "open" && openTotal > 0 ? ` (${openTotal})` : ""}
@@ -315,6 +347,9 @@ export default function AlertsPage() {
               />
             ))}
           </ul>
+        )}
+        {!loading && !loadFailed && (
+          <Pager offset={offset} total={total} pageSize={ALERT_PAGE_SIZE} onPage={setOffset} />
         )}
       </section>
     </div>
