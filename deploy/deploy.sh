@@ -179,6 +179,17 @@ log "Installing backend dependencies"
 # carries hashes, so pip refuses anything it did not resolve to.
 "$VENV/bin/pip" install --quiet --upgrade pip
 "$VENV/bin/pip" install --quiet --require-hashes -r "$LOCKFILE"
+# And remove what the lock no longer names. pip never does: a package dropped
+# from the lock stayed installed for good, out of sight of any audit of the
+# lock. Production carried eight, python-jose and ecdsa among them, both with
+# published vulnerabilities and neither imported by anything.
+stale=$("$VENV/bin/python" "$ROOT/deploy/lock_extras.py" "$LOCKFILE") \
+    || die "could not compare the virtualenv with $LOCKFILE"
+if [ -n "$stale" ]; then
+    echo "Removing packages the lock does not name: $(echo $stale)"
+    # shellcheck disable=SC2086 # one name per word, on purpose
+    "$VENV/bin/pip" uninstall --quiet --yes $stale
+fi
 
 log "Building the frontend"
 # `npm ci` rather than `npm install`: the lockfile is the input, and a release

@@ -2003,3 +2003,46 @@ class TestTheLiveSiteIsNotWhatTheBuildWritesInto:
     def test_the_staging_directories_are_not_tracked(self):
         ignored = (DEPLOY.parent / ".gitignore").read_text().split()
         assert "dist.next/" in ignored and "dist.prev/" in ignored
+
+
+class TestTheVirtualenvIsWhatTheLockSays:
+    """P24 M7: pip install -r never removes, so packages dropped from the lock
+    stayed installed on production for good: eight of them, python-jose and
+    ecdsa among them with published vulnerabilities, none imported, and none
+    visible to an audit of the lock."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    @pytest.fixture()
+    def lock_extras(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("lock_extras", DEPLOY / "lock_extras.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_it_names_what_the_lock_does_not_and_nothing_it_does(self, lock_extras):
+        lock = (
+            "fastapi==0.141.1 \\\\\n    --hash=sha256:abc\n"
+            "uvicorn[standard]==0.52.1 \\\\\n    --hash=sha256:def\n"
+            "Typing_Extensions==4.16.0 \\\\\n"
+            "# via pydantic\n"
+        )
+        installed = [
+            "fastapi", "uvicorn", "typing-extensions",  # locked, any spelling
+            "python-jose", "ECDSA", "passlib",  # left over
+            "pip", "setuptools", "gstbot-backend",  # never removed
+        ]
+        assert lock_extras.extras(lock, installed) == ["ecdsa", "passlib", "python-jose"]
+
+    def test_the_real_lock_parses_to_every_pinned_line(self, lock_extras):
+        lock = (REPO_ROOT / "backend" / "requirements.lock").read_text()
+        pinned = [line for line in lock.splitlines() if "==" in line and not line.startswith(" ")]
+        assert len(lock_extras.locked_names(lock)) == len(pinned) > 50
+
+    def test_the_release_removes_them_right_after_installing(self):
+        install = self.SCRIPT.index('--require-hashes -r "$LOCKFILE"')
+        prune = self.SCRIPT.index('deploy/lock_extras.py" "$LOCKFILE"')
+        uninstall = self.SCRIPT.index('pip" uninstall --quiet --yes $stale')
+        assert install < prune < uninstall < self.SCRIPT.index('log "Building the frontend"')
