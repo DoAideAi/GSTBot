@@ -461,3 +461,69 @@ class TestNonJsonRoutesSayWhatTheyReturn:
 
         content = app.openapi()["paths"][path]["get"]["responses"]["200"]["content"]
         assert list(content) == [media]
+
+
+class TestTheMediaTypeIsTheOneSent:
+    """A 200 that is not JSON was published as JSON.
+
+    FastAPI documents the default response class unless told otherwise, so
+    the advisor's event stream, the WhatsApp handshake's plain-text echo and
+    the TwiML reply to Twilio were all advertised as ``application/json``. A
+    client generated from the spec parsed each of them as one object and
+    failed. Each case below is the request that produces the non-JSON body,
+    checked against what the spec says that route can send.
+    """
+
+    @staticmethod
+    def _published(spec, path, method) -> set[str]:
+        return set(spec["paths"][path][method]["responses"]["200"]["content"])
+
+    @staticmethod
+    def _sent(response) -> str:
+        return response.headers["content-type"].split(";")[0].strip()
+
+    def test_the_advisor_stream_is_an_event_stream(self, spec, client):
+        from unittest.mock import patch
+
+        from tests.test_advisor import _FakeStreamResponse, _sse_body
+
+        async def fake_send(self, req, *, stream=False):
+            return _FakeStreamResponse(200, _sse_body(["Hello"]))
+
+        with (
+            patch("app.routers.advisor._get_api_key", return_value="test-key"),
+            patch("httpx.AsyncClient.send", new=fake_send),
+        ):
+            response = client.post("/api/v1/advisor/ask/stream", json={"message": "Hi"})
+
+        assert response.status_code == 200
+        published = self._published(spec, "/api/v1/advisor/ask/stream", "post")
+        assert published == {"text/event-stream"}
+        assert self._sent(response) in published
+
+    def test_the_whatsapp_handshake_is_plain_text(self, spec, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "whatsapp_verify_token", "verify-me")
+        response = client.get(
+            "/api/v1/whatsapp/webhook",
+            params={
+                "hub.mode": "subscribe",
+                "hub.verify_token": "verify-me",
+                "hub.challenge": "42",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.text == "42"
+        assert self._sent(response) in self._published(spec, "/api/v1/whatsapp/webhook", "get")
+
+    def test_a_twilio_message_is_answered_in_twiml(self, spec, client):
+        response = client.post(
+            "/api/v1/whatsapp/webhook",
+            data={"From": "whatsapp:+919800000000", "Body": "help"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert self._sent(response) == "application/xml"
+        assert self._sent(response) in self._published(spec, "/api/v1/whatsapp/webhook", "post")

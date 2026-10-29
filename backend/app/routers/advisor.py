@@ -635,7 +635,17 @@ async def _stream_from_gemini(
         "server-sent events: ``{t: text}`` chunks, then ``{done: true}`` or "
         "``{error: message}``. The first token appears in under a second."
     ),
-    responses={503: {"description": "No API key is configured."}},
+    # The class as well as the content: left to the default, the spec
+    # advertised ``application/json`` for a body that is never JSON, and a
+    # client generated from it tried to parse an event stream as one object.
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "description": "Server-sent events, one ``data:`` line per chunk.",
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+        },
+        503: {"description": "No API key is configured."},
+    },
     dependencies=_ADVISOR_LIMITS,
 )
 async def ask_advisor_stream(body: AdvisorRequest) -> StreamingResponse:

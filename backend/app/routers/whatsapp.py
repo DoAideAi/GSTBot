@@ -122,7 +122,19 @@ def _cloud_api_message(data: object) -> tuple[str, str]:
     ),
     dependencies=[Depends(_webhook_limit)],
     response_model=None,
-    responses={403: {"description": "`hub.verify_token` does not match the configured token."}},
+    responses={
+        # Both, because both happen: the handshake echoes ``hub.challenge`` as
+        # plain text, which is what Meta compares, and a request that is not a
+        # handshake gets a JSON acknowledgement. Only the JSON was documented.
+        200: {
+            "description": (
+                "The `hub.challenge` value as plain text when the token matches; "
+                'otherwise `{"status": "ok"}`.'
+            ),
+            "content": {"text/plain": {"schema": {"type": "string"}}, "application/json": {}},
+        },
+        403: {"description": "`hub.verify_token` does not match the configured token."},
+    },
 )
 def verify_webhook(
     response: Response,
@@ -153,7 +165,14 @@ def verify_webhook(
         "authenticated by its ``X-Twilio-Signature`` header."
     ),
     dependencies=[Depends(_webhook_limit)],
+    response_class=Response,
     responses={
+        # TwiML to Twilio, JSON to the Cloud API — the reply is in the dialect
+        # the request arrived in, and only the JSON one was documented.
+        200: {
+            "description": "TwiML for a Twilio request, JSON for a Cloud API one.",
+            "content": {"application/xml": {"schema": {"type": "string"}}, "application/json": {}},
+        },
         400: {"description": "A JSON body that does not parse, or a content type that is neither."},
         403: {
             "description": (
