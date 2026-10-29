@@ -288,6 +288,25 @@ def auth_client(client):
 
 
 @pytest.fixture()
+def admin_client(auth_client, db_session, monkeypatch):
+    """``auth_client``, signed in as a site administrator.
+
+    Named in ADMIN_EMAILS *and* holding a proven address. A match on the
+    address alone is refused (see ``deps.require_admin``), and the registered
+    test user has only claimed one, so the account is marked as Google's, the
+    way a real operator proves theirs.
+    """
+    from app.core.config import settings
+    from app.models.user import User
+
+    monkeypatch.setattr(settings, "admin_emails", f"someone@else.com, {TEST_EMAIL.upper()}")
+    user = db_session.query(User).filter_by(email=TEST_EMAIL).one()
+    user.oauth_provider, user.oauth_id = "google", "test-operator"
+    db_session.commit()
+    return auth_client
+
+
+@pytest.fixture()
 def business(db_session, auth_client) -> Business:
     return db_session.query(Business).filter_by(gstin=BUSINESS_GSTIN).one()
 

@@ -8,15 +8,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config import settings
 from app.main import app
-from tests.conftest import TEST_EMAIL
 
 
 @pytest.fixture()
-def admin(auth_client, monkeypatch):
-    monkeypatch.setattr(settings, "admin_emails", TEST_EMAIL)
-    return auth_client
+def admin(admin_client):
+    return admin_client
 
 
 def _paginated_operations():

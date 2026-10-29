@@ -8,7 +8,6 @@ import pytest
 
 from app.core import metrics
 from app.core.config import settings
-from tests.conftest import TEST_EMAIL
 
 URL = "/api/v1/health/metrics"
 
@@ -122,9 +121,8 @@ class TestTheMiddlewareCounts:
 
 
 class TestTheEndpoint:
-    def test_admins_read_it(self, auth_client, fake, monkeypatch):
-        monkeypatch.setattr(settings, "admin_emails", TEST_EMAIL)
-        body = auth_client.get(URL, params={"hours": 3}).json()
+    def test_admins_read_it(self, admin_client, fake):
+        body = admin_client.get(URL, params={"hours": 3}).json()
         assert len(body["hours"]) == 3
         assert "error_rate" in body["totals"]
 
@@ -135,15 +133,13 @@ class TestTheEndpoint:
         monkeypatch.setattr(settings, "admin_emails", "ops@doaide.com")
         assert auth_client.get(URL).status_code == 403
 
-    def test_without_redis_it_says_so(self, auth_client, monkeypatch):
-        monkeypatch.setattr(settings, "admin_emails", TEST_EMAIL)
+    def test_without_redis_it_says_so(self, admin_client, monkeypatch):
         monkeypatch.setattr(metrics, "get_redis", lambda: None)
-        assert auth_client.get(URL).status_code == 503
+        assert admin_client.get(URL).status_code == 503
 
     @pytest.mark.parametrize("hours", [0, 49])
-    def test_the_window_is_bounded(self, auth_client, fake, monkeypatch, hours):
-        monkeypatch.setattr(settings, "admin_emails", TEST_EMAIL)
-        assert auth_client.get(URL, params={"hours": hours}).status_code == 422
+    def test_the_window_is_bounded(self, admin_client, fake, hours):
+        assert admin_client.get(URL, params={"hours": hours}).status_code == 422
 
 
 class TestPerformanceBudgets:

@@ -2,8 +2,9 @@
 what they are allowed to do to it."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -21,6 +22,8 @@ from app.models.business_membership import BusinessMembership
 from app.models.revoked_token import RevokedToken
 from app.models.subscription import Subscription
 from app.models.user import User, UserRole
+
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/login")
 
@@ -282,18 +285,59 @@ def require_paid_tier(
     return sub
 
 
+# Providers that verify the address they hand over. Microsoft is absent: it
+# lets a tenant set any address on its own users (see oauth.py).
+_ADDRESS_PROVING_PROVIDERS = frozenset({"google", "github"})
+# Accounts made before an operator had to prove their address keep the access
+# they had: the moment this rule shipped, so no account from the window between
+# writing it and deploying it is let through. Every later one must prove it.
+UNPROVEN_ADMINS_CREATED_BEFORE = datetime(2026, 10, 29, 21, 15, tzinfo=UTC)
+
+
+def _address_is_proven(user: User) -> bool:
+    if user.oauth_provider in _ADDRESS_PROVING_PROVIDERS:
+        return True
+    created = user.created_at
+    if created is None:
+        return False
+    if created.tzinfo is None:  # SQLite hands back naive UTC
+        created = created.replace(tzinfo=UTC)
+    return created < UNPROVEN_ADMINS_CREATED_BEFORE
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     """Refuse unless the signed-in user is a site operator (``ADMIN_EMAILS``).
 
     Per-business roles do not answer this: everyone who registers owns their
     own business, so an owner is not an operator. 403, not 404 — the route is
     documented and its existence is not a secret, only its contents are.
+
+    A matching address is not enough on its own. An account's address is only
+    a claim: registration verifies nothing, and Microsoft vouches for nothing.
+    Matched alone, any operator address without an account yet made whoever
+    registered it first a site admin, with every user's feedback, the error log,
+    the traffic figures and their deletion. So the account must have proven the
+    address, by signing up through a provider that verifies it, or must predate
+    the rule.
     """
     admins = {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
     if (user.email or "").lower() not in admins:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only site administrators can read this.",
+        )
+    if not _address_is_proven(user):
+        logger.warning(
+            "Admin access refused: operator address not proven by this account",
+            extra={"user_id": user.id, "oauth_provider": user.oauth_provider},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "This account's address is listed as an administrator's, but the "
+                "account has not proven it owns the address. Administrators sign in "
+                "with Google or GitHub using that address."
+            ),
         )
     return user
 

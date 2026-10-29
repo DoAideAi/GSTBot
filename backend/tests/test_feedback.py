@@ -24,9 +24,8 @@ def send(client, **overrides):
 
 
 @pytest.fixture()
-def admin(auth_client, monkeypatch):
-    monkeypatch.setattr(settings, "admin_emails", f"someone@else.com, {TEST_EMAIL.upper()}")
-    return auth_client
+def admin(admin_client):
+    return admin_client
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +124,61 @@ class TestOnlyAdminsCanReadIt:
 
     def test_an_admin_reads_it_case_insensitively(self, admin):
         assert admin.get(URL).status_code == 200
+
+
+class TestAnAdminAddressMustBeProvenNotClaimed:
+    """P37 M16: anyone who registered an admin's address first became a site admin.
+
+    ``require_admin`` matched the signed-in account's email against
+    ADMIN_EMAILS and nothing else. Registration never verifies an address, and
+    Microsoft lets a tenant set any address on its own users, so an account's
+    email is only a claim. For any operator address with no account yet,
+    whoever registered it first could read every user's feedback (sender
+    addresses included), the client-error log and the traffic metrics, and
+    delete records. A match now counts only for an account whose address is
+    proven: made through Google or GitHub, which verify it, or existing before
+    this rule did, which keeps today's operators working.
+    """
+
+    @pytest.fixture()
+    def claimed(self, auth_client, db_session, monkeypatch):
+        """A password account registered just now at an operator's address."""
+        from app.models.user import User
+
+        monkeypatch.setattr(settings, "admin_emails", TEST_EMAIL)
+        user = db_session.query(User).filter_by(email=TEST_EMAIL).one()
+        return auth_client, user
+
+    def test_registering_an_admin_address_does_not_make_an_admin(self, claimed):
+        client, _ = claimed
+        response = client.get(URL)
+        assert response.status_code == 403
+        assert "Google or GitHub" in response.json()["detail"]
+
+    def test_a_microsoft_account_does_not_prove_it_either(self, claimed, db_session):
+        client, user = claimed
+        user.oauth_provider, user.oauth_id = "microsoft", "tenant-chosen"
+        db_session.commit()
+        assert client.get(URL).status_code == 403
+
+    @pytest.mark.parametrize("provider", ["google", "github"])
+    def test_a_provider_that_verifies_the_address_proves_it(
+        self, claimed, db_session, provider
+    ):
+        client, user = claimed
+        user.oauth_provider, user.oauth_id = provider, "verified-identity"
+        db_session.commit()
+        assert client.get(URL).status_code == 200
+
+    def test_an_account_that_existed_before_the_rule_keeps_its_access(
+        self, claimed, db_session
+    ):
+        from app.core.deps import UNPROVEN_ADMINS_CREATED_BEFORE
+
+        client, user = claimed
+        user.created_at = UNPROVEN_ADMINS_CREATED_BEFORE.replace(year=2026, month=8)
+        db_session.commit()
+        assert client.get(URL).status_code == 200
 
 
 class TestTheInbox:
