@@ -99,6 +99,22 @@ UPLOADS="${GSTBOT_UPLOAD_DIR:-${UPLOAD_DIR:-/var/lib/gstbot/invoices}}"
 [ -d "$DEST" ] || die "$DEST does not exist; see 'Backups' in deploy/README.md"
 [ -w "$DEST" ] || die "$DEST is not writable by $(id -un)"
 
+# ---- What a killed run left -----------------------------------------------
+# The dump is written as *.dump.partial, and the snapshot as uploads-*.partial,
+# and renamed once complete. The EXIT trap below removes this run's partial on
+# a failure or a SIGTERM, but nothing runs on SIGKILL: the OOM killer, systemd
+# escalating past TimeoutStopSec, a reboot mid-dump. Retention matches *.dump
+# and so never saw a dump partial, which stayed for good, one per killed night
+# and as large as the database. Older than an hour, so a run started by hand
+# beside the timer's is never cleared out from under itself. Before the space
+# check below, because what a killed run left may be what used the space up.
+sweep_abandoned() {
+    find "$DEST" -maxdepth 1 \( -type f -name '*.dump.partial' \
+        -o -type d -name 'uploads-*.partial' \) -mmin +60 -print \
+        -exec rm -rf {} + | sed 's/^/Cleared abandoned /'
+}
+sweep_abandoned
+
 free_mb="$(df -Pm "$DEST" | awk 'NR == 2 { print $4 }')"
 [ "${free_mb:-0}" -ge "$MIN_FREE_MB" ] \
     || die "only ${free_mb}MiB free on $DEST, below the ${MIN_FREE_MB}MiB floor"

@@ -3210,3 +3210,74 @@ class TestAReleaseNeedsTheDiskToFinish:
 
     def test_the_floor_can_be_set(self):
         assert 'DEPLOY_MIN_FREE_MB="${GSTBOT_DEPLOY_MIN_FREE_MB:-1024}"' in self.SCRIPT
+
+
+class TestWhatAKilledBackupLeftBehindIsCleared:
+    """P38 M7: a backup killed mid-dump left a file no sweep would ever remove.
+
+    The dump is written as ``*.dump.partial`` and renamed once ``pg_restore``
+    has read it back. The EXIT trap removes the partial when the script fails
+    or is sent SIGTERM, but nothing runs on SIGKILL: the OOM killer this box
+    has met before, systemd's escalation past TimeoutStopSec, or a reboot
+    mid-dump. Retention matches ``*.dump`` only, so the partial stayed forever,
+    one per killed night and as large as the database, on a disk that has been
+    97% full. A run now clears partials older than an hour (``*.dump.partial``,
+    and ``uploads-*.partial`` directories, which waited out the 14-day sweep),
+    leaving anything a run in progress could still be writing.
+    """
+
+    SCRIPT = BACKUP_SCRIPT.read_text()
+
+    def _sweep(self):
+        start = self.SCRIPT.index("sweep_abandoned() {")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    @staticmethod
+    def _age(path, minutes):
+        import os
+        import time
+
+        when = time.time() - minutes * 60
+        os.utime(path, (when, when))
+        return path
+
+    def _run(self, directory):
+        return subprocess.run(
+            ["bash", "-c", f'set -euo pipefail\nDEST="{directory}"\n' + self._sweep()
+             + "sweep_abandoned"],
+            capture_output=True, text=True, timeout=20,
+        )
+
+    def test_old_partials_go_and_everything_else_stays(self, tmp_path):
+        dead_dump = tmp_path / "gstbot-20261020T023000Z.dump.partial"
+        dead_dump.write_text("half a dump")
+        self._age(dead_dump, 600)
+        dead_snapshot = tmp_path / "uploads-20261020T023000Z.partial"
+        dead_snapshot.mkdir()
+        (dead_snapshot / "a.pdf").write_text("x")
+        self._age(dead_snapshot, 600)
+        live_dump = tmp_path / "gstbot-20261030T023000Z.dump.partial"
+        live_dump.write_text("being written")
+        self._age(live_dump, 5)
+        kept_dump = tmp_path / "gstbot-20261020T023000Z.dump"
+        kept_dump.write_text("a real dump")
+        self._age(kept_dump, 600)
+        kept_snapshot = tmp_path / "uploads-20261020T023000Z"
+        kept_snapshot.mkdir()
+        self._age(kept_snapshot, 600)
+
+        run = self._run(tmp_path)
+
+        assert run.returncode == 0, run.stderr
+        left = sorted(p.name for p in tmp_path.iterdir())
+        assert left == sorted([live_dump.name, kept_dump.name, kept_snapshot.name])
+        assert "gstbot-20261020T023000Z.dump.partial" in run.stdout
+
+    def test_the_run_sweeps_before_it_checks_space_or_writes_its_own(self):
+        # Before the free-space check too: what a killed run left may be what
+        # used the space up, and a run that stopped there would never clear it.
+        commands = "\n".join(
+            line for line in self.SCRIPT.splitlines() if not line.lstrip().startswith("#")
+        )
+        sweep = commands.index("sweep_abandoned\n")
+        assert sweep < commands.index('df -Pm "$DEST"') < commands.index("pg_dump --format=custom")
