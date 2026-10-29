@@ -31,6 +31,7 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from typing import NoReturn
 
 from fastapi import HTTPException, Request, status
 
@@ -78,7 +79,7 @@ class _MemoryWindows:
         self._counts: OrderedDict[str, int] = OrderedDict()
         self._lock = threading.Lock()
 
-    def hit(self, bucket_key: str) -> int:
+    def hit(self, bucket_key: str, cost: int = 1) -> int:
         with self._lock:
             # The window start is part of the key, so a bucket is dead the
             # moment its window rolls over — but nothing deletes it. Evicting
@@ -87,7 +88,7 @@ class _MemoryWindows:
             if len(self._counts) > _MAX_MEMORY_KEYS:
                 for key in list(self._counts)[: _MAX_MEMORY_KEYS // 4]:
                     self._counts.pop(key, None)
-            count = self._counts.get(bucket_key, 0) + 1
+            count = self._counts.get(bucket_key, 0) + cost
             self._counts[bucket_key] = count
             self._counts.move_to_end(bucket_key)
             return count
@@ -131,8 +132,9 @@ def _bucket(rate: Rate) -> tuple[int, int]:
     return window_start, max(1, math.ceil(window_start + rate.window - now))
 
 
-def charge(key: str, rate: Rate) -> Decision:
-    """Count one request against *key* and decide whether it may proceed."""
+def charge(key: str, rate: Rate, cost: int = 1) -> Decision:
+    """Count *cost* units (one request, by default) against *key* and decide
+    whether they may proceed."""
     window_start, reset_in = _bucket(rate)
     bucket = f"ratelimit:{key}:{window_start}"
 
@@ -143,7 +145,7 @@ def charge(key: str, rate: Rate) -> Decision:
     if client is not None:
         try:
             pipe = client.pipeline()
-            pipe.incr(bucket, 1)
+            pipe.incr(bucket, cost)
             pipe.expire(bucket, rate.window + 1)
             count = int(pipe.execute()[0])
         except Exception as exc:  # noqa: BLE001 - fall back, never fail the request
@@ -158,7 +160,7 @@ def charge(key: str, rate: Rate) -> Decision:
             count = None
 
     if count is None:
-        count = _memory.hit(bucket)
+        count = _memory.hit(bucket, cost)
 
     remaining = max(0, rate.limit - count)
     return Decision(
@@ -342,6 +344,17 @@ class RateLimit:
         return self._rate
 
     def __call__(self, request: Request) -> None:
+        self.enforce(request)
+
+    def enforce(self, request: Request, cost: int = 1) -> None:
+        """Charge *cost* units for this request, or refuse it with a 429.
+
+        A dependency charges one. A route whose work scales with its input
+        (a batch of files) calls this with what the input costs. A cost that
+        would not fit is refused before anything is charged: in a fixed window,
+        charging a refused batch would push its sender further past the limit
+        than the work they were allowed to do.
+        """
         if not settings.rate_limit_enabled:
             return
 
@@ -351,29 +364,37 @@ class RateLimit:
             who = f"ip:{client_ip(request)}"
         else:
             who = identity(request)
-        decision = charge(f"{self.name}:{who}", self.rate)
+        key = f"{self.name}:{who}"
+        if cost > 1:
+            ahead = peek(key, self.rate)
+            if ahead.remaining < cost:
+                self._refuse(request, ahead, who)
+        decision = charge(key, self.rate, cost)
 
         # Stashed on the request so the middleware can put the headers on the
         # response — a dependency has no response object to write to.
         request.state.rate_limit = decision
 
         if not decision.allowed:
-            logger.warning(
-                "Rate limit exceeded",
-                extra={"limit_name": self.name, "limit": self.rate.label, "principal": who},
-            )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=self.detail
-                or f"Too many requests. Try again in {wait_phrase(decision.retry_after)}.",
-                headers={
-                    "Retry-After": str(decision.retry_after),
-                    "X-RateLimit-Limit": str(decision.limit),
-                    "X-RateLimit-Remaining": "0",
-                    "X-RateLimit-Reset": str(decision.retry_after),
-                },
-            )
+            self._refuse(request, decision, who)
 
+    def _refuse(self, request: Request, decision: Decision, who: str) -> NoReturn:
+        request.state.rate_limit = decision
+        logger.warning(
+            "Rate limit exceeded",
+            extra={"limit_name": self.name, "limit": self.rate.label, "principal": who},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=self.detail
+            or f"Too many requests. Try again in {wait_phrase(decision.retry_after)}.",
+            headers={
+                "Retry-After": str(decision.retry_after),
+                "X-RateLimit-Limit": str(decision.limit),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(decision.retry_after),
+            },
+        )
 
 def check_global(request: Request) -> Decision | None:
     """The blanket per-caller limit every request passes through.

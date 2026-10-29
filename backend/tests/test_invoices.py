@@ -2347,3 +2347,63 @@ def test_clearing_the_supplier_gstin_clears_the_link_to_that_supplier(
         f"/api/v1/invoices/{invoice['id']}", json={"counterparty_name": "Renamed Traders"}
     ).json()
     assert renamed["supplier_id"] == relinked["supplier_id"]
+
+
+class TestABatchIsChargedForItsFiles:
+    """P38 M3: a bulk upload was one request against a limit meant for files.
+
+    ``invoice_upload`` (60 a minute) is described as the floor under the cost
+    of abuse: each file is a model call on a quota every business shares, and
+    a queue every business waits in. ``/invoices/bulk`` takes up to fifty files
+    and was charged once, so one user could send 3,000 files a minute, with no
+    monthly cap behind it on the Pro and CA plans. Files now draw on a budget
+    of their own, ``invoice_upload_files``, from both doors. A batch that would
+    overrun it is refused whole and spends nothing, so the upload page's
+    "not attempted" list and Retry-After stay accurate.
+    """
+
+    @pytest.fixture()
+    def tight(self, monkeypatch, rate_limited):
+        from app.core.ratespec import parse_rate
+        from app.routers import invoices as invoices_router
+
+        monkeypatch.setattr(invoices_router._upload_file_limit, "_rate", parse_rate("5/minute"))
+
+    @staticmethod
+    def _batch(client, start, count):
+        files = [
+            ("files", (f"b{n}.txt", f"Invoice No: Q-{n}\nTotal: 1180".encode(), "text/plain"))
+            for n in range(start, start + count)
+        ]
+        return client.post("/api/v1/invoices/bulk", files=files, data={"invoice_type": "purchase"})
+
+    def test_each_file_counts_and_an_overrunning_batch_is_refused_whole(
+        self, auth_client, db_session, tight
+    ):
+        assert self._batch(auth_client, 0, 3).status_code == 200
+        refused = self._batch(auth_client, 3, 3)
+
+        assert refused.status_code == 429
+        assert "Retry-After" in refused.headers
+        assert db_session.query(Invoice).count() == 3
+
+    def test_a_refused_batch_spends_nothing(self, auth_client, tight):
+        assert self._batch(auth_client, 0, 3).status_code == 200
+        assert self._batch(auth_client, 3, 3).status_code == 429
+        # Two still fit: the refused three were never charged.
+        assert self._batch(auth_client, 3, 2).status_code == 200
+
+    def test_a_single_upload_draws_on_the_same_budget(self, auth_client, tight):
+        assert self._batch(auth_client, 0, 5).status_code == 200
+        response = upload(auth_client, "Invoice No: Z-1\nTotal: 1180", name="z.txt")
+        assert response.status_code == 429
+
+    def test_the_budget_is_a_real_folder_and_well_under_the_old_ceiling(self):
+        from app.routers import invoices as invoices_router
+
+        files = invoices_router._upload_file_limit.rate
+        requests = invoices_router._upload_limit.rate
+        assert files.window == requests.window == 60
+        # Above a request's worth of single uploads, far below 50 files a request.
+        assert requests.limit < files.limit <= 10 * requests.limit
+        assert files.limit < invoices_router.MAX_BULK_FILES * requests.limit

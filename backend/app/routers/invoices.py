@@ -6,7 +6,17 @@ import re
 import time
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -56,6 +66,13 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 # An upload costs a model call and a write; 60 a minute is a comfortable
 # ceiling for the drag-a-folder-in case and a floor under the cost of abuse.
 _upload_limit = RateLimit("invoice_upload", "60/minute")
+# And the files themselves, from either door. The limit above counts requests,
+# and /invoices/bulk takes fifty files a request: charged once, it let one user
+# send 3,000 files a minute onto the model quota and the worker queue every
+# business shares, with no monthly cap behind it on the Pro and CA plans. 300
+# is a folder dropped in at once, five times the single-upload rate. A batch
+# that does not fit is refused whole and charged nothing (RateLimit.enforce).
+_upload_file_limit = RateLimit("invoice_upload_files", "300/minute")
 # Re-extraction is the same model call with none of the plan accounting, so it
 # gets the tighter budget of the two.
 _reparse_limit = RateLimit("invoice_reparse", "20/minute")
@@ -409,7 +426,7 @@ def _store_and_extract(
         413: {"description": "Larger than `MAX_UPLOAD_MB`."},
         415: {"description": "Not a file type this product can read."},
     },
-    dependencies=[Depends(_upload_limit), Depends(require_writer)],
+    dependencies=[Depends(_upload_limit), Depends(_upload_file_limit), Depends(require_writer)],
 )
 async def upload_invoice(
     file: UploadFile = File(..., description="Invoice as PDF, image, CSV or Excel"),
@@ -496,10 +513,17 @@ _BULK_INLINE_SECONDS = 60.0
     responses={
         200: {"description": "Every file was attempted; check each item's `accepted`."},
         413: {"description": "More than the per-file or per-batch limit."},
+        429: {
+            "description": (
+                "More than 60 upload requests, or 300 files, in a minute. A batch "
+                "that would pass 300 is refused whole and costs nothing."
+            )
+        },
     },
     dependencies=[Depends(_upload_limit), Depends(require_writer)],
 )
 async def upload_invoices_bulk(
+    request: Request,
     files: list[UploadFile] = File(..., description="One or more invoices"),
     invoice_type: InvoiceType = Form(
         InvoiceType.PURCHASE,
@@ -517,6 +541,9 @@ async def upload_invoices_bulk(
                 f"{len(files)}. Upload them in batches of {MAX_BULK_FILES} or fewer."
             ),
         )
+    # Charged per file, after the size check so an oversized batch costs
+    # nothing; see _upload_file_limit.
+    _upload_file_limit.enforce(request, cost=len(files))
 
     # Read once, before the loop, and held as plain data. Every file in the
     # batch commits, and each commit expires ``business`` — so *any* attribute
