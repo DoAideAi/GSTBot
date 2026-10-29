@@ -190,15 +190,26 @@ def _build_contents(history: list[HistoryMessage], message: str) -> list[dict]:
     # that grew every request by two turns the model had to read. The Gemini
     # API requires the first content to have role "user"; slicing into the
     # middle of a long history can land on a model turn, so those are skipped.
+    #
+    # The history is whatever the browser kept, and it is not always a clean
+    # exchange: a question whose answer failed stays with no reply after it,
+    # an answer cut off mid-stream leaves a partial bubble, and an empty one
+    # can be left behind. Gemini refuses a turn with no text, so one blank
+    # bubble made every later question in that conversation "refused"; and
+    # runs of one role are not the alternating exchange it is built for.
+    # Blank turns are dropped and a run of one role becomes one turn.
     recent = history[-HISTORY_TURNS_SENT:]
-    contents: list[dict] = []
-    for m in recent:
+    turns: list[tuple[str, str]] = []
+    for m in [*recent, HistoryMessage(role="user", text=message)]:
         role = "user" if m.role == "user" else "model"
-        if not contents and role == "model":
+        text = m.text.strip()
+        if not text or (not turns and role == "model"):
             continue
-        contents.append({"role": role, "parts": [{"text": m.text}]})
-    contents.append({"role": "user", "parts": [{"text": message}]})
-    return contents
+        if turns and turns[-1][0] == role:
+            turns[-1] = (role, f"{turns[-1][1]}\n\n{text}")
+        else:
+            turns.append((role, text))
+    return [{"role": role, "parts": [{"text": text}]} for role, text in turns]
 
 
 def _build_payload(history: list[HistoryMessage], message: str) -> dict:

@@ -717,3 +717,44 @@ class TestAStreamThatWillNotStop:
         assert events == [
             {"error": "The AI advisor could not answer just now. Try again in a minute."}
         ]
+
+
+class TestAConversationTheBrowserKeptBadly:
+    """P22 M2/M3: the history is whatever the browser kept. A question whose
+    answer failed stays with no reply, a cut-off answer leaves a partial bubble
+    and an empty one can be left behind. Gemini refuses a turn with no text,
+    so one blank bubble made every later question in the conversation fail."""
+
+    def _contents(self, history, message="Next question?"):
+        from app.routers.advisor import HistoryMessage, _build_contents
+
+        return _build_contents([HistoryMessage(**m) for m in history], message)
+
+    def test_blank_turns_are_dropped(self):
+        contents = self._contents(
+            [
+                {"role": "user", "text": "What is ITC?"},
+                {"role": "assistant", "text": ""},
+                {"role": "assistant", "text": "   "},
+            ]
+        )
+        assert all(c["parts"][0]["text"].strip() for c in contents)
+
+    def test_the_turns_always_alternate_and_start_with_the_user(self):
+        contents = self._contents(
+            [
+                {"role": "assistant", "text": "Hello!"},
+                {"role": "user", "text": "First, unanswered"},
+                {"role": "user", "text": "Second"},
+                {"role": "assistant", "text": "Partial answer"},
+                {"role": "assistant", "text": "It was cut off"},
+            ]
+        )
+        roles = [c["role"] for c in contents]
+        assert roles == ["user", "model", "user"]
+        assert contents[0]["parts"][0]["text"] == "First, unanswered\n\nSecond"
+        assert contents[1]["parts"][0]["text"] == "Partial answer\n\nIt was cut off"
+
+    def test_a_question_after_an_unanswered_one_is_one_user_turn(self):
+        contents = self._contents([{"role": "user", "text": "Unanswered?"}], "Again?")
+        assert contents == [{"role": "user", "parts": [{"text": "Unanswered?\n\nAgain?"}]}]

@@ -15,12 +15,32 @@ export const ADVISOR_HISTORY_SENT = 12;
 /** Per-message cap, the backend's `HistoryMessage.text` limit. */
 export const ADVISOR_TURN_MAX_CHARS = 4000;
 
-/** The wire form of *messages*: the recent turns, in roles the API knows. */
+/**
+ * *text* cut to the per-turn cap without splitting a surrogate pair. A cut
+ * through an emoji left half of one, which the API refuses as invalid text —
+ * and since the history is resent with every question, every later question
+ * in that conversation was a 422.
+ */
+function capTurn(text) {
+  if (text.length <= ADVISOR_TURN_MAX_CHARS) return text;
+  const end = ADVISOR_TURN_MAX_CHARS;
+  const code = text.charCodeAt(end - 1);
+  return text.slice(0, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
+}
+
+/**
+ * The wire form of *messages*: the recent turns, in roles the API knows.
+ * A bubble marked `error` is this app telling the user something went wrong,
+ * not something the model said, so it is not sent back as the model's turn.
+ */
 export function advisorHistory(messages) {
-  return messages.slice(-ADVISOR_HISTORY_SENT).map((m) => ({
-    role: m.role === "user" ? "user" : "model",
-    text: String(m.text ?? "").slice(0, ADVISOR_TURN_MAX_CHARS),
-  }));
+  return messages
+    .filter((m) => !m.error)
+    .slice(-ADVISOR_HISTORY_SENT)
+    .map((m) => ({
+      role: m.role === "user" ? "user" : "model",
+      text: capTurn(String(m.text ?? "")),
+    }));
 }
 
 /** What the user can do when the advisor could not be reached at all. */

@@ -24,6 +24,22 @@ describe("advisorHistory", () => {
     expect(turn).toEqual({ role: "model", text: "x".repeat(ADVISOR_TURN_MAX_CHARS) });
   });
 
+  it("does not split an emoji at the cut, which the API would refuse", () => {
+    const text = "x".repeat(ADVISOR_TURN_MAX_CHARS - 1) + "😀" + "tail";
+    const [turn] = advisorHistory([{ role: "assistant", text }]);
+    expect(turn.text).toBe("x".repeat(ADVISOR_TURN_MAX_CHARS - 1));
+    expect(turn.text.isWellFormed?.() ?? true).toBe(true);
+  });
+
+  it("leaves the app's own error bubbles out of what the model is told it said", () => {
+    const sent = advisorHistory([
+      { role: "user", text: "q" },
+      { role: "assistant", text: "Could not reach the AI advisor.", error: true },
+      { role: "user", text: "q again" },
+    ]);
+    expect(sent.map((m) => m.text)).toEqual(["q", "q again"]);
+  });
+
   it("maps every non-user role to the model's and tolerates a missing text", () => {
     expect(advisorHistory([{ role: "user", text: "q" }, { role: "assistant" }])).toEqual([
       { role: "user", text: "q" },

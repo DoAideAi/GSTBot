@@ -88,7 +88,7 @@ export default function AdvisorPage() {
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: advisorErrorMessage(err) },
+        { role: "assistant", text: advisorErrorMessage(err), error: true },
       ]);
     } finally {
       setLoading(false);
