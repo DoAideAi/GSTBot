@@ -450,8 +450,6 @@ class TestNonJsonRoutesSayWhatTheyReturn:
     @pytest.mark.parametrize(
         ("path", "media"),
         [
-            ("/api/v1/seo/sitemap.xml", "application/xml"),
-            ("/api/v1/seo/robots.txt", "text/plain"),
             ("/api/v1/seo/og-image", "image/png"),
             ("/api/v1/gpt/openapi.yaml", "application/yaml"),
         ],
@@ -461,6 +459,14 @@ class TestNonJsonRoutesSayWhatTheyReturn:
 
         content = app.openapi()["paths"][path]["get"]["responses"]["200"]["content"]
         assert list(content) == [media]
+
+    @pytest.mark.parametrize("path", ["/api/v1/seo/sitemap.xml", "/api/v1/seo/robots.txt"])
+    def test_the_moved_crawler_files_document_their_redirect(self, path):
+        # They redirect to the site's own files (P33 M13), so the spec says 301.
+        from app.main import app
+
+        documented = app.openapi()["paths"][path]["get"]["responses"]
+        assert "301" in documented and "200" not in documented
 
 
 class TestTheMediaTypeIsTheOneSent:

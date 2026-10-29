@@ -3,98 +3,53 @@ from __future__ import annotations
 
 import io
 import logging
-import xml.etree.ElementTree as ET
+from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from PIL import Image
 
-
-class TestSitemap:
-    def test_returns_valid_xml(self, client):
-        response = client.get("/api/v1/seo/sitemap.xml")
-        assert response.status_code == 200
-        assert "application/xml" in response.headers["content-type"]
-        root = ET.fromstring(response.text)
-        assert root.tag.endswith("urlset")
-
-    def test_contains_static_pages(self, client):
-        body = client.get("/api/v1/seo/sitemap.xml").text
-        assert "https://gst.doaide.com/calculator" in body
-        assert "https://gst.doaide.com/hsn" in body
-        assert "https://gst.doaide.com/lookup" in body
-
-    def test_contains_free_tool_pages(self, client):
-        body = client.get("/api/v1/seo/sitemap.xml").text
-        assert "https://gst.doaide.com/penalty-calculator" in body
-        assert "https://gst.doaide.com/eway-bill" in body
-        assert "https://gst.doaide.com/input-tax-credit" in body
-        assert "https://gst.doaide.com/composition-scheme" in body
-        assert "https://gst.doaide.com/invoice-generator" in body
-        assert "https://gst.doaide.com/reverse-charge" in body
-        assert "https://gst.doaide.com/itc-mismatch" in body
-
-    def test_contains_product_rate_pages(self, client):
-        body = client.get("/api/v1/seo/sitemap.xml").text
-        assert "https://gst.doaide.com/gst-rate/laptop" in body
-        assert "https://gst.doaide.com/gst-rate/mobile-phone" in body
-        assert "https://gst.doaide.com/gst-rate/cement" in body
-
-    def test_each_product_url_has_monthly_changefreq(self, client):
-        root = ET.fromstring(client.get("/api/v1/seo/sitemap.xml").text)
-        ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-        product_urls = [
-            url for url in root.findall("s:url", ns)
-            if "gst-rate" in url.find("s:loc", ns).text
-        ]
-        assert len(product_urls) > 100
-        for url in product_urls[:5]:
-            assert url.find("s:changefreq", ns).text == "monthly"
-
-    def test_is_cached(self, client):
-        response = client.get("/api/v1/seo/sitemap.xml")
-        assert "max-age=3600" in response.headers.get("cache-control", "")
-
-    def test_needs_no_authentication(self, client):
-        assert client.get("/api/v1/seo/sitemap.xml").status_code == 200
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-class TestRobotsTxt:
-    def test_returns_plain_text(self, client):
-        response = client.get("/api/v1/seo/robots.txt")
-        assert response.status_code == 200
-        assert "text/plain" in response.headers["content-type"]
+class TestTheCrawlerFilesHaveOneSource:
+    """P33 M13: the API kept its own sitemap and robots.txt, by hand, beside the
+    site's.
 
-    def test_allows_public_pages(self, client):
-        body = client.get("/api/v1/seo/robots.txt").text
-        assert "Allow: /gst-rate/" in body
-        assert "Allow: /gstin/" in body
-        assert "Allow: /calculator" in body
+    The site's are ``frontend/public/robots.txt`` and the sitemap the prerender
+    build writes — the same list it prerenders, so the two cannot drift. The
+    API's copy had: 91 of the 1,134 indexable pages were missing from it, every
+    HSN page claimed to have changed today on every request, and its
+    robots.txt pointed crawlers at that sitemap while disallowing /api/, the
+    path it lives under, and hid /itc-calculator and /filing-checklist behind
+    unanchored /itc and /filing rules. Both now send a crawler to the real one.
+    """
 
-    def test_allows_free_tool_pages(self, client):
-        body = client.get("/api/v1/seo/robots.txt").text
-        assert "Allow: /penalty-calculator" in body
-        assert "Allow: /eway-bill" in body
-        assert "Allow: /input-tax-credit" in body
-        assert "Allow: /composition-scheme" in body
-        assert "Allow: /invoice-generator" in body
-        assert "Allow: /reverse-charge" in body
-        assert "Allow: /itc-mismatch" in body
+    @pytest.mark.parametrize(
+        ("path", "target"),
+        [("/api/v1/seo/sitemap.xml", "/sitemap.xml"), ("/api/v1/seo/robots.txt", "/robots.txt")],
+    )
+    def test_each_is_a_permanent_redirect_to_the_sites_own(self, client, path, target):
+        from app.core.config import settings
 
-    def test_disallows_private_pages(self, client):
-        body = client.get("/api/v1/seo/robots.txt").text
-        assert "Disallow: /api/" in body
-        assert "Disallow: /invoices" in body
+        response = client.get(path, follow_redirects=False)
 
-    def test_includes_sitemap_url(self, client):
-        body = client.get("/api/v1/seo/robots.txt").text
-        assert "Sitemap: https://gst.doaide.com/api/v1/seo/sitemap.xml" in body
+        assert response.status_code == 301
+        assert response.headers["location"] == f"{settings.public_site_url}{target}"
 
-    def test_is_cached(self, client):
-        response = client.get("/api/v1/seo/robots.txt")
-        assert "max-age=86400" in response.headers.get("cache-control", "")
+    @pytest.mark.parametrize("path", ["/api/v1/seo/sitemap.xml", "/api/v1/seo/robots.txt"])
+    def test_needs_no_authentication(self, client, path):
+        assert client.get(path, follow_redirects=False).status_code == 301
 
-    def test_needs_no_authentication(self, client):
-        assert client.get("/api/v1/seo/robots.txt").status_code == 200
+    def test_the_router_keeps_no_page_list_of_its_own(self):
+        from app.routers import seo
+
+        for name in ("STATIC_PAGES", "HSN_CODES", "PRODUCT_SLUGS", "ROBOTS_TXT"):
+            assert not hasattr(seo, name), name
+
+    def test_the_sites_robots_points_at_the_sites_sitemap(self):
+        robots = (REPO_ROOT / "frontend" / "public" / "robots.txt").read_text()
+        assert "Sitemap: https://gst.doaide.com/sitemap.xml" in robots
 
 
 class TestOgImage:
