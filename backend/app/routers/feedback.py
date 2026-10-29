@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ from app.schemas.feedback import (
     FeedbackListOut,
     FeedbackOut,
 )
+from app.services import retention
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +43,10 @@ _read_limit = RateLimit("feedback_read", "120/minute")
 _error_limit = RateLimit("client_error", "30/minute", by="ip")
 
 MAX_USER_AGENT = 512
-# How long an error that has stopped happening stays in the log. The table is
-# deduplicated by page and message, but a public endpoint can still be sent
-# endless distinct messages; without an end, those rows are kept forever.
-CLIENT_ERROR_RETENTION = timedelta(days=30)
-# How long a feedback row keeps the address it was sent from. The address is
-# for spotting a flood or an abusive sender while it is happening; a year on it
-# answers no question anyone has, and is a visitor's location kept beside their
-# email and their own words. The message itself is kept — it is the point.
-FEEDBACK_IP_RETENTION = timedelta(days=30)
+# The retention periods and their pruning live in app/services/retention.py,
+# which a daily beat task also runs; re-exported under their old names.
+CLIENT_ERROR_RETENTION = retention.CLIENT_ERROR_RETENTION
+FEEDBACK_IP_RETENTION = retention.FEEDBACK_IP_RETENTION
 
 
 @router.post(
@@ -85,15 +81,7 @@ def submit_feedback(
     db.add(row)
     # On the write, like the client-error pruning below: no scheduler to keep
     # running, and created_at is indexed, so this costs one ranged update.
-    db.execute(
-        update(Feedback)
-        .where(
-            Feedback.created_at < utcnow() - FEEDBACK_IP_RETENTION,
-            Feedback.ip_address.is_not(None),
-        )
-        .values(ip_address=None)
-        .execution_options(synchronize_session=False)
-    )
+    retention.clear_old_feedback_ips(db)
     db.commit()
     db.refresh(row)
     logger.info("Feedback received", extra={"category": row.category.value})
@@ -224,9 +212,7 @@ def report_client_error(
     logger.info("Client error recorded", extra={"page": page})
     # Pruned on a new row only — the rare write — so a repeat of a known error,
     # the common one, never pays for it. last_seen_at is indexed.
-    db.execute(
-        delete(ClientError).where(ClientError.last_seen_at < utcnow() - CLIENT_ERROR_RETENTION)
-    )
+    retention.delete_old_client_errors(db)
     db.commit()
     return ClientErrorAck(occurrences=1)
 

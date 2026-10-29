@@ -39,7 +39,7 @@ celery_app = Celery(
     "gstbot",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.invoice_tasks", "app.tasks.alert_tasks"],
+    include=["app.tasks.invoice_tasks", "app.tasks.alert_tasks", "app.tasks.retention_tasks"],
 )
 
 celery_app.conf.update(
@@ -138,9 +138,12 @@ ALERT_EMAIL_MINUTE = 15
 # top of the hour so it does not start alongside the deadline sweep, log
 # rotation and everything else that fires at :00.
 STALLED_SWEEP_MINUTE = 20
+# Daily, in the quietest hour and clear of the 07:00 sweep.
+RETENTION_HOUR = 2
+RETENTION_MINUTE = 45
 
 celery_app.conf.beat_schedule = {
-    # The only periodic task in this application, and the whole reason
+    # The first periodic task in this application, and the original reason
     # gstbot-beat.service exists. Daily rather than hourly because what it
     # produces is a date-based judgement that cannot change within a day: the
     # severities are derived from whole days remaining, so twenty-three of every
@@ -173,6 +176,14 @@ celery_app.conf.beat_schedule = {
     "stalled-parse-sweep": {
         "task": "invoices.reap_stalled",
         "schedule": crontab(minute=STALLED_SWEEP_MINUTE),
+    },
+    # Retention: feedback sender addresses and the client-error log, past 30
+    # days. It also runs when new feedback or a new error arrives, but a quiet
+    # site gets neither for weeks, and a retention period that only applies
+    # when something else happens is not one. See app/services/retention.py.
+    "personal-data-retention": {
+        "task": "retention.prune_personal_data",
+        "schedule": crontab(hour=RETENTION_HOUR, minute=RETENTION_MINUTE),
     },
 }
 

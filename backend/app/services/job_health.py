@@ -48,6 +48,8 @@ JOB_STALE_AFTER_SECONDS: dict[str, int] = {
     # Hourly. Stale past 90 minutes covers a beat tick landing a little late
     # without waiting almost two full cycles to raise it.
     "stalled-parse-sweep": 90 * 60,
+    # Daily at 02:45, with the same two-hour margin as the sweep.
+    "personal-data-retention": 26 * 3600,
 }
 
 
