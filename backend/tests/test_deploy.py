@@ -2053,7 +2053,10 @@ class TestTheLiveSiteIsNotWhatTheBuildWritesInto:
         build = self.SCRIPT.index("GSTBOT_BUILD_DIR=dist.next")
         proven = self.SCRIPT.index('[ -f "$FRONTEND/dist.next/index.html" ]')
         swap = self.SCRIPT.index('mv "$FRONTEND/dist.next" "$FRONTEND/dist"')
-        assert build < proven < swap < self.SCRIPT.index('log "Taking a restore point"')
+        published = self.SCRIPT.index("\npublish_frontend\n")
+        # The swap is defined with the build and run after the migrations: see
+        # TestTheNewFrontendWaitsForTheMigration.
+        assert build < proven < published and swap < published
         # A build that fails stops the release with the live site untouched.
         assert "|| die \"the frontend did not build" in self.SCRIPT
 
@@ -2318,7 +2321,10 @@ class TestAnUnchangedFrontendIsNotRebuilt:
         build = self.SCRIPT.index("GSTBOT_BUILD_DIR=dist.next")
         written = self.SCRIPT.index('echo "$source_id" > "$FRONTEND/.dist-source"')
         swap = self.SCRIPT.index('mv "$FRONTEND/dist.next" "$FRONTEND/dist"')
-        assert skip < record < build < swap < written
+        assert skip < record < build
+        # The swap and the record it writes live in publish_frontend, which
+        # runs after the migrations; the record is still written after the swap.
+        assert swap < written
         # Cleared before a build starts, so a failed one cannot leave it vouching.
         assert self.SCRIPT.index('rm -f "$FRONTEND/.dist-source"') < build
         assert ".dist-source" in (REPO_ROOT / ".gitignore").read_text()
@@ -2516,3 +2522,72 @@ def test_the_release_is_recorded_before_the_restart_that_loads_it():
     written = script.index('printf \'%s\\n\' "$REVISION" > "$ROOT/backend/.release"')
     assert written < script.index('systemctl restart "${SERVICES[@]}"')
     assert "backend/.release" in (REPO_ROOT / ".gitignore").read_text().splitlines()
+
+
+class TestTheNewFrontendWaitsForTheMigration:
+    """P29 M14: the new build went live before the release could still fail.
+
+    ``static-server.mjs`` opens each file by path per request, so renaming
+    ``dist.next`` to ``dist`` *is* the frontend release — not the restart at
+    the end. The swap ran before the restore point and the migrations, so a
+    failed backup or migration aborted the release with users already on the
+    new UI against the old API, and even a release that went well served that
+    mix for the whole migration.
+    """
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _function(self, name):
+        start = self.SCRIPT.index(f"{name}() {{")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def _from_restore_point_to_health(self):
+        start = self.SCRIPT.index('log "Taking a restore point"')
+        return self.SCRIPT[start : self.SCRIPT.index('log "Checking health"')]
+
+    def test_the_swap_runs_after_the_migration_and_before_the_restart(self):
+        call = self.SCRIPT.index("\npublish_frontend\n")
+        assert self.SCRIPT.index("systemctl restart gstbot-migrate.service") < call
+        assert call < self.SCRIPT.index('systemctl restart "${SERVICES[@]}"')
+        # And the build step itself no longer moves anything into dist.
+        build = self.SCRIPT[
+            self.SCRIPT.index('log "Building the frontend"') : self.SCRIPT.index(
+                'log "Installing changed systemd units"'
+            )
+        ]
+        assert 'mv "$FRONTEND/dist.next" "$FRONTEND/dist"' not in build
+
+    def _run(self, tmp_path, *, migrate_fails):
+        frontend = tmp_path / "frontend"
+        for name, text in (("dist", "old"), ("dist.next", "new")):
+            (frontend / name).mkdir(parents=True)
+            (frontend / name / "index.html").write_text(text)
+        (tmp_path / "backend").mkdir()
+        harness = "\n".join([
+            f'FRONTEND="{frontend}"; ROOT="{tmp_path}"; REVISION=abc; source_id=""',
+            "frontend_staged=1",
+            "log() { :; }; warn() { :; }",
+            'die() { echo "died: $*" >&2; exit 1; }',
+            # gstbot-migrate fails when asked to; everything else succeeds.
+            "systemctl() { case \"$*\" in *gstbot-migrate*) "
+            + ("return 1" if migrate_fails else "return 0")
+            + ";; *) return 0;; esac; }",
+            self._function("publish_frontend"),
+            self._from_restore_point_to_health(),
+        ])
+        return frontend, subprocess.run(
+            ["bash", "-c", harness], capture_output=True, text=True, timeout=20
+        )
+
+    def test_a_failed_migration_leaves_the_live_site_on_the_old_build(self, tmp_path):
+        frontend, result = self._run(tmp_path, migrate_fails=True)
+        assert result.returncode != 0 and "migrations failed" in result.stderr
+        assert (frontend / "dist" / "index.html").read_text() == "old"
+        assert (frontend / "dist.next" / "index.html").read_text() == "new"
+
+    def test_a_good_migration_publishes_the_new_build(self, tmp_path):
+        frontend, result = self._run(tmp_path, migrate_fails=False)
+        assert result.returncode == 0, result.stderr
+        assert (frontend / "dist" / "index.html").read_text() == "new"
+        assert (frontend / "dist.prev" / "index.html").read_text() == "old"
+        assert not (frontend / "dist.next").exists()

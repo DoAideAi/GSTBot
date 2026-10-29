@@ -25,8 +25,10 @@
 # output are the live ones. The box is shared with three other products and has
 # roughly 2 GB of headroom, so keeping N releases of node_modules on disk and a
 # second copy of the tree costs more than the seconds of downtime it removes.
-# While the frontend rebuilds, gstbot-web keeps serving the previous dist from
-# the open file handles it already has; the swap is the restart at the end.
+# The frontend builds beside the live one, into dist.next, and is published by
+# renaming it to dist — which is live the moment it happens, because
+# static-server.mjs opens each file by path per request. So the rename waits
+# for the migrations and goes just before the restart; see publish_frontend.
 set -euo pipefail
 
 ROOT=/opt/GSTBot
@@ -191,6 +193,23 @@ if [ -n "$stale" ]; then
     "$VENV/bin/pip" uninstall --quiet --yes $stale
 fi
 
+frontend_staged=""
+
+# Put the staged build live. Not at the end of the build: renaming dist.next to
+# dist is the frontend release, since gstbot-web reads files by path on every
+# request — nothing waits for its restart. Done there, a backup or migration
+# that then failed stopped the release with the new UI already live against the
+# old API, and a release that went well served that mix for the length of the
+# migration. Called once the migrations are in, just before the restart.
+publish_frontend() {
+    [ -n "$frontend_staged" ] || return 0
+    rm -rf "$FRONTEND/dist.prev"
+    if [ -d "$FRONTEND/dist" ]; then mv "$FRONTEND/dist" "$FRONTEND/dist.prev"; fi
+    mv "$FRONTEND/dist.next" "$FRONTEND/dist"
+    if [ -n "$source_id" ]; then echo "$source_id" > "$FRONTEND/.dist-source"; fi
+}
+
+
 log "Building the frontend"
 # `npm ci` rather than `npm install`: the lockfile is the input, and a release
 # that silently resolved a different version is not the thing that was tested.
@@ -247,10 +266,8 @@ else
         || die "the frontend did not build; the site still serves the previous build"
     [ -f "$FRONTEND/dist.next/index.html" ] \
         || die "build produced no index.html; the site still serves the previous build"
-    rm -rf "$FRONTEND/dist.prev"
-    if [ -d "$FRONTEND/dist" ]; then mv "$FRONTEND/dist" "$FRONTEND/dist.prev"; fi
-    mv "$FRONTEND/dist.next" "$FRONTEND/dist"
-    if [ -n "$source_id" ]; then echo "$source_id" > "$FRONTEND/.dist-source"; fi
+    frontend_staged=1
+    echo "Built into dist.next; it goes live after the migrations"
 fi
 
 log "Installing changed systemd units"
@@ -330,6 +347,7 @@ SERVICES=(gstbot-api.service gstbot-web.service gstbot-worker.service gstbot-bea
 # process, so it names the code that process loaded: an API that failed to
 # restart keeps answering 200 with the previous one, and that is now visible.
 printf '%s\n' "$REVISION" > "$ROOT/backend/.release"
+publish_frontend
 systemctl reset-failed "${SERVICES[@]}" 2>/dev/null || true
 systemctl restart "${SERVICES[@]}" \
     || die "the services did not restart; systemctl status ${SERVICES[*]} — then journalctl -u gstbot-api -n 100"
