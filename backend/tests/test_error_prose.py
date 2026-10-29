@@ -211,6 +211,9 @@ INTERNAL_ONLY = {
     # One tenant's SMTP failing must not end the digest for the rest, so this
     # is caught inside the task loop and never reaches a response.
     "EmailSendError": "logged inside the digest task",
+    # The upload volume's own error (full, read-only, gone) is for the
+    # operator; the caller gets the route's retryable 503 in its own words.
+    "UploadNotStored": "503 from upload, worded by the route, not by the exception",
     # Control flow inside the text extractor, not an error anyone sees.
     "_TextLimitReached": "stops reading a document that is over the limit",
     # Its message names the storage path, so it goes to the log; the row the

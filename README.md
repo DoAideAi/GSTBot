@@ -136,7 +136,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-91 routes under `/api/v1`. The generated reference is the authority — start the
+93 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -156,11 +156,11 @@ The surface, by area:
 | Area | Routes | What it does |
 |---|---|---|
 | `auth` | 9 | Register with a GSTIN, log in, `/auth/me`; Google, GitHub and Microsoft sign-in (start and callback each) |
-| `businesses` | 3 | List linked registrations, link one, unlink |
+| `businesses` | 4 | List linked registrations, link one, unlink, export this business's data |
 | `invoices` | 7 | Upload (single and bulk), list, read, edit, re-extract, delete |
 | `reconciliation` | 10 | Import GSTR-2B, run a match, read a run or the run history; buy and download a run's PDF report |
 | `itc` | 4 | Eligible credit, Rule 37 reversals, lapsing credit, set-off |
-| `filing` | 7 | GSTR-1/3B preparation, validation, late fee, export, record filed |
+| `filing` | 8 | GSTR-1/3B preparation, validation, late fee, export, record filed, undo a recorded filing |
 | `suppliers` | 3 | Compliance scores, rescore |
 | `alerts` | 3 | Deadline alerts, mark read, dismiss |
 | `dashboard` | 1 | The monthly summary |

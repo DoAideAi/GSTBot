@@ -27,6 +27,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from app.core.routes import collect_api_routes
+from app.main import app
+
 BACKEND = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND.parent
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
@@ -400,7 +403,19 @@ class TestTheREADMEDescribesThisRepository:
             for method in operations
             if method.upper() in {"GET", "POST", "PUT", "PATCH", "DELETE"}
         )
-        assert int(claimed.group(1)) == published
+        # The README counts the routes that are served, as its per-area table
+        # does (test_readme_routes); the spec leaves out the ones mounted with
+        # include_in_schema=False — the Razorpay webhook. Counting only the
+        # spec made the two tests demand different totals of one sentence.
+        hidden = sum(
+            len(route.methods - {"HEAD", "OPTIONS"})
+            for route in collect_api_routes(app)
+            if getattr(route, "methods", None)
+            and route.path.startswith("/api/v1/")
+            and not getattr(route, "include_in_schema", True)
+        )
+        assert hidden, "expected the schema-hidden webhook among the served routes"
+        assert int(claimed.group(1)) == published + hidden
 
     def test_it_reads_a_gate_that_is_not_a_whole_number(self):
         # The check above is only worth anything if it can see the gate it is
