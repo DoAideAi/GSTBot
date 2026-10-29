@@ -35,6 +35,7 @@ import logging
 import random
 import re
 import smtplib
+import ssl
 import time
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -175,6 +176,9 @@ def _relay_is_down(exc: BaseException) -> bool:
     return _is_transient(exc) and not isinstance(exc, smtplib.SMTPRecipientsRefused)
 
 
+_IMPLICIT_TLS_PORT = 465
+
+
 def _deliver(message: EmailMessage) -> None:
     """One attempt: connect, upgrade, authenticate, send. Raises smtplib's own."""
     # Not ``with smtplib.SMTP(...)``: its ``__exit__`` sends QUIT and raises
@@ -183,11 +187,26 @@ def _deliver(message: EmailMessage) -> None:
     # retried, so the digest went out again on every attempt. Raised on the
     # way out of a failed send, the same 421 replaced the real refusal, so a
     # permanent 550 was retried as though it were transient.
-    client = smtplib.SMTP(
-        settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout_seconds
-    )
+    #
+    # Port 465 is TLS from the first byte (RFC 8314), and it is the port most
+    # providers list for "SSL". Opened as plain SMTP and then asked to STARTTLS,
+    # it waited for a greeting the server never sends in clear, so every
+    # attempt ran out the timeout and SMTP_PORT=465 could never send. Every
+    # other port connects in clear and upgrades, as it always has.
+    implicit_tls = settings.smtp_port == _IMPLICIT_TLS_PORT
+    if implicit_tls:
+        client = smtplib.SMTP_SSL(
+            settings.smtp_host,
+            settings.smtp_port,
+            timeout=settings.smtp_timeout_seconds,
+            context=ssl.create_default_context(),
+        )
+    else:
+        client = smtplib.SMTP(
+            settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout_seconds
+        )
     try:
-        if settings.smtp_use_tls:
+        if settings.smtp_use_tls and not implicit_tls:
             client.starttls()
         if settings.smtp_username:
             client.login(settings.smtp_username, settings.smtp_password)

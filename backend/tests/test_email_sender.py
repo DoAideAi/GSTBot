@@ -550,3 +550,50 @@ class TestTheMessageCarriesDateAndMessageId:
         send_email(to="b@example.com", subject="s", body="b")
         first, second = (c.sent["Message-ID"] for c in _FakeSMTP.instances)
         assert first != second
+
+
+class TestPort465IsImplicitTLS:
+    """P38 M5: SMTP_PORT=465 could be configured, and could never send.
+
+    465 is the port most providers list for "SSL" (Zoho, Hostinger, Gmail's
+    SSL option). A connection there is TLS from the first byte (RFC 8314).
+    ``_deliver`` always opened plain SMTP and then asked for STARTTLS, so it
+    waited for a greeting the server would never send in clear text. Every
+    attempt ran out the timeout, every email failed, the breaker opened, and
+    the configuration looked right. Port 465 now connects with SMTP_SSL and a
+    verifying context, and every other port is unchanged.
+    """
+
+    class _FakeSMTPSSL(_FakeSMTP):
+        def __init__(self, host, port, timeout=None, context=None):
+            super().__init__(host, port, timeout=timeout)
+            self.context = context
+
+    @pytest.fixture()
+    def ssl_fake(self, monkeypatch):
+        monkeypatch.setattr(smtplib, "SMTP_SSL", self._FakeSMTPSSL)
+        return self._FakeSMTPSSL
+
+    def test_465_connects_over_tls_from_the_start(self, monkeypatch, ssl_fake):
+        import ssl
+
+        monkeypatch.setattr(settings, "smtp_port", 465)
+        monkeypatch.setattr(settings, "smtp_username", "mailer")
+        monkeypatch.setattr(settings, "smtp_password", "app-password")
+
+        send_email(to="owner@example.com", subject="Hi", body="Body")
+
+        (client,) = _FakeSMTP.instances
+        assert isinstance(client, ssl_fake)
+        assert client.port == 465 and not client.started_tls
+        assert isinstance(client.context, ssl.SSLContext)
+        assert client.context.verify_mode == ssl.CERT_REQUIRED
+        assert client.logged_in == ("mailer", "app-password")
+        assert client.sent is not None
+
+    def test_587_still_upgrades_with_starttls(self, ssl_fake):
+        send_email(to="owner@example.com", subject="Hi", body="Body")
+
+        (client,) = _FakeSMTP.instances
+        assert not isinstance(client, ssl_fake)
+        assert client.started_tls
