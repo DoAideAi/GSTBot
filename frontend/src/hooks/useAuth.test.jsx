@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   api,
   getActiveBusinessId,
@@ -579,5 +579,67 @@ describe("answers to /auth/me that arrive out of order", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(screen.getByTestId("user")).toHaveTextContent("anonymous");
+  });
+});
+
+describe("a business switched in another tab", () => {
+  // The "acting for" business is in localStorage, shared by every tab, and
+  // only the token was being followed. Switching to client B in one tab left
+  // the others naming client A in their header while every request they sent
+  // acted for B — an invoice uploaded "to A" landed in B's books.
+  function otherTabSwitchesTo(id) {
+    const key = "gstbot_active_business_id";
+    const oldValue = localStorage.getItem(key);
+    if (id === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, String(id));
+    window.dispatchEvent(
+      new StorageEvent("storage", { key, oldValue, newValue: id === null ? null : String(id) }),
+    );
+  }
+
+  function serveMeByBusiness() {
+    const seen = [];
+    global.fetch = vi.fn(async (url, options = {}) => {
+      const asked = options.headers?.["X-Business-Id"];
+      seen.push(asked);
+      const email = asked ? `acting-for-${asked}@example.com` : USER.email;
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => JSON.stringify({ ...USER, email }),
+      };
+    });
+    return seen;
+  }
+
+  beforeEach(() => localStorage.clear());
+
+  it("follows it, so the screen names the business its requests act for", async () => {
+    setToken("stored-token");
+    const seen = serveMeByBusiness();
+    renderWithProvider();
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
+
+    otherTabSwitchesTo(9);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("acting-for-9@example.com"),
+    );
+    expect(seen.at(-1)).toBe("9");
+  });
+
+  it("follows a switch back to the login's own business", async () => {
+    setToken("stored-token");
+    setActiveBusinessId(9);
+    serveMeByBusiness();
+    renderWithProvider();
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("acting-for-9@example.com"),
+    );
+
+    otherTabSwitchesTo(null);
+
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
   });
 });

@@ -7,6 +7,7 @@ import {
   onUnauthorized,
   setActiveBusinessId,
   setToken,
+  ACTIVE_BUSINESS_KEY,
   TOKEN_KEY,
 } from "../lib/api";
 
@@ -58,9 +59,16 @@ export function AuthProvider({ children }) {
   // while every request it made acted on the new one's books. So a change made
   // elsewhere is followed here: no token ends the session, a different one is
   // asked who it belongs to. `key` is null when another tab clears storage.
+  //
+  // The business being acted for is shared the same way, and was not
+  // followed: switching to client B in one tab left the others naming client A
+  // in their header while every request they sent carried B's id — an invoice
+  // uploaded "to A" landed in B's books. A switch elsewhere is asked about the
+  // same way, so the screen names the business its requests act for (and the
+  // pages, keyed on it, remount and refetch).
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key !== TOKEN_KEY && e.key !== null) return;
+      if (e.key !== TOKEN_KEY && e.key !== ACTIVE_BUSINESS_KEY && e.key !== null) return;
       if (!getToken()) {
         endSession();
         return;

@@ -6,7 +6,8 @@ import { track } from "./track";
 const BASE = "/api/v1";
 // Exported for `useAuth`, which listens for other tabs writing it.
 export const TOKEN_KEY = "gstbot_token";
-const ACTIVE_BUSINESS_KEY = "gstbot_active_business_id";
+// Exported for `useAuth`, which follows another tab switching it.
+export const ACTIVE_BUSINESS_KEY = "gstbot_active_business_id";
 
 /**
  * Where a key goes when the browser will not store it.
