@@ -2863,3 +2863,54 @@ class TestTheUploadedOriginalsAreBackedUp:
         assert "-name 'uploads-*' -mtime \"+$RETENTION_DAYS\"" in self.SCRIPT
         assert "\nthin_snapshots\n" in self.SCRIPT
         assert "is not dumped here" not in self.SCRIPT
+
+
+class TestAReleaseNeedsTheDiskToFinish:
+    """P35 M14: nothing checked the disk before a release started changing things.
+
+    The release checks out the new code and reinstalls the virtualenv in
+    place, under the services still running on it. On this box's disk — 97%
+    full on 2026-10-20 — a pip install that runs out of space stops halfway:
+    the release dies, and the running services are left on a half-upgraded
+    environment. The backup's own floor is checked later, after the venv has
+    already been touched. Now the release refuses to start without room.
+    """
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _fn(self, name):
+        start = self.SCRIPT.index(f"{name}() {{")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def _with_df(self, tmp_path, free_mb):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        df = bin_dir / "df"
+        df.write_text(
+            "#!/bin/sh\n"
+            "echo 'Filesystem 1048576-blocks Used Available Capacity Mounted on'\n"
+            f"echo '/dev/sda1 38000 30000 {free_mb} 90% /'\n"
+        )
+        df.chmod(0o755)
+        return bin_dir
+
+    @pytest.mark.parametrize(("free_mb", "room"), [(400, False), (5000, True)])
+    def test_it_needs_the_floor_free(self, tmp_path, free_mb, room):
+        bin_dir = self._with_df(tmp_path, free_mb)
+        run = subprocess.run(
+            ["bash", "-c", f'ROOT="{tmp_path}"\nDEPLOY_MIN_FREE_MB=1024\n'
+             + self._fn("room_to_release") + "room_to_release\n"],
+            capture_output=True, text=True, timeout=20,
+            env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+        )
+        assert (run.returncode == 0) is room, run.stderr
+
+    def test_it_is_checked_before_anything_is_changed(self):
+        check = self.SCRIPT.index("room_to_release ||")
+        assert check < self.SCRIPT.index('log "Selecting the release source"')
+        assert check < self.SCRIPT.index('"$VENV/bin/pip" install')
+        refusal = self.SCRIPT[check : check + 300]
+        assert "die" in refusal and "GSTBOT_DEPLOY_MIN_FREE_MB" in refusal
+
+    def test_the_floor_can_be_set(self):
+        assert 'DEPLOY_MIN_FREE_MB="${GSTBOT_DEPLOY_MIN_FREE_MB:-1024}"' in self.SCRIPT

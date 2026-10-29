@@ -38,6 +38,9 @@ REF="${1:-}"
 # The memory a frontend build on this box must find free before it starts, in
 # MiB, and where to read it. See room_to_build.
 BUILD_MIN_FREE_MB="${GSTBOT_BUILD_MIN_FREE_MB:-1536}"
+# The disk a release must find free on $ROOT's filesystem before it changes
+# anything, in MiB. See room_to_release.
+DEPLOY_MIN_FREE_MB="${GSTBOT_DEPLOY_MIN_FREE_MB:-1024}"
 MEMINFO="${GSTBOT_MEMINFO:-/proc/meminfo}"
 
 log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
@@ -82,6 +85,20 @@ trap 'rm -f "$GSTBOT_DEPLOY_PINNED"' EXIT
 DEPLOY_LOCK="${GSTBOT_DEPLOY_LOCK:-/run/lock/gstbot-deploy.lock}"
 exec 9>"$DEPLOY_LOCK" || die "cannot open the deploy lock $DEPLOY_LOCK"
 flock -n 9 || die "another deploy is running (it holds $DEPLOY_LOCK); wait for it to finish"
+
+# Whether the release has the disk to finish. It checks out the code and
+# reinstalls the virtualenv in place, under the services still running on it,
+# so a pip install that runs out of space halfway stops the release with those
+# services on a half-upgraded environment — this disk was 97% full on
+# 2026-10-20. Checked before anything is touched; the backup's own floor is
+# checked later, after the virtualenv already has been.
+room_to_release() {
+    local free_mb
+    free_mb="$(df -Pm "$ROOT" 2>/dev/null | awk 'NR == 2 { print $4 }')"
+    [ -n "$free_mb" ] || return 0
+    [ "$free_mb" -ge "$DEPLOY_MIN_FREE_MB" ]
+}
+room_to_release || die "under ${DEPLOY_MIN_FREE_MB}MiB free on the disk holding $ROOT, so nothing was changed; free some space, or set GSTBOT_DEPLOY_MIN_FREE_MB"
 
 # Is $ROOT a checkout this box can run git against at all? Separate from
 # "can it reach the remote", which is the question below and has a different

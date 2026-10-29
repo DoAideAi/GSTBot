@@ -241,6 +241,11 @@ build, and discards one built from any other tree. With no upload it builds
 here only if `GSTBOT_BUILD_MIN_FREE_MB` (1536 by default) is free, and otherwise
 stops before touching anything.
 
+The release also refuses to start unless `GSTBOT_DEPLOY_MIN_FREE_MB` (1024 MiB
+by default) is free on the disk holding `/opt/GSTBot`: it reinstalls the
+virtualenv in place under the running services, and an install that runs out of
+space halfway leaves them on a half-upgraded environment.
+
 The restart clears each unit's failed state first, which also resets its start
 counter. The units allow five starts in five minutes so that a crash loop stops;
 a release's restart used to count against that, and the third release inside
