@@ -24,7 +24,7 @@ from app.models.gstr_return import GSTRReturn, ReturnType
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.reconciliation_run import MatchCategory, ReconciliationRun, ReconciliationStatus
 from app.models.supplier import Supplier
-from app.services import reconciliation
+from app.services import reconciliation, supplier_score
 from tests.conftest import SUPPLIER_GSTIN_OTHER_STATE, SUPPLIER_GSTIN_SAME_STATE
 from tests.test_reconciliation import PERIOD, book, categories, import_2b, portal, save
 
@@ -1912,3 +1912,65 @@ class TestConcurrentRunsOfDifferentPeriods:
         assert [e["period"] for e in found[SUPPLIER_GSTIN_OTHER_STATE].filing_history] == [
             "2026-03"
         ]
+
+
+# ---------------------------------------------------------------------------
+# Re-running an old month does not move the score's "as of" back to it
+# ---------------------------------------------------------------------------
+
+class TestScoreIsAsOfTheLatestReconciledMonth:
+    """A supplier's stored score is measured to the newest month reconciled.
+
+    Its recency counts the months since the supplier was last seen filing, up
+    to an end month. That end was the month just reconciled, so re-running an
+    old one — routine, a 2B is regenerated whenever a supplier files late —
+    made a supplier silent ever since read as "filed this period", and the
+    stored score and risk level the supplier list ranks by looked current.
+    """
+
+    LATER = "2026-09"
+
+    def _completed_run(self, db_session, business, period):
+        db_session.add(
+            ReconciliationRun(
+                business_id=business.id,
+                period=period,
+                status=ReconciliationStatus.COMPLETED,
+            )
+        )
+        db_session.commit()
+
+    def test_re_running_an_old_month_scores_as_of_the_latest_one(self, db_session, business):
+        db_session.add(Supplier(business_id=business.id, gstin=SUPPLIER_GSTIN_OTHER_STATE))
+        db_session.commit()
+        self._completed_run(db_session, business, self.LATER)
+        save(db_session, business.id, invoice_number="M-1")
+        import_2b(db_session, business.id, [portal(invoice_number="M-1")])
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        db_session.expire_all()
+        supplier = db_session.query(Supplier).filter_by(gstin=SUPPLIER_GSTIN_OTHER_STATE).one()
+        as_of_later = supplier_score.score_supplier(supplier, as_of_period=self.LATER)
+        as_of_run = supplier_score.score_supplier(supplier, as_of_period=PERIOD)
+        assert as_of_later.score < as_of_run.score  # five months of silence count
+        assert supplier.compliance_score == as_of_later.score
+        assert supplier.risk_level is as_of_later.risk_level
+
+    def test_the_newest_month_is_its_own_end(self, db_session, business):
+        # Nothing later reconciled: the run's own month is the end, as before.
+        self._completed_run(db_session, business, "2026-02")
+        assert reconciliation._scoring_period(db_session, business.id, PERIOD) == PERIOD
+
+    def test_an_unfinished_later_run_does_not_count(self, db_session, business):
+        # A FAILED or RUNNING row is no evidence about any supplier's month.
+        db_session.add(
+            ReconciliationRun(
+                business_id=business.id, period=self.LATER, status=ReconciliationStatus.FAILED
+            )
+        )
+        db_session.commit()
+        assert reconciliation._scoring_period(db_session, business.id, PERIOD) == PERIOD
+
+    def test_no_run_at_all_is_the_run_s_own_month(self, db_session, business):
+        assert reconciliation._scoring_period(db_session, business.id, PERIOD) == PERIOD

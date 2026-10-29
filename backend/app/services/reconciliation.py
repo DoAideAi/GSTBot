@@ -822,6 +822,32 @@ def _suppliers_by_gstin(
     return found
 
 
+def _scoring_period(db: Session, business_id: int, period: str) -> str:
+    """The month a supplier's stored score is measured as of.
+
+    The later of the period being reconciled and the newest period this
+    business has a completed run for. The run's own period alone was the
+    month the score's recency is counted to, so re-running an old month —
+    routine, since a 2B is regenerated whenever a supplier files late —
+    moved that end of the window back to it. A supplier last seen filing in
+    January and absent from every month reconciled since was "filed this
+    period" again the moment January was re-run, and their stored score and
+    risk level, which the supplier list ranks by, read as current.
+
+    Not today's month: a supplier's history only holds the months this
+    business has reconciled, and counting silence through months nobody
+    checked would mark down suppliers for the buyer's own backlog.
+    """
+    latest = db.scalar(
+        select(func.max(ReconciliationRun.period)).where(
+            ReconciliationRun.business_id == business_id,
+            ReconciliationRun.deleted_at.is_(None),
+            ReconciliationRun.status == ReconciliationStatus.COMPLETED,
+        )
+    )
+    return max(period, latest) if latest else period
+
+
 def _rescore(supplier: Supplier, period: str) -> supplier_score.SupplierScore:
     """Recompute *supplier*'s counters, score and last filing from its history.
 
@@ -923,6 +949,7 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
 
     _lock_supplier_records(db, business_id)
     suppliers = _suppliers_by_gstin(db, business_id, list(per_gstin))
+    as_of = _scoring_period(db, business_id, result.period)
 
     summary: dict[str, dict] = {}
     for gstin, tally in per_gstin.items():
@@ -951,7 +978,7 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
         history.append(observation)
         # Bounded: this column is an audit trail for the score, not a ledger.
         supplier.filing_history = sorted(history, key=lambda e: e["period"])[-36:]
-        score = _rescore(supplier, result.period)
+        score = _rescore(supplier, as_of)
         if filed_on is not None and (
             supplier.last_seen_at is None or filed_on > supplier.last_seen_at
         ):
@@ -965,12 +992,12 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
             **tally,
         }
 
-    _forget_absent_suppliers(db, business_id, result.period, set(per_gstin))
+    _forget_absent_suppliers(db, business_id, result.period, set(per_gstin), as_of=as_of)
     return summary
 
 
 def _forget_absent_suppliers(
-    db: Session, business_id: int, period: str, present: set[str]
+    db: Session, business_id: int, period: str, present: set[str], *, as_of: str
 ) -> None:
     """Drop *period* from the history of every supplier no longer in it.
 
@@ -1011,7 +1038,7 @@ def _forget_absent_suppliers(
         if len(kept) == len(history):
             continue
         supplier.filing_history = kept
-        _rescore(supplier, period)
+        _rescore(supplier, as_of)
 
 
 def _apply_statuses(result: ReconciliationResult) -> None:
