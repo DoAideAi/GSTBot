@@ -59,9 +59,24 @@ def make_unsubscribe_token(email: str) -> str:
     return hmac.new(_hmac_secret().encode(), email.lower().encode(), hashlib.sha256).hexdigest()
 
 
+def _signed_query(email: str) -> str:
+    return urlencode({"email": email, "token": make_unsubscribe_token(email)})
+
+
 def unsubscribe_url(email: str) -> str:
-    query = urlencode({"email": email, "token": make_unsubscribe_token(email)})
-    return f"{settings.frontend_origin}/api/v1/subscribers/unsubscribe?{query}"
+    """The API address a mailbox's one-click Unsubscribe button POSTs to."""
+    return f"{settings.frontend_origin}/api/v1/subscribers/unsubscribe?{_signed_query(email)}"
+
+
+def unsubscribe_page_url(email: str) -> str:
+    """The page a person lands on from the link in the email's body.
+
+    The body linked to the API itself, which answered a person with a raw
+    JSON object. The page asks for a click before it unsubscribes anyone:
+    mail scanners follow every link in a message, and one that acted on
+    arrival would unsubscribe people who never opened the email.
+    """
+    return f"{settings.frontend_origin}/unsubscribe?{_signed_query(email)}"
 
 
 def due_in(today: date, days: int = REMIND_DAYS_BEFORE) -> list[tuple[ReturnType, str, date]]:
@@ -79,7 +94,7 @@ def _message(return_type: ReturnType, period: str, due: date, email: str) -> tup
     label = _LABELS[return_type]
     month = date.fromisoformat(f"{period}-01").strftime("%B %Y")
     when = f"{due.day} {due.strftime('%b %Y')}"
-    link = unsubscribe_url(email)
+    link = unsubscribe_page_url(email)
     subject = f"{label} for {month} is due on {when}"
     body = "\n".join([
         f"Your {label} for {month} is due on {when} — {REMIND_DAYS_BEFORE} days from today.",
@@ -111,11 +126,16 @@ def send_deadline_reminders(db: Session, *, today: date | None = None) -> Remind
             .order_by(Subscriber.id)
         ).all()
         for subscriber_id, email in subscribers:
-            subject, body, link = _message(return_type, period, due, email)
+            subject, body, _page = _message(return_type, period, due, email)
             try:
                 send_email(
                     to=email, subject=subject, body=body,
-                    headers={"List-Unsubscribe": f"<{link}>"},
+                    # RFC 8058 one-click, which Gmail and Yahoo require of
+                    # bulk senders: the mailbox POSTs to this address itself.
+                    headers={
+                        "List-Unsubscribe": f"<{unsubscribe_url(email)}>",
+                        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                    },
                 )
             except EmailSendError:
                 failed += 1

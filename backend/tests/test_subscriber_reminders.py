@@ -101,23 +101,60 @@ def test_the_next_deadline_is_still_sent(db_session, email_on, outbox):
     ]
 
 
-def test_each_email_carries_a_working_unsubscribe_link(db_session, email_on, outbox, client):
+def test_each_email_carries_a_one_click_unsubscribe(db_session, email_on, outbox, client):
+    """P34 M10: RFC 8058, which Gmail and Yahoo require of bulk senders.
+
+    The header named the API's GET and nothing more, so a mailbox's
+    "Unsubscribe" button could only open it in a browser — where it, like the
+    link in the body, showed the subscriber a raw JSON object.
+    """
     _subscribe(db_session, "a@example.com")
     subscriber_reminders.send_deadline_reminders(db_session, today=GSTR1_EVE)
 
-    header = outbox[0]["headers"]["List-Unsubscribe"]
+    headers = outbox[0]["headers"]
+    assert headers["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+    header = headers["List-Unsubscribe"]
     assert header.startswith("<http") and header.endswith(">")
-    url = header[1:-1]
-    assert url in outbox[0]["body"]
-    parts = urlsplit(url)
+    parts = urlsplit(header[1:-1])
     assert parts.path == "/api/v1/subscribers/unsubscribe"
-    params = {k: v[0] for k, v in parse_qs(parts.query).items()}
 
-    response = client.get(parts.path, params=params)
+    # What the mailbox does: POST to it, with the one-click body, no cookies.
+    response = client.post(
+        parts.path + "?" + parts.query,
+        content="List-Unsubscribe=One-Click",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
 
+    assert response.status_code == 200
     assert response.json()["unsubscribed"] is True
     db_session.expire_all()
     assert db_session.query(Subscriber).one().unsubscribed_at is not None
+
+
+def test_the_link_in_the_body_opens_a_page_not_the_api(db_session, email_on, outbox):
+    _subscribe(db_session, "a@example.com")
+    subscriber_reminders.send_deadline_reminders(db_session, today=GSTR1_EVE)
+
+    link = next(w for w in outbox[0]["body"].split() if "unsubscribe" in w)
+    parts = urlsplit(link)
+    assert parts.path == "/unsubscribe"
+    params = {k: v[0] for k, v in parse_qs(parts.query).items()}
+    assert params["email"] == "a@example.com" and len(params["token"]) == 64
+
+
+def test_a_one_click_with_a_forged_token_unsubscribes_nobody(db_session, client):
+    _subscribe(db_session, "a@example.com")
+
+    response = client.post(
+        "/api/v1/subscribers/unsubscribe",
+        params={"email": "a@example.com", "token": "0" * 64},
+        content="List-Unsubscribe=One-Click",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.json()["unsubscribed"] is False
+    db_session.expire_all()
+    assert db_session.query(Subscriber).one().unsubscribed_at is None
 
 
 def test_it_does_nothing_where_email_is_not_configured(db_session, outbox, monkeypatch):

@@ -541,6 +541,10 @@ export const api = {
 
   reminderSubscribe: (email) =>
     request("/meta/reminder-subscribe", { method: "POST", body: { email }, auth: false }),
+  // One click from the reminder's link page; the signed email and token are
+  // the proof, in the query, as the server's one-click handler expects.
+  unsubscribe: (email, token) =>
+    request(`/subscribers/unsubscribe${query({ email, token })}`, { method: "POST", auth: false }),
   subscribe: (email, source = "landing") =>
     request("/subscribers", { method: "POST", body: { email, source }, auth: false }),
   recentLookups: () =>

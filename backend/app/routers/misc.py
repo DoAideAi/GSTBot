@@ -727,21 +727,7 @@ def subscribe(
     }
 
 
-@router.get(
-    "/subscribers/unsubscribe",
-    summary="Unsubscribe from filing reminders",
-    description=(
-        "Validates the HMAC token and marks the email as unsubscribed. "
-        "The token prevents anyone from unsubscribing an address they do "
-        "not control."
-    ),
-    dependencies=[Depends(_subscriber_limit)],
-)
-def unsubscribe(
-    email: str = Query(..., max_length=320),
-    token: str = Query(..., min_length=64, max_length=64),
-    db: Session = Depends(get_db),
-) -> dict[str, Any]:
+def _unsubscribe(db: Session, email: str, token: str) -> dict[str, Any]:
     expected = make_unsubscribe_token(email)
     # Bytes, not str: a non-ASCII token made compare_digest raise (a 500).
     if not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
@@ -762,3 +748,42 @@ def unsubscribe(
         extra={"email_domain": email.rsplit("@", 1)[-1]},
     )
     return {"unsubscribed": True, "message": "You've been unsubscribed."}
+
+
+@router.get(
+    "/subscribers/unsubscribe",
+    summary="Unsubscribe from filing reminders",
+    description=(
+        "Validates the HMAC token and marks the email as unsubscribed. "
+        "The token prevents anyone from unsubscribing an address they do "
+        "not control. Kept for links already sent; reminders now link to the "
+        "site's /unsubscribe page, and mailboxes use the POST."
+    ),
+    dependencies=[Depends(_subscriber_limit)],
+)
+def unsubscribe(
+    email: str = Query(..., max_length=320),
+    token: str = Query(..., min_length=64, max_length=64),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    return _unsubscribe(db, email, token)
+
+
+@router.post(
+    "/subscribers/unsubscribe",
+    summary="Unsubscribe in one click (RFC 8058)",
+    description=(
+        "What a mailbox's Unsubscribe button sends for the List-Unsubscribe "
+        "header on a reminder — a POST with the body "
+        "`List-Unsubscribe=One-Click`, no cookies — and what the site's "
+        "/unsubscribe page sends when its button is pressed. The signed email "
+        "and token are in the query, as in the GET."
+    ),
+    dependencies=[Depends(_subscriber_limit)],
+)
+def unsubscribe_one_click(
+    email: str = Query(..., max_length=320),
+    token: str = Query(..., min_length=64, max_length=64),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    return _unsubscribe(db, email, token)

@@ -154,6 +154,7 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/seo/sitemap.xml",
             "/api/v1/subscribers",
             "/api/v1/subscribers/unsubscribe",
+            "/api/v1/subscribers/unsubscribe",
             "/api/v1/subscriptions/pricing",
             "/api/v1/subscriptions/webhook",
             "/api/v1/whatsapp/webhook",

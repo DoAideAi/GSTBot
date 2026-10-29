@@ -515,6 +515,9 @@ UNGATED_MUTATIONS = {
     "/api/v1/meta/reminder-subscribe",
     # Public email capture for filing-deadline reminders.
     "/api/v1/subscribers",
+    # One-click unsubscribe (RFC 8058): a mailbox POSTs it with no session,
+    # proven by the signed token in the link, as the GET always was.
+    "/api/v1/subscribers/unsubscribe",
     # WhatsApp webhook — called by Twilio / WhatsApp servers, authenticated
     # by webhook signature rather than a bearer token.
     "/api/v1/whatsapp/webhook",

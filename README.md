@@ -136,7 +136,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-100 routes under `/api/v1`. The generated reference is the authority — start the
+101 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -167,7 +167,7 @@ The surface, by area:
 | `subscriptions` | 7 | Plans and prices, current plan, usage, Razorpay order and verify, cancel, webhook |
 | `referrals` | 4 | Referral code, stats, leaderboard, tracking a visit |
 | `meta` | 6 | State codes, GSTIN lookup, bulk GSTIN validation (paid), recent lookups, stats, deadline-reminder sign-up |
-| `subscribers` | 2 | Newsletter sign-up and unsubscribe |
+| `subscribers` | 3 | Newsletter sign-up, and unsubscribe by link or one-click POST |
 | `feedback` | 6 | Send feedback, report a browser error; admin inbox and error log, and deleting from each |
 | `advisor` | 2 | The GST AI advisor, answered whole or streamed |
 | `gpt` | 7 | GPT Actions for ChatGPT: GSTIN, HSN, calculator, invoice data, filing dates, spec, privacy |
