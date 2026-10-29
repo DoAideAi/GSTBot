@@ -292,3 +292,40 @@ class TestPortalPeriodConversion:
     def test_portal_date_format(self):
         assert filing_service.to_portal_date(date(2026, 4, 15)) == "15-04-2026"
         assert filing_service.to_portal_date(None) is None
+
+
+class TestARecordedFilingCarriesWhatThatReturnDeclared:
+    """P19 M2: recording a filing stored totals beside the ARN from every sale
+    of the period, for both returns. GSTR-1 does list every sale; GSTR-3B's
+    3.1(a) leaves out reverse-charge sales (the recipient's tax) and nil-rated
+    ones, so a recorded 3B claimed more tax than the document stored next to it
+    declared."""
+
+    def _period(self, db_session, business):
+        _sale(db_session, business, number="S-1", taxable="10000",
+              cgst="900", sgst="900", total="11800")
+        _sale(db_session, business, number="S-RCM", taxable="50000",
+              cgst="4500", sgst="4500", total="59000", rc=True)
+
+    def test_a_recorded_3b_totals_its_own_3_1_a(self, db_session, business):
+        from app.models.gstr_return import ReturnType
+
+        self._period(db_session, business)
+        record = filing_service.record_filing(
+            db_session, business, PERIOD, ReturnType.GSTR3B, filed_on=date(2026, 5, 18)
+        )
+        declared = record.data["sup_details"]["osup_det"]
+        assert record.total_taxable_value == Decimal("10000.00") == Decimal(str(declared["txval"]))
+        assert record.total_cgst == Decimal("900.00")
+        assert record.total_sgst == Decimal("900.00")
+        assert record.invoice_count == 2
+
+    def test_a_recorded_gstr1_still_totals_every_sale_it_lists(self, db_session, business):
+        from app.models.gstr_return import ReturnType
+
+        self._period(db_session, business)
+        record = filing_service.record_filing(
+            db_session, business, PERIOD, ReturnType.GSTR1, filed_on=date(2026, 5, 10)
+        )
+        assert record.total_taxable_value == Decimal("60000.00")
+        assert record.total_cgst == Decimal("5400.00")

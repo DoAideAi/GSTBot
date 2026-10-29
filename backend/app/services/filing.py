@@ -682,16 +682,33 @@ def record_filing(
             else build_gstr3b(db, business, period)
         )
 
-        # Both returns summarise outward supplies, so both take their totals
-        # from sales. The purchase side reaches GSTR-3B as input credit, which
-        # is a different figure and is inside ``data``.
+        # Both returns summarise outward supplies, so both count the period's
+        # sales. The purchase side reaches GSTR-3B as input credit, which is a
+        # different figure and is inside ``data``.
         totals = invoice_service.tax_summary(db, business.id, period)["sales"]
         record.invoice_count = int(totals["count"])
-        record.total_taxable_value = _q(Decimal(totals["taxable_value"]))
-        record.total_cgst = _q(Decimal(totals["cgst"]))
-        record.total_sgst = _q(Decimal(totals["sgst"]))
-        record.total_igst = _q(Decimal(totals["igst"]))
-        record.total_cess = _q(Decimal(totals["cess"]))
+        if return_type is ReturnType.GSTR3B:
+            # The figures the 3B itself declares at 3.1(a), from the document
+            # stored beside them. The sales totals also carry reverse-charge
+            # sales (whose tax is the recipient's, 3.1(c)) and nil-rated ones,
+            # so the totals shown beside the ARN overstated what this return
+            # declared — by the whole of that tax — against the document they
+            # sit next to.
+            declared = record.data["sup_details"]["osup_det"]
+            figures = {
+                "taxable_value": declared["txval"],
+                "cgst": declared["camt"],
+                "sgst": declared["samt"],
+                "igst": declared["iamt"],
+                "cess": declared["csamt"],
+            }
+        else:
+            figures = totals
+        record.total_taxable_value = _q(Decimal(str(figures["taxable_value"])))
+        record.total_cgst = _q(Decimal(str(figures["cgst"])))
+        record.total_sgst = _q(Decimal(str(figures["sgst"])))
+        record.total_igst = _q(Decimal(str(figures["igst"])))
+        record.total_cess = _q(Decimal(str(figures["cess"])))
         db.add(record)
     try:
         db.commit()
