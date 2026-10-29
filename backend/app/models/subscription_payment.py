@@ -29,6 +29,8 @@ class SubscriptionPayment(Base, TimestampMixin):
     __tablename__ = "subscription_payments"
     __table_args__ = (
         Index("ix_subscription_payments_business_created", "business_id", "created_at"),
+        # verify-payment's one-order-one-period check (migration 0024).
+        Index("ix_subscription_payments_order", "razorpay_order_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
