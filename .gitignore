@@ -20,6 +20,8 @@ dist.next/
 dist.prev/
 # What the build in dist was made from; deploy.sh skips an unchanged rebuild.
 .dist-source
+# The revision deploy.sh released, which /health reports.
+backend/.release
 .vite/
 *.local
 coverage/

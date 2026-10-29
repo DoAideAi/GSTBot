@@ -649,3 +649,25 @@ class TestHealthReportsTheOptionalIntegrations:
         assert integrations["advisor"]["status"] == "unconfigured"
         assert integrations["payments"]["status"] == "unconfigured"
         assert integrations["email"]["status"] == "disabled"
+
+
+class TestHealthNamesTheRunningRelease:
+    """``version`` is a constant, so nothing said which code was answering —
+    and an API whose restart failed keeps answering 200 on the old one."""
+
+    def test_the_release_is_in_the_report(self, client, monkeypatch):
+        from app.routers import misc
+
+        monkeypatch.setattr(misc, "RELEASE", "abc1234")
+        assert client.get("/api/v1/health").json()["release"] == "abc1234"
+
+    def test_no_release_file_reads_as_unknown(self, monkeypatch, tmp_path):
+        import pathlib
+
+        from app.routers import misc
+
+        monkeypatch.setattr(misc, "__file__", str(tmp_path / "a" / "b" / "misc.py"))
+        monkeypatch.setattr(pathlib.Path, "resolve", lambda self: self)
+        assert misc._read_release() == "unknown"
+        (tmp_path / ".release").write_text("def5678\n")
+        assert misc._read_release() == "def5678"

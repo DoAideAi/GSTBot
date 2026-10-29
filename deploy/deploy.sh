@@ -326,6 +326,10 @@ log "Restarting services"
 # fails: under `set -e` alone the release stopped here with no error line, which
 # read like a deploy still running.
 SERVICES=(gstbot-api.service gstbot-web.service gstbot-worker.service gstbot-beat.service)
+# The revision the restarted API reports as `release` on /health. Read once per
+# process, so it names the code that process loaded: an API that failed to
+# restart keeps answering 200 with the previous one, and that is now visible.
+printf '%s\n' "$REVISION" > "$ROOT/backend/.release"
 systemctl reset-failed "${SERVICES[@]}" 2>/dev/null || true
 systemctl restart "${SERVICES[@]}" \
     || die "the services did not restart; systemctl status ${SERVICES[*]} — then journalctl -u gstbot-api -n 100"

@@ -2439,3 +2439,10 @@ class TestARollbackPastAMigrationStillStarts:
         # Skipping here would start the API on an unmigrated schema.
         result = self._check("postgresql+psycopg://nobody@127.0.0.1:1/none")
         assert result.returncode == 255
+
+
+def test_the_release_is_recorded_before_the_restart_that_loads_it():
+    script = DEPLOY_SCRIPT.read_text()
+    written = script.index('printf \'%s\\n\' "$REVISION" > "$ROOT/backend/.release"')
+    assert written < script.index('systemctl restart "${SERVICES[@]}"')
+    assert "backend/.release" in (REPO_ROOT / ".gitignore").read_text().splitlines()

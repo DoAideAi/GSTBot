@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import pathlib
 import time
 from typing import Any
 
@@ -84,6 +85,24 @@ _meta_limit = RateLimit("meta", "60/minute", by="ip")
 # probe reads as an unready instance — which would take pods out of rotation to
 # defend against load that costs nothing to serve.
 _ops_limit = RateLimit("ops_health", "60/minute", by="ip")
+
+
+def _read_release() -> str:
+    """The revision deploy.sh wrote before restarting this process.
+
+    ``app_version`` is a constant, so ``/health`` could not say which code was
+    answering — and an API whose restart failed keeps answering 200 on the old
+    code. Read once, at import, so it is the revision this process loaded
+    rather than whatever the file says now.
+    """
+    release_file = pathlib.Path(__file__).resolve().parents[2] / ".release"
+    try:
+        return release_file.read_text().strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+RELEASE = _read_release()
 
 
 def _timed(check) -> tuple[bool, float, str | None]:
@@ -205,6 +224,7 @@ def health(response: Response, db: Session = Depends(get_db)) -> dict[str, Any]:
         "status": "ok" if database_ok else "degraded",
         "app": settings.app_name,
         "version": settings.app_version,
+        "release": RELEASE,
         "environment": settings.environment,
         "database": "ok" if database_ok else "unavailable",
         "redis": "ok" if redis_ok else "unavailable",
