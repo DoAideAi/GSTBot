@@ -152,6 +152,11 @@ systemctl enable --now gstbot-backup.timer
 systemctl enable --now gstbot-monitor.timer
 ```
 
+The install is needed once; enabling is the part only you can do. After this,
+every `deploy.sh` copies any unit file that changed in the repo into
+`/etc/systemd/system`, reloads systemd and restarts a changed timer, so a unit
+edit ships like any other change. It never enables or disables anything.
+
 That installs ten units:
 
 | Unit | What it is |

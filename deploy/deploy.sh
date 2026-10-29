@@ -253,6 +253,35 @@ else
     if [ -n "$source_id" ]; then echo "$source_id" > "$FRONTEND/.dist-source"; fi
 fi
 
+log "Installing changed systemd units"
+# The units were installed once, by hand, from deploy/README.md, and no release
+# touched them again — so a unit edit committed here (a timeout, a restart
+# policy, a new ExecStart flag) reached main, passed CI, and never reached the
+# box. On 2026-10-29 every installed service still named the product's old
+# domain. Only files that differ are written, so an unchanged release leaves
+# /etc/systemd/system alone, and timers are restarted so a new schedule is the
+# one that fires. Before the restore point, so a changed backup unit is the one
+# that takes it.
+changed_units=()
+for unit in "$ROOT"/deploy/systemd/*; do
+    name=$(basename "$unit")
+    if ! cmp -s "$unit" "/etc/systemd/system/$name"; then
+        install -m 0644 "$unit" "/etc/systemd/system/$name"
+        changed_units+=("$name")
+    fi
+done
+if [ "${#changed_units[@]}" -gt 0 ]; then
+    systemctl daemon-reload
+    echo "updated: ${changed_units[*]}"
+    for name in "${changed_units[@]}"; do
+        case "$name" in
+            *.timer) systemctl is-enabled --quiet "$name" && systemctl restart "$name" ;;
+        esac
+    done
+else
+    echo "unchanged"
+fi
+
 log "Taking a restore point"
 # The migration below is the one step of a release that is not undone by
 # deploying the previous revision: code goes back, a dropped column does not.

@@ -2319,3 +2319,66 @@ class TestTheBackupReadsAnEncodedPassword:
     def test_a_plain_url_is_unchanged(self):
         env = self._connection("postgresql://gstbot:secret@172.18.0.1/gstbot")
         assert (env["PGUSER"], env["PGPASSWORD"], env["PGPORT"]) == ("gstbot", "secret", "5432")
+
+
+class TestAReleaseInstallsChangedUnits:
+    """P25 M12: no release installed the units after the first, by hand, so a
+    unit edit reached main and never the box; every installed service still
+    named the old domain. The block now runs on every release."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _block(self) -> str:
+        start = self.SCRIPT.index('log "Installing changed systemd units"')
+        end = self.SCRIPT.index('log "Taking a restore point"')
+        return self.SCRIPT[start:end]
+
+    def test_it_runs_before_the_restore_point_and_the_restart(self):
+        installs = self.SCRIPT.index('log "Installing changed systemd units"')
+        assert installs < self.SCRIPT.index("systemctl start gstbot-backup.service")
+        assert installs < self.SCRIPT.index('systemctl restart "${SERVICES[@]}"')
+
+    def _run(self, tmp_path, repo_units: dict[str, str], installed: dict[str, str]):
+        root = tmp_path / "root"
+        (root / "deploy" / "systemd").mkdir(parents=True)
+        etc = tmp_path / "etc"
+        etc.mkdir()
+        for name, text in repo_units.items():
+            (root / "deploy" / "systemd" / name).write_text(text)
+        for name, text in installed.items():
+            (etc / name).write_text(text)
+        calls = tmp_path / "calls"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        stub = bin_dir / "systemctl"
+        stub.write_text(f'#!/bin/sh\necho "$*" >> {calls}\n')
+        stub.chmod(0o755)
+        script = (
+            'log() { :; }\n'
+            f'ROOT={root}\n'
+            + self._block().replace("/etc/systemd/system", str(etc))
+        )
+        subprocess.run(
+            ["bash", "-c", script],
+            check=True,
+            env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"},
+            capture_output=True,
+        )
+        return etc, (calls.read_text().splitlines() if calls.exists() else [])
+
+    def test_a_changed_unit_is_installed_and_reloaded(self, tmp_path):
+        etc, calls = self._run(
+            tmp_path,
+            {"a.service": "new\n", "b.service": "same\n", "c.timer": "t2\n"},
+            {"a.service": "old\n", "b.service": "same\n", "c.timer": "t1\n"},
+        )
+        assert (etc / "a.service").read_text() == "new\n"
+        assert (etc / "c.timer").read_text() == "t2\n"
+        assert "daemon-reload" in calls
+        # Enabled-ness is asked, then the timer restarted so it reschedules.
+        assert "is-enabled --quiet c.timer" in calls
+        assert "restart c.timer" in calls
+
+    def test_an_unchanged_release_touches_nothing(self, tmp_path):
+        _, calls = self._run(tmp_path, {"a.service": "x\n"}, {"a.service": "x\n"})
+        assert calls == []
