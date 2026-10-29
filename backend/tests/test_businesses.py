@@ -717,3 +717,26 @@ class TestAccessChangesLeaveATrace:
         assert auth_client.delete(f"/api/v1/businesses/mine/{linked_id}").status_code == 204
         (gone,) = [r for r in caplog.records if r.getMessage() == "Business unlinked"]
         assert gone.linked_business_id == linked_id
+
+
+def test_a_link_that_loses_the_race_says_already_linked(auth_client, db_session, monkeypatch):
+    # P19 M9: both clicks pass the "already linked?" read before either commits;
+    # the unique index refuses the second, which answered the generic conflict.
+    from app.models.business_membership import BusinessMembership
+
+    register_second_business(auth_client)
+    original_scalar = db_session.scalar
+
+    def miss_the_membership(statement, *args, **kwargs):
+        # The loser's read: the winner's row is not visible to it yet.
+        if "business_memberships" in str(statement):
+            return None
+        return original_scalar(statement, *args, **kwargs)
+
+    assert link(auth_client).status_code in (200, 201)
+    monkeypatch.setattr(db_session, "scalar", miss_the_membership)
+    response = link(auth_client)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "That business is already linked."
+    monkeypatch.undo()
+    assert db_session.query(BusinessMembership).count() == 1

@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -251,7 +252,17 @@ def link_business(
         user_id=current_user.id, business_id=other.business_id, role=role
     )
     db.add(membership)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # A double-clicked "link": both requests passed the check above before
+        # either committed, and the partial unique index kept the second row
+        # out. It answered the generic "conflicts with one that already exists";
+        # the loser now gets the same answer a later second attempt does.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="That business is already linked."
+        ) from None
     # An access grant, and the only trace of whose: the access line is
     # ``POST /businesses/mine/link`` and the business is in the body.
     logger.info(
