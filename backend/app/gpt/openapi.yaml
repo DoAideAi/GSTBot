@@ -110,7 +110,7 @@ paths:
         - name: rate
           in: query
           required: true
-          description: GST rate in percent. One of 0, 0.1, 0.25, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40.
+          description: GST rate in percent. One of 0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40.
           schema:
             type: number
             minimum: 0

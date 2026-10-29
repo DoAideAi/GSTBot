@@ -23,15 +23,19 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from app.models.mixins import ZERO
 from app.services import gstin as gstin_service
+from app.services.invoice_parser import VALID_TAX_RATES
 
 # Every rate a supply can carry today, plus the 12% and 28% slabs GST 2.0
 # folded away in September 2025 — invoices dated before then still use them,
 # and someone checking an old bill is a real caller. A rate outside this set is
 # a typo (1.8 for 18) far more often than a rate, so it is refused rather than
 # computed.
-VALID_RATES = frozenset(
-    Decimal(r) for r in ("0", "0.1", "0.25", "1.5", "3", "5", "6", "7.5", "12", "18", "28", "40")
-)
+#
+# The parser's list, not a copy of it. This module kept its own, and it had
+# lost 1%: the calculator and the GPT invoice tool answered "1% is not a GST
+# rate" for a rate the parser reads, the invoice editor accepts and filing
+# files. The parser's own comment records the same drift once before.
+VALID_RATES = frozenset(VALID_TAX_RATES)
 
 HUNDRED = Decimal("100")
 PAISA = Decimal("0.01")

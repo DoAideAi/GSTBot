@@ -753,3 +753,33 @@ def test_a_heading_whose_rate_depends_on_the_goods_says_so():
     assert "40%" in hsn.by_code("8711").description
     assert "outside GST" in hsn.by_code("2710").description
     assert "outside GST" in hsn.by_code("2711").description
+
+
+class TestOneListOfGstRates:
+    """P23 M17: the calculator kept its own copy of the valid rates and had lost
+    1%, so /gpt/calculate and the invoice tool refused a rate the parser reads,
+    the invoice editor accepts and filing files."""
+
+    def test_the_calculator_accepts_every_rate_the_parser_does(self):
+        from app.services import gst_calculator
+        from app.services.invoice_parser import VALID_TAX_RATES
+
+        assert frozenset(VALID_TAX_RATES) == gst_calculator.VALID_RATES
+
+    def test_one_percent_is_calculated_not_refused(self, client):
+        response = client.get(
+            "/api/v1/gpt/calculate", params={"amount": "1000", "rate": "1"}
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["cgst"] == body["sgst"] == "5.00"
+
+    def test_the_gpt_is_told_the_same_rates(self):
+        import re
+        from pathlib import Path
+
+        from app.services import gst_calculator
+
+        spec = (Path(gst_calculator.__file__).parents[1] / "gpt" / "openapi.yaml").read_text()
+        listed = re.search(r"GST rate in percent\. One of ([0-9., ]+)\.", spec).group(1)
+        assert {Decimal(r) for r in listed.split(", ")} == gst_calculator.VALID_RATES
