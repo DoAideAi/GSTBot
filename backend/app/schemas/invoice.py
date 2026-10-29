@@ -51,6 +51,7 @@ class InvoiceOut(BaseModel):
     tax_rate: Decimal | None = None
     itc_eligible: bool
     reverse_charge: bool
+    is_import: bool = False
     # What the Rule 37 and Rule 43 reversals are computed from. Returned so the
     # review screen can show why an invoice is on the reversal list, and so a
     # client can tell "not paid" from "we never asked".
@@ -195,6 +196,7 @@ class InvoiceUpdate(BaseModel):
     tax_rate: Decimal | None = Field(default=None, ge=0, le=100)
     itc_eligible: bool | None = None
     reverse_charge: bool | None = None
+    is_import: bool | None = None
 
     # ---- The two facts the reversal rules turn on ----
     # Rule 37 reverses the credit on a purchase left unpaid 180 days past its
@@ -375,6 +377,7 @@ class InvoiceUpdate(BaseModel):
         "total_value",
         "itc_eligible",
         "reverse_charge",
+        "is_import",
         "is_capital_good",
     )
     @classmethod

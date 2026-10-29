@@ -76,6 +76,12 @@ const LEDGER_FLAGS = [
     type: "checkbox",
     hint: "The supplier charged no tax and you owe it directly. Declared in GSTR-3B 3.1(d) and payable in cash.",
   },
+  {
+    field: "is_import",
+    label: "Import of services",
+    type: "checkbox",
+    hint: "A service bought from abroad — cloud hosting, ads, software. Always reverse charge and IGST; the credit is claimed in GSTR-3B 4(A)(2).",
+  },
 ];
 
 const BOOLEAN_FIELDS = new Set(

@@ -81,6 +81,14 @@ class TaxHeads:
             cess=self.cess + other.cess,
         )
 
+    def __sub__(self, other: TaxHeads) -> TaxHeads:
+        return TaxHeads(
+            igst=self.igst - other.igst,
+            cgst=self.cgst - other.cgst,
+            sgst=self.sgst - other.sgst,
+            cess=self.cess - other.cess,
+        )
+
     def scaled(self, factor: Decimal) -> TaxHeads:
         """This split multiplied by *factor*, re-rounded to paise."""
         return TaxHeads(
@@ -629,6 +637,9 @@ class ReverseChargePosition:
     taxable_value: Decimal = ZERO
     tax: TaxHeads = field(default_factory=TaxHeads)
     credit: TaxHeads = field(default_factory=TaxHeads)
+    # Of ``credit``, the part on imported services. GSTR-3B claims it in
+    # 4(A)(2) and the rest in 4(A)(3); the total is unchanged.
+    import_credit: TaxHeads = field(default_factory=TaxHeads)
     invoice_count: int = 0
 
     def as_dict(self) -> dict:
@@ -636,6 +647,7 @@ class ReverseChargePosition:
             "taxable_value": str(_q(self.taxable_value)),
             "tax": self.tax.as_dict(),
             "credit": self.credit.as_dict(),
+            "import_credit": self.import_credit.as_dict(),
             "invoice_count": self.invoice_count,
             "cash_payable": str(_q(self.tax.total)),
         }
@@ -664,6 +676,8 @@ def reverse_charge_position(invoices: list[Invoice]) -> ReverseChargePosition:
         position.tax = position.tax + tax
         if invoice.itc_eligible:
             position.credit = position.credit + tax
+            if invoice.is_import:
+                position.import_credit = position.import_credit + tax
     return position
 
 

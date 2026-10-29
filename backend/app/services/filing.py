@@ -287,14 +287,39 @@ def validate_invoice(
             Severity.WARNING,
             "No GSTIN — will be filed as a B2C supply",
         )
-    else:
+    elif not invoice.reverse_charge:
         # A purchase without a supplier GSTIN can never be matched in GSTR-2B,
         # so the credit on it is unclaimable until someone fills it in.
+        #
+        # Not on reverse charge. There the buyer pays the tax and claims the
+        # credit on its own self-invoice, and the supplier often has no GSTIN
+        # at all: an overseas cloud provider, an unregistered advocate or
+        # transporter. This error made every import of services unfilable.
         add(
             "counterparty_gstin",
             Severity.ERROR,
             "Supplier GSTIN is missing; ITC cannot be claimed without it",
         )
+
+    # ---- Import of services ----
+    # Always reverse charge (notification 10/2017-IGST (Rate)) and always IGST,
+    # because an import is an inter-state supply (IGST Act s.7(4)). Either
+    # mistake puts the wrong liability on 3.1(d) and the wrong credit on 4(A)(2).
+    if invoice.is_import:
+        if is_sales:
+            add("is_import", Severity.ERROR, "Only a purchase can be an import of services")
+        elif not invoice.reverse_charge:
+            add(
+                "reverse_charge",
+                Severity.ERROR,
+                "An import of services is always reverse charge; tick Reverse charge",
+            )
+        if (invoice.cgst or ZERO) > ZERO or (invoice.sgst or ZERO) > ZERO:
+            add(
+                "igst",
+                Severity.ERROR,
+                "An import of services is taxed as IGST only; move the CGST and SGST to IGST",
+            )
 
     # ---- HSN ----
     if not invoice.hsn_code:
@@ -1480,6 +1505,8 @@ def build_gstr3b(
     )
     reversal = summary.total_reversal
     reverse_charge = summary.reverse_charge
+    imported = reverse_charge.import_credit
+    domestic = reverse_charge.credit - imported
 
     return {
         "gstin": business.gstin,
@@ -1524,7 +1551,7 @@ def build_gstr3b(
         "itc_elg": {
             "itc_avl": [
                 {
-                    "ty": "OTH",  # All other ITC; imports and ISD are not modelled yet.
+                    "ty": "OTH",  # All other ITC; imports of goods and ISD are not modelled.
                     "iamt": float(_q(available.igst)),
                     "camt": float(_q(available.cgst)),
                     "samt": float(_q(available.sgst)),
@@ -1536,12 +1563,23 @@ def build_gstr3b(
                 # over the month — claiming it in "all other ITC" would file a
                 # 3.1(d) liability with no visible credit against it, which is
                 # the shape of a return that invites a query.
+                #
+                # Less imported services, which the form gives their own row,
+                # 4(A)(2): ISRC is "other than" imports. Both rows together are
+                # the whole reverse-charge credit, as before.
+                {
+                    "ty": "IMPS",  # Import of services.
+                    "iamt": float(_q(imported.igst)),
+                    "camt": float(_q(imported.cgst)),
+                    "samt": float(_q(imported.sgst)),
+                    "csamt": float(_q(imported.cess)),
+                },
                 {
                     "ty": "ISRC",  # Inward supplies liable to reverse charge.
-                    "iamt": float(_q(reverse_charge.credit.igst)),
-                    "camt": float(_q(reverse_charge.credit.cgst)),
-                    "samt": float(_q(reverse_charge.credit.sgst)),
-                    "csamt": float(_q(reverse_charge.credit.cess)),
+                    "iamt": float(_q(domestic.igst)),
+                    "camt": float(_q(domestic.cgst)),
+                    "samt": float(_q(domestic.sgst)),
+                    "csamt": float(_q(domestic.cess)),
                 },
             ],
             "itc_rev": [

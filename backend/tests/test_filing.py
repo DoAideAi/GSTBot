@@ -2439,3 +2439,81 @@ class TestTable12IsSplitIntoB2BAndB2C:
             assert [row["num"] for row in rows] == list(range(1, len(rows) + 1))
             assert len({(row["hsn_sc"], row["rt"]) for row in rows}) == len(rows)
             assert round(sum(Decimal(str(row["txval"])) for row in rows), 2) == total[side]
+
+
+class TestAnImportOfServices:
+    """Cloud hosting, ads, software bought from abroad. Reverse charge, IGST
+    only, and its credit claimed at 4(A)(2) rather than 4(A)(3). None of that
+    was modelled: the credit went to ISRC, and the missing supplier GSTIN
+    every overseas bill has was a blocking error."""
+
+    def purchase(self, **kwargs):
+        defaults = dict(
+            invoice_type=InvoiceType.PURCHASE,
+            invoice_number="AWS-0426",
+            counterparty_gstin=None,
+            counterparty_name="Amazon Web Services Inc",
+            place_of_supply="27",
+            reverse_charge=True,
+            is_import=True,
+        )
+        defaults.update(kwargs)
+        return sale(**defaults)
+
+    def test_its_credit_is_claimed_at_4_a_2_and_the_rest_at_4_a_3(self, db_session, business):
+        save(db_session, business.id, self.purchase())
+        save(
+            db_session,
+            business.id,
+            sale(
+                invoice_type=InvoiceType.PURCHASE,
+                invoice_number="GTA-1",
+                reverse_charge=True,
+                igst=Decimal("5000.00"),
+            ),
+        )
+
+        document = filing_service.build_gstr3b(db_session, business, PERIOD)
+
+        rows = {row["ty"]: row for row in document["itc_elg"]["itc_avl"]}
+        assert rows["IMPS"]["iamt"] == 18000.00
+        assert rows["ISRC"]["iamt"] == 5000.00
+        # The liability side is one row for both, as the form has it.
+        assert document["sup_details"]["isup_rev"]["iamt"] == 23000.00
+
+    def issues(self, invoice):
+        return {
+            issue.field: issue
+            for issue in filing_service.validate_invoice(
+                invoice, business_state="27", period=PERIOD
+            )
+        }
+
+    def test_an_overseas_supplier_with_no_gstin_is_not_an_error(self):
+        assert "counterparty_gstin" not in self.issues(self.purchase())
+
+    def test_a_domestic_reverse_charge_purchase_needs_no_gstin_either(self):
+        # An unregistered advocate or transporter: the buyer self-invoices.
+        found = self.issues(self.purchase(is_import=False))
+        assert "counterparty_gstin" not in found
+
+    def test_an_ordinary_purchase_still_needs_one(self):
+        found = self.issues(self.purchase(is_import=False, reverse_charge=False))
+        assert found["counterparty_gstin"].severity is Severity.ERROR
+
+    def test_an_import_not_marked_reverse_charge_is_an_error(self):
+        found = self.issues(self.purchase(reverse_charge=False))
+        assert found["reverse_charge"].severity is Severity.ERROR
+
+    def test_an_import_carrying_cgst_and_sgst_is_an_error(self):
+        found = self.issues(
+            self.purchase(
+                igst=Decimal("0"), cgst=Decimal("9000.00"), sgst=Decimal("9000.00")
+            )
+        )
+        assert found["igst"].severity is Severity.ERROR
+        assert "IGST only" in found["igst"].message
+
+    def test_a_sale_cannot_be_one(self):
+        found = self.issues(self.purchase(invoice_type=InvoiceType.SALES))
+        assert found["is_import"].severity is Severity.ERROR

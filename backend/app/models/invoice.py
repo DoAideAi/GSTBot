@@ -214,6 +214,9 @@ class Invoice(Base, BusinessScopedMixin, TimestampMixin, SoftDeleteMixin):
     # False for exempt, nil-rated, or blocked-credit (s.17(5)) purchases.
     itc_eligible: Mapped[bool] = mapped_column(default=True, nullable=False)
     reverse_charge: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # An import of services: reverse charge, always IGST, and its credit is
+    # claimed in GSTR-3B 4(A)(2) rather than 4(A)(3).
+    is_import: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # ---- ITC reversal inputs ----
     # When the supplier was paid. Rule 37 reverses the credit on a purchase left
