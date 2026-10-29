@@ -1944,3 +1944,90 @@ class TestBillingCallsAreBounded:
         assert first.status_code == again.status_code == 200
         assert again.json() == first.json()
         assert fetch.call_count == 1
+
+
+class TestWebhookFindsTheRowRazorpayMeans:
+    """Real Razorpay events, as Razorpay shapes them.
+
+    ``subscription.charged`` carries both a ``subscription`` and a ``payment``
+    entity. The payment's id was read first, the lookup went out for ``pay_…``
+    against a row stored under ``sub_…``, and the event was dropped as "unknown
+    subscription" — so a subscription halted on a failed card and then charged
+    on retry stayed ``past_due``, the customer paying and locked out.
+    """
+
+    def _post(self, client, payload):
+        import json
+
+        with patch.object(razorpay_client, "verify_webhook_signature", return_value=True):
+            return client.post(
+                "/api/v1/subscriptions/webhook",
+                content=json.dumps(payload).encode(),
+                headers={"X-Razorpay-Signature": "valid"},
+            )
+
+    def _sub(self, db, business, razorpay_id, status):
+        sub = Subscription(
+            business_id=business.id,
+            tier=SubscriptionTier.PRO,
+            status=status,
+            razorpay_subscription_id=razorpay_id,
+        )
+        db.add(sub)
+        db.commit()
+        return sub
+
+    def test_a_charge_with_both_entities_reactivates_a_halted_subscription(
+        self, client, db_session, business
+    ):
+        sub = self._sub(db_session, business, "sub_real1", SubscriptionStatus.PAST_DUE)
+        response = self._post(client, {
+            "entity": "event",
+            "event": "subscription.charged",
+            "contains": ["subscription", "payment"],
+            "payload": {
+                "subscription": {"entity": {"id": "sub_real1", "status": "active"}},
+                "payment": {"entity": {"id": "pay_retry1", "status": "captured"}},
+            },
+        })
+        assert response.status_code == 200
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.ACTIVE
+
+    def test_a_failed_one_time_payment_is_still_found_by_its_payment_id(
+        self, client, db_session, business
+    ):
+        # A checkout row is stored under the ``pay_`` id and has no subscription.
+        sub = self._sub(db_session, business, "pay_once1", SubscriptionStatus.ACTIVE)
+        self._post(client, {
+            "event": "payment.failed",
+            "contains": ["payment"],
+            "payload": {"payment": {"entity": {"id": "pay_once1", "status": "failed"}}},
+        })
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.PAST_DUE
+
+    def test_a_payment_naming_its_subscription_reaches_that_subscription(
+        self, client, db_session, business
+    ):
+        sub = self._sub(db_session, business, "sub_named1", SubscriptionStatus.ACTIVE)
+        self._post(client, {
+            "event": "payment.failed",
+            "contains": ["payment"],
+            "payload": {
+                "payment": {"entity": {"id": "pay_x9", "subscription_id": "sub_named1"}}
+            },
+        })
+        db_session.refresh(sub)
+        assert sub.status == SubscriptionStatus.PAST_DUE
+
+    def test_an_event_for_nobody_is_still_acknowledged(self, client, db_session, business):
+        response = self._post(client, {
+            "event": "subscription.charged",
+            "payload": {
+                "subscription": {"entity": {"id": "sub_nobody"}},
+                "payment": {"entity": {"id": "pay_nobody"}},
+            },
+        })
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}

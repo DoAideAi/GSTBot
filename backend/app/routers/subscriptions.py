@@ -851,25 +851,43 @@ async def razorpay_webhook(
     event = payload.get("event")
     if not isinstance(event, str):
         event = ""
-    entity = _dig(payload, "payload", "payment", "entity") or _dig(
-        payload, "payload", "subscription", "entity"
-    )
-    razorpay_id = entity.get("id") or entity.get("subscription_id")
-    if not isinstance(razorpay_id, str):
-        razorpay_id = None
-
-    if not razorpay_id:
+    # Which id names the row, in order of preference. A Razorpay-managed
+    # subscription is stored under its ``sub_`` id, a one-time checkout under
+    # its ``pay_`` id. ``subscription.charged`` — and ``activated`` with a first
+    # payment — carries *both* entities, and the payment's was read first: the
+    # lookup went out for ``pay_…``, found nothing, and the event was dropped as
+    # "unknown subscription". So a subscription halted on a failed card and then
+    # charged successfully on retry stayed ``past_due``, with the customer
+    # paying and locked out. The subscription's own id leads; the payment's
+    # ``subscription_id``, then the payment itself, follow.
+    subscription_entity = _dig(payload, "payload", "subscription", "entity")
+    payment_entity = _dig(payload, "payload", "payment", "entity")
+    candidates = [
+        value
+        for value in (
+            subscription_entity.get("id"),
+            payment_entity.get("subscription_id"),
+            payment_entity.get("id"),
+        )
+        if isinstance(value, str) and value
+    ]
+    if not candidates:
         logger.warning(
             "Razorpay webhook contained no identifiable subscription or payment id",
             extra={"event": event},
         )
         return {"status": "ok"}
 
-    sub = db.scalar(
-        select(Subscription).where(
-            Subscription.razorpay_subscription_id == razorpay_id
+    found = {
+        row.razorpay_subscription_id: row
+        for row in db.scalars(
+            select(Subscription).where(
+                Subscription.razorpay_subscription_id.in_(candidates)
+            )
         )
-    )
+    }
+    razorpay_id = next((value for value in candidates if value in found), candidates[0])
+    sub = found.get(razorpay_id)
     if sub is None:
         logger.warning(
             "Webhook referenced unknown subscription",
