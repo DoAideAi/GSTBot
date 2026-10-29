@@ -83,7 +83,9 @@ class DashboardOut(BaseModel):
         ),
     )
     net_liability: NetLiability
-    # Output tax owed on sales for the period, before credit is applied.
+    # Output tax owed on sales for the period, before credit is applied: the
+    # ``output`` bucket, not ``sales`` — a reverse-charge sale's tax is the
+    # recipient's to pay.
     output_tax: Decimal = Decimal("0.00")
     # Input credit available from purchases for the period. The claimable part
     # only — this is `credit.total_tax`, not `purchase.total_tax`.

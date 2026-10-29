@@ -167,8 +167,13 @@ def get_dashboard(
     purchase = _bucket(summary["purchase"])
     credit = _bucket(summary["credit"])
     # Against the sales this business owes tax on, not every sale it issued: a
-    # reverse-charge sale's tax is the recipient's to pay.
-    net_liability = _net_liability(_bucket(summary["output"]), credit)
+    # reverse-charge sale's tax is the recipient's to pay. One bucket for the
+    # "Output tax" card and the liability beside it: the card read ``sales``
+    # while the liability read ``output``, so on a business with reverse-charge
+    # sales it overstated the tax owed, and output minus credit stopped coming
+    # to the net liability on the same screen.
+    output = _bucket(summary["output"])
+    net_liability = _net_liability(output, credit)
 
     # ITC resting on invoices the supplier has not filed, from the latest
     # reconciliation for this period that finished. A failed or still-running
@@ -238,7 +243,7 @@ def get_dashboard(
         purchase=purchase,
         credit=credit,
         net_liability=net_liability,
-        output_tax=sales.total_tax,
+        output_tax=output.total_tax,
         input_tax_credit=credit.total_tax,
         itc_at_risk=last_run.itc_at_risk if last_run else Decimal("0.00"),
         plan_usage=PlanUsage(

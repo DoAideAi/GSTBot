@@ -845,3 +845,43 @@ def test_the_net_liability_card_never_lets_cgst_credit_pay_sgst():
 
     assert net.sgst == Decimal("1000.00")
     assert net.total == Decimal("1000.00")
+
+
+# ---------------------------------------------------------------------------
+# The three cards are one set of figures
+# ---------------------------------------------------------------------------
+
+def _sale(db, business_id, number, *, reverse_charge):
+    db.add(
+        Invoice(
+            business_id=business_id,
+            invoice_type=InvoiceType.SALES,
+            status=InvoiceStatus.PARSED,
+            counterparty_gstin=SUPPLIER_GSTIN_OTHER_STATE,
+            invoice_number=number,
+            invoice_date=date(2026, 4, 10),
+            period="2026-04",
+            taxable_value=Decimal("1000.00"),
+            igst=Decimal("180.00"),
+            total_value=Decimal("1180.00"),
+            reverse_charge=reverse_charge,
+        )
+    )
+    db.commit()
+
+
+def test_output_tax_leaves_out_tax_the_recipient_pays(auth_client, db_session, business):
+    # "Output tax" was summed over every sale while "Net liability" beside it
+    # was computed against the sales this business owes tax on. A
+    # reverse-charge sale's tax is the recipient's, so the card overstated what
+    # was owed and output minus credit no longer came to the liability shown.
+    _sale(db_session, business.id, "S-1", reverse_charge=False)
+    _sale(db_session, business.id, "S-RCM", reverse_charge=True)
+
+    body = auth_client.get("/api/v1/dashboard?period=2026-04").json()
+
+    assert Decimal(body["output_tax"]) == Decimal("180.00")
+    # No purchases, so nothing to set off: the liability is the output tax.
+    assert Decimal(body["net_liability"]["total"]) == Decimal(body["output_tax"])
+    # The sales card still counts both invoices issued.
+    assert body["sales"]["count"] == 2
