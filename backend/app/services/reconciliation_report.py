@@ -61,6 +61,9 @@ _GRID = TableStyle(
 )
 # Table's default left + right padding, in points.
 _PADDING = 12
+# Lines one findings cell may take: 300 pt of a landscape A4 frame about 515 pt
+# tall, leaving room for the repeated header row.
+_MAX_CELL_LINES = 30
 
 
 def rupees(value: object) -> str:
@@ -122,6 +125,15 @@ def _cell(text: object, width: float) -> str | Paragraph:
     escaping because a Table does not parse it as markup.
     """
     value = "-" if text is None or text == "" else str(text)
+    # A row cannot be split across pages, so a cell that wraps taller than one
+    # — a supplier name thousands of characters long, off an uploaded invoice
+    # or the portal — stopped the whole report with a LayoutError, a 500 on a
+    # download the business had paid for. At most _MAX_CELL_LINES lines of the
+    # widest glyphs (about one em each) fit the column; anything past that is
+    # cut, and the ellipsis says so.
+    limit = _MAX_CELL_LINES * max(1, int((width - _PADDING) // _CELL.fontSize))
+    if len(value) > limit:
+        value = value[: limit - 1] + "…"
     if "\n" not in value and stringWidth(value, _CELL.fontName, _CELL.fontSize) <= width - _PADDING:
         return value
     return _p(value)

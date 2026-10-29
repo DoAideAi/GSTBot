@@ -550,3 +550,30 @@ class TestThePurchaseTrail:
         assert (record.business_id, record.run_id) == (business.id, run.id)
         assert (record.razorpay_payment_id, record.razorpay_order_id) == ("pay_rpt", "order_rpt")
         assert record.amount_paise == PRICE
+
+
+class TestAHostileSupplierName:
+    """P22 M6: a table row cannot split across pages, so a supplier name
+    thousands of characters long wrapped into a row taller than the page and
+    the report raised LayoutError — a 500 on a download already paid for."""
+
+    @pytest.mark.parametrize(
+        "supplier",
+        [
+            "Acme Traders " * 400,  # words: wraps line after line
+            "A" * 5000,  # one unbroken word
+            '<img src="/etc/passwd"/> & =HYPERLINK("x") ' * 100,  # markup, escaped
+        ],
+    )
+    def test_the_report_still_renders_and_marks_the_cut(
+        self, auth_client, db_session, business, supplier
+    ):
+        run = _run(db_session, business, supplier=supplier)
+        _buy(auth_client, business, run)
+
+        r = auth_client.get(f"/api/v1/reconciliation/{run.id}/report.pdf")
+
+        assert r.status_code == 200, r.text[:200]
+        text = _pdf_text(r.content)
+        assert "…" in text
+        assert "Beta Supplies" in text  # the other findings are all still there
