@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.core import sanitize
+from app.core.security import _BCRYPT_MAX_BYTES
 from app.models.business import BusinessPlan
 from app.models.user import UserRole
 from app.services import gstin as gstin_service
@@ -122,9 +123,9 @@ class RegisterRequest(BaseModel):
         min_length=8,
         max_length=128,
         description=(
-            "At least 8 characters. Capped at 128 because bcrypt hashes only the "
-            "first 72 bytes, and accepting more would suggest a strength that is "
-            "not there."
+            "At least 8 characters, and at most 72 bytes of UTF-8: bcrypt reads "
+            "no further, so anything longer would protect the account no better. "
+            "That is 72 characters in English, about 24 in Hindi."
         ),
     )
     gstin: str | None = Field(
@@ -194,6 +195,19 @@ class RegisterRequest(BaseModel):
             )
         if v.lower() in _COMMON_PASSWORDS:
             raise ValueError("That password is too common. Choose something less guessable.")
+        # bcrypt reads the first 72 bytes and ``security._prepare`` cuts there.
+        # The 128-character cap let far more through — 128 ASCII characters is
+        # 56 bytes past it, and a Devanagari character is 3 bytes — and the
+        # rest was silently ignored: a passphrase was only as strong as its
+        # first 72 bytes, and any password sharing those opened the account.
+        # Refused rather than truncated, so what the user typed is what counts.
+        size = len(v.encode("utf-8"))
+        if size > _BCRYPT_MAX_BYTES:
+            raise ValueError(
+                f"That password is {size} bytes long; at most 72 can be used "
+                "(72 characters in English, about 24 in Hindi or other Indian "
+                "scripts). Choose a shorter one."
+            )
         return v
 
 
@@ -207,7 +221,10 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(
         min_length=8,
         max_length=128,
-        description="The same rules as at registration: 8 to 128 characters, not a common one.",
+        description=(
+            "The same rules as at registration: at least 8 characters, at most 72 "
+            "bytes, not a common one."
+        ),
     )
 
     @field_validator("new_password")
