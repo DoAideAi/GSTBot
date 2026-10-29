@@ -1,73 +1,20 @@
-const CACHE_NAME = "gstbot-v1";
-const STATIC_ASSETS = ["/", "/favicon.svg", "/icon-192.png", "/icon-512.png"];
+// Retired. This file only exists to remove itself.
+//
+// The previous worker cached every /api GET — signed-in answers included,
+// /auth/me and a business's invoices among them — in Cache Storage, served
+// them back offline, and routed cross-origin scripts (Umami) through a
+// cache-first handler that failed them. It never ran until a863c71 moved its
+// registration out of the inline script the CSP had always blocked; the
+// first browsers to register it get this instead, which deletes every cache
+// it made and unregisters, so the next load is served by the network alone.
+self.addEventListener("install", () => self.skipWaiting());
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => k !== CACHE_NAME)
-          .map((k) => caches.delete(k))
-      )
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (e) => {
-  const { request } = e;
-  const url = new URL(request.url);
-
-  if (request.method !== "GET") return;
-
-  if (url.pathname.startsWith("/api")) {
-    e.respondWith(
-      fetch(request)
-        .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return res;
-        })
-        .catch(() => caches.match(request))
-    );
-    return;
-  }
-
-  if (
-    url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|ico|woff2?)$/) ||
-    url.hostname === "fonts.googleapis.com" ||
-    url.hostname === "fonts.gstatic.com"
-  ) {
-    e.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-            return res;
-          })
-      )
-    );
-    return;
-  }
-
-  e.respondWith(
-    fetch(request)
-      .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        return res;
-      })
-      .catch(() =>
-        caches.match(request).then((cached) => cached || caches.match("/"))
-      )
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+      await self.registration.unregister();
+    })(),
   );
 });

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const html = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
+const read = (path) => readFileSync(resolve(process.cwd(), path), "utf8");
+const html = read("index.html");
 
 describe("index.html under the site's CSP", () => {
   // deploy/caddy-gstbot.conf sends `script-src 'self' …` with no
@@ -15,9 +16,14 @@ describe("index.html under the site's CSP", () => {
     expect(inline.map(([tag]) => tag.slice(0, 80))).toEqual([]);
   });
 
-  it("still registers the service worker, from a file", () => {
+  it("loads the service-worker cleanup from a file, and registers no worker", () => {
+    // The worker cached signed-in API answers in the browser; it is retired.
     expect(html).toContain('<script src="/register-sw.js" defer></script>');
-    const script = readFileSync(resolve(process.cwd(), "public/register-sw.js"), "utf8");
-    expect(script).toContain('navigator.serviceWorker.register("/sw.js")');
+    const script = read("public/register-sw.js");
+    expect(script).not.toContain(".register(");
+    expect(script).toContain("registration.unregister()");
+    const worker = read("public/sw.js");
+    expect(worker).not.toContain('addEventListener("fetch"');
+    expect(worker).toContain("self.registration.unregister()");
   });
 });

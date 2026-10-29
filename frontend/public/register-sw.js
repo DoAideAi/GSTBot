@@ -1,10 +1,18 @@
-// Registers the service worker. A file of its own rather than an inline
-// <script> in index.html: the site's Content-Security-Policy is
-// `script-src 'self' …` with no 'unsafe-inline', so the inline copy was
-// blocked on every page load ("Executing inline script violates … script-src")
-// and the service worker was never registered.
+// Removes the service worker this site used to register, and registers none.
+//
+// The old one cached signed-in API responses in the browser and broke
+// third-party scripts (see public/sw.js, now a self-removing stub). A plain
+// file rather than an inline <script>, because the site's CSP has no
+// 'unsafe-inline' — the inline version was blocked on every page load.
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  });
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+    .catch(() => {});
+}
+if ("caches" in window) {
+  caches
+    .keys()
+    .then((keys) => keys.forEach((key) => caches.delete(key)))
+    .catch(() => {});
 }
