@@ -87,16 +87,24 @@ class TestProToEnterpriseUpgrade:
 
 
 class TestEnterpriseToProDowngrade:
-    def test_paying_for_a_lower_tier_takes_it(
+    def test_a_lower_tier_paid_over_a_running_higher_one_keeps_the_higher(
         self, auth_client, db_session, business
     ):
+        """Taking it ended the CA plan the business had paid for, at once and
+        with no refund (P21). create-order now refuses the lower plan while the
+        higher one runs; a lower payment that gets through anyway (two
+        checkouts opened from Free) is recorded, flagged for a refund, and
+        the higher plan kept."""
         _pay(auth_client, business.id, tier="enterprise", payment="pay_e")
-        assert _row(db_session, business.id).tier == SubscriptionTier.ENTERPRISE
+        ca_end = _row(db_session, business.id).current_period_end
 
-        _pay(auth_client, business.id, tier="pro", payment="pay_p")
+        resp = _pay(auth_client, business.id, tier="pro", payment="pay_p")
+        assert resp.status_code == 200
         sub = _row(db_session, business.id)
-        assert sub.tier == SubscriptionTier.PRO
+        db_session.refresh(sub)
+        assert sub.tier == SubscriptionTier.ENTERPRISE
         assert sub.status == SubscriptionStatus.ACTIVE
+        assert sub.current_period_end == ca_end
 
 
 class TestSameTierBillingChange:
@@ -132,6 +140,7 @@ class TestCancelLifecycle:
             ended = ended.replace(tzinfo=UTC)
         order = {
             **_order(business.id, "pro"),
+            "id": "order_fresh",
             "created_at": int(ended.timestamp()) + 60,
         }
         with patch.object(
@@ -140,7 +149,7 @@ class TestCancelLifecycle:
             resp = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
                 json={
-                    "razorpay_order_id": "order_x",
+                    "razorpay_order_id": "order_fresh",
                     "razorpay_payment_id": "pay_fresh",
                     "razorpay_signature": "sig",
                     "tier": "pro",
@@ -395,6 +404,7 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
             ended = ended.replace(tzinfo=UTC)
         fresh = {
             **_order(business.id, "pro"),
+            "id": "order_revival",
             "created_at": int(ended.timestamp()) + 60,
         }
 
@@ -404,7 +414,7 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
             resp = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
                 json={
-                    "razorpay_order_id": "order_x",
+                    "razorpay_order_id": "order_revival",
                     "razorpay_payment_id": "pay_revival",
                     "razorpay_signature": "sig",
                     "tier": "pro",
@@ -432,6 +442,7 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
             ended = ended.replace(tzinfo=UTC)
         same_second = {
             **_order(business.id, "pro"),
+            "id": "order_same_sec",
             "created_at": int(ended.timestamp()),
         }
 
@@ -441,7 +452,7 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
             resp = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
                 json={
-                    "razorpay_order_id": "order_x",
+                    "razorpay_order_id": "order_same_sec",
                     "razorpay_payment_id": "pay_same_sec",
                     "razorpay_signature": "sig",
                     "tier": "pro",
@@ -465,6 +476,7 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
             ended = ended.replace(tzinfo=UTC)
         stale = {
             **_order(business.id, "pro"),
+            "id": "order_stale",
             "created_at": int(ended.timestamp()) - 3600,
         }
 
@@ -474,7 +486,7 @@ class TestExpiredBusinessCanResubscribeWithFreshOrder:
             resp = auth_client.post(
                 "/api/v1/subscriptions/verify-payment",
                 json={
-                    "razorpay_order_id": "order_x",
+                    "razorpay_order_id": "order_stale",
                     "razorpay_payment_id": "pay_stale",
                     "razorpay_signature": "sig",
                     "tier": "pro",

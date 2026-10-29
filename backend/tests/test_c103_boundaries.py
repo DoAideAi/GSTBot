@@ -85,11 +85,13 @@ class TestBulkGstinValidationAtItsEdges:
 VERIFY = "/api/v1/subscriptions/verify-payment"
 
 
-def _order(business_id: int, tier: str, billing: str = "monthly") -> dict:
+def _order(
+    business_id: int, tier: str, billing: str = "monthly", order_id: str = "order_x"
+) -> dict:
     t = SubscriptionTier(tier)
     amount = razorpay_client.TIER_PRICING[t][f"price_{billing}"]
     return {
-        "id": "order_x",
+        "id": order_id,
         "receipt": razorpay_client.order_receipt(business_id, t),
         "amount": amount,
         "amount_paid": amount,
@@ -98,14 +100,17 @@ def _order(business_id: int, tier: str, billing: str = "monthly") -> dict:
 
 
 def _pay(client, business_id, *, tier="pro", billing="monthly", payment="pay_1"):
-    order = _order(business_id, tier, billing)
+    # Each payment its own order, as a real checkout makes one: one order buys
+    # one period, so a second payment against the same order is refused.
+    order_id = payment.replace("pay_", "order_", 1)
+    order = _order(business_id, tier, billing, order_id)
     with patch.object(
         razorpay_client, "verify_payment_signature", return_value=True
     ), patch.object(razorpay_client, "fetch_order", return_value=order):
         return client.post(
             VERIFY,
             json={
-                "razorpay_order_id": "order_x",
+                "razorpay_order_id": order_id,
                 "razorpay_payment_id": payment,
                 "razorpay_signature": "sig",
                 "tier": tier,
