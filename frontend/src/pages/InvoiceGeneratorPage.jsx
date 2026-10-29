@@ -92,6 +92,12 @@ function generateInvoiceNo() {
 
 const fieldHint = { fontSize: "0.8rem", marginTop: "4px", minHeight: "1.2em" };
 const fieldError = { ...fieldHint, color: "#ef4444" };
+
+const NEGATIVE_MESSAGE = "This cannot be negative. A reduction is issued as a credit note.";
+
+function isNegative(value) {
+  return parseFloat(value) < 0;
+}
 const fieldOk = { ...fieldHint, color: "#34d399" };
 
 const TOOL_SCHEMA = {
@@ -263,7 +269,12 @@ export default function InvoiceGeneratorPage() {
     };
   }, [computedItems]);
 
-  const canPreview = seller.name && buyer.name && invoiceNo && items.some((i) => i.description && i.rate);
+  // A negative quantity or rate is refused rather than printed: min="0" only
+  // steers the spinner, and a typed "-5" became a "tax invoice" with negative
+  // taxable value and GST. A reduction is a credit note, a different document.
+  const negativeLine = items.some((i) => isNegative(i.qty) || isNegative(i.rate));
+  const canPreview =
+    seller.name && buyer.name && invoiceNo && !negativeLine && items.some((i) => i.description && i.rate);
 
   const handleDownloadPdf = useCallback(() => {
     if (!invoiceRef.current) return;
@@ -432,12 +443,14 @@ ${invoiceRef.current.innerHTML}
                     <input className="calc-input" value={item.hsn} onChange={(e) => updateItem(i, "hsn", e.target.value)} placeholder="Code" />
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
-                    <span className={i === 0 ? undefined : "line-later-label"}>Qty</span>
-                    <input type="number" className="calc-input" value={item.qty} onChange={(e) => updateItem(i, "qty", e.target.value)} min="0" step="1" inputMode="numeric" />
+                    <span id={`qty-${i}-name`} className={i === 0 ? undefined : "line-later-label"}>Qty</span>
+                    <input type="number" className="calc-input" aria-labelledby={`qty-${i}-name`} aria-invalid={isNegative(item.qty) || undefined} aria-describedby={isNegative(item.qty) ? `qty-${i}-error` : undefined} value={item.qty} onChange={(e) => updateItem(i, "qty", e.target.value)} min="0" step="1" inputMode="numeric" />
+                    {isNegative(item.qty) && <span id={`qty-${i}-error`} style={fieldError}>{NEGATIVE_MESSAGE}</span>}
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
-                    <span className={i === 0 ? undefined : "line-later-label"}>Rate (₹)</span>
-                    <input type="number" className="calc-input" value={item.rate} onChange={(e) => updateItem(i, "rate", e.target.value)} placeholder="0.00" min="0" step="0.01" inputMode="decimal" />
+                    <span id={`rate-${i}-name`} className={i === 0 ? undefined : "line-later-label"}>Rate (₹)</span>
+                    <input type="number" className="calc-input" aria-labelledby={`rate-${i}-name`} aria-invalid={isNegative(item.rate) || undefined} aria-describedby={isNegative(item.rate) ? `rate-${i}-error` : undefined} value={item.rate} onChange={(e) => updateItem(i, "rate", e.target.value)} placeholder="0.00" min="0" step="0.01" inputMode="decimal" />
+                    {isNegative(item.rate) && <span id={`rate-${i}-error`} style={fieldError}>{NEGATIVE_MESSAGE}</span>}
                   </label>
                   <label className="calc-label" style={{ margin: 0 }}>
                     <span className={i === 0 ? undefined : "line-later-label"}>GST %</span>

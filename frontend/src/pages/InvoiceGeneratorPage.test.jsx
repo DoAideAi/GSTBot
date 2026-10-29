@@ -208,3 +208,47 @@ describe("the GSTIN fields to a screen reader", () => {
     expect(field).toHaveAccessibleDescription(/Valid format/);
   });
 });
+
+describe("a negative quantity or rate", () => {
+  // min="0" only steers the spinner: a typed "-5" went straight into the
+  // arithmetic, and the generator previewed and printed a "tax invoice" with a
+  // negative quantity, taxable value and GST — a document no tax invoice can
+  // be. A reduction is a credit note, which this tool does not issue.
+  async function fillTheRest() {
+    const [sellerName, buyerName] = screen.getAllByPlaceholderText(/business name/i);
+    await userEvent.type(sellerName, "Test Seller");
+    await userEvent.type(buyerName, "Test Buyer");
+    await userEvent.type(screen.getAllByPlaceholderText("Item description")[0], "Chair");
+  }
+
+  it("is flagged on the field and stops the preview", async () => {
+    renderPage();
+    await fillTheRest();
+    const rate = screen.getAllByPlaceholderText("0.00")[0];
+    await userEvent.type(rate, "-1000");
+
+    expect(rate).toHaveAttribute("aria-invalid", "true");
+    expect(rate).toHaveAccessibleDescription(/cannot be negative/);
+    expect(screen.getByText("Preview Invoice").closest("button")).toBeDisabled();
+  });
+
+  it("a negative quantity is flagged the same way", async () => {
+    renderPage();
+    await fillTheRest();
+    await userEvent.type(screen.getAllByPlaceholderText("0.00")[0], "1000");
+    const qty = screen.getAllByRole("spinbutton", { name: "Qty" })[0];
+    await userEvent.clear(qty);
+    await userEvent.type(qty, "-2");
+
+    expect(qty).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Preview Invoice").closest("button")).toBeDisabled();
+  });
+
+  it("a positive one previews as before", async () => {
+    renderPage();
+    await fillTheRest();
+    await userEvent.type(screen.getAllByPlaceholderText("0.00")[0], "1000");
+
+    expect(screen.getByText("Preview Invoice").closest("button")).toBeEnabled();
+  });
+});
