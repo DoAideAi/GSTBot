@@ -204,6 +204,14 @@ def from_csv(content: bytes) -> str:
     return joined[:MAX_TEXT_CHARS].strip()
 
 
+# Longest one OCR pass may run. The worker's soft limit (180 s) bounds a
+# queued parse, but with the broker unreachable an upload is parsed inline in
+# the API request, where nothing bounded Tesseract at all: one pathological
+# scan held an API worker for as long as it took. 60 s is far beyond what a
+# real invoice needs and leaves the worker's limit room for the rest.
+OCR_TIMEOUT_SECONDS = 60
+
+
 def ocr_image(content: bytes) -> str:
     """Run Tesseract over an image, or return ``""`` if it is unavailable.
 
@@ -220,7 +228,11 @@ def ocr_image(content: bytes) -> str:
         return ""
     try:
         with Image.open(io.BytesIO(content)) as image:
-            return str(pytesseract.image_to_string(image)).strip()
+            # Tesseract is killed at the timeout and pytesseract raises
+            # RuntimeError, which the handler below reads as "no OCR text".
+            return str(
+                pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS)
+            ).strip()
     except Exception as exc:  # noqa: BLE001 - a missing binary must not 500
         logger.warning("OCR failed: %s", exc)
         return ""

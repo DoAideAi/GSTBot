@@ -366,13 +366,15 @@ class _FakeImage:
         return False
 
 
-def _install_fake_ocr(monkeypatch, *, returns=None, raises=None):
+def _install_fake_ocr(monkeypatch, *, returns=None, raises=None, calls=None):
     """Put a scriptable pytesseract/PIL pair in sys.modules.
 
     ``ocr_image`` imports them inside the function precisely so a deployment
     without Tesseract still starts, which is what makes this patchable at all.
     """
-    def image_to_string(image):
+    def image_to_string(image, **kwargs):
+        if calls is not None:
+            calls.append(kwargs)
         if raises is not None:
             raise raises
         return returns
@@ -405,6 +407,24 @@ class TestOcrImage:
     def test_an_unreadable_image_returns_empty(self, monkeypatch):
         _install_fake_ocr(monkeypatch, raises=OSError("cannot identify image file"))
         assert document_text.ocr_image(b"not an image") == ""
+
+    def test_tesseract_is_given_a_time_limit(self, monkeypatch):
+        """P23 M16: a queued parse is bounded by the worker's soft limit, but
+        an inline one (broker unreachable) ran Tesseract in the API request
+        with nothing bounding it."""
+        calls = []
+        _install_fake_ocr(monkeypatch, returns="text", calls=calls)
+        document_text.ocr_image(b"\x89PNG fake")
+        assert calls == [{"timeout": document_text.OCR_TIMEOUT_SECONDS}]
+        # Well inside the worker's soft limit, so a timeout is OCR's to report.
+        from app.celery_app import celery_app
+
+        assert celery_app.conf.task_soft_time_limit > document_text.OCR_TIMEOUT_SECONDS
+
+    def test_a_timed_out_ocr_returns_empty(self, monkeypatch):
+        # What pytesseract raises after killing the process at the timeout.
+        _install_fake_ocr(monkeypatch, raises=RuntimeError("Tesseract process timeout"))
+        assert document_text.ocr_image(b"\x89PNG fake") == ""
 
     def test_a_failure_is_logged_for_the_operator(self, monkeypatch, caplog):
         _install_fake_ocr(monkeypatch, raises=RuntimeError("tesseract exploded"))
