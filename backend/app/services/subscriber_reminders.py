@@ -5,11 +5,12 @@ GSTR-3B due dates" — the exit popup, the landing page, the due-dates page — 
 carries a signed unsubscribe link for them. Nothing ever emailed a subscriber,
 so every sign-up was a promise the product did not keep. This is the sender.
 
-Run daily by beat. On a day that falls :data:`REMIND_DAYS_BEFORE` days before a
-due date, every active subscriber gets one email naming the return, the period
-and the date. Each send is committed as it happens (``last_reminded_for``), so
-a retry or a second run the same day reaches nobody twice, and an address the
-relay refused is tried again tomorrow-or-sooner rather than counted as told.
+Run daily by beat. From :data:`REMIND_DAYS_BEFORE` days before a due date until
+the day before it, every active subscriber not yet reminded of that return gets
+one email naming the return, the period, the date and how far off it is. Each
+send is committed as it happens (``last_reminded_for``), so a retry or a later
+run reaches nobody twice, and an address the relay refused is tried again on
+the next run rather than counted as told.
 
 A no-op wherever ``ALERTS_EMAIL_ENABLED`` or ``SMTP_HOST`` is unset — the same
 switch the alert digests use, since it is the same relay.
@@ -79,6 +80,27 @@ def unsubscribe_page_url(email: str) -> str:
     return f"{settings.frontend_origin}/unsubscribe?{_signed_query(email)}"
 
 
+def due_within(today: date, days: int = REMIND_DAYS_BEFORE) -> list[tuple[ReturnType, str, date]]:
+    """The returns due in the next *days* days, tomorrow included, today not.
+
+    A window rather than the one day *days* out. Picking only that day made a
+    reminder something the run either managed that morning or never did: a
+    relay down at 08:00, or a worker that wasn't running, failed every send,
+    and by the next run the return was a day nearer and no longer picked.
+    ``last_reminded_for`` keeps the window from sending anything twice.
+    """
+    return [
+        reminder
+        for ahead in range(days, 0, -1)
+        for reminder in due_in(today, ahead)
+    ]
+
+
+def _how_far(today: date, due: date) -> str:
+    days = (due - today).days
+    return "tomorrow" if days == 1 else f"{days} days from today"
+
+
 def due_in(today: date, days: int = REMIND_DAYS_BEFORE) -> list[tuple[ReturnType, str, date]]:
     """The returns due exactly *days* from *today*: last month's, filed this month."""
     target = today + timedelta(days=days)
@@ -90,14 +112,16 @@ def due_in(today: date, days: int = REMIND_DAYS_BEFORE) -> list[tuple[ReturnType
     ]
 
 
-def _message(return_type: ReturnType, period: str, due: date, email: str) -> tuple[str, str, str]:
+def _message(
+    return_type: ReturnType, period: str, due: date, email: str, *, today: date
+) -> tuple[str, str, str]:
     label = _LABELS[return_type]
     month = date.fromisoformat(f"{period}-01").strftime("%B %Y")
     when = f"{due.day} {due.strftime('%b %Y')}"
     link = unsubscribe_page_url(email)
     subject = f"{label} for {month} is due on {when}"
     body = "\n".join([
-        f"Your {label} for {month} is due on {when} — {REMIND_DAYS_BEFORE} days from today.",
+        f"Your {label} for {month} is due on {when} — {_how_far(today, due)}.",
         "",
         "Filing after the due date costs a late fee for every day it is late,",
         "and interest on any tax paid late.",
@@ -115,7 +139,8 @@ def send_deadline_reminders(db: Session, *, today: date | None = None) -> Remind
     if not settings.alerts_email_enabled or not settings.smtp_host:
         return Reminded()
     sent = failed = 0
-    for return_type, period, due in due_in(today or gst_calendar.today_ist()):
+    today = today or gst_calendar.today_ist()
+    for return_type, period, due in due_within(today):
         key = f"{return_type.value}-{period}"
         subscribers = db.execute(
             select(Subscriber.id, Subscriber.email)
@@ -126,7 +151,7 @@ def send_deadline_reminders(db: Session, *, today: date | None = None) -> Remind
             .order_by(Subscriber.id)
         ).all()
         for subscriber_id, email in subscribers:
-            subject, body, _page = _message(return_type, period, due, email)
+            subject, body, _page = _message(return_type, period, due, email, today=today)
             try:
                 send_email(
                     to=email, subject=subject, body=body,

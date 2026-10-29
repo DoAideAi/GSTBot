@@ -195,3 +195,69 @@ def test_it_is_scheduled_and_watched():
     assert entry["task"] == "subscribers.send_deadline_reminders"
     assert "subscriber-deadline-reminders" in JOB_STALE_AFTER_SECONDS
     assert "app.tasks.subscriber_tasks" in celery_app.conf.include
+
+
+class TestAMissedReminderIsCaughtUpBeforeTheDueDate:
+    """P36 M10: a reminder that failed was gone for good.
+
+    The run picked returns due exactly three days out. A relay that was down
+    at 08:00 that day, or a worker that wasn't running, failed every send.
+    Failures are handled inside the service, so the task succeeded and wasn't
+    retried, and the next day the return was two days out and no longer picked.
+    ``last_reminded_for`` already stops a second send, so the window is now
+    every return due in the next three days that a subscriber hasn't been
+    reminded of yet.
+    """
+
+    def test_a_reminder_that_failed_goes_out_on_the_next_run(
+        self, db_session, email_on, monkeypatch
+    ):
+        sent = []
+        relay_up = False
+
+        def relay(*, to, subject, body, headers=None):
+            if not relay_up:
+                raise EmailSendError("421 service not available")
+            sent.append({"to": to, "subject": subject, "body": body})
+
+        monkeypatch.setattr(subscriber_reminders, "send_email", relay)
+        _subscribe(db_session, "a@example.com")
+
+        first = subscriber_reminders.send_deadline_reminders(db_session, today=GSTR1_EVE)
+        relay_up = True
+        second = subscriber_reminders.send_deadline_reminders(
+            db_session, today=date(2026, 10, 9)
+        )
+
+        assert (first.sent, first.failed) == (0, 1)
+        assert second.sent == 1
+        (message,) = sent
+        assert "GSTR-1" in message["subject"] and "11 Oct 2026" in message["subject"]
+        # The body says how far off it really is, not the three days it was
+        # written for.
+        assert "2 days from today" in message["body"]
+        assert "3 days" not in message["body"]
+
+    def test_the_day_before_it_says_tomorrow(self, db_session, email_on, outbox):
+        _subscribe(db_session, "late@example.com")
+
+        subscriber_reminders.send_deadline_reminders(db_session, today=date(2026, 10, 10))
+
+        (message,) = outbox
+        assert "tomorrow" in message["body"]
+
+    def test_a_reminder_already_sent_is_not_sent_again_on_the_later_days(
+        self, db_session, email_on, outbox
+    ):
+        _subscribe(db_session, "a@example.com")
+        for day in (8, 9, 10):
+            subscriber_reminders.send_deadline_reminders(db_session, today=date(2026, 10, day))
+
+        assert len(outbox) == 1
+
+    def test_nothing_is_sent_on_or_after_the_due_date(self, db_session, email_on, outbox):
+        _subscribe(db_session, "a@example.com")
+        for day in (11, 12):
+            subscriber_reminders.send_deadline_reminders(db_session, today=date(2026, 10, day))
+
+        assert outbox == []
