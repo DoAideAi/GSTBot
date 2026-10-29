@@ -182,21 +182,24 @@ def _find_or_create_oauth_user(
                 extra={"provider": provider, "user_id": user.id},
             )
             return None
-        if (
-            user.oauth_provider in _UNPROVEN_EMAIL_PROVIDERS
-            and user.oauth_provider != provider
-            and user.hashed_password is None
-        ):
-            # The other direction of the check above. This account was created
-            # by a provider that does not verify the address it reports, and
-            # has no password — so nothing has ever shown its holder owns this
-            # email. Handing it to whoever *does* prove the address is the
-            # pre-account hijack: an attacker signs in with a Microsoft account
-            # whose ``email``/``preferred_username`` claims the victim's
-            # address, the victim later signs in with Google, lands in the
-            # attacker's account, and uploads their books into a business the
-            # attacker can still open. Refused rather than merged, because
-            # either side of a merge would be someone else's data.
+        if user.oauth_provider is None or user.oauth_provider in _UNPROVEN_EMAIL_PROVIDERS:
+            # The other direction of the check above: the provider has proven
+            # the address, but nothing ever proved this *account* holds it.
+            # Registration sends no verification email, and Microsoft vouches
+            # for nothing, so an account made either way is only someone's
+            # claim to the address. Handing it to whoever does prove the
+            # address is the pre-account hijack: an attacker registers the
+            # victim's email with a password, the victim later signs in with
+            # Google and lands in the attacker's account, and uploads their
+            # books into a business the attacker's password still opens — as
+            # does any membership it was used to grant. Refused rather than
+            # merged, because either side of a merge would be someone else's
+            # data. An owner who registered with a password signs in with it;
+            # the login page says so for this refusal.
+            #
+            # Only Microsoft-created accounts with no password were refused
+            # here, on the premise that a password account "proved its address
+            # through registration". It never did.
             logger.warning(
                 "OAuth sign-in refused: account's email was never verified",
                 extra={
@@ -206,15 +209,6 @@ def _find_or_create_oauth_user(
                 },
             )
             return None
-        if not user.oauth_provider:
-            user.oauth_provider = provider
-            user.oauth_id = oauth_id
-            db.commit()
-            db.refresh(user)
-            logger.info(
-                "OAuth provider linked to existing account",
-                extra={"provider": provider, "user_id": user.id},
-            )
         return user
 
     business = Business(

@@ -320,34 +320,37 @@ def test_unverified_email_does_not_link_existing_account(db_session):
     assert user.oauth_provider is None
 
 
-def test_verified_email_links_existing_account(db_session):
-    """When the OAuth provider HAS verified the email, linking to an existing
-    password-based account is allowed."""
-    business = Business(legal_name="Link Co", plan=BusinessPlan.FREE, is_active=True)
+def test_a_verified_sign_in_does_not_enter_an_account_registered_with_a_password(db_session):
+    """Registration never checks the address, so a password account proves
+    nobody owns its email. Merging a verified sign-in into it was the
+    pre-account hijack: an attacker registers the victim's address with a
+    password, the victim later signs in with Google and lands in the
+    attacker's account, and the attacker's password still opens it."""
+    business = Business(legal_name="Squat Co", plan=BusinessPlan.FREE, is_active=True)
     db_session.add(business)
     db_session.flush()
-    user = User(
-        email="linkme@example.com",
-        hashed_password="bcrypt-hash-here",
+    squatted = User(
+        email="victim@example.com",
+        hashed_password="attackers-bcrypt-hash",
         business_id=business.id,
         role=UserRole.OWNER,
         is_active=True,
     )
-    db_session.add(user)
+    db_session.add(squatted)
     db_session.commit()
 
     result = _find_or_create_oauth_user(
         db_session,
         provider="google",
-        oauth_id="legit-gid",
-        email="linkme@example.com",
-        name="Legit",
+        oauth_id="victim-gid",
+        email="victim@example.com",
+        name="Victim",
         email_verified=True,
     )
-    assert result is not None
-    assert result.id == user.id
-    assert result.oauth_provider == "google"
-    assert result.oauth_id == "legit-gid"
+
+    assert result is None
+    db_session.refresh(squatted)
+    assert squatted.oauth_provider is None and squatted.oauth_id is None
 
 
 def test_unverified_email_creates_new_account_if_no_match(db_session):
@@ -391,8 +394,9 @@ def test_new_oauth_account_creation_is_logged(db_session, caplog):
     )
 
 
-def test_oauth_provider_linking_is_logged(db_session, caplog):
-    """Linking a new OAuth provider to an existing password account must be logged."""
+def test_a_refused_entry_into_a_password_account_is_logged(db_session, caplog):
+    """Refusing it is worth a line: it is either an owner who registered with a
+    password and tried a provider, or the squatted address of someone else."""
     business = Business(legal_name="Link Obs Co", plan=BusinessPlan.FREE, is_active=True)
     db_session.add(business)
     db_session.flush()
@@ -416,9 +420,9 @@ def test_oauth_provider_linking_is_logged(db_session, caplog):
             email_verified=True,
         )
 
-    assert result is not None
+    assert result is None
     assert any(
-        "OAuth provider linked" in r.message
+        "email was never verified" in r.message
         and r.provider == "github"
         and r.user_id == user.id
         for r in caplog.records
@@ -603,9 +607,9 @@ def test_the_microsoft_holder_still_signs_in_by_their_own_id(db_session):
     assert again is not None and again.id == squatted.id
 
 
-def test_a_microsoft_account_with_a_password_can_still_be_linked(db_session):
-    # A password account proved its address through registration, so the
-    # ordinary verified-link rule applies.
+def test_a_password_does_not_make_a_microsoft_account_proven(db_session):
+    # Registration does not check the address either, so a password added to
+    # an account Microsoft created proves no more about its email than before.
     user = _microsoft_created(db_session, email="haspw@example.com")
     user.hashed_password = "bcrypt-hash-here"
     db_session.commit()
@@ -615,7 +619,7 @@ def test_a_microsoft_account_with_a_password_can_still_be_linked(db_session):
         email="haspw@example.com", name=None, email_verified=True,
     )
 
-    assert result is not None and result.id == user.id
+    assert result is None
 
 
 def test_an_account_google_created_is_still_found_by_a_verified_github_sign_in(db_session):
@@ -687,3 +691,40 @@ class TestTheLoginPageIsToldWhichProvidersExist:
         monkeypatch.setattr(settings, "microsoft_client_id", "")
         assert client.get("/api/v1/auth/providers").json() == {"providers": ["google"]}
         assert client.get("/api/v1/auth/github", follow_redirects=False).status_code == 501
+
+
+def test_the_squatter_of_an_address_is_not_handed_its_owners_google_sign_in(
+    db_session, monkeypatch
+):
+    """The whole hijack, through the routes: register someone else's address
+    with a password, then let its owner sign in with Google."""
+    from app.core.database import get_db
+    from app.main import app
+    from app.routers import oauth as oauth_router
+
+    app.dependency_overrides[get_db] = lambda: (yield db_session)
+    try:
+        _squat_then_sign_in(TestClient(app), monkeypatch, oauth_router)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _squat_then_sign_in(client, monkeypatch, oauth_router):
+
+    reg = client.post(
+        "/api/v1/auth/register",
+        json={"email": "owner@example.com", "password": "squatter-pass-1", "legal_name": "Squat"},
+    )
+    assert reg.status_code == 201, reg.text
+
+    class _Google:
+        async def authorize_access_token(self, request):
+            return {"userinfo": {"email": "owner@example.com", "email_verified": True,
+                                 "sub": "owners-google-id", "name": "Owner"}}
+
+    monkeypatch.setattr(oauth_router, "_configured_client", lambda name: _Google())
+    resp = client.get("/api/v1/auth/google/callback", follow_redirects=False)
+
+    assert resp.status_code in (302, 307)
+    assert "token=" not in resp.headers["location"]
+    assert "/login?error=" in resp.headers["location"]
