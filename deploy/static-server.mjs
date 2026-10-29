@@ -53,12 +53,19 @@ const TYPES = {
   ".webmanifest": "application/manifest+json",
 };
 
+const ASSETS = join(ROOT, "assets");
+
 // Vite fingerprints everything under /assets, so those are immutable. The
 // entry HTML is the one name that does not change between releases: a cached
 // copy pins the user to a bundle that is no longer on disk, which reads as a
 // blank page.
-function cacheControl(pathname) {
-  return pathname.startsWith("/assets/")
+//
+// Decided by the file served, not the URL asked for. Going by the URL,
+// /assets/, /assets/foo or a chunk name missing its extension got the SPA shell
+// with a year's immutability, so the one page that must never be kept was
+// kept until next year at that address.
+function cacheControl(file) {
+  return file.startsWith(ASSETS + sep)
     ? "public, max-age=31536000, immutable"
     : "no-store";
 }
@@ -110,7 +117,11 @@ const server = createServer(async (req, res) => {
     // otherwise a typo'd script src silently returns HTML and the console
     // fills with "Unexpected token '<'".
     if (extname(pathname)) {
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }).end("Not Found");
+      // Not stored: a chunk is missing for a moment during a deploy, and a
+      // 404 anything kept would outlive the release that restores it.
+      res
+        .writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" })
+        .end("Not Found");
       return;
     }
     const shell = join(ROOT, "app-shell.html");
@@ -119,7 +130,7 @@ const server = createServer(async (req, res) => {
 
   res.writeHead(200, {
     "Content-Type": TYPES[extname(file).toLowerCase()] ?? "application/octet-stream",
-    "Cache-Control": cacheControl(pathname),
+    "Cache-Control": cacheControl(file),
     // Defence in depth: Caddy sets this too, but this process is reachable
     // from anything on the Docker bridge, not only from the edge.
     "X-Content-Type-Options": "nosniff",
