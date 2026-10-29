@@ -686,3 +686,19 @@ class TestAnHsnCodeThatIsNotOne:
 
         assert normalize_hsn_code("01012100") == "01012100"
         assert normalize_hsn_code("998314") == "998314"
+
+
+class TestAnHsnPrintedInOtherDigits:
+    """Devanagari and full-width digits are what the document meant, in ASCII."""
+
+    @pytest.mark.parametrize("printed", ["८४७१", "８４７１", "8471"])
+    def test_the_labelled_code_is_folded_to_ascii(self, printed):
+        parsed = invoice_parser.parse_heuristic(
+            f"Invoice No: A1\nHSN: {printed}\nTotal Amount: 500.00"
+        )
+        assert parsed.hsn_code == "8471"
+
+    def test_an_edit_in_devanagari_digits_is_stored_as_ascii(self):
+        from app.schemas.invoice import InvoiceUpdate
+
+        assert InvoiceUpdate(hsn_code="८४७१३०").hsn_code == "847130"

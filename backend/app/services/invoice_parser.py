@@ -1392,12 +1392,12 @@ def parse_heuristic(text: str) -> ParsedInvoice:
     result.invoice_number = _invoice_number_in(text)
     result.invoice_date = _invoice_date_in(text)
     if match := _HSN_PATTERN.search(text):
-        result.hsn_code = match.group(1)
+        result.hsn_code = hsn_service.normalize_hsn_code(match.group(1))
     else:
         # Only as a fallback: the inline label is the surer reading, and where
         # a document carries both it is the summary block at the foot that the
         # column repeats per line item.
-        result.hsn_code = _hsn_in_column(text)
+        result.hsn_code = hsn_service.normalize_hsn_code(_hsn_in_column(text))
 
     # Tax amounts are read line by line, because the label, the rate and the
     # amount all sit on one line and only their order distinguishes them.

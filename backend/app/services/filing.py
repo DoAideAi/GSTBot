@@ -295,7 +295,11 @@ def validate_invoice(
     # ---- HSN ----
     if not invoice.hsn_code:
         add("hsn_code", Severity.WARNING, "HSN code is missing")
-    elif not invoice.hsn_code.isdigit() or len(invoice.hsn_code) not in (4, 6, 8):
+    elif (
+        # isascii too: ``isdigit`` is true of ``८४७१``, which the portal refuses.
+        not (invoice.hsn_code.isascii() and invoice.hsn_code.isdigit())
+        or len(invoice.hsn_code) not in (4, 6, 8)
+    ):
         add(
             "hsn_code",
             Severity.ERROR,

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal
 from functools import lru_cache
@@ -34,6 +35,21 @@ _DATA_FILE = Path(__file__).with_name("hsn_data.json")
 
 # A leading label the code is printed after: "HSN: 8471", "SAC Code 998314".
 _HSN_LABEL = re.compile(r"^\s*(?:HSN|SAC)(?:\s*/\s*SAC)?(?:\s*CODE)?\s*[:#.\-]?\s*", re.IGNORECASE)
+
+
+def _ascii_digits(text: str) -> str:
+    """Every Unicode decimal digit in *text* as its ASCII digit.
+
+    ``\\d`` and ``str.isdigit`` both match ``८४७१`` and ``８４７１``, so a code
+    printed in Devanagari or full-width digits was read off a document as
+    itself, passed every check, and went to the portal, which takes ASCII
+    only. Folding keeps the code the document meant instead of refusing it.
+    """
+    folded = []
+    for ch in text:
+        value = None if ch.isascii() else unicodedata.decimal(ch, None)
+        folded.append(ch if value is None else str(value))
+    return "".join(folded)
 
 
 def normalize_hsn_code(value: object, *, cut_long: bool = False) -> str | None:
@@ -60,7 +76,7 @@ def normalize_hsn_code(value: object, *, cut_long: bool = False) -> str | None:
         if not value.is_integer():
             return None
         value = int(value)
-    digits = re.sub(r"[.\s]", "", _HSN_LABEL.sub("", str(value)))
+    digits = _ascii_digits(re.sub(r"[.\s]", "", _HSN_LABEL.sub("", str(value))))
     if cut_long and len(digits) > 8 and digits.isascii() and digits.isdigit():
         digits = digits[:8]
     # Chapter 00 does not exist: HSN chapters run 01-98 and SAC codes are 99.

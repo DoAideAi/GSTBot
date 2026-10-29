@@ -2348,3 +2348,13 @@ def test_filing_does_not_leak_across_tenants(auth_client, db_session, business, 
     )
 
     assert "b2b" not in response.json()["document"]
+
+
+def test_an_hsn_in_non_ascii_digits_is_an_error():
+    """``isdigit`` is true of ``८४७१``; the portal is not.
+
+    A row stored before the parser folded such digits would otherwise pass
+    validation and go out in the HSN summary.
+    """
+    assert issues_for(sale(hsn_code="८४७१"))["hsn_code"] is Severity.ERROR
+    assert "hsn_code" not in issues_for(sale(hsn_code="8471"))
