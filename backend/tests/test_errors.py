@@ -573,6 +573,7 @@ class TestEveryGuardedRouteRefusesInTheSameShape:
         "error_id": "1",
         "feedback_id": "1",
         "invoice_id": "1",
+        "membership_id": "1",
         "run_id": "1",
         "supplier_id": "1",
         "period": "2026-04",

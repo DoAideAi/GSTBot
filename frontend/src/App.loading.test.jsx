@@ -125,7 +125,13 @@ describe("what a screen shows before its data lands", () => {
 
     gate.release();
 
-    await waitFor(() => expect(screen.getAllByText(settled).length).toBeGreaterThan(0));
+    // Five seconds rather than the default one: under CI's coverage
+    // instrumentation the lazy page chunk can take longer than a second to
+    // land, and '/suppliers' failed there on a commit that touched no frontend.
+    await waitFor(
+      () => expect(screen.getAllByText(settled).length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
     expect(screen.queryByText(loading)).not.toBeInTheDocument();
   });
 
