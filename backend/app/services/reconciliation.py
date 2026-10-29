@@ -965,6 +965,29 @@ def latest_gstr2b(db: Session, business_id: int, period: str) -> GSTRReturn | No
     )
 
 
+def has_gstr2b(db: Session, business_id: int, period: str) -> bool:
+    """Whether *period* has a GSTR-2B in force — the id only, not the statement.
+
+    The import route asked :func:`latest_gstr2b` just to say "replacing the
+    previous import", which loaded and decoded that statement's whole ``data``
+    (every invoice, megabytes for a large 2B) only to test it for ``None`` —
+    and :func:`store_gstr2b` then read the same row again.
+    """
+    return (
+        db.scalar(
+            select(GSTRReturn.id)
+            .where(
+                GSTRReturn.business_id == business_id,
+                GSTRReturn.period == period,
+                GSTRReturn.return_type == ReturnType.GSTR2B,
+                GSTRReturn.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def latest_completed_run(
     db: Session, business_id: int, period: str
 ) -> ReconciliationRun | None:

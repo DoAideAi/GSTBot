@@ -1626,3 +1626,30 @@ class TestTheSameStatementImportedAgain:
         db_session.refresh(first)
         assert first.deleted_at is not None
         assert self._rows(db_session, business) == 2
+
+
+class TestTheImportRouteAsksOnlyWhetherAStatementExists:
+    """P19 M8: 'replacing the previous import' was decided by loading that
+    statement whole — every invoice in its JSON — and testing it for None."""
+
+    def test_has_gstr2b_answers_without_the_statement(self, db_session, business):
+        from sqlalchemy import event
+
+        assert reconciliation.has_gstr2b(db_session, business.id, PERIOD) is False
+        import_2b(db_session, business.id, [portal(invoice_number="A-1")])
+
+        statements: list[str] = []
+        engine = db_session.get_bind()
+        listener = lambda *a: statements.append(a[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            assert reconciliation.has_gstr2b(db_session, business.id, PERIOD) is True
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+        reads = [
+            sql
+            for sql in statements
+            if "gstr_returns" in sql and sql.lstrip().upper().startswith("SELECT")
+        ]
+        assert reads, statements
+        assert all("data" not in sql.split("FROM", 1)[0] for sql in reads), reads

@@ -247,7 +247,7 @@ async def import_gstr2b(
             ),
         )
 
-    had_previous = reconciliation.latest_gstr2b(db, business.id, resolved) is not None
+    had_previous = reconciliation.has_gstr2b(db, business.id, resolved)
     stored = reconciliation.store_gstr2b(
         db, business.id, resolved, records, source_filename=filename
     )
