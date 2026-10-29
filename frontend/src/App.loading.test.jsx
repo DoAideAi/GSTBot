@@ -130,11 +130,17 @@ describe("what a screen shows before its data lands", () => {
     // lazy page chunk can take seconds to land. '/suppliers' failed there on
     // commits that touched no frontend, first at the 1s wait and then at the
     // 5s test timeout once the wait was longer.
+    //
+    // Both conditions inside the one wait: the answer can land a render
+    // before the last placeholder goes, so asserting the placeholder's
+    // absence once, after the wait, failed '/' in CI on the frame between.
     await waitFor(
-      () => expect(screen.getAllByText(settled).length).toBeGreaterThan(0),
+      () => {
+        expect(screen.getAllByText(settled).length).toBeGreaterThan(0);
+        expect(screen.queryByText(loading)).not.toBeInTheDocument();
+      },
       { timeout: 10000 },
     );
-    expect(screen.queryByText(loading)).not.toBeInTheDocument();
   }, 20000);
 
   it("holds a protected route behind its own placeholder until the session is confirmed", async () => {
