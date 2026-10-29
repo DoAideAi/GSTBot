@@ -125,6 +125,7 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/auth/login",
             "/api/v1/auth/microsoft",
             "/api/v1/auth/microsoft/callback",
+            "/api/v1/auth/providers",
             "/api/v1/auth/register",
             "/api/v1/feedback",
             "/api/v1/feedback/error",

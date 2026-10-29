@@ -119,6 +119,8 @@ class TestSetOffNeedsAToken:
             "/api/v1/auth/github/callback",
             "/api/v1/auth/microsoft",
             "/api/v1/auth/microsoft/callback",
+            # Which of the three are configured, so the login page offers only those.
+            "/api/v1/auth/providers",
             # WhatsApp webhook — called by Twilio / WhatsApp servers.
             "/api/v1/whatsapp/webhook",
             # Anonymous product feedback from the floating widget.

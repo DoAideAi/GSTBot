@@ -666,3 +666,24 @@ def test_a_microsoft_sign_in_cannot_link_into_an_existing_google_account(db_sess
     assert result is None
     db_session.refresh(owner)
     assert (owner.oauth_provider, owner.oauth_id) == ("google", "victim-gid")
+
+
+class TestTheLoginPageIsToldWhichProvidersExist:
+    """With no client ids set, all three SSO buttons still showed and every
+    click ended on a 501 — what users reported as SSO being broken."""
+
+    def test_none_configured_lists_none(self, client, monkeypatch):
+        from app.core.config import settings
+
+        for name in ("google", "github", "microsoft"):
+            monkeypatch.setattr(settings, f"{name}_client_id", "")
+        assert client.get("/api/v1/auth/providers").json() == {"providers": []}
+
+    def test_a_configured_one_is_listed_and_its_route_redirects(self, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "google_client_id", "id.apps.googleusercontent.com")
+        monkeypatch.setattr(settings, "github_client_id", "")
+        monkeypatch.setattr(settings, "microsoft_client_id", "")
+        assert client.get("/api/v1/auth/providers").json() == {"providers": ["google"]}
+        assert client.get("/api/v1/auth/github", follow_redirects=False).status_code == 501

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../hooks/useAuth";
+import { fetchSsoProviders } from "../lib/ssoProviders";
 import LoginPage from "./LoginPage";
 
 function jsonResponse(body, { status = 200 } = {}) {
@@ -31,6 +32,28 @@ describe("LoginPage", () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  describe("single sign-on", () => {
+    // Drawn unconditionally, each button led to a 501 on a deployment with
+    // no client ids, which users reported as SSO being broken.
+    it("offers no SSO at all when none is configured", async () => {
+      renderPage();
+      await screen.findByRole("button", { name: /create account|sign in/i });
+      expect(screen.queryByText("or continue with")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /google/i })).not.toBeInTheDocument();
+    });
+
+    it("offers only the providers the deployment has", async () => {
+      fetchSsoProviders.mockResolvedValueOnce(["google"]);
+      renderPage();
+      expect(await screen.findByRole("link", { name: /google/i })).toHaveAttribute(
+        "href",
+        "/api/v1/auth/google",
+      );
+      expect(screen.queryByRole("link", { name: /github/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /microsoft/i })).not.toBeInTheDocument();
+    });
+  });
 
   it("signs in and stores the session", async () => {
     const user = userEvent.setup();

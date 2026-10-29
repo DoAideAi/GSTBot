@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ErrorBanner from "./ErrorBanner";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
+import { fetchSsoProviders } from "../lib/ssoProviders";
 import { gstinShapeError, normalizeGstin, registrationErrors } from "../lib/validate";
 import { track } from "../lib/track";
 
@@ -15,7 +16,23 @@ const EMPTY = {
   full_name: "",
 };
 
+/** The configured SSO providers; none until the answer arrives. */
+function useSsoProviders() {
+  const [providers, setProviders] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchSsoProviders().then((list) => {
+      if (!cancelled) setProviders(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return providers;
+}
+
 export default function AuthForm() {
+  const ssoProviders = useSsoProviders();
   const [mode, setMode] = useState("register");
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState("");
@@ -253,11 +270,14 @@ export default function AuthForm() {
         </button>
       </form>
 
+      {ssoProviders.length > 0 && (
+        <>
       <div className="auth-divider">
         <span>or continue with</span>
       </div>
 
       <div className="auth-sso-buttons">
+        {ssoProviders.includes("google") && (
         <a href="/api/v1/auth/google" className="auth-sso-btn auth-sso-google">
           <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.7 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.5 17.7 9.5 24 9.5z" />
@@ -267,12 +287,16 @@ export default function AuthForm() {
           </svg>
           Google
         </a>
+        )}
+        {ssoProviders.includes("github") && (
         <a href="/api/v1/auth/github" className="auth-sso-btn auth-sso-github">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
           </svg>
           GitHub
         </a>
+        )}
+        {ssoProviders.includes("microsoft") && (
         <a href="/api/v1/auth/microsoft" className="auth-sso-btn auth-sso-microsoft">
           <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
             <rect fill="#f25022" x="1" y="1" width="10" height="10" />
@@ -282,7 +306,10 @@ export default function AuthForm() {
           </svg>
           Microsoft
         </a>
+        )}
       </div>
+        </>
+      )}
     </div>
   );
 }

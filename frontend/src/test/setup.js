@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 
 // Node 22+ defines its own `globalThis.localStorage`: a getter returning
 // undefined unless node was started with --localstorage-file. Vitest's jsdom
@@ -26,3 +26,10 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
 });
+
+// The login form asks which SSO providers exist when it mounts. Answered
+// here, as "none", so the many tests that queue fetch responses in order are
+// not short one. lib/ssoProviders.test.js unmocks it to test the real call.
+vi.mock("../lib/ssoProviders", () => ({
+  fetchSsoProviders: vi.fn(() => Promise.resolve([])),
+}));

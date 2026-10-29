@@ -273,6 +273,25 @@ def _complete_oauth_login(user: User | None, provider: str) -> RedirectResponse:
     return RedirectResponse(f"{FRONTEND_URL}/auth/callback#{fragment}")
 
 
+# ── Which providers this deployment offers ────────────────
+
+@router.get(
+    "/providers",
+    summary="The sign-in providers configured on this deployment",
+    description=(
+        "Each name here has a client id set, so its `/auth/{provider}` route "
+        "redirects to the provider rather than answering 501. The login page "
+        "offers only these."
+    ),
+    dependencies=[Depends(_oauth_initiate_limit)],
+)
+def providers() -> dict[str, list[str]]:
+    # The same predicate `_configured_client` refuses on. The login page used
+    # to draw all three buttons unconditionally, so on a deployment with no
+    # client ids every SSO click ended on a 501 — which is what users saw.
+    return {"providers": settings.oauth_providers_configured}
+
+
 # ── Google ────────────────────────────────────────────────
 
 @router.get(
