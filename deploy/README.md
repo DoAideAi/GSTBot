@@ -422,7 +422,9 @@ starts the same unit before every migration, so the dumps in that directory are
 a mix of nightly ones and one per release. Each run
 writes `gstbot-<timestamp>.dump` to `/var/backups/gstbot`, reads it back with
 `pg_restore --list` before keeping it, and deletes dumps older than 14 days.
-Nothing is deleted by a run that failed, and a dump only takes its final name
+Every dump from the last 24 hours is kept; past that, each day keeps its first
+dump and its newest — the state before that day's releases and the state after
+them — and the ones in between are thinned. Nothing is deleted by a run that failed, and a dump only takes its final name
 once it has been verified — so every `*.dump` in there is one that was
 readable at the moment it was written.
 
