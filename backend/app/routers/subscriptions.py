@@ -10,6 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import metrics
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_business, get_current_user, require_owner
@@ -813,6 +814,7 @@ async def razorpay_webhook(
                 "client": client_ip(request),
             },
         )
+        metrics.count("razorpay_webhook_refused")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid webhook signature.",
@@ -830,6 +832,7 @@ async def razorpay_webhook(
                 "body_prefix": body[:200].decode("utf-8", errors="replace"),
             },
         )
+        metrics.count("razorpay_webhook_malformed")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Webhook body is not valid JSON.",
@@ -838,6 +841,7 @@ async def razorpay_webhook(
         # Signed, so it came from Razorpay — but a JSON array or string here
         # would reach the `.get` chain below and come back as a 500, which
         # Razorpay retries for a day.
+        metrics.count("razorpay_webhook_malformed")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Webhook body must be a JSON object.",
@@ -874,8 +878,9 @@ async def razorpay_webhook(
     if not candidates:
         logger.warning(
             "Razorpay webhook contained no identifiable subscription or payment id",
-            extra={"event": event},
+            extra={"event": event, "outcome": "unmatched"},
         )
+        metrics.count("razorpay_webhook_unmatched")
         return {"status": "ok"}
 
     found = {
@@ -891,8 +896,9 @@ async def razorpay_webhook(
     if sub is None:
         logger.warning(
             "Webhook referenced unknown subscription",
-            extra={"razorpay_id": razorpay_id, "event": event},
+            extra={"razorpay_id": razorpay_id, "event": event, "outcome": "unmatched"},
         )
+        metrics.count("razorpay_webhook_unmatched")
         return {"status": "ok"}
 
     _TRANSITION: dict[str, SubscriptionStatus] = {
@@ -933,8 +939,10 @@ async def razorpay_webhook(
                 "razorpay_id": razorpay_id,
                 "event": event,
                 "reason": "unhandled event" if new_status is None else "already in that status",
+                "outcome": "ignored",
             },
         )
+        metrics.count("razorpay_webhook_ignored")
     if new_status is not None and sub.status != new_status:
         allowed_from = _VALID_FROM.get(new_status, frozenset())
         if sub.status not in allowed_from:
@@ -945,8 +953,10 @@ async def razorpay_webhook(
                     "business_id": sub.business_id,
                     "razorpay_id": razorpay_id,
                     "event": event,
+                    "outcome": "ignored",
                 },
             )
+            metrics.count("razorpay_webhook_ignored")
             return {"status": "ok"}
         old = sub.status
         # Written only onto the subscription as it was read. Between the read
@@ -975,8 +985,10 @@ async def razorpay_webhook(
                     "business_id": sub.business_id,
                     "razorpay_id": razorpay_id,
                     "event": event,
+                    "outcome": "ignored",
                 },
             )
+            metrics.count("razorpay_webhook_ignored")
             return {"status": "ok"}
         logger.info(
             "Webhook transitioned subscription %s → %s",
@@ -985,6 +997,8 @@ async def razorpay_webhook(
                 "business_id": sub.business_id,
                 "razorpay_id": razorpay_id,
                 "event": event,
+                "outcome": "applied",
             },
         )
+        metrics.count("razorpay_webhook_applied")
     return {"status": "ok"}

@@ -53,6 +53,16 @@ EVENTS = (
     # an unknown name: every one of these was logged as "failed to parse",
     # with a traceback, and counted as invoice_parse_failed.
     "invoice_parse_superseded",
+    # Razorpay webhooks, one per outcome. Billing events used to be visible
+    # only as log lines: a drifted webhook secret refuses every real payment
+    # event with a 401 until Razorpay disables the webhook, and an event that
+    # verifies but names no subscription was acknowledged and dropped. A
+    # ``refused`` count with no ``applied`` beside it is the first.
+    "razorpay_webhook_refused",
+    "razorpay_webhook_malformed",
+    "razorpay_webhook_unmatched",
+    "razorpay_webhook_ignored",
+    "razorpay_webhook_applied",
 )
 
 
