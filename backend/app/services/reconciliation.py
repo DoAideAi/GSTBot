@@ -764,6 +764,29 @@ def match(
 _SUPPLIER_LOOKUP_CHUNK = 500
 
 
+# The second key of the per-tenant supplier-records lock. Uploads hold
+# (business, 0), billing (business, 1) and a run's period claim (business,
+# YYYYMM); no period is 2.
+_SUPPLIER_LOCK_KEY = 2
+
+
+def _lock_supplier_records(db: Session, business_id: int) -> None:
+    """Serialise every run's write to this tenant's supplier histories.
+
+    The period claim keeps two runs of *one* month apart, not two months: an
+    April run and a May run of the same business proceed side by side, and
+    each rewrites ``filing_history`` whole — read the list, swap in its own
+    period's entry, write the list back. Both read ``[March]``; one wrote
+    ``[March, April]``, the other ``[March, May]``, and whichever committed
+    second erased the first's month, with the counters and score derived from
+    it. Waited for rather than tried: the other run will finish, and this one's
+    observation is as valid as its own. Held until the run commits.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.execute(select(func.pg_advisory_xact_lock(business_id, _SUPPLIER_LOCK_KEY)))
+
+
 def _suppliers_by_gstin(
     db: Session, business_id: int, gstins: list[str]
 ) -> dict[str, Supplier]:
@@ -779,12 +802,17 @@ def _suppliers_by_gstin(
     found: dict[str, Supplier] = {}
     for start in range(0, len(gstins), _SUPPLIER_LOOKUP_CHUNK):
         chunk = gstins[start : start + _SUPPLIER_LOOKUP_CHUNK]
+        # ``populate_existing``: a run that waited on the lock must see the
+        # history the other one committed, not a copy this session loaded
+        # before it.
         rows = db.scalars(
-            select(Supplier).where(
+            select(Supplier)
+            .where(
                 Supplier.business_id == business_id,
                 Supplier.gstin.in_(chunk),
                 Supplier.deleted_at.is_(None),
             )
+            .execution_options(populate_existing=True)
         ).all()
         for row in rows:
             # A GSTIN is unique per tenant among the undeleted, so the first is
@@ -893,6 +921,7 @@ def _score_suppliers(db: Session, business_id: int, result: ReconciliationResult
         elif finding.category is MatchCategory.MISSING_IN_2B:
             bucket["missing"] += 1
 
+    _lock_supplier_records(db, business_id)
     suppliers = _suppliers_by_gstin(db, business_id, list(per_gstin))
 
     summary: dict[str, dict] = {}
@@ -959,13 +988,15 @@ def _forget_absent_suppliers(
     # under-select. A period is ``YYYY-MM`` and holds no LIKE wildcard, but it is
     # escaped anyway, as every LIKE here is (see ``test_sanitize``).
     rows = db.scalars(
-        select(Supplier).where(
+        select(Supplier)
+        .where(
             Supplier.business_id == business_id,
             Supplier.deleted_at.is_(None),
             cast(Supplier.filing_history, String).like(
                 f'%"{escape_like(period)}"%', escape="\\"
             ),
         )
+        .execution_options(populate_existing=True)
     ).all()
     for supplier in rows:
         if supplier.gstin in present:

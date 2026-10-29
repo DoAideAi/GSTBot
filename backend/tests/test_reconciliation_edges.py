@@ -18,6 +18,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from app.models.gstr_return import GSTRReturn, ReturnType
 from app.models.invoice import Invoice, InvoiceStatus
@@ -1848,3 +1849,66 @@ class TestNonLatinInvoiceNumbers:
             period=PERIOD,
         )
         assert MatchCategory.DUPLICATE not in categories(result)
+
+
+# ---------------------------------------------------------------------------
+# Two months of one business reconciled at once
+# ---------------------------------------------------------------------------
+
+class TestConcurrentRunsOfDifferentPeriods:
+    """The period claim keeps two runs of one month apart, not two months.
+
+    An April run and a May run each rewrite a supplier's ``filing_history``
+    whole. Both read ``[March]``; one wrote ``[March, April]``, the other
+    ``[March, May]``, and the second commit erased the first's month — with the
+    counters and score derived from it. Postgres-only in production (SQLite has
+    one writer), so these pin the two halves of the fix the suite can see.
+    """
+
+    def test_the_supplier_lock_is_taken_before_any_history_is_read(
+        self, db_session, business, monkeypatch
+    ):
+        db_session.add(Supplier(business_id=business.id, gstin=SUPPLIER_GSTIN_OTHER_STATE))
+        db_session.commit()
+        save(db_session, business.id, invoice_number="M-1")
+        import_2b(db_session, business.id, [portal(invoice_number="M-1")])
+
+        order: list[str] = []
+        lock, read = reconciliation._lock_supplier_records, reconciliation._suppliers_by_gstin
+        monkeypatch.setattr(
+            reconciliation,
+            "_lock_supplier_records",
+            lambda *a: (order.append("lock"), lock(*a))[1],
+        )
+        monkeypatch.setattr(
+            reconciliation,
+            "_suppliers_by_gstin",
+            lambda *a: (order.append("read"), read(*a))[1],
+        )
+
+        reconciliation.run_reconciliation(db_session, business.id, PERIOD)
+
+        assert order == ["lock", "read"]
+
+    def test_a_run_that_waited_reads_the_history_the_other_run_committed(
+        self, db_session, business
+    ):
+        # Waiting on the lock is no use if the history is then read from this
+        # session's identity map rather than from the row the other run wrote.
+        supplier = Supplier(business_id=business.id, gstin=SUPPLIER_GSTIN_OTHER_STATE)
+        db_session.add(supplier)
+        db_session.commit()
+        assert supplier.filing_history in (None, [])  # loaded into this session
+
+        other = sessionmaker(bind=db_session.get_bind())()
+        row = other.get(Supplier, supplier.id)
+        row.filing_history = [{"period": "2026-03", "matched": 1, "mismatched": 0, "missing": 0}]
+        other.commit()
+        other.close()
+
+        found = reconciliation._suppliers_by_gstin(
+            db_session, business.id, [SUPPLIER_GSTIN_OTHER_STATE]
+        )
+        assert [e["period"] for e in found[SUPPLIER_GSTIN_OTHER_STATE].filing_history] == [
+            "2026-03"
+        ]
