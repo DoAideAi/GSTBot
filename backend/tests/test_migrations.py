@@ -691,7 +691,9 @@ class TestTheOauthIdentityMigrationCleansUpFirst:
         with engine.begin() as conn:
             conn.execute(sa.text(
                 "INSERT INTO businesses (id, legal_name, plan, is_active, created_at, updated_at) "
-                "VALUES (1, 'B', 'free', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                # TRUE, not 1: Postgres will not put an integer in a boolean,
+                # and CI re-runs this module there. SQLite takes either.
+                "VALUES (1, 'B', 'free', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
             ))
             for uid, email, provider, oid in [
                 (1, "first@x.com", "google", "g-1"),
@@ -703,7 +705,8 @@ class TestTheOauthIdentityMigrationCleansUpFirst:
                     sa.text(
                         "INSERT INTO users (id, business_id, email, role, is_active, "
                         "oauth_provider, oauth_id, created_at, updated_at) VALUES "
-                        "(:id, 1, :email, 'OWNER', 1, :p, :o, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                        "(:id, 1, :email, 'OWNER', TRUE, :p, :o, "
+                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
                     ),
                     {"id": uid, "email": email, "p": provider, "o": oid},
                 )

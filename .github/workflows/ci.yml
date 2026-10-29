@@ -6,10 +6,15 @@ on:
   pull_request:
     branches: [main]
 
-# A second push to the same branch makes the first run's answer irrelevant.
+# A pull request's later push makes its earlier run irrelevant — only the
+# latest commit merges — so those are grouped by branch and cancelled. A push to
+# main is not: every commit there is a release. Grouped by branch, a run that
+# takes twelve minutes was cancelled by the next push ten minutes later, 33 of
+# 40 runs ended "cancelled", and twenty deployed commits went two hours with no
+# verdict. Each push to main now gets its own group and runs to the end.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

@@ -253,6 +253,28 @@ class TestNoCheckIsHostageToTheCoverageGate:
                 assert "steps.deps.outcome == 'success'" in str(step["if"]), step["name"]
 
 
+class TestEveryCommitOnMainGetsAVerdict:
+    """P33 M20: one concurrency group per branch, cancelling the run in progress.
+
+    A full run takes about twelve minutes and main was pushed every ten, so each
+    run on main was cancelled by the next push before it finished: 33 of the
+    last 40 runs ended "cancelled", and twenty commits — every one of them
+    deployed — went two hours with no verdict at all. "A second push makes the
+    first run's answer irrelevant" holds for a pull request, whose latest
+    commit is the only one that merges; on main every commit is a release.
+    """
+
+    def test_a_push_to_main_has_its_own_group(self, workflow):
+        group = workflow["concurrency"]["group"]
+        assert "github.sha" in group, group
+        assert "pull_request" in group or "event_name" in group, group
+
+    def test_only_a_pull_request_cancels_a_run_in_progress(self, workflow):
+        cancel = workflow["concurrency"]["cancel-in-progress"]
+        assert cancel is not True
+        assert "pull_request" in str(cancel), cancel
+
+
 # ---------------------------------------------------------------------------
 # One runtime version, written down in four places
 # ---------------------------------------------------------------------------
