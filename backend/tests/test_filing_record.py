@@ -633,3 +633,38 @@ class TestWithdrawingAFilingRecordedByMistake:
 
         auth_client.headers.update({"Authorization": mine})
         assert _standing(auth_client)["filed"] is True
+
+
+class TestCreatedOnlyWhenSomethingIsCreated:
+    """``POST /filing/{rt}/filed`` answered 201 to every call.
+
+    Re-recording is the documented way to add an ARN or correct a date, and it
+    changes the existing record rather than creating one — so 201 "Created"
+    misdescribed it, and a client could not tell a first recording from a
+    correction.
+    """
+
+    def _record(self, client, **body):
+        return client.post(
+            "/api/v1/filing/gstr3b/filed", json={"period": "2026-04", **body}
+        )
+
+    def test_first_recording_is_201_and_a_correction_is_200(self, auth_client):
+        first = self._record(auth_client, filed_on="2026-05-19")
+        assert first.status_code == 201, first.text
+        again = self._record(auth_client, arn="AA2705260012345")
+        assert again.status_code == 200, again.text
+        assert again.json()["id"] == first.json()["id"]
+
+    def test_recording_again_after_a_withdrawal_creates_again(self, auth_client):
+        assert self._record(auth_client, filed_on="2026-05-19").status_code == 201
+        assert auth_client.delete(
+            "/api/v1/filing/gstr3b/filed", params={"period": "2026-04"}
+        ).status_code == 204
+        assert self._record(auth_client, filed_on="2026-05-20").status_code == 201
+
+    def test_both_answers_are_in_the_spec(self, auth_client):
+        op = auth_client.get("/openapi.json").json()["paths"][
+            "/api/v1/filing/{return_type}/filed"
+        ]["post"]
+        assert {"200", "201"} <= set(op["responses"])

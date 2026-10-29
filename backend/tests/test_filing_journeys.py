@@ -444,7 +444,8 @@ class TestRecordingTheSameReturnTwice:
         assert first.json()["status"] == "filed"
 
         second = record_filed(signed_in, "gstr1", overdue_period, arn=ARN)
-        assert second.status_code == 201
+        # A correction, not a creation: 200, where the first answered 201.
+        assert second.status_code == 200
         assert second.json()["id"] == first.json()["id"], "a second row, not a correction"
         assert second.json()["arn"] == ARN
 
@@ -463,7 +464,7 @@ class TestRecordingTheSameReturnTwice:
             signed_in, "gstr1", overdue_period, filed_on=yesterday.isoformat()
         )
 
-        assert corrected.status_code == 201
+        assert corrected.status_code == 200
         assert corrected.json()["arn"] == ARN
         line = standing(signed_in, overdue_period, "gstr1")
         assert line["arn"] == ARN

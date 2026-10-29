@@ -6,6 +6,7 @@ import logging
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -291,9 +292,16 @@ def late_fee(
         "happened, but refusing the record without it would leave the alert "
         "firing for a return that is genuinely filed. Leaving it out of a "
         "later call does not clear a reference already recorded — only "
-        "supplying a different one replaces it."
+        "supplying a different one replaces it.\n\n"
+        "`201` when this records the period's filing for the first time, `200` "
+        "when it corrects one already recorded."
     ),
     responses={
+        200: {
+            "description": "An existing record was corrected.",
+            "model": FiledReturnOut,
+        },
+        201: {"description": "The filing was recorded."},
         404: {"description": "Unknown return type."},
         422: {"description": "The filing could not have happened as described."},
     },
@@ -302,6 +310,7 @@ def late_fee(
 def record_filed(
     return_type: Slug,
     payload: RecordFilingIn,
+    response: Response,
     db: Session = Depends(get_db),
     business: Business = Depends(get_current_business),
 ) -> FiledReturnOut:
@@ -318,6 +327,17 @@ def record_filed(
             + ", ".join(sorted(_FILABLE)),
         )
 
+    # 201 said "created" to every call, including the re-record this route
+    # documents as the way to add an ARN or fix a date — which changes a row
+    # and creates nothing. A client could not tell the two apart.
+    already_recorded = db.scalar(
+        select(GSTRReturn.id).where(
+            GSTRReturn.business_id == business.id,
+            GSTRReturn.period == payload.period,
+            GSTRReturn.return_type == kind,
+            GSTRReturn.deleted_at.is_(None),
+        )
+    )
     try:
         record = filing_service.record_filing(
             db,
@@ -332,6 +352,8 @@ def record_filed(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
 
+    if already_recorded is not None:
+        response.status_code = status.HTTP_200_OK
     return _filed_out(record)
 
 
