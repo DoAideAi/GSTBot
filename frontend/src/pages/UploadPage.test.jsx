@@ -1095,3 +1095,65 @@ describe("a viewer", () => {
     });
   });
 });
+
+describe("UploadPage when the business is switched mid-batch", () => {
+  // Each request read the "acting for" business as it was sent, not as it was
+  // when the batch was dropped. A switch partway through — in this tab, which
+  // remounts the page but not the loop, or in another, which shares the
+  // selection — sent the rest of the batch into the other business's books.
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("sends every group to the business the batch was dropped into", async () => {
+    const { setActiveBusinessId } = await import("../lib/api");
+    setActiveBusinessId(5);
+    let releaseFirst;
+    global.fetch
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (releaseFirst = () => resolve(jsonResponse(oneAccepted())))),
+      )
+      .mockResolvedValueOnce(jsonResponse(oneAccepted()));
+    const user = userEvent.setup();
+    renderPage();
+    await user.upload(
+      screen.getByLabelText("Choose files"),
+      Array.from({ length: 12 }, (_, i) => file(`invoice-${i}.txt`)),
+    );
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+    setActiveBusinessId(9); // switched, here or in another tab
+    await act(async () => releaseFirst());
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+
+    const sentTo = global.fetch.mock.calls.map(([, init]) => init.headers["X-Business-Id"]);
+    expect(sentTo).toEqual(["5", "5"]);
+  });
+
+  it("sends a batch dropped at home with no business header throughout", async () => {
+    const { setActiveBusinessId } = await import("../lib/api");
+    let releaseFirst;
+    global.fetch
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (releaseFirst = () => resolve(jsonResponse(oneAccepted())))),
+      )
+      .mockResolvedValueOnce(jsonResponse(oneAccepted()));
+    const user = userEvent.setup();
+    renderPage();
+    await user.upload(
+      screen.getByLabelText("Choose files"),
+      Array.from({ length: 12 }, (_, i) => file(`invoice-${i}.txt`)),
+    );
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+    setActiveBusinessId(9);
+    await act(async () => releaseFirst());
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+
+    const sentTo = global.fetch.mock.calls.map(([, init]) => init.headers["X-Business-Id"]);
+    expect(sentTo).toEqual([undefined, undefined]);
+  });
+});

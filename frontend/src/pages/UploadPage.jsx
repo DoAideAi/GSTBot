@@ -5,7 +5,7 @@ import ReadOnlyNotice from "../components/ReadOnlyNotice";
 import { Spinner } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { api } from "../lib/api";
+import { api, getActiveBusinessId } from "../lib/api";
 import { track } from "../lib/track";
 import { dateLabel, rupees } from "../lib/format";
 import { INVOICE_EXTENSIONS, MAX_UPLOAD_MB, partitionFiles } from "../lib/validate";
@@ -189,11 +189,14 @@ export default function UploadPage() {
       groups.push(accepted.slice(start, start + BULK_CHUNK));
     }
 
+    // The business the files were dropped into, fixed for the whole batch: a
+    // switch while it runs must not send the rest of it somewhere else.
+    const businessId = getActiveBusinessId();
     let done = 0;
     for (const group of groups) {
       setProgress({ done, total: accepted.length, count: group.length });
       try {
-        const response = await api.bulkUploadInvoices(group, invoiceType);
+        const response = await api.bulkUploadInvoices(group, invoiceType, { businessId });
         // Counts, never filenames: a file is named for the supplier on it.
         track("invoice_upload", {
           invoice_type: invoiceType,

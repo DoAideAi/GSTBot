@@ -142,7 +142,18 @@ function tokenRejected() {
 
 async function request(
   path,
-  { method = "GET", body, form, auth = true, signal, carriesOtherCredentials = false } = {},
+  {
+    method = "GET",
+    body,
+    form,
+    auth = true,
+    signal,
+    carriesOtherCredentials = false,
+    // The business to act for, pinned by a caller whose work must not follow
+    // a switch made while it runs; see bulkUploadInvoices. Unset means the
+    // selection as it stands when this request is sent.
+    businessId,
+  } = {},
 ) {
   const headers = {};
   const token = getToken();
@@ -150,7 +161,7 @@ async function request(
   // Sent only once a business has actually been switched to — see
   // `getActiveBusinessId`. An anonymous or single-business request never
   // carries this header, so the backend sees exactly what it always has.
-  const activeBusinessId = auth ? getActiveBusinessId() : null;
+  const activeBusinessId = !auth ? null : businessId !== undefined ? businessId : getActiveBusinessId();
   if (activeBusinessId) headers["X-Business-Id"] = activeBusinessId;
 
   let payload;
@@ -561,11 +572,17 @@ export const api = {
    * one outcome per file, `accepted`/`rejected` unmatched or otherwise, so a
    * caller shows a per-file result rather than an all-or-nothing error.
    */
-  bulkUploadInvoices(files, invoiceType = "purchase") {
+  /**
+   * One group of a batch. *businessId* pins the business the whole batch
+   * acts for: each group read the selection as it was sent, so a switch
+   * partway through — in this tab or another, which shares it — sent the rest
+   * of a batch into the other business's books.
+   */
+  bulkUploadInvoices(files, invoiceType = "purchase", { businessId } = {}) {
     const form = new FormData();
     for (const file of files) form.append("files", file);
     form.append("invoice_type", invoiceType);
-    return request("/invoices/bulk", { method: "POST", form });
+    return request("/invoices/bulk", { method: "POST", form, businessId });
   },
 
   listInvoices(params = {}, { signal } = {}) {
