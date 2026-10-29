@@ -22,6 +22,9 @@ testpaths = ["tests"]
 # picks up the settings below on demand.
 addopts = "-q"
 filterwarnings = ["ignore::DeprecationWarning"]
+# pytest-asyncio warns on every run while this is unset, and its default is
+# changing; function scope is what the two async tests already assume.
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 source = ["app"]

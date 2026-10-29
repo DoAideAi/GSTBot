@@ -114,7 +114,7 @@ def list_feedback(
 ) -> FeedbackListOut:
     if since and until and since > until:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="The start date must be on or before the end date.",
         )
     filters = []

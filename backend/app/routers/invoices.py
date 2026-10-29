@@ -785,7 +785,7 @@ def update_invoice(
     invoice_date = changes.get("invoice_date", invoice.invoice_date)
     if paid_at is not None and invoice_date is not None and paid_at < invoice_date:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Paid on {paid_at.isoformat()}, but the invoice is dated "
                 f"{invoice_date.isoformat()}. An invoice cannot be paid before it "

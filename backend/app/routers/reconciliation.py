@@ -192,7 +192,7 @@ async def import_gstr2b(
     addressee = gstr2b.recipient_gstin(content, filename)
     if addressee and addressee != business.gstin:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"This GSTR-2B is addressed to {addressee}, but you are signed in as "
                 f"{business.gstin}. Import it under that registration instead."
@@ -203,12 +203,12 @@ async def import_gstr2b(
         records = gstr2b.parse(content, filename)
     except gstr2b.GSTR2BParseError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
 
     if not records:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="No invoices found in the file. Check that this is a GSTR-2B download.",
         )
 
@@ -229,7 +229,7 @@ async def import_gstr2b(
     # export — still takes the period it is given.
     if period and stamped and period != stamped:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"{filename} is the GSTR-2B for {stamped}, but it was uploaded as "
                 f"{period}. Pick {stamped}, or download the statement for {period} "
@@ -242,7 +242,7 @@ async def import_gstr2b(
         resolved = max(sorted(set(periods), reverse=True), key=periods.count) if periods else None
     if resolved is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "Could not determine the period from the file. Re-upload and set the "
                 "period explicitly."

@@ -71,7 +71,7 @@ def _split(tax: calc.TaxSplit) -> dict[str, Any]:
 
 
 def _unprocessable(exc: Exception) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
 
 def _state(code: str) -> dict[str, str]:

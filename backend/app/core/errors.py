@@ -459,7 +459,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             },
         )
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             # The pydantic list stays in ``detail`` so existing clients —
             # including this product's own frontend — keep reading it the way
             # they always have. It goes through jsonable_encoder because a

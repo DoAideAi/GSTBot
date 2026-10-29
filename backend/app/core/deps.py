@@ -111,7 +111,7 @@ def get_active_tenant(
     """
     if x_business_id is not None and not (MIN_ID <= x_business_id <= MAX_ID):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"X-Business-Id must be between {MIN_ID} and {MAX_ID}.",
         )
 

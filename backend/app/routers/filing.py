@@ -329,7 +329,7 @@ def record_filed(
         )
     except filing_service.FilingNotRecordable as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
 
     return _filed_out(record)
