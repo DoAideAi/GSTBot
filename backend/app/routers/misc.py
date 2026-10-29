@@ -102,13 +102,13 @@ def _timed(check) -> tuple[bool, float, str | None]:
 
 def _integrations() -> dict[str, dict[str, Any]]:
     """Which optional integrations this deployment has, and what each one drives."""
-    from app.routers.advisor import _get_api_key
+    from app.routers import advisor
     from app.services import razorpay_client
 
     email_ready = bool(settings.alerts_email_enabled and settings.smtp_host)
     return {
         "advisor": {
-            "status": "configured" if _get_api_key() else "unconfigured",
+            "status": "configured" if advisor.is_configured() else "unconfigured",
             "required_for": ["GST advisor chat"],
         },
         "payments": {

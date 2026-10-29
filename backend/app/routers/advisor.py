@@ -110,6 +110,11 @@ def _get_api_key() -> str | None:
     return None
 
 
+def is_configured() -> bool:
+    """Whether the advisor has a Gemini key to answer with. For /health."""
+    return _get_api_key() is not None
+
+
 #: Whether the "no key" error has been logged by this process. Once is the
 #: signal; on every question it would be the noise that hides other lines.
 _reported_missing_key = False
