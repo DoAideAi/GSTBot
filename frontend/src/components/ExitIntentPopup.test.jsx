@@ -61,3 +61,43 @@ describe("ExitIntentPopup", () => {
     expect(link.closest("a")).toHaveAttribute("href", "/due-dates");
   });
 });
+
+describe("ExitIntentPopup keeps focus while it is modal", () => {
+  // It declares aria-modal, which tells a screen reader the page behind it is
+  // inert. Tab walked straight out of it into that page anyway, and closing it
+  // dropped focus on <body>, so a keyboard user started over from the top.
+  function renderBehindAButton() {
+    return render(
+      <MemoryRouter>
+        <button>Behind</button>
+        <ExitIntentPopup />
+      </MemoryRouter>,
+    );
+  }
+
+  it("wraps Tab from the last control back to the first", () => {
+    renderBehindAButton();
+    fireEvent.mouseOut(document, { clientY: -1 });
+    const last = screen.getByText(/No thanks/i);
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(screen.getByLabelText("Close")).toHaveFocus();
+  });
+
+  it("wraps Shift+Tab from the first control to the last", () => {
+    renderBehindAButton();
+    fireEvent.mouseOut(document, { clientY: -1 });
+    expect(screen.getByLabelText("Close")).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(screen.getByText(/No thanks/i)).toHaveFocus();
+  });
+
+  it("hands focus back to where it was when it closes", () => {
+    renderBehindAButton();
+    const behind = screen.getByText("Behind");
+    behind.focus();
+    fireEvent.mouseOut(document, { clientY: -1 });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(behind).toHaveFocus();
+  });
+});
