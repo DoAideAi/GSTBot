@@ -1038,6 +1038,21 @@ async def razorpay_webhook(
     }
 
     new_status = _TRANSITION.get(event)
+    # A refund of the payment the plan rests on, once the money is back
+    # (``processed``, not ``created``). Every plan here is a one-time order
+    # stored under the id of the payment that bought it, so this is the one
+    # event that can take a plan back — and it was acknowledged "without a
+    # status change", leaving a business refunded in full on the paid plan
+    # until its period ran out. Only a full refund: a partial one is goodwill
+    # or a pro-rata adjustment, not the purchase undone.
+    if event == "refund.processed" and razorpay_id == payment_entity.get("id"):
+        amount = payment_entity.get("amount")
+        refunded = payment_entity.get("amount_refunded")
+        full = payment_entity.get("refund_status") == "full" or (
+            isinstance(amount, int) and isinstance(refunded, int) and 0 < amount <= refunded
+        )
+        if full:
+            new_status = SubscriptionStatus.CANCELLED
     if new_status is None or sub.status == new_status:
         # Acknowledged so Razorpay stops retrying, and recorded so "the
         # webhook arrived and changed nothing" is distinguishable from "the
