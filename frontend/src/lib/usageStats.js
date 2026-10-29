@@ -16,10 +16,20 @@ export function getUsageStats() {
   if (!inflight) {
     // A failed fetch resolves to null rather than rejecting: no caller has a
     // better plan for a missing stat than quietly not rendering it.
-    inflight = api.stats().then(
+    //
+    // And the failure is not kept. Only a success is shared for the rest of
+    // the page load. This is a single-page app, so a cached null meant one
+    // unreachable moment (a visitor landing during a deploy's restart) hid the
+    // figures on every page until a full reload. The next component to ask
+    // asks the server again.
+    const pending = api.stats().then(
       (stats) => (stats && typeof stats === "object" ? stats : null),
       () => null,
     );
+    inflight = pending;
+    pending.then((stats) => {
+      if (stats === null && inflight === pending) inflight = null;
+    });
   }
   return inflight;
 }

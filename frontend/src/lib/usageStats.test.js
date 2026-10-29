@@ -16,6 +16,41 @@ describe("getUsageStats", () => {
     vi.clearAllMocks();
   });
 
+  // P38 M4: a failure was cached for the rest of the session. This is a
+  // single-page app, so one unreachable moment (a visitor landing during a
+  // deploy's restart) hid the figures on every page until a full reload.
+  it("asks again after a failure instead of keeping it", async () => {
+    const { getUsageStats, api } = await freshModule();
+    api.stats.mockRejectedValueOnce(new Error("down"));
+    api.stats.mockResolvedValueOnce({ businesses: 120, invoices: 500, gstin_lookups: 9000 });
+
+    await expect(getUsageStats()).resolves.toBeNull();
+    await expect(getUsageStats()).resolves.toEqual({
+      businesses: 120,
+      invoices: 500,
+      gstin_lookups: 9000,
+    });
+    expect(api.stats).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks again after a body that was not stats", async () => {
+    const { getUsageStats, api } = await freshModule();
+    api.stats.mockResolvedValueOnce("<html>edge error page</html>");
+    api.stats.mockResolvedValueOnce({ businesses: 120, invoices: 500, gstin_lookups: 9000 });
+
+    await expect(getUsageStats()).resolves.toBeNull();
+    await expect(getUsageStats()).resolves.toMatchObject({ businesses: 120 });
+  });
+
+  it("still shares one success for the rest of the page load", async () => {
+    const { getUsageStats, api } = await freshModule();
+    api.stats.mockResolvedValue({ businesses: 120, invoices: 500, gstin_lookups: 9000 });
+
+    await getUsageStats();
+    await getUsageStats();
+    expect(api.stats).toHaveBeenCalledTimes(1);
+  });
+
   it("fetches once and shares the result across callers", async () => {
     const { getUsageStats, api } = await freshModule();
     api.stats.mockResolvedValue({ businesses: 120, invoices: 500, gstin_lookups: 9000 });
