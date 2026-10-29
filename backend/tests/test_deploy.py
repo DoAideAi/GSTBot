@@ -26,9 +26,11 @@ from __future__ import annotations
 import os
 import re
 import secrets
+import shutil
 import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -1854,3 +1856,36 @@ def test_the_spa_policy_admits_the_payment_script_the_frontend_loads(spa_block):
     script = matched(r'SCRIPT_SRC = "(https://[^/"]+)', frontend.read_text()).group(1)
     policy = matched(r'Content-Security-Policy "([^"]+)"', spa_block).group(1)
     assert script in matched(r"script-src ([^;]+)", policy).group(1)
+
+
+class TestOneReleaseAtATime:
+    """P19: two concurrent runs both rebuilt frontend/dist, and the loser's
+    failed build left index.html with no assets — a blank site while /health
+    answered 200. The pinned copy now takes an exclusive lock before any work."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def test_the_lock_is_taken_after_pinning_and_before_any_step(self):
+        pin = self.SCRIPT.index('exec bash "$pinned"')
+        lock = self.SCRIPT.index("flock -n 9")
+        first_step = self.SCRIPT.index('log "', pin)
+        assert pin < lock < first_step
+
+    @pytest.mark.skipif(shutil.which("flock") is None, reason="flock(1) is Linux-only")
+    def test_a_second_run_is_refused_while_the_lock_is_held(self, tmp_path):
+        lock = tmp_path / "deploy.lock"
+        holder = subprocess.Popen(["flock", str(lock), "sleep", "30"])
+        try:
+            time.sleep(0.5)
+            env = {**os.environ, "GSTBOT_DEPLOY_LOCK": str(lock), "GSTBOT_DEPLOY_PINNED": "x"}
+            result = subprocess.run(
+                ["bash", str(DEPLOY_SCRIPT)],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        finally:
+            holder.kill()
+        assert result.returncode != 0
+        assert "another deploy is running" in result.stderr

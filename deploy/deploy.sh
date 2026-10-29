@@ -68,6 +68,15 @@ if [ -z "${GSTBOT_DEPLOY_PINNED:-}" ]; then
 fi
 trap 'rm -f "$GSTBOT_DEPLOY_PINNED"' EXIT
 
+# One release at a time. Two concurrent runs both rebuild frontend/dist, and
+# vite empties dist/ before it writes: on 2026-10-29 a second run's build
+# failed after the first had finished, leaving index.html with no assets/ —
+# a blank site for two minutes while /health still answered 200. Taken here,
+# in the pinned copy that does the work, and held until it exits.
+DEPLOY_LOCK="${GSTBOT_DEPLOY_LOCK:-/run/lock/gstbot-deploy.lock}"
+exec 9>"$DEPLOY_LOCK" || die "cannot open the deploy lock $DEPLOY_LOCK"
+flock -n 9 || die "another deploy is running (it holds $DEPLOY_LOCK); wait for it to finish"
+
 # Is $ROOT a checkout this box can run git against at all? Separate from
 # "can it reach the remote", which is the question below and has a different
 # answer here.
