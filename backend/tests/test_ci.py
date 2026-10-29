@@ -218,6 +218,41 @@ class TestTheMigrationsAreCheckedAgainstTheDatabaseTheyDeployAgainst:
         )
 
 
+class TestNoCheckIsHostageToTheCoverageGate:
+    """A red Test step must not switch the checks after it off.
+
+    Both Test steps carry the coverage gate, and a step after a failed one is
+    skipped unless it says otherwise. So every run where coverage fell short —
+    which was every run for weeks — skipped the Postgres migrations, ``alembic
+    check``, the rollback re-run, the production build and the bundle budget,
+    and reported all of it as one red X that read as "coverage again". A
+    migration that did not apply would have been in that X, unseen.
+    """
+
+    @pytest.mark.parametrize("name", ["backend", "frontend"])
+    def test_every_check_after_the_tests_runs_whatever_they_said(self, name, jobs):
+        steps = jobs[name]["steps"]
+        test = next(i for i, step in enumerate(steps) if step.get("name") == "Test")
+        hostage = [
+            step["name"]
+            for step in steps[test + 1:]
+            if "run" in step and "!cancelled()" not in str(step.get("if", ""))
+        ]
+        assert not hostage, f"skipped whenever the {name} coverage gate fails: {hostage}"
+
+    @pytest.mark.parametrize("name", ["backend", "frontend"])
+    def test_they_still_wait_for_the_install_they_need(self, name, jobs):
+        # `always()` would run them on a job whose dependencies never installed,
+        # burying the one real error under a page of command-not-found.
+        steps = jobs[name]["steps"]
+        install = next(s for s in steps if s.get("name") == "Install dependencies")
+        assert install.get("id") == "deps"
+        test = next(i for i, step in enumerate(steps) if step.get("name") == "Test")
+        for step in steps[test + 1:]:
+            if "run" in step:
+                assert "steps.deps.outcome == 'success'" in str(step["if"]), step["name"]
+
+
 # ---------------------------------------------------------------------------
 # One runtime version, written down in four places
 # ---------------------------------------------------------------------------

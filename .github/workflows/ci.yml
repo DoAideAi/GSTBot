@@ -55,6 +55,7 @@ jobs:
             backend/requirements-dev.txt
 
       - name: Install dependencies
+        id: deps
         # The lock first, with its hashes, exactly as deploy.sh installs it, and
         # the test tools on top: the floors in requirements.txt are already met
         # by the locked versions, so nothing locked is moved. Installing the
@@ -98,6 +99,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Migrations apply to a real Postgres
+        # Not hostage to the Test step. That step carries the coverage gate, and
+        # a step after a failed one is skipped unless it says otherwise: every
+        # run where coverage fell short skipped all three migration checks and
+        # reported them as part of one red X that read as "coverage again". A
+        # migration that did not apply would have been inside it, unseen.
+        # `!cancelled()` rather than `always()`: nothing here can run on a job
+        # whose dependencies never installed.
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         # `pytest` builds the schema with create_all against SQLite, so nothing
         # in the suite runs the migrations at all. This does, in both
         # directions: a downgrade that was never tried is a downgrade that does
@@ -111,6 +120,7 @@ jobs:
           alembic upgrade head
 
       - name: Migrations match the models
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         # Applying cleanly proves the migrations run, not that they produce the
         # schema the code expects. `alembic check` autogenerates against the
         # database built above and fails if anything differs — which is how a
@@ -122,6 +132,7 @@ jobs:
         run: alembic check
 
       - name: Rollbacks are exact, on the engine that ships
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         # The two steps above walk the chain down to base and back, where the
         # first migration drops every table wholesale — so a downgrade that
         # forgets a column it added still leaves an empty database and still
@@ -162,6 +173,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        id: deps
         run: npm ci
 
       - name: Lint
@@ -184,9 +196,13 @@ jobs:
           if-no-files-found: warn
 
       - name: Build
+        # Run whatever Test said, for the reason the backend's migration steps
+        # give: a coverage shortfall used to skip the build and the budget.
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: npm run build
 
       - name: Bundle budget
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         # What a phone downloads before it shows anything. Budgets and why are
         # in the script; it prints the sizes either way.
         run: node scripts/check-bundle-budget.mjs dist
