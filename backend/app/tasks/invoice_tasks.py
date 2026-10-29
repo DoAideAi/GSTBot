@@ -160,17 +160,36 @@ def reap_stalled_parses_task(self) -> dict:
     db = SessionLocal()
     try:
         reaped = invoice_service.reap_stalled_parses(db)
-        # Rows whose queued parse was lost with the broker: queue them again.
+        # Rows whose queued parse was lost with the broker: queue them again —
+        # but only once the queue is empty. While anything is still waiting,
+        # an old ``uploaded`` row may simply be behind it, and requeueing then
+        # added another copy every hour for as long as the workers were down
+        # or behind. An empty queue is the case a lost message actually leaves.
         lost = invoice_service.lost_uploads(db)
-        for invoice_id in lost:
-            parse_invoice_task.delay(invoice_id)
+        requeued = 0
         if lost:
-            logger.warning(
-                "Requeued uploads whose parse was never run",
-                extra={"count": len(lost), "invoice_ids": lost},
-            )
+            queue = job_health.queue_status()
+            if queue.reachable and queue.depth == 0:
+                for invoice_id in lost:
+                    parse_invoice_task.delay(invoice_id)
+                requeued = len(lost)
+                logger.warning(
+                    "Requeued uploads whose parse was never run",
+                    extra={"count": requeued, "invoice_ids": lost},
+                )
+            else:
+                # Not silent: an hour-old upload behind a queue that is not
+                # draining is the thing an operator needs to see.
+                logger.warning(
+                    "Uploads waiting over the stall window; queue not empty, not requeued",
+                    extra={
+                        "count": len(lost),
+                        "queue_depth": queue.depth,
+                        "queue_reachable": queue.reachable,
+                    },
+                )
         job_health.record_heartbeat("stalled-parse-sweep")
-        return {"reaped": reaped, "requeued": len(lost)}
+        return {"reaped": reaped, "requeued": requeued}
     except Exception as exc:  # noqa: BLE001 - retried, then surfaced
         logger.exception(
             "reap_stalled_parses_task failed",

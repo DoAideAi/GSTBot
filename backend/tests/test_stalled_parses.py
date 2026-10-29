@@ -592,9 +592,47 @@ class TestAnUploadWhoseParseWasLost:
         monkeypatch.setattr(
             invoice_tasks.parse_invoice_task, "delay", lambda invoice_id: queued.append(invoice_id)
         )
+        monkeypatch.setattr(
+            invoice_tasks.job_health,
+            "queue_status",
+            lambda: SimpleNamespace(reachable=True, depth=0),
+        )
 
         assert invoice_tasks.reap_stalled_parses_task() == {"reaped": 0, "requeued": 1}
         assert queued == [lost.id]
         # Queued, not failed: the file is fine and the parse never ran.
         db_session.refresh(lost)
         assert lost.status is InvoiceStatus.UPLOADED
+
+    @pytest.mark.parametrize(
+        "queue",
+        [SimpleNamespace(reachable=True, depth=40), SimpleNamespace(reachable=False, depth=None)],
+        ids=["backlog", "unreachable"],
+    )
+    def test_nothing_is_requeued_while_the_queue_may_still_hold_it(
+        self, db_session, business, monkeypatch, caplog, queue
+    ):
+        # P18 M9: behind a backlog, an hour-old upload may simply be waiting.
+        # Requeueing then added a copy every hour for as long as the workers
+        # were down or behind. P18 M11: and the wait is logged, not silent.
+        from app.tasks import invoice_tasks
+
+        _invoice(db_session, business, status=InvoiceStatus.UPLOADED, age_seconds=7200)
+
+        class _Handle:
+            def __getattr__(self, name):
+                return getattr(db_session, name)
+
+            def close(self):
+                pass
+
+        queued: list[int] = []
+        monkeypatch.setattr(invoice_tasks, "SessionLocal", _Handle)
+        monkeypatch.setattr(
+            invoice_tasks.parse_invoice_task, "delay", lambda invoice_id: queued.append(invoice_id)
+        )
+        monkeypatch.setattr(invoice_tasks.job_health, "queue_status", lambda: queue)
+
+        assert invoice_tasks.reap_stalled_parses_task() == {"reaped": 0, "requeued": 0}
+        assert queued == []
+        assert any("not requeued" in record.getMessage() for record in caplog.records)
