@@ -28,3 +28,8 @@ class Subscriber(Base, TimestampMixin):
     unsubscribed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # The last deadline reminder this address was sent, as "GSTR1-2026-09".
+    # Written after each successful send, so a second run on the same day — a
+    # retry, a restarted worker — sends nobody the same reminder twice, and a
+    # failed address is tried again rather than counted as told.
+    last_reminded_for: Mapped[str | None] = mapped_column(String(32), nullable=True)

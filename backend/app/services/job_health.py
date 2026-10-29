@@ -53,6 +53,8 @@ JOB_STALE_AFTER_SECONDS: dict[str, int] = {
     "stalled-parse-sweep": 90 * 60,
     # Daily at 02:45, with the same two-hour margin as the sweep.
     "personal-data-retention": 26 * 3600,
+    # Daily at 08:00 IST, same margin.
+    "subscriber-deadline-reminders": 26 * 3600,
 }
 
 

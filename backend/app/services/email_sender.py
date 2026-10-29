@@ -175,7 +175,9 @@ def _sender_domain() -> str | None:
     return domain.strip(" >") or None
 
 
-def send_email(*, to: str, subject: str, body: str) -> None:
+def send_email(
+    *, to: str, subject: str, body: str, headers: dict[str, str] | None = None
+) -> None:
     """Send one plain-text email, or raise :class:`EmailSendError`.
 
     Raises rather than returning a bool because the caller is a delivery loop
@@ -207,6 +209,10 @@ def send_email(*, to: str, subject: str, body: str) -> None:
     # drop the repeat.
     message["Date"] = formatdate(localtime=False, usegmt=True)
     message["Message-ID"] = make_msgid(domain=_sender_domain())
+    # A mailing's own headers — List-Unsubscribe on a reminder — on top of
+    # these, never instead of them.
+    for name, value in (headers or {}).items():
+        message[name] = value
     message.set_content(body)
 
     attempts = max(1, settings.smtp_max_attempts)

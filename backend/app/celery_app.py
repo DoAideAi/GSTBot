@@ -39,7 +39,12 @@ celery_app = Celery(
     "gstbot",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.invoice_tasks", "app.tasks.alert_tasks", "app.tasks.retention_tasks"],
+    include=[
+        "app.tasks.invoice_tasks",
+        "app.tasks.alert_tasks",
+        "app.tasks.retention_tasks",
+        "app.tasks.subscriber_tasks",
+    ],
 )
 
 celery_app.conf.update(
@@ -141,6 +146,9 @@ STALLED_SWEEP_MINUTE = 20
 # Daily, in the quietest hour and clear of the 07:00 sweep.
 RETENTION_HOUR = 2
 RETENTION_MINUTE = 45
+# Subscriber reminders, at 08:00 IST: after the account digests at 07:15, and
+# in the morning of the working day the reminder is about.
+SUBSCRIBER_REMINDER_HOUR = 8
 
 celery_app.conf.beat_schedule = {
     # The first periodic task in this application, and the original reason
@@ -184,6 +192,13 @@ celery_app.conf.beat_schedule = {
     "personal-data-retention": {
         "task": "retention.prune_personal_data",
         "schedule": crontab(hour=RETENTION_HOUR, minute=RETENTION_MINUTE),
+    },
+    # The filing reminders the public site signs people up for, which nothing
+    # sent. Daily; a no-op on any day that is not three days before a due
+    # date, and wherever email is not configured.
+    "subscriber-deadline-reminders": {
+        "task": "subscribers.send_deadline_reminders",
+        "schedule": crontab(hour=SUBSCRIBER_REMINDER_HOUR, minute=0),
     },
 }
 

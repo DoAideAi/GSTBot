@@ -20,7 +20,6 @@ free-tier rate limit.
 """
 from __future__ import annotations
 
-import hashlib
 import hmac
 import logging
 import pathlib
@@ -54,6 +53,7 @@ from app.services import gstin as gstin_service
 from app.services import job_health
 from app.services import usage as usage_service
 from app.services.openrouter_client import is_configured
+from app.services.subscriber_reminders import make_unsubscribe_token
 
 logger = logging.getLogger(__name__)
 
@@ -666,16 +666,6 @@ def reminder_subscribe(
 _subscriber_limit = RateLimit("subscriber", "10/minute", by="ip")
 
 
-def _subscriber_hmac_secret() -> str:
-    return settings.subscriber_hmac_secret or settings.jwt_secret
-
-
-def make_unsubscribe_token(email: str) -> str:
-    return hmac.new(
-        _subscriber_hmac_secret().encode(),
-        email.lower().encode(),
-        hashlib.sha256,
-    ).hexdigest()
 
 
 def _upsert_subscriber(db: Session, email: str, source: str) -> bool:
