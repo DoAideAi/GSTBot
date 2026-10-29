@@ -281,3 +281,58 @@ def test_the_conversion_lookup_has_an_index_that_leads_with_the_visitor():
         for index in Referral.__table__.indexes
     }
     assert ("visitor_ip_hash", "created_at") in leading
+
+
+class TestThePublicLeaderboardNamesNoOne:
+    """P23 M10: a referrer with no name was shown as their email's local part
+    on a public page, and a whitespace-only name took the endpoint down with
+    an IndexError for every visitor while that user ranked."""
+
+    def _rank(self, db_session, business, *people):
+        from app.models.referral import Referral
+        from app.models.user import User
+
+        for i, (name, email, active) in enumerate(people):
+            user = User(
+                email=email,
+                full_name=name,
+                hashed_password="x",
+                business_id=business.id,
+                is_active=active,
+            )
+            db_session.add(user)
+            db_session.flush()
+            for j in range(len(people) - i):
+                db_session.add(
+                    Referral(
+                        referrer_user_id=user.id, referral_code=f"c{i}", visitor_ip_hash=f"{i}{j}"
+                    )
+                )
+        db_session.commit()
+
+    def test_no_name_is_never_the_email_and_blank_is_not_a_500(
+        self, raw_client, db_session, business
+    ):
+        self._rank(
+            db_session,
+            business,
+            ("   ", "blank@example.com", True),
+            (None, "suman.sharma1990@example.com", True),
+            ("​", "invisible@example.com", True),
+            ("Asha Kumari Rao", "asha@example.com", True),
+        )
+        response = raw_client.get("/api/v1/referrals/leaderboard")
+        assert response.status_code == 200
+        names = [row["name"] for row in response.json()["leaders"]]
+        assert names == ["A DoAide GST user"] * 3 + ["Asha R."]
+        assert "suman" not in response.text and "@" not in response.text
+
+    def test_a_deactivated_account_is_not_listed(self, raw_client, db_session, business):
+        self._rank(
+            db_session,
+            business,
+            ("Gone Away", "gone@example.com", False),
+            ("Still Here", "here@example.com", True),
+        )
+        board = raw_client.get("/api/v1/referrals/leaderboard").json()
+        assert [row["name"] for row in board["leaders"]] == ["Still H."]

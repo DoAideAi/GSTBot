@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import RateLimit, client_ip
+from app.core.sanitize import visible_text
 from app.models.referral import Referral
 from app.models.user import User
 
@@ -191,9 +192,10 @@ def leaderboard(db: Session = Depends(get_db)) -> dict[str, Any]:
     )
 
     user_ids = [r[0] for r in rows]
+    # A deactivated account is not someone to put on a public page.
     users = {
         u.id: u
-        for u in db.query(User).filter(User.id.in_(user_ids)).all()
+        for u in db.query(User).filter(User.id.in_(user_ids), User.is_active.is_(True)).all()
     } if user_ids else {}
 
     leaders = []
@@ -201,16 +203,27 @@ def leaderboard(db: Session = Depends(get_db)) -> dict[str, Any]:
         user = users.get(uid)
         if user is None:
             continue
-        name = user.full_name or user.email.split("@")[0]
-        # Only show first name + last initial for privacy
-        parts = name.split()
-        display = parts[0] + (" " + parts[1][0] + "." if len(parts) > 1 else "")
         leaders.append({
-            "name": display,
+            "name": _public_name(user.full_name),
             "referral_count": count,
         })
 
     return {"leaders": leaders}
+
+
+def _public_name(full_name: str | None) -> str:
+    """First name and last initial, for a page anyone can read.
+
+    Never the email. A user with no name was shown as their address's local
+    part — "suman.sharma1990" on a public leaderboard is most of an email
+    address — and a name that is only whitespace split to nothing and took
+    the whole endpoint down with an IndexError, for every visitor, for as
+    long as that user ranked.
+    """
+    parts = visible_text(full_name or "", keep_newlines=False).split()
+    if not parts:
+        return "A DoAide GST user"
+    return parts[0] + (f" {parts[-1][0]}." if len(parts) > 1 else "")
 
 
 @router.get(
