@@ -867,6 +867,11 @@ def update_invoice(
             db, business.id, invoice.counterparty_gstin, invoice.counterparty_name
         )
         invoice.supplier_id = supplier.id
+    elif "counterparty_gstin" in changes and not invoice.counterparty_gstin:
+        # A GSTIN cleared — usually because the extractor misread it — left
+        # the row linked to the supplier it named, so the invoice stayed
+        # attributed to a supplier it no longer says it came from.
+        invoice.supplier_id = None
 
     db.commit()
     db.refresh(invoice)

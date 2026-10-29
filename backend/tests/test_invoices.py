@@ -2273,3 +2273,29 @@ class TestAFileIsWhatItSaysItIs:
             data={"invoice_type": "purchase"},
         )
         assert response.status_code == 201, response.text
+
+
+def test_clearing_the_supplier_gstin_clears_the_link_to_that_supplier(
+    auth_client, sample_invoice_text
+):
+    """P24 M9: clearing counterparty_gstin left supplier_id pointing at the
+    supplier the cleared GSTIN named; changing it already relinked."""
+    invoice = upload(auth_client, sample_invoice_text).json()["invoice"]
+    assert invoice["supplier_id"] is not None
+
+    cleared = auth_client.patch(
+        f"/api/v1/invoices/{invoice['id']}", json={"counterparty_gstin": None}
+    ).json()
+    assert cleared["counterparty_gstin"] is None
+    assert cleared["supplier_id"] is None
+
+    relinked = auth_client.patch(
+        f"/api/v1/invoices/{invoice['id']}", json={"counterparty_gstin": SUPPLIER_GSTIN_SAME_STATE}
+    ).json()
+    assert relinked["supplier_id"] is not None
+
+    # An edit that does not touch the GSTIN leaves the link alone.
+    renamed = auth_client.patch(
+        f"/api/v1/invoices/{invoice['id']}", json={"counterparty_name": "Renamed Traders"}
+    ).json()
+    assert renamed["supplier_id"] == relinked["supplier_id"]
