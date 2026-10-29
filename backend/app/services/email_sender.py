@@ -37,6 +37,7 @@ import re
 import smtplib
 import time
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 
 from app.core.config import settings
 
@@ -168,6 +169,12 @@ def _hang_up(client: smtplib.SMTP) -> None:
         client.close()
 
 
+def _sender_domain() -> str | None:
+    """The domain of the From address, for the Message-ID; ``None`` if it has none."""
+    _, _, domain = settings.smtp_from_address.rpartition("@")
+    return domain.strip(" >") or None
+
+
 def send_email(*, to: str, subject: str, body: str) -> None:
     """Send one plain-text email, or raise :class:`EmailSendError`.
 
@@ -192,6 +199,14 @@ def send_email(*, to: str, subject: str, body: str) -> None:
     message["Subject"] = subject
     message["From"] = settings.smtp_from_address
     message["To"] = to
+    # RFC 5322 requires Date, and receivers such as Gmail reject or spam-file
+    # mail with no Message-ID. Neither EmailMessage nor smtplib adds them, so
+    # every digest went out with Subject, From and To alone and arrived only if
+    # the relay patched them in. Set once, before the retry loop below: a retry
+    # carries the same id, so a receiver that already accepted an attempt can
+    # drop the repeat.
+    message["Date"] = formatdate(localtime=False, usegmt=True)
+    message["Message-ID"] = make_msgid(domain=_sender_domain())
     message.set_content(body)
 
     attempts = max(1, settings.smtp_max_attempts)

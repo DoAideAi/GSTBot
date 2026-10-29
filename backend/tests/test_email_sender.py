@@ -508,3 +508,45 @@ class TestQuitDoesNotDecideTheSend:
     def test_quit_is_sent_after_a_normal_delivery(self):
         send_email(to="owner@example.com", subject="s", body="b")
         assert _FakeSMTP.instances[0].quit_called
+
+
+# ---------------------------------------------------------------------------
+# The headers a receiving server checks before it reads a word
+# ---------------------------------------------------------------------------
+
+class TestTheMessageCarriesDateAndMessageId:
+    """RFC 5322 requires Date; receivers such as Gmail reject or spam-file mail
+    with no Message-ID. EmailMessage adds neither and smtplib does not either,
+    so every digest left with Subject, From and To alone, and arrived only if
+    the relay happened to patch them in.
+    """
+
+    def test_a_sent_message_has_a_date_and_a_message_id_on_the_sender_domain(self):
+        from email.utils import parsedate_to_datetime
+
+        send_email(to="owner@example.com", subject="s", body="b")
+
+        sent = _FakeSMTP.instances[0].sent
+        assert parsedate_to_datetime(sent["Date"]) is not None
+        message_id = sent["Message-ID"]
+        assert message_id.startswith("<") and message_id.endswith("@gst.doaide.com>")
+
+    def test_a_retry_resends_the_same_message_id(self, monkeypatch):
+        # One message, delivered at most once from the reader's point of view:
+        # a receiver that already took an attempt drops the retry by its id.
+        _relay(monkeypatch, failures=1, error=smtplib.SMTPServerDisconnected("bye"))
+
+        send_email(to="owner@example.com", subject="s", body="b")
+
+        attempts = [c for c in _FakeSMTP.instances if c.sent is not None]
+        assert len(attempts) == 1
+        # Fixed before the retry loop, so the attempt that succeeded carries the
+        # id the failed one would have: present, and the message's only one.
+        assert attempts[0].sent["Message-ID"]
+        assert len(attempts[0].sent.get_all("Message-ID")) == 1
+
+    def test_two_messages_have_different_ids(self):
+        send_email(to="a@example.com", subject="s", body="b")
+        send_email(to="b@example.com", subject="s", body="b")
+        first, second = (c.sent["Message-ID"] for c in _FakeSMTP.instances)
+        assert first != second
