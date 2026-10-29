@@ -65,7 +65,10 @@ function renderApp(route = "/") {
 
 /** Click a nav link and wait for the page it leads to. */
 async function goTo(user, label, heading) {
-  await user.click(screen.getByRole("link", { name: label }));
+  // Through the main menu, as a user moves between pages. A page can carry a
+  // link of the same name (the filing page's "Next steps" has Dashboard).
+  const menu = screen.getByRole("navigation", { name: "Main" });
+  await user.click(within(menu).getByRole("link", { name: label }));
   return screen.findByRole("heading", { name: heading, level: 1 });
 }
 
