@@ -385,7 +385,9 @@ chat, needs `GEMINI_API_KEY` or `GEMINI_API_KEY_FILE`), `payments`
 alert digests, subscribers' deadline reminders, password-reset links:
 `ALERTS_EMAIL_ENABLED` and `SMTP_HOST`). `unconfigured` or `disabled` there is
 a feature switched off, not a fault, and does not change `status`;
-`misconfigured` (email switched on with no `SMTP_HOST`) is a mistake to fix.
+`misconfigured` (email switched on with no `SMTP_HOST`; Razorpay keys with no
+webhook secret, which refuses every renewal and refund it reports, or a key id
+with no secret) is a mistake to fix, and the monitor reports it.
 
 Every log line and every response carries a correlation id (`X-Request-ID`).
 It is what turns a user's screenshot into a journal query:

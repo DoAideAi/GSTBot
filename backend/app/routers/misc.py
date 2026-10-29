@@ -122,7 +122,6 @@ def _timed(check) -> tuple[bool, float, str | None]:
 def _integrations() -> dict[str, dict[str, Any]]:
     """Which optional integrations this deployment has, and what each one drives."""
     from app.routers import advisor
-    from app.services import razorpay_client
 
     # A login with no password is as broken as no relay: smtplib fails every
     # send at authentication, which the startup check already warns about.
@@ -131,13 +130,28 @@ def _integrations() -> dict[str, dict[str, Any]]:
         and settings.smtp_host
         and not (settings.smtp_username and not settings.smtp_password)
     )
+    # Payments need all three: the key pair for checkout, and the webhook
+    # secret for everything Razorpay reports afterwards (renewals,
+    # cancellations, refunds). Some but not all of them is switched on and
+    # broken, which the monitor pages on; none is switched off.
+    razorpay_parts = (
+        settings.razorpay_key_id,
+        settings.razorpay_key_secret,
+        settings.razorpay_webhook_secret,
+    )
+    if all(razorpay_parts):
+        payments_status = "configured"
+    elif settings.razorpay_key_id or settings.razorpay_key_secret:
+        payments_status = "misconfigured"
+    else:
+        payments_status = "unconfigured"
     return {
         "advisor": {
             "status": "configured" if advisor.is_configured() else "unconfigured",
             "required_for": ["GST advisor chat"],
         },
         "payments": {
-            "status": "configured" if razorpay_client.is_configured() else "unconfigured",
+            "status": payments_status,
             "webhooks": bool(settings.razorpay_webhook_secret),
             "required_for": ["paid plans", "report purchases"],
         },

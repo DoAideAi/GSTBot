@@ -628,8 +628,10 @@ class TestHealthReportsTheOptionalIntegrations:
         response = client.get("/api/v1/health")
         integrations = response.json()["checks"]["integrations"]
         assert integrations["advisor"]["status"] == "configured"
+        # Keys with no webhook secret: checkout works, but every webhook is
+        # refused (P38 M6), so it is misconfigured, not configured.
         assert integrations["payments"] == {
-            "status": "configured",
+            "status": "misconfigured",
             "webhooks": False,
             "required_for": ["paid plans", "report purchases"],
         }
@@ -689,6 +691,61 @@ class TestHealthSaysWhenEmailCannotSend:
         joined = " ".join(required)
         for what in ("alert digest", "deadline reminder", "password-reset"):
             assert what in joined, required
+
+
+class TestHealthSaysWhenPaymentsAreHalfSetUp:
+    """P38 M6: half-configured payments read "configured" or "unconfigured".
+
+    With the key id and secret set and no RAZORPAY_WEBHOOK_SECRET, checkout
+    works but every webhook is refused, so renewals, cancellations and refunds
+    made in Razorpay never reach a subscription. The startup check has said so
+    since it was written, yet /health called it "configured". A key id with
+    no secret, where checkout answers 503, read "unconfigured", the same as
+    payments switched off. Neither is "misconfigured", the one integration
+    state the monitor pages on (P37 M6), so nothing ever reported either.
+    """
+
+    @pytest.fixture()
+    def razorpay(self, monkeypatch):
+        from app.core.config import settings
+
+        for name in ("razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"):
+            monkeypatch.setattr(settings, name, "")
+        return settings
+
+    def _status(self, client):
+        return client.get("/api/v1/health").json()["checks"]["integrations"]["payments"]
+
+    @pytest.mark.parametrize(
+        ("key_id", "key_secret", "webhook", "expected"),
+        [
+            ("rzp_live_x", "secret", "whsec", "configured"),
+            ("rzp_live_x", "secret", "", "misconfigured"),
+            ("rzp_live_x", "", "whsec", "misconfigured"),
+            ("rzp_live_x", "", "", "misconfigured"),
+            ("", "secret", "", "misconfigured"),
+            ("", "", "", "unconfigured"),
+        ],
+        ids=["complete", "no-webhook-secret", "no-key-secret", "key-id-only", "secret-only",
+             "off"],
+    )
+    def test_each_state_reads_as_what_it_is(
+        self, client, razorpay, monkeypatch, key_id, key_secret, webhook, expected
+    ):
+        monkeypatch.setattr(razorpay, "razorpay_key_id", key_id)
+        monkeypatch.setattr(razorpay, "razorpay_key_secret", key_secret)
+        monkeypatch.setattr(razorpay, "razorpay_webhook_secret", webhook)
+        payments = self._status(client)
+        assert payments["status"] == expected
+        assert payments["webhooks"] is bool(webhook)
+
+    def test_no_secret_reaches_the_response(self, client, razorpay, monkeypatch):
+        monkeypatch.setattr(razorpay, "razorpay_key_id", "rzp_live_visible")
+        monkeypatch.setattr(razorpay, "razorpay_key_secret", "key-secret-value")
+        monkeypatch.setattr(razorpay, "razorpay_webhook_secret", "webhook-secret-value")
+        text = client.get("/api/v1/health").text
+        for secret in ("rzp_live_visible", "key-secret-value", "webhook-secret-value"):
+            assert secret not in text
 
 
 class TestHealthNamesTheRunningRelease:
