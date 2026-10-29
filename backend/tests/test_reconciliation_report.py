@@ -369,7 +369,9 @@ class TestDownloading:
             "Acme Traders",
             "Matched (1)",
             "B-7",
-            "Mismatched (1)",
+            # The fixture's only mismatch is carried from an earlier period, so
+            # the run's mismatched count is 0 and the heading agrees with it.
+            "Mismatched (0, plus 1 from an earlier period)",
             "total tax: books Rs. 900.00, 2B Rs. 810.00",
             "Booked in an earlier period",
             "Filed late by the supplier.",
@@ -577,3 +579,21 @@ class TestAHostileSupplierName:
         text = _pdf_text(r.content)
         assert "…" in text
         assert "Beta Supplies" in text  # the other findings are all still there
+
+
+def test_every_section_heading_agrees_with_the_summary(auth_client, db_session, business):
+    """P22 M2: the summary is the run's counts, which leave carried findings
+    out; the headings counted every row, so the two disagreed in one PDF."""
+    import re
+
+    run = _run(db_session, business)
+    _buy(auth_client, business, run)
+    text = _pdf_text(auth_client.get(f"/api/v1/reconciliation/{run.id}/report.pdf").content)
+    for heading, count in (
+        ("Missing in GSTR-2B", run.missing_in_2b_count),
+        ("Mismatched", run.mismatched_count),
+        ("Missing in your books", run.missing_in_books_count),
+        ("Duplicates", run.duplicate_count),
+        ("Matched", run.matched_count),
+    ):
+        assert re.search(rf"(?<!\w){re.escape(heading)} \({count or 0}[,)]", text), heading

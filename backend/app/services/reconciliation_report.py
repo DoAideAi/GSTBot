@@ -248,9 +248,17 @@ def build_pdf(run: ReconciliationRun, business: Business) -> bytes:
 
     for category, heading, explanation in SECTIONS:
         rows = [f for f in findings if f.get("category") == category.value]
+        # Counted as the summary counts: a finding carried from an earlier
+        # period is listed (the supplier caught up on it) but is that period's,
+        # and not in this run's figures. Counting it in the heading had the
+        # report say "Mismatched 0" in the summary and "Mismatched (1)" below.
+        carried = sum(1 for f in rows if f.get("carried"))
+        count = f"{len(rows) - carried}" + (
+            f", plus {carried} from an earlier period" if carried else ""
+        )
         story += [
             Spacer(1, 6 * mm),
-            _p(f"{heading} ({len(rows)})", _STYLES["Heading2"]),
+            _p(f"{heading} ({count})", _STYLES["Heading2"]),
             _p(explanation),
             Spacer(1, 2 * mm),
         ]
