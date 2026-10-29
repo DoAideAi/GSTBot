@@ -186,7 +186,7 @@ log "Installing backend dependencies"
 stale=$("$VENV/bin/python" "$ROOT/deploy/lock_extras.py" "$LOCKFILE") \
     || die "could not compare the virtualenv with $LOCKFILE"
 if [ -n "$stale" ]; then
-    echo "Removing packages the lock does not name: $(echo $stale)"
+    echo "Removing packages the lock does not name: ${stale//$'\n'/ }"
     # shellcheck disable=SC2086 # one name per word, on purpose
     "$VENV/bin/pip" uninstall --quiet --yes $stale
 fi
@@ -216,19 +216,42 @@ log "Building the frontend"
 # replaces is kept as dist.prev, which is also what a quick rollback of the
 # frontend puts back.
 FRONTEND="$ROOT/frontend"
-rm -rf "$FRONTEND/dist.next"
-( cd "$FRONTEND" \
-    && while IFS= read -r line; do
-           case "$line" in VITE_[A-Z0-9_]*=*) export "$line" ;; esac
-       done < /etc/gstbot/gstbot.env \
-    && npm ci --no-audit --no-fund \
-    && GSTBOT_BUILD_DIR=dist.next NODE_OPTIONS=--max-old-space-size=768 npm run build ) \
-    || die "the frontend did not build; the site still serves the previous build"
-[ -f "$FRONTEND/dist.next/index.html" ] \
-    || die "build produced no index.html; the site still serves the previous build"
-rm -rf "$FRONTEND/dist.prev"
-if [ -d "$FRONTEND/dist" ]; then mv "$FRONTEND/dist" "$FRONTEND/dist.prev"; fi
-mv "$FRONTEND/dist.next" "$FRONTEND/dist"
+# What the build in dist was made from: the committed frontend tree and the
+# VITE_* settings inlined into it. A release whose frontend is unchanged used
+# to rebuild it anyway — npm ci from the registry and the slowest step here —
+# to produce the same bytes. Unknown (no git, or uncommitted changes under
+# frontend/) means always build.
+frontend_source() {
+    have_checkout || return 0
+    [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no -- frontend)" ] || return 0
+    local tree vite
+    tree="$(git -C "$ROOT" rev-parse HEAD:frontend 2>/dev/null)" || return 0
+    vite="$({ grep -E '^VITE_[A-Z0-9_]*=' /etc/gstbot/gstbot.env 2>/dev/null || true; } \
+        | sha256sum | cut -c1-16)"
+    echo "$tree-$vite"
+}
+source_id="$(frontend_source)"
+if [ -n "$source_id" ] && [ -f "$FRONTEND/dist/index.html" ] \
+    && [ "$(cat "$FRONTEND/.dist-source" 2>/dev/null)" = "$source_id" ]; then
+    echo "The frontend is unchanged since the build it is serving; not rebuilding it"
+else
+    rm -f "$FRONTEND/.dist-source"
+    rm -rf "$FRONTEND/dist.next"
+    ( cd "$FRONTEND" \
+        && while IFS= read -r line; do
+               # shellcheck disable=SC2163 # each line is NAME=value, exported as one
+               case "$line" in VITE_[A-Z0-9_]*=*) export "$line" ;; esac
+           done < /etc/gstbot/gstbot.env \
+        && npm ci --no-audit --no-fund \
+        && GSTBOT_BUILD_DIR=dist.next NODE_OPTIONS=--max-old-space-size=768 npm run build ) \
+        || die "the frontend did not build; the site still serves the previous build"
+    [ -f "$FRONTEND/dist.next/index.html" ] \
+        || die "build produced no index.html; the site still serves the previous build"
+    rm -rf "$FRONTEND/dist.prev"
+    if [ -d "$FRONTEND/dist" ]; then mv "$FRONTEND/dist" "$FRONTEND/dist.prev"; fi
+    mv "$FRONTEND/dist.next" "$FRONTEND/dist"
+    if [ -n "$source_id" ]; then echo "$source_id" > "$FRONTEND/.dist-source"; fi
+fi
 
 log "Taking a restore point"
 # The migration below is the one step of a release that is not undone by

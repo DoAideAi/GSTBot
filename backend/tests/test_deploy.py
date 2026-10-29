@@ -2122,3 +2122,128 @@ class TestTheMonitorReadsWhatTheHealthEndpointsSay:
         # Recorded before the verdict, so a problem here fails the unit and
         # reaches the webhook like any other.
         assert self.SCRIPT.index('fail "$line"') < self.SCRIPT.index('echo "All checks passed"')
+
+
+class TestRollingTheFrontendBack:
+    """P24 M12: the README's rollback was `mv dist dist.bad && mv dist.prev dist`.
+    With no dist.prev (a fresh box, or a second rollback) the first move
+    succeeded and the second failed, leaving no dist: the rollback was the
+    outage. deploy/rollback-frontend.sh checks before it moves anything."""
+
+    SCRIPT = DEPLOY / "rollback-frontend.sh"
+
+    def _run(self, tmp_path, *, lock_free=True):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        fake = bin_dir / "flock"
+        fake.write_text(f"#!/bin/sh\nexit {0 if lock_free else 1}\n")
+        fake.chmod(0o755)
+        return subprocess.run(
+            ["bash", str(self.SCRIPT)],
+            env={
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "GSTBOT_FRONTEND_DIR": str(tmp_path / "frontend"),
+                "GSTBOT_DEPLOY_LOCK": str(tmp_path / "deploy.lock"),
+            },
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+    def _builds(self, tmp_path, **builds):
+        frontend = tmp_path / "frontend"
+        for name, marker in builds.items():
+            (frontend / name).mkdir(parents=True)
+            (frontend / name / "index.html").write_text(marker)
+        return frontend
+
+    def test_with_nothing_to_go_back_to_the_site_is_left_alone(self, tmp_path):
+        frontend = self._builds(tmp_path, dist="live")
+        result = self._run(tmp_path)
+        assert result.returncode != 0
+        assert "no previous build" in result.stderr
+        assert (frontend / "dist" / "index.html").read_text() == "live"
+
+    def test_it_swaps_and_running_it_again_undoes_it(self, tmp_path):
+        frontend = self._builds(tmp_path, dist="new", **{"dist.prev": "old"})
+        (frontend / ".dist-source").write_text("tree-vite")
+        assert self._run(tmp_path).returncode == 0
+        assert (frontend / "dist" / "index.html").read_text() == "old"
+        assert (frontend / "dist.prev" / "index.html").read_text() == "new"
+        # The record of what dist was built from no longer describes it.
+        assert not (frontend / ".dist-source").exists()
+        assert self._run(tmp_path).returncode == 0
+        assert (frontend / "dist" / "index.html").read_text() == "new"
+
+    def test_it_waits_its_turn_behind_a_deploy(self, tmp_path):
+        frontend = self._builds(tmp_path, dist="new", **{"dist.prev": "old"})
+        result = self._run(tmp_path, lock_free=False)
+        assert result.returncode != 0 and "a deploy is running" in result.stderr
+        assert (frontend / "dist" / "index.html").read_text() == "new"
+
+    def test_the_readme_points_at_the_script_not_the_two_moves(self):
+        readme = (DEPLOY / "README.md").read_text()
+        assert "deploy/rollback-frontend.sh" in readme
+        assert "mv dist dist.bad && mv dist.prev dist" not in readme.split("```sh")[-1]
+
+
+class TestAnUnchangedFrontendIsNotRebuilt:
+    """P24 M12: a release whose frontend had not changed rebuilt it anyway,
+    npm ci from the registry and the slowest step of the release, to produce
+    the same bytes."""
+
+    SCRIPT = DEPLOY_SCRIPT.read_text()
+
+    def _source_fn(self):
+        start = self.SCRIPT.index("frontend_source() {")
+        return self.SCRIPT[start : self.SCRIPT.index("\n}\n", start) + 3]
+
+    def _source_id(self, root):
+        script = (
+            f'ROOT="{root}"\n'
+            'have_checkout() { command -v git >/dev/null && [ -d "$ROOT/.git" ]; }\n'
+            + self._source_fn()
+            + "frontend_source\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", script], capture_output=True, text=True, timeout=20
+        ).stdout.strip()
+
+    def test_the_source_id_follows_the_frontend_tree_and_nothing_else(self, tmp_path):
+        if shutil.which("git") is None or shutil.which("sha256sum") is None:
+            pytest.skip("needs git and sha256sum")
+        git = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
+        subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+        (tmp_path / "frontend").mkdir()
+        (tmp_path / "frontend" / "app.js").write_text("one")
+        (tmp_path / "backend.py").write_text("x")
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-qm", "1"], check=True)
+        first = self._source_id(tmp_path)
+        assert first
+
+        (tmp_path / "backend.py").write_text("y")  # outside frontend/
+        subprocess.run([*git, "commit", "-qam", "2"], check=True)
+        assert self._source_id(tmp_path) == first
+
+        (tmp_path / "frontend" / ".dist-source").write_text(first)  # untracked
+        assert self._source_id(tmp_path) == first
+
+        (tmp_path / "frontend" / "app.js").write_text("two")  # uncommitted
+        assert self._source_id(tmp_path) == ""  # unknown: always build
+        subprocess.run([*git, "commit", "-qam", "3"], check=True)
+        assert self._source_id(tmp_path) not in ("", first)
+
+    def test_the_build_is_skipped_only_on_a_matching_record_and_a_live_build(self):
+        skip = self.SCRIPT.index('if [ -n "$source_id" ] && [ -f "$FRONTEND/dist/index.html" ]')
+        record = self.SCRIPT.index(
+            '[ "$(cat "$FRONTEND/.dist-source" 2>/dev/null)" = "$source_id" ]'
+        )
+        build = self.SCRIPT.index("GSTBOT_BUILD_DIR=dist.next")
+        written = self.SCRIPT.index('echo "$source_id" > "$FRONTEND/.dist-source"')
+        swap = self.SCRIPT.index('mv "$FRONTEND/dist.next" "$FRONTEND/dist"')
+        assert skip < record < build < swap < written
+        # Cleared before a build starts, so a failed one cannot leave it vouching.
+        assert self.SCRIPT.index('rm -f "$FRONTEND/.dist-source"') < build
+        assert ".dist-source" in (REPO_ROOT / ".gitignore").read_text()

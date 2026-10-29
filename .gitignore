@@ -18,6 +18,8 @@ dist/
 # deploy.sh builds into dist.next and keeps the previous build as dist.prev.
 dist.next/
 dist.prev/
+# What the build in dist was made from; deploy.sh skips an unchanged rebuild.
+.dist-source
 .vite/
 *.local
 coverage/

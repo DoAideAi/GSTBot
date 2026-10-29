@@ -364,8 +364,17 @@ API is fine — swap the kept build back in; `gstbot-web` serves whatever `dist`
 holds, so no restart is needed:
 
 ```sh
-cd /opt/GSTBot/frontend && mv dist dist.bad && mv dist.prev dist
+/opt/GSTBot/deploy/rollback-frontend.sh    # run it again to undo
 ```
+
+It checks that `dist.prev` holds a build before moving anything, and refuses
+while a deploy holds the lock. (The two `mv` commands it replaces moved the live
+build away first, so with no `dist.prev` — a fresh box, or a second rollback —
+they left the site with no `dist` at all.)
+
+A release whose `frontend/` is unchanged, with the same `VITE_*` settings,
+skips the build and keeps serving the one it has; `frontend/.dist-source`
+records what that build was made from.
 
 ## Backups
 
