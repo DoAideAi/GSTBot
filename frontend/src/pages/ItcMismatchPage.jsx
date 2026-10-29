@@ -161,9 +161,9 @@ export default function ItcMismatchPage() {
             </p>
 
             {entries.map((entry, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr auto", gap: "0.5rem", alignItems: "end", marginBottom: "0.5rem" }}>
+              <div key={i} className="form-grid line-row" style={{ "--cols": "1.5fr 1fr 1fr 1fr 1fr auto" }}>
                 <label className="calc-label" style={{ margin: 0 }}>
-                  {i === 0 && "Supplier GSTIN / Name"}
+                  <span className={i === 0 ? undefined : "line-later-label"}>Supplier GSTIN / Name</span>
                   <input
                     className="calc-input"
                     value={entry.supplierGstin}
@@ -172,7 +172,7 @@ export default function ItcMismatchPage() {
                   />
                 </label>
                 <label className="calc-label" style={{ margin: 0 }}>
-                  {i === 0 && "Invoice No."}
+                  <span className={i === 0 ? undefined : "line-later-label"}>Invoice No.</span>
                   <input
                     className="calc-input"
                     value={entry.invoiceNo}
@@ -181,7 +181,7 @@ export default function ItcMismatchPage() {
                   />
                 </label>
                 <label className="calc-label" style={{ margin: 0 }}>
-                  {i === 0 && "Invoice Date"}
+                  <span className={i === 0 ? undefined : "line-later-label"}>Invoice Date</span>
                   <input
                     type="date"
                     className="calc-input"
@@ -190,7 +190,7 @@ export default function ItcMismatchPage() {
                   />
                 </label>
                 <label className="calc-label" style={{ margin: 0 }}>
-                  {i === 0 && "GSTR-2A/2B (₹)"}
+                  <span className={i === 0 ? undefined : "line-later-label"}>GSTR-2A/2B (₹)</span>
                   <input
                     type="number"
                     className="calc-input"
@@ -203,7 +203,7 @@ export default function ItcMismatchPage() {
                   />
                 </label>
                 <label className="calc-label" style={{ margin: 0 }}>
-                  {i === 0 && "Books (₹)"}
+                  <span className={i === 0 ? undefined : "line-later-label"}>Books (₹)</span>
                   <input
                     type="number"
                     className="calc-input"
@@ -247,7 +247,7 @@ export default function ItcMismatchPage() {
                   <strong>{analysis.totalDiff > 0 ? "+" : ""}{formatINR(analysis.totalDiff)}</strong>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.75rem", margin: "1rem 0" }}>
+                <div className="form-grid form-grid-4" style={{ margin: "1rem 0" }}>
                   <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--bg-card)", borderRadius: "8px" }}>
                     <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{analysis.rows.length}</div>
                     <div style={{ fontSize: "0.8rem", color: "var(--ink-soft)" }}>Total Entries</div>

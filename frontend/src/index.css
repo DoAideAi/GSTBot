@@ -5938,34 +5938,38 @@ a:focus-visible {
   .advisor-panel { display: none !important; }
 }
 
-/* Invoice generator form. Inline grids could not respond to the viewport:
-   at 375px the three invoice-detail fields squeezed the number to 53px and
-   pushed the due date, and the page, 90px past the right edge. */
-.invgen-grid { display: grid; gap: 0.75rem; }
-.invgen-grid > * { min-width: 0; }
-.invgen-grid-3 { grid-template-columns: repeat(3, 1fr); }
-.invgen-grid-2 { grid-template-columns: 1fr 1fr; }
-.invgen-item {
-  grid-template-columns: 2fr 1fr 0.7fr 1fr 1fr auto;
+/* Form grids on the tool pages. Inline grids could not respond to the
+   viewport: at 375px the invoice generator's three detail fields squeezed the
+   number to 53px and pushed the due date, and the page, 90px past the right
+   edge; the ITC mismatch rows did the same. */
+.form-grid { display: grid; gap: 0.75rem; }
+.form-grid > * { min-width: 0; }
+.form-grid-2 { grid-template-columns: 1fr 1fr; }
+.form-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.form-grid-4 { grid-template-columns: repeat(4, 1fr); }
+/* One entry of a repeating list. Its desktop columns come from --cols, set
+   by the page, because each list has its own. */
+.line-row {
+  grid-template-columns: var(--cols);
   gap: 0.5rem;
   align-items: end;
   margin-bottom: 0.5rem;
 }
-.invgen-item .calc-label { margin: 0; }
-/* Column headings sit on the first line item only, where a table would put
-   them; each later row still carries its labels for screen readers and for
-   the stacked layout below. */
-.invgen-later-label {
+.line-row .calc-label { margin: 0; }
+/* Column headings sit on the first entry only, where a table would put them;
+   each later entry still carries its labels for screen readers and for the
+   stacked layout below. */
+.line-later-label {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 @media (max-width: 600px) {
-  .invgen-grid-3 { grid-template-columns: 1fr 1fr; }
-  .invgen-item {
+  .form-grid-3, .form-grid-4 { grid-template-columns: 1fr 1fr; }
+  .line-row {
     grid-template-columns: 1fr 1fr 1fr;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   }
-  .invgen-item > :first-child { grid-column: 1 / -1; }
-  .invgen-later-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .line-row > :first-child { grid-column: 1 / -1; }
+  .line-later-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
 }
