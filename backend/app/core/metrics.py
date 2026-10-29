@@ -16,7 +16,7 @@ import math
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.core.redis_client import get_redis, mark_unavailable
+from app.core.redis_client import get_redis, report_failure
 
 KEY_PREFIX = "gstbot:metrics:"
 # Which routes went over their budget that hour, as "METHOD /template" -> count.
@@ -93,8 +93,8 @@ def record(
                 pipe.expire(OVER_PREFIX + hour, int(RETENTION.total_seconds()))
         pipe.expire(key, int(RETENTION.total_seconds()))
         pipe.execute()
-    except Exception:  # noqa: BLE001 - a metric is never worth a failed request
-        mark_unavailable("metrics write failed")
+    except Exception as exc:  # noqa: BLE001 - a metric is never worth a failed request
+        report_failure(exc, "metrics write")
 
 
 def count(event: str, n: int = 1, *, now: datetime | None = None) -> None:
@@ -115,8 +115,8 @@ def count(event: str, n: int = 1, *, now: datetime | None = None) -> None:
         pipe.hincrby(key, event, n)
         pipe.expire(key, int(RETENTION.total_seconds()))
         pipe.execute()
-    except Exception:  # noqa: BLE001 - a metric is never worth a failed parse
-        mark_unavailable("metrics write failed")
+    except Exception as exc:  # noqa: BLE001 - a metric is never worth a failed parse
+        report_failure(exc, "metrics write")
 
 
 def _number(value: Any) -> float:
@@ -169,8 +169,8 @@ def summary(hours: int = 24, *, now: datetime | None = None) -> dict[str, Any] |
         fetched = pipe.execute()
         n = len(hours_list)
         raws, overs, event_raws = fetched[:n], fetched[n : 2 * n], fetched[2 * n :]
-    except Exception:  # noqa: BLE001
-        mark_unavailable("metrics read failed")
+    except Exception as exc:  # noqa: BLE001 - no summary, never a 500
+        report_failure(exc, "metrics read")
         return None
     rows = [_row(h, raw or {}) for h, raw in zip(hours_list, raws, strict=True)]
     total_requests = sum(r["requests"] for r in rows)

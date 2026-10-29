@@ -78,6 +78,46 @@ def mark_unavailable(reason: object = "connection failed") -> None:
     _trip(str(reason) or "connection failed")
 
 
+def is_outage(exc: BaseException) -> bool:
+    """Whether *exc* says the server is unreachable, rather than that one
+    command or one value was wrong.
+
+    Connection and timeout failures — redis's own, or the socket's — are the
+    server going away, and the breaker exists for those. A ``ResponseError``
+    (``WRONGTYPE``, a write refused at ``maxmemory``, a read-only replica) is a
+    server that answered, and a decode or ``int()`` failure on what it returned
+    is a bad value, not a dead connection.
+    """
+    try:
+        import redis
+
+        if isinstance(exc, (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError)):
+            return True
+        if isinstance(exc, redis.exceptions.RedisError):
+            return False
+    except ImportError:  # pragma: no cover - redis is a hard install dependency
+        pass
+    return isinstance(exc, OSError)
+
+
+def report_failure(exc: BaseException, what: str) -> None:
+    """Route a failure from a caller holding the client: trip, or just log.
+
+    Every caller used to trip the breaker on any exception. The breaker drops
+    the shared client for the whole process for a cooldown — rate limiting
+    falls back to per-worker counters, metrics and job health go dark — so one
+    malformed value took Redis away from everything. The recent-lookups list
+    made that permanent: a stale entry tripped it on every landing-page read,
+    and with the breaker open no new lookup could be written to push the entry
+    out. Only an outage trips it now; anything else is logged at ERROR with its
+    class and message, which the one-per-outage breaker warning never carried.
+    """
+    if is_outage(exc):
+        _trip(f"{what}: {type(exc).__name__}: {exc}")
+        return
+    logger.error("Redis %s failed: %s: %s", what, type(exc).__name__, exc)
+
+
 def get_redis() -> Any | None:
     """The shared client, or ``None`` when Redis cannot be reached.
 

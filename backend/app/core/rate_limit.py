@@ -119,7 +119,7 @@ def charge(key: str, rate: Rate) -> Decision:
     bucket = f"ratelimit:{key}:{window_start}"
 
     count: int | None = None
-    from app.core.redis_client import get_redis, mark_unavailable
+    from app.core.redis_client import get_redis, report_failure
 
     client = get_redis()
     if client is not None:
@@ -136,7 +136,7 @@ def charge(key: str, rate: Rate) -> Decision:
             # socket timeout, and so does every one after it. Reporting the
             # failure to the breaker is what turns a Redis outage into one slow
             # request per cooldown instead of every request being slow.
-            mark_unavailable(f"{type(exc).__name__}: {exc}")
+            report_failure(exc, "rate limit")
             count = None
 
     if count is None:
@@ -175,7 +175,7 @@ def peek(key: str, rate: Rate) -> Decision:
     bucket = f"ratelimit:{key}:{window_start}"
 
     count: int | None = None
-    from app.core.redis_client import get_redis, mark_unavailable
+    from app.core.redis_client import get_redis, report_failure
 
     client = get_redis()
     if client is not None:
@@ -184,7 +184,7 @@ def peek(key: str, rate: Rate) -> Decision:
             count = int(raw) if raw is not None else 0
         except Exception as exc:  # noqa: BLE001 - fall back, never fail the request
             logger.warning("Rate limiter degraded to in-process counters: %s", exc)
-            mark_unavailable(f"{type(exc).__name__}: {exc}")
+            report_failure(exc, "rate limit")
             count = None
 
     if count is None:
@@ -218,7 +218,7 @@ def forget(key: str, rate: Rate) -> None:
 
     _memory.forget(bucket)
 
-    from app.core.redis_client import get_redis, mark_unavailable
+    from app.core.redis_client import get_redis, report_failure
 
     client = get_redis()
     if client is None:
@@ -227,7 +227,7 @@ def forget(key: str, rate: Rate) -> None:
         client.delete(bucket)
     except Exception as exc:  # noqa: BLE001 - best effort
         logger.warning("Could not clear rate-limit counter %s: %s", key, exc)
-        mark_unavailable(f"{type(exc).__name__}: {exc}")
+        report_failure(exc, "rate limit clear")
 
 
 def client_ip(request: Request) -> str:

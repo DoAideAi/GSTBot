@@ -37,7 +37,7 @@ from app.core.config import settings
 from app.core.database import check_database, get_db, pool_status
 from app.core.deps import get_current_business, require_admin, require_paid_tier
 from app.core.rate_limit import RateLimit
-from app.core.redis_client import get_redis, mark_unavailable
+from app.core.redis_client import get_redis, report_failure
 from app.core.redis_client import ping as redis_ping
 from app.core.storage import check_upload_dir
 from app.models.business import Business
@@ -536,8 +536,8 @@ def _record_lookup(result: dict[str, Any]) -> None:
         # work this API did, not "distinct GSTINs seen".
         pipe.incr(_LOOKUP_COUNT_KEY)
         pipe.execute()
-    except Exception:  # noqa: BLE001
-        mark_unavailable("recent lookup record failed")
+    except Exception as exc:  # noqa: BLE001 - a lookup never fails on its log
+        report_failure(exc, "recent lookup record")
 
 
 @router.get(
@@ -559,15 +559,26 @@ def recent_lookups() -> dict[str, Any]:
 
     try:
         raw = client.lrange(_RECENT_LOOKUPS_KEY, 0, _RECENT_LOOKUPS_MAX - 1)
-        lookups = [json.loads(item) for item in raw]
+    except Exception as exc:  # noqa: BLE001 - an empty list, never a 500
+        report_failure(exc, "recent lookups read")
+        return {"lookups": []}
+    lookups = []
+    for item in raw:
+        # One entry at a time: a malformed one — left by an older format, or
+        # written by hand — is skipped rather than costing the whole list, and
+        # the next lookups written push it out of the window.
+        try:
+            lookup = json.loads(item)
+        except (TypeError, ValueError):
+            lookup = None
+        if not isinstance(lookup, dict):
+            logger.warning("Skipped a malformed recent-lookups entry: %.80r", item)
+            continue
         # Masked again on the way out: entries written before masking on the
         # way in still carry the full GSTIN until the list rotates them out.
-        for lookup in lookups:
-            lookup["gstin"] = _masked_gstin(str(lookup.get("gstin", "")))
-        return {"lookups": lookups}
-    except Exception:  # noqa: BLE001
-        mark_unavailable("recent lookups read failed")
-        return {"lookups": []}
+        lookup["gstin"] = _masked_gstin(str(lookup.get("gstin", "")))
+        lookups.append(lookup)
+    return {"lookups": lookups}
 
 
 # The landing page shows these numbers to anonymous visitors, so they must be
@@ -618,8 +629,8 @@ def usage_stats(db: Session = Depends(get_db)) -> dict[str, int]:
     if client is not None:
         try:
             lookups = int(client.get(_LOOKUP_COUNT_KEY) or 0)
-        except Exception:  # noqa: BLE001
-            mark_unavailable("lookup count read failed")
+        except Exception as exc:  # noqa: BLE001 - the figure is shown as zero
+            report_failure(exc, "lookup count read")
 
     stats = {"businesses": businesses, "invoices": invoices, "gstin_lookups": lookups}
     _stats_cache = (now, stats)
