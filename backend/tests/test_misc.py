@@ -651,6 +651,46 @@ class TestHealthReportsTheOptionalIntegrations:
         assert integrations["email"]["status"] == "disabled"
 
 
+class TestHealthSaysWhenEmailCannotSend:
+    """P36 M6: /health called email "configured" when every send would fail.
+
+    It checked that email was on and SMTP_HOST was set. With SMTP_USERNAME set
+    and SMTP_PASSWORD empty, the startup check already warns that every send
+    fails to authenticate, but /health still said "configured". It also gave
+    "deadline alert emails" as the only thing email drives, leaving out the
+    subscriber reminders and the password-reset link, which has no other way
+    to reach anyone.
+    """
+
+    @pytest.fixture()
+    def smtp(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "alerts_email_enabled", True)
+        monkeypatch.setattr(settings, "smtp_host", "smtp.example.com")
+        monkeypatch.setattr(settings, "smtp_username", "mailer")
+        return settings
+
+    def test_a_login_with_no_password_is_misconfigured(self, client, smtp, monkeypatch):
+        monkeypatch.setattr(smtp, "smtp_password", "")
+        email = client.get("/api/v1/health").json()["checks"]["integrations"]["email"]
+        assert email["status"] == "misconfigured"
+
+    def test_a_complete_login_is_configured(self, client, smtp, monkeypatch):
+        monkeypatch.setattr(smtp, "smtp_password", "app-password")
+        response = client.get("/api/v1/health")
+        assert response.json()["checks"]["integrations"]["email"]["status"] == "configured"
+        assert "app-password" not in response.text
+
+    def test_it_names_every_email_it_carries(self, client):
+        required = client.get("/api/v1/health").json()["checks"]["integrations"]["email"][
+            "required_for"
+        ]
+        joined = " ".join(required)
+        for what in ("alert digest", "deadline reminder", "password-reset"):
+            assert what in joined, required
+
+
 class TestHealthNamesTheRunningRelease:
     """``version`` is a constant, so nothing said which code was answering —
     and an API whose restart failed keeps answering 200 on the old one."""

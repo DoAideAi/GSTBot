@@ -20,6 +20,11 @@ import sys
 # deployment may leave switched off, and /health already says so.
 CORE_CHECKS = ("database", "redis", "storage")
 
+# Except an integration in this state: switched on, and unable to work. Email
+# turned on with no relay, or a login with no password, stops password resets
+# outright, and /health said so for weeks without anything paging.
+BROKEN_INTEGRATION = "misconfigured"
+
 
 def job_problems(doc: object, max_depth: int) -> list[str]:
     if not isinstance(doc, dict):
@@ -55,6 +60,10 @@ def health_problems(doc: object) -> list[str]:
         status = check.get("status") if isinstance(check, dict) else None
         if status != "ok":
             found.append(f"{name} is {status or 'not reported'} according to /health")
+    integrations = checks.get("integrations")
+    for name, integration in (integrations.items() if isinstance(integrations, dict) else ()):
+        if isinstance(integration, dict) and integration.get("status") == BROKEN_INTEGRATION:
+            found.append(f"{name} is switched on but misconfigured according to /health")
     return found
 
 

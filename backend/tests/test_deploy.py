@@ -2189,6 +2189,28 @@ class TestTheMonitorReadsWhatTheHealthEndpointsSay:
         }}
         assert health.health_problems(doc) == ["redis is unavailable according to /health"]
 
+    def test_an_integration_switched_on_but_broken_is_named(self, health):
+        """P36 M6: integrations were skipped as features that may be off.
+
+        "misconfigured" means it is switched on and cannot work: email
+        enabled with no relay, or a login with no password. Password resets
+        stop with it, and /health already said so, but nothing ever paged.
+        "disabled" and "unconfigured" are still supported states.
+        """
+        doc = {"checks": {
+            "database": {"status": "ok"},
+            "redis": {"status": "ok"},
+            "storage": {"status": "ok"},
+            "integrations": {
+                "email": {"status": "misconfigured"},
+                "payments": {"status": "unconfigured"},
+                "advisor": {"status": "configured"},
+            },
+        }}
+        assert health.health_problems(doc) == [
+            "email is switched on but misconfigured according to /health"
+        ]
+
     def test_a_body_that_is_not_json_is_a_problem_not_a_crash(self, health):
         assert health.main(["x", "jobs"], "<html>502</html>")
         assert health.main(["x", "health"], "")

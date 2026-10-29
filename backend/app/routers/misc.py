@@ -124,7 +124,13 @@ def _integrations() -> dict[str, dict[str, Any]]:
     from app.routers import advisor
     from app.services import razorpay_client
 
-    email_ready = bool(settings.alerts_email_enabled and settings.smtp_host)
+    # A login with no password is as broken as no relay: smtplib fails every
+    # send at authentication, which the startup check already warns about.
+    email_ready = bool(
+        settings.alerts_email_enabled
+        and settings.smtp_host
+        and not (settings.smtp_username and not settings.smtp_password)
+    )
     return {
         "advisor": {
             "status": "configured" if advisor.is_configured() else "unconfigured",
@@ -143,7 +149,13 @@ def _integrations() -> dict[str, dict[str, Any]]:
                 if settings.alerts_email_enabled
                 else "disabled"
             ),
-            "required_for": ["deadline alert emails"],
+            # Every email the product sends goes through this switch, and the
+            # last of them has no other way to reach anyone.
+            "required_for": [
+                "alert digest emails",
+                "deadline reminder emails to subscribers",
+                "password-reset links",
+            ],
         },
     }
 
