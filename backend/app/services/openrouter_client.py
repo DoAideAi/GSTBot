@@ -133,11 +133,15 @@ def extract_json_object(raw: str) -> dict[str, Any] | None:
         return None
     try:
         parsed = json.loads(text[start : end + 1])
+        # The reply echoes the uploaded document, so a half-pair escape in it
+        # is the document's, and would be stored on the invoice as written.
+        # Inside the guard: from Python 3.13 json.loads no longer recurses, so
+        # a deeply nested reply parses and the overflow moves into the
+        # recursive encodable() walk — raised past this function on 3.14, where
+        # 3.12 (production today) raised it from json.loads and was caught.
+        return encodable(parsed) if isinstance(parsed, dict) else None
     except (ValueError, TypeError, RecursionError):
         return None
-    # The reply echoes the uploaded document, so a half-pair escape in it is
-    # the document's, and would be stored on the invoice as written.
-    return encodable(parsed) if isinstance(parsed, dict) else None
 
 
 def image_data_url(content: bytes, content_type: str = "image/jpeg") -> str:
