@@ -454,3 +454,62 @@ describe("a browser that will not store anything", () => {
     }
   });
 });
+
+describe("a session changed in another tab", () => {
+  // The token lives in localStorage, which every tab shares, while `user`
+  // lives in each tab's React state. Signing out in one tab left the others
+  // showing the books, and their next request went out with no token — a 401
+  // that, carrying no credential, was not read as the session ending. Signing
+  // in as someone else was worse: this tab went on naming the old login while
+  // every request it made acted on the new one's books.
+  function otherTabWrites(newValue) {
+    const oldValue = localStorage.getItem("gstbot_token");
+    if (newValue === null) localStorage.removeItem("gstbot_token");
+    else localStorage.setItem("gstbot_token", newValue);
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "gstbot_token", oldValue, newValue }),
+    );
+  }
+
+  it("ends this tab's session when another tab signs out", async () => {
+    setToken("stored-token");
+    mockApi();
+    renderWithProvider();
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
+
+    otherTabWrites(null);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("anonymous"),
+    );
+  });
+
+  it("asks who the new token belongs to when another tab signs in as someone else", async () => {
+    setToken("stored-token");
+    mockApi();
+    renderWithProvider();
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
+
+    const calls = mockApi({ me: { ...USER, id: 2, email: "clerk@example.com" } });
+    otherTabWrites("someone-elses-token");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("clerk@example.com"),
+    );
+    expect(calls).toEqual([{ path: "/api/v1/auth/me", method: "GET" }]);
+  });
+
+  it("ignores the other keys a tab writes", async () => {
+    setToken("stored-token");
+    mockApi();
+    renderWithProvider();
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent(USER.email));
+
+    const calls = mockApi();
+    window.dispatchEvent(new StorageEvent("storage", { key: "something_else", newValue: "x" }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(calls).toHaveLength(0);
+    expect(screen.getByTestId("user")).toHaveTextContent(USER.email);
+  });
+});

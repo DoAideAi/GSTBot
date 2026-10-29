@@ -7,6 +7,7 @@ import {
   onUnauthorized,
   setActiveBusinessId,
   setToken,
+  TOKEN_KEY,
 } from "../lib/api";
 
 // Exported for tests, which mount one page at a time and need to say what role
@@ -30,6 +31,27 @@ export function AuthProvider({ children }) {
   // The one screen that could fix it was the one screen unreachable. Clearing
   // the user here is what turns an expired token into a redirect to sign in.
   useEffect(() => onUnauthorized(() => setUser(null)), []);
+
+  // The token is shared by every tab and `user` is not. Signing out in one tab
+  // left the others showing the books, their next request sent with no token
+  // and its 401 — carrying no credential — not read as the session ending.
+  // Signing in as another login was worse: this tab went on naming the old one
+  // while every request it made acted on the new one's books. So a change made
+  // elsewhere is followed here: no token ends the session, a different one is
+  // asked who it belongs to. `key` is null when another tab clears storage.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== TOKEN_KEY && e.key !== null) return;
+      if (!getToken()) {
+        setUser(null);
+        return;
+      }
+      // A refused token ends the session through `onUnauthorized` above.
+      api.me().then(setUser, () => {});
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   // A stored token proves nothing on its own — it may be expired or belong to
   // a deleted user — so the session is confirmed against /auth/me on boot.

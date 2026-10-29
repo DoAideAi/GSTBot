@@ -4,7 +4,8 @@ import { track } from "./track";
 // Stores the JWT in localStorage and attaches it as a Bearer token.
 
 const BASE = "/api/v1";
-const TOKEN_KEY = "gstbot_token";
+// Exported for `useAuth`, which listens for other tabs writing it.
+export const TOKEN_KEY = "gstbot_token";
 const ACTIVE_BUSINESS_KEY = "gstbot_active_business_id";
 
 /**
