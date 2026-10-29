@@ -253,6 +253,33 @@ class TestNoCheckIsHostageToTheCoverageGate:
                 assert "steps.deps.outcome == 'success'" in str(step["if"]), step["name"]
 
 
+class TestNoCheckIsHostageToAnother:
+    """P35 M20: a red Lint step switched the whole backend test suite off.
+
+    The steps after Test were made independent of it (P31 M20), but Test
+    itself still ran only if Lint passed. One lint error in a test file — from
+    a72ef73 on, a nested ``with`` ruff's SIM117 refuses — and the backend's
+    7,800 tests did not run for five commits, while the run read as the same
+    red X as every coverage shortfall before it. Every check after the install
+    runs whatever any other check said; each still fails the job on its own.
+    """
+
+    @pytest.mark.parametrize("name", ["backend", "frontend"])
+    def test_every_check_after_the_install_runs_whatever_the_others_said(self, name, jobs):
+        steps = jobs[name]["steps"]
+        install = next(i for i, step in enumerate(steps) if step.get("id") == "deps")
+        hostage = [
+            step["name"]
+            for step in steps[install + 1:]
+            if "run" in step
+            and not (
+                "!cancelled()" in str(step.get("if", ""))
+                and "steps.deps.outcome == 'success'" in str(step.get("if", ""))
+            )
+        ]
+        assert not hostage, f"skipped whenever an earlier {name} check fails: {hostage}"
+
+
 class TestEveryCommitOnMainGetsAVerdict:
     """P33 M20: one concurrency group per branch, cancelling the run in progress.
 

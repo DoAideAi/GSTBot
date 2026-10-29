@@ -50,9 +50,8 @@ def test_a_probe_that_reports_nothing_is_released_not_lost(breaker, clock):
     _trip(breaker)
     clock["now"] += 61
     assert breaker.allow()
-    with pytest.raises(UnicodeError):
-        with breaker.guard():
-            raise UnicodeError("neither success nor failure")
+    with pytest.raises(UnicodeError), breaker.guard():
+        raise UnicodeError("neither success nor failure")
 
     assert breaker.allow()  # the next caller can probe; the breaker is not wedged
 

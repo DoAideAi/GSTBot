@@ -72,6 +72,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Lint
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         # `tools` is included: it is not deployed, but it is the thing that
         # decides whether the suite's assertions are worth anything, and a
         # mutation tester nobody trusts is a mutation tester nobody runs.
@@ -88,9 +89,13 @@ jobs:
         # what run. It uses os.environ.setdefault, so anything exported here
         # would silently win and change what is under test.
         #
+        # Runs whatever Lint said (P35 M20): gated on Lint, one nested `with`
+        # in a test file stopped the whole suite running for five commits.
+        #
         # --cov-fail-under comes from pyproject. It is a ratchet against tests
         # being deleted or a module arriving with none, not a target to code
         # towards; raise it in the same commit that earns it.
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: pytest --cov=app --cov-report=term-missing --cov-report=xml
 
       - name: Upload coverage
@@ -182,9 +187,11 @@ jobs:
         run: npm ci
 
       - name: Lint
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         run: npm run lint
 
       - name: Test
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         # Thresholds live in vite.config.js, the same ratchet the backend
         # keeps in pyproject.toml. `functions` is deliberately the loosest of
         # the four — see the comment there for why v8 undercounts it on JSX.
