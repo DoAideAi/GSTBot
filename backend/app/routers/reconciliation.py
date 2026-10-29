@@ -70,6 +70,8 @@ _read_limit = RateLimit("reconcile_read", "240/minute")
 # Paying is a handful of calls per report; rendering one is a few hundred
 # milliseconds of CPU per call, which is what the download bucket is sized for.
 _report_order_limit = RateLimit("report_order", "10/minute")
+# As create-order's hourly cap: each order is a Razorpay call.
+_report_order_hour_limit = RateLimit("report_order_hourly", "30/hour")
 _report_verify_limit = RateLimit("report_verify", "10/minute")
 _report_download_limit = RateLimit("report_download", "30/minute")
 
@@ -576,7 +578,11 @@ def _download_path(run_id: int) -> str:
         502: {"description": "Razorpay did not create the order. Safe to retry."},
         503: {"description": "Payment processing is not configured on this server."},
     },
-    dependencies=[Depends(_report_order_limit), Depends(require_writer)],
+    dependencies=[
+        Depends(_report_order_limit),
+        Depends(_report_order_hour_limit),
+        Depends(require_writer),
+    ],
 )
 def purchase_report(
     payload: ReportOrderRequest,

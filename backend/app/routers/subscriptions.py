@@ -42,6 +42,10 @@ router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
 _pricing_limit = RateLimit("pricing", "60/minute", by="ip")
 _order_limit = RateLimit("create_order", "10/minute")
+# Each order is a Razorpay API call holding a worker for up to 15 s, and the
+# per-minute limit alone allowed 600 an hour from one tenant. Nobody checking
+# out needs more than a handful.
+_order_hour_limit = RateLimit("create_order_hourly", "30/hour")
 _verify_limit = RateLimit("verify_payment", "10/minute")
 _cancel_limit = RateLimit("cancel_subscription", "10/minute")
 _usage_limit = RateLimit("usage", "60/minute")
@@ -118,7 +122,7 @@ _TIER_RANK = {SubscriptionTier.FREE: 0, SubscriptionTier.PRO: 1, SubscriptionTie
         502: {"description": "Razorpay did not create the order. Safe to retry."},
         503: {"description": "Payment processing is not configured on this server."},
     },
-    dependencies=[Depends(require_owner), Depends(_order_limit)],
+    dependencies=[Depends(require_owner), Depends(_order_limit), Depends(_order_hour_limit)],
 )
 def create_order(
     payload: CreateOrderRequest,
@@ -285,6 +289,18 @@ def verify_payment(
     # submit another business's paid order, and either became an active
     # subscription. The order says what was bought and for whom — its receipt
     # was written by create_order — so it is what decides.
+    #
+    # A retry of a payment this business already applied is answered from the
+    # ledger first, as report verify does: the checkout handler and a reload
+    # each re-verify, and every one was a Razorpay round trip holding a worker
+    # for an answer that cannot change. The check under the lock below stays
+    # for the first verify racing a second.
+    if (
+        (seen := _applied_payment(db, payload.razorpay_payment_id)) is not None
+        and seen.business_id == business.id
+        and (current := usage_service.get_subscription(db, business.id)) is not None
+    ):
+        return SubscriptionOut.model_validate(current)
     order = _require_order_matches(payload, business)
     holder = db.scalar(
         select(Subscription).where(

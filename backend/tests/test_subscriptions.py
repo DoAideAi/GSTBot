@@ -1868,3 +1868,53 @@ class TestOneOrderBuysOnePeriod:
     def test_a_retry_of_the_applied_payment_is_still_answered(self, auth_client, business):
         assert self._verify(auth_client, business, "pay_one").status_code == 200
         assert self._verify(auth_client, business, "pay_one").status_code == 200
+
+
+class TestBillingCallsAreBounded:
+    """P21 M10: every order is a Razorpay call holding a worker for up to 15 s,
+    and the per-minute limit alone allowed 600 an hour per tenant; and every
+    re-verify of an applied payment fetched the order from Razorpay again."""
+
+    def test_orders_are_capped_per_hour(self, monkeypatch, rate_limited, auth_client):
+        from app.core.ratespec import parse_rate
+        from app.routers import subscriptions as router
+
+        monkeypatch.setattr(router._order_hour_limit, "_rate", parse_rate("2/hour"))
+        with patch.object(razorpay_client, "is_configured", return_value=True), patch.object(
+            razorpay_client,
+            "create_order",
+            return_value={"id": "order_x", "amount": 49900, "currency": "INR"},
+        ):
+            codes = [
+                auth_client.post(
+                    "/api/v1/subscriptions/create-order", json={"tier": "pro"}
+                ).status_code
+                for _ in range(3)
+            ]
+        assert codes == [200, 200, 429]
+
+    def test_the_hourly_caps_are_on_both_order_routes(self):
+        from app.routers import reconciliation, subscriptions
+
+        assert subscriptions._order_hour_limit.rate.label == "30/hour"
+        assert reconciliation._report_order_hour_limit.rate.label == "30/hour"
+
+    def test_a_retried_verify_is_answered_without_asking_razorpay(
+        self, auth_client, business
+    ):
+        body = {
+            "razorpay_order_id": "order_test",
+            "razorpay_payment_id": "pay_retry",
+            "razorpay_signature": "valid_sig",
+            "tier": "pro",
+        }
+        with patch.object(
+            razorpay_client, "verify_payment_signature", return_value=True
+        ), patch.object(
+            razorpay_client, "fetch_order", return_value=_paid_order(business.id, "pro")
+        ) as fetch:
+            first = auth_client.post("/api/v1/subscriptions/verify-payment", json=body)
+            again = auth_client.post("/api/v1/subscriptions/verify-payment", json=body)
+        assert first.status_code == again.status_code == 200
+        assert again.json() == first.json()
+        assert fetch.call_count == 1
