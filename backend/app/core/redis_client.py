@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import threading
 import time
 from typing import Any
 
@@ -45,6 +46,13 @@ _down_until: float = 0.0
 # rather than one per cooldown: this is a supported degraded mode, and a line
 # every 30 seconds is how an operator learns to filter the channel out.
 _reported: bool = False
+# Held by the one thread probing Redis after a cooldown. Every request reaches
+# ``get_redis`` through the rate limiter, and without this they all passed the
+# cooldown check together when it ran out and each opened a connection: a
+# black-holed Redis stalled every request in flight for the connect timeout,
+# every cooldown, and a recovered one got a client per thread, all but the
+# last dropped unclosed. Taken without blocking — see ``get_redis``.
+_probe_lock = threading.Lock()
 
 
 def _now() -> float:
@@ -126,6 +134,27 @@ def get_redis() -> Any | None:
     """
     global _client, _down_until, _reported
 
+    if _client is not None:
+        return _client
+    if _now() < _down_until:
+        return None
+    # One probe at a time. A thread that finds one already running is told
+    # "no Redis" at once, as it would be during the cooldown, rather than
+    # queueing behind a connect that may take the full timeout.
+    if not _probe_lock.acquire(blocking=False):
+        return None
+    try:
+        return _probe()
+    finally:
+        _probe_lock.release()
+
+
+def _probe() -> Any | None:
+    """Connect and ping once; install the client or trip the breaker."""
+    global _client, _down_until, _reported
+
+    # Another thread may have finished a probe between this one's checks and
+    # its taking the lock.
     if _client is not None:
         return _client
     if _now() < _down_until:
