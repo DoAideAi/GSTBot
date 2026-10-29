@@ -34,6 +34,9 @@ from app.core.redis_client import get_redis
 logger = logging.getLogger(__name__)
 
 _HEARTBEAT_PREFIX = "gstbot:job_heartbeat:"
+# When a worker first started watching for each job, written once (NX) at
+# worker start. See :func:`watch_scheduled_jobs`.
+_WATCHED_PREFIX = "gstbot:job_watched_since:"
 
 # How often each scheduled job is supposed to run, named to match the keys in
 # ``celery_app.celery_app.conf.beat_schedule``. Kept here rather than derived
@@ -67,6 +70,33 @@ def record_heartbeat(job_name: str, *, at: datetime | None = None) -> None:
         return
     with contextlib.suppress(Exception):
         client.set(_HEARTBEAT_PREFIX + job_name, (at or datetime.now(UTC)).isoformat())
+
+
+def watch_scheduled_jobs(*, at: datetime | None = None) -> None:
+    """Note when watching began for any job not already being watched. Never raises.
+
+    A job with no heartbeat was stale from the moment it was added: the
+    release that added the daily retention job left /health/jobs "degraded",
+    and the monitor reporting it every quarter hour, until its first 02:45
+    run — a false alarm on every deploy that adds a job. Watching from the
+    worker's start gives a new job one full period to report before silence
+    counts against it; one that still never reports is flagged as before.
+    Called from the worker's ready signal in :mod:`app.celery_app`.
+    """
+    client = get_redis()
+    if client is None:
+        return
+    stamp = (at or datetime.now(UTC)).isoformat()
+    with contextlib.suppress(Exception):
+        for name in JOB_STALE_AFTER_SECONDS:
+            client.set(_WATCHED_PREFIX + name, stamp, nx=True)
+
+
+def _parse(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    moment = datetime.fromisoformat(raw)
+    return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment
 
 
 @dataclass(frozen=True)
@@ -106,11 +136,18 @@ def job_statuses() -> list[JobStatus]:
         if last_run is not None:
             stale = (now - last_run).total_seconds() > stale_after
         elif client is not None:
-            # Redis answers, but this job has never once reported in — its
-            # first tick has not happened yet, or it has been silent since
-            # before this process existed to notice. Either way, worth
-            # flagging rather than reading as "fine, just quiet".
-            stale = True
+            # Redis answers, but this job has never once reported in. Within
+            # one period of a worker starting to watch for it, that is a job
+            # whose first tick has not come yet; past it, or with no record of
+            # watching at all, it is worth flagging rather than reading as
+            # "fine, just quiet".
+            watched_since: datetime | None = None
+            with contextlib.suppress(Exception):
+                watched_since = _parse(client.get(_WATCHED_PREFIX + name))
+            stale = (
+                watched_since is None
+                or (now - watched_since).total_seconds() > stale_after
+            )
         else:
             stale = None
         statuses.append(JobStatus(name=name, last_run=last_run, stale=stale))

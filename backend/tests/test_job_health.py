@@ -33,8 +33,11 @@ class _FakeStore:
     def get(self, key):
         return self.data.get(key)
 
-    def set(self, key, value):
+    def set(self, key, value, nx=False):
+        if nx and key in self.data:
+            return None
         self.data[key] = value
+        return True
 
     def llen(self, key):
         return self.depth
@@ -357,3 +360,51 @@ class TestANaiveHeartbeat:
 
         statuses = job_health.job_statuses()
         assert all(s.stale is False and s.last_run.tzinfo is not None for s in statuses)
+
+
+class TestANewJobGetsOnePeriodBeforeSilenceCounts:
+    """P24 M16: the release that added the daily retention job left
+    /health/jobs degraded, and the monitor reporting it every 15 minutes,
+    until its first run at 02:45: a job with no heartbeat was stale the
+    moment it was added."""
+
+    def test_within_its_first_period_a_watched_job_is_not_stale(self, monkeypatch):
+        from datetime import UTC, datetime, timedelta
+
+        store = _FakeStore()
+        monkeypatch.setattr(job_health, "get_redis", lambda: store)
+        job_health.watch_scheduled_jobs(at=datetime.now(UTC) - timedelta(hours=1))
+
+        statuses = {s.name: s for s in job_health.job_statuses()}
+        daily = statuses["filing-deadline-sweep"]
+        assert daily.last_run is None and daily.stale is False
+        # An hourly job watched for an hour is not yet overdue either (90 min).
+        assert statuses["stalled-parse-sweep"].stale is False
+
+    def test_past_its_period_silence_is_flagged_as_before(self, monkeypatch):
+        from datetime import UTC, datetime, timedelta
+
+        store = _FakeStore()
+        monkeypatch.setattr(job_health, "get_redis", lambda: store)
+        job_health.watch_scheduled_jobs(at=datetime.now(UTC) - timedelta(hours=27))
+
+        assert all(s.stale is True for s in job_health.job_statuses())
+
+    def test_a_later_worker_start_does_not_restart_the_clock(self, monkeypatch):
+        from datetime import UTC, datetime, timedelta
+
+        store = _FakeStore()
+        monkeypatch.setattr(job_health, "get_redis", lambda: store)
+        job_health.watch_scheduled_jobs(at=datetime.now(UTC) - timedelta(hours=27))
+        job_health.watch_scheduled_jobs()  # a restart must not buy more grace
+
+        statuses = {s.name: s for s in job_health.job_statuses()}
+        assert statuses["filing-deadline-sweep"].stale is True
+
+    def test_the_worker_starts_watching_when_it_is_ready(self, monkeypatch):
+        from app import celery_app as celery_module
+
+        called = []
+        monkeypatch.setattr(job_health, "watch_scheduled_jobs", lambda: called.append(True))
+        celery_module._watch_scheduled_jobs()
+        assert called == [True]
