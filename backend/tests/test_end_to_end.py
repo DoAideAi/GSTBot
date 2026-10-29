@@ -1992,3 +1992,119 @@ class TestALockedPdfThenTheUnlockedCopy:
         assert client.delete(f"/api/v1/invoices/{locked_id}").status_code == 204
         listed = [item["id"] for item in client.get("/api/v1/invoices").json()["items"]]
         assert listed == [row.id]
+
+
+class TestASupplierCorrectionArrivesAsCsv:
+    """P18 M20: the same renumbered-amendment journey as above, but the 2B
+    comes as the portal's CSV export, where the original number sits in an
+    "Original Invoice number" column. That column was not read until P18."""
+
+    def test_the_csv_correction_matches_the_booked_original(
+        self, signed_in, db_session, stub_openrouter
+    ):
+        client = signed_in
+        takes_the_pro_plan(db_session)
+        upload(
+            client,
+            stub_openrouter,
+            text=PURCHASE_TEXT.replace("15/04/2026", "15/03/2026"),
+            extraction=dict(PURCHASE_EXTRACTION, invoice_date="2026-03-15"),
+            invoice_type="purchase",
+            name="northwind-march.txt",
+        )
+        csv_body = (
+            "GSTIN of supplier,Trade/Legal name,Original Invoice number,Original Invoice date,"
+            "Invoice number,Invoice Date,Invoice Value,Place of supply,Rate,Taxable Value,"
+            "Integrated Tax\n"
+            f"{SUPPLIER_GSTIN_OTHER_STATE},Northwind,INV-2026-0042,15/03/2026,"
+            "INV-2026-0042-R1,15/04/2026,531000,27,18,450000,81000\n"
+        ).encode()
+        imported = client.post(
+            "/api/v1/reconciliation/gstr2b/import",
+            files={"file": ("gstr2b-042026.csv", csv_body, "text/csv")},
+            data={"period": PERIOD},
+        )
+        assert imported.status_code == 201, imported.text
+
+        run = reconcile(client, PERIOD)
+        assert run["missing_in_books_count"] == 0
+        report = client.get(f"/api/v1/reconciliation/{run['id']}").json()["report"]
+        (finding,) = report["findings"]
+        assert (finding["category"], finding["matched_on"]) == ("matched", "amended")
+
+
+class TestAnUploadWhoseQueuedParseWasLost:
+    """P18 M20: the broker loses the upload's parse task (Redis restarted
+    between snapshots). Before P18 the invoice sat 'uploaded' for ever — out of
+    the return and the credit pool, with nothing saying so. The hourly sweep
+    now queues it again once the queue is empty, and it reaches the books."""
+
+    def test_the_sweep_brings_it_into_the_return(
+        self, signed_in, db_session, stub_openrouter, monkeypatch
+    ):
+        from datetime import UTC, datetime, timedelta
+        from types import SimpleNamespace
+
+        from sqlalchemy import update
+
+        from app.core.config import settings
+        from app.models.invoice import Invoice
+        from app.tasks import invoice_tasks
+
+        client = signed_in
+        takes_the_pro_plan(db_session)
+
+        # Queued with a working broker — and then the message is lost.
+        monkeypatch.setattr(settings, "celery_enabled", True)
+        monkeypatch.setattr(invoice_tasks.parse_invoice_task, "delay", lambda _id: None)
+        stub_openrouter.update(PURCHASE_EXTRACTION)
+        response = client.post(
+            "/api/v1/invoices/upload",
+            files={
+                "file": ("northwind-0042.txt", io.BytesIO(PURCHASE_TEXT.encode()), "text/plain")
+            },
+            data={"invoice_type": "purchase"},
+        )
+        assert response.status_code == 201, response.text
+        invoice_id = response.json()["invoice"]["id"]
+        assert response.json()["invoice"]["status"] == "uploaded"
+
+        def purchase_igst() -> Decimal:
+            # The period's purchase register as the dashboard totals it: an
+            # unread ('uploaded') invoice is not in it.
+            dashboard = client.get("/api/v1/dashboard", params={"period": PERIOD}).json()
+            return money(dashboard["purchase"]["igst"])
+
+        # An hour later, nothing has moved it, and its credit is nowhere.
+        db_session.execute(
+            update(Invoice)
+            .where(Invoice.id == invoice_id)
+            .values(updated_at=datetime.now(UTC) - timedelta(hours=2))
+        )
+        db_session.commit()
+        assert purchase_igst() == Decimal("0.00")
+
+        # The sweep, with the queue drained: it requeues, and a worker parses.
+        class _Handle:
+            def __getattr__(self, name):
+                return getattr(db_session, name)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(invoice_tasks, "SessionLocal", _Handle)
+        monkeypatch.setattr(
+            invoice_tasks.job_health,
+            "queue_status",
+            lambda: SimpleNamespace(reachable=True, depth=0),
+        )
+        monkeypatch.setattr(
+            invoice_tasks.parse_invoice_task,
+            "delay",
+            lambda _id: invoice_tasks.parse_invoice_task(_id),
+        )
+        assert invoice_tasks.reap_stalled_parses_task()["requeued"] == 1
+
+        db_session.expire_all()
+        assert client.get(f"/api/v1/invoices/{invoice_id}").json()["status"] == "parsed"
+        assert purchase_igst() == Decimal("81000.00")
