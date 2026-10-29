@@ -1467,6 +1467,47 @@ def test_reparse_rejects_processing_invoice(auth_client, db_session, sample_invo
     assert "currently being processed" in response.json()["detail"]
 
 
+class TestReparseHasADailyCeiling:
+    """P36 M3: reparse could run the model all day, outside any plan.
+
+    Re-extraction is the same model call an upload makes, with none of the
+    plan accounting. Its only limit was 20 a minute, which is 28,800 a day for
+    one signed-in user on the free plan, whose uploads stop at 50 a month.
+    Extraction runs on OpenRouter's free models, whose quota is shared across
+    the whole account, so one user clicking reparse in a loop could use up
+    extraction for every other business's uploads.
+    """
+
+    @pytest.fixture()
+    def tight(self, monkeypatch, rate_limited):
+        from app.core.ratespec import parse_rate
+        from app.routers import invoices as invoices_router
+
+        monkeypatch.setattr(invoices_router._reparse_daily, "_rate", parse_rate("2/day"))
+
+    def test_a_user_runs_out_of_reparses_for_the_day(
+        self, auth_client, sample_invoice_text, tight
+    ):
+        invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]
+        for _ in range(2):
+            assert auth_client.post(f"/api/v1/invoices/{invoice_id}/reparse").status_code == 200
+
+        refused = auth_client.post(f"/api/v1/invoices/{invoice_id}/reparse")
+
+        assert refused.status_code == 429
+        assert "today" in refused.json()["detail"]
+        assert "Retry-After" in refused.headers
+
+    def test_the_daily_ceiling_is_a_day_and_well_under_the_minute_rate_times_a_day(self):
+        from app.routers import invoices as invoices_router
+
+        daily = invoices_router._reparse_daily.rate
+        minute = invoices_router._reparse_limit.rate
+        assert daily.window == 86_400
+        assert daily.limit <= 200
+        assert daily.limit < minute.limit * (86_400 // minute.window)
+
+
 def test_delete_is_soft(auth_client, db_session, sample_invoice_text):
     """The row survives: a filing can be reopened during an assessment."""
     invoice_id = upload(auth_client, sample_invoice_text).json()["invoice"]["id"]

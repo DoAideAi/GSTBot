@@ -59,6 +59,19 @@ _upload_limit = RateLimit("invoice_upload", "60/minute")
 # Re-extraction is the same model call with none of the plan accounting, so it
 # gets the tighter budget of the two.
 _reparse_limit = RateLimit("invoice_reparse", "20/minute")
+# And a day's worth, because a minute's budget is not a ceiling: 20 a minute is
+# 28,800 a day for one user, where the free plan uploads 50 a month. The model
+# behind extraction runs on a quota shared by every business, so one user
+# reparsing in a loop starved everyone's uploads. A hundred is several passes
+# over a busy month's corrections.
+_reparse_daily = RateLimit(
+    "invoice_reparse_daily",
+    "100/day",
+    detail=(
+        "You have re-read as many invoices as you can today. It resets within 24 "
+        "hours; correcting a field by hand still works in the meantime."
+    ),
+)
 _read_limit = RateLimit("invoice_read", "240/minute")
 _write_limit = RateLimit("invoice_write", "120/minute")
 
@@ -968,8 +981,9 @@ def update_invoice(
     responses={
         404: {"description": "No such invoice in this tenant."},
         409: {"description": "The invoice is a duplicate or currently being processed."},
+        429: {"description": "More than 20 reparses in a minute, or 100 in a day."},
     },
-    dependencies=[Depends(_reparse_limit), Depends(require_writer)],
+    dependencies=[Depends(_reparse_limit), Depends(_reparse_daily), Depends(require_writer)],
 )
 def reparse_invoice(
     invoice_id: RowId,
