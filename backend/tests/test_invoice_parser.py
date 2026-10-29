@@ -15,6 +15,7 @@ from app.services.invoice_parser import (
     parse_invoice,
     to_date,
     to_decimal,
+    to_money,
     validate,
 )
 from app.services.openrouter_client import OpenRouterError, extract_json_object
@@ -1441,6 +1442,56 @@ class TestANegativeAmountNeverReachesTheRow:
         assert parsed.invoice_number == "MH/2026/119"
         assert parsed.igst == ZERO
         assert "Discarded a negative igst: -9000.00" in parsed.warnings
+
+
+class TestAccountingNegativesAreNegatives:
+    """P34 M2: only "-9,000.00" was recognised as negative.
+
+    Accounting exports write a negative as "(9,000.00)" and Tally prints one
+    as "9,000.00-". Both were read as +9,000: the guard above never saw them,
+    so a credit note in either notation was stored as a positive invoice —
+    output tax on a sale that was reversed, input credit on a purchase that
+    was returned — with no warning and no loss of confidence to send it to a
+    reviewer. They are negatives now, and the guard zeroes and names them.
+    """
+
+    @pytest.mark.parametrize("figure", ["(9,000.00)", "9,000.00-", "( 9,000.00 )"])
+    def test_the_model_path_reads_the_sign(self, figure):
+        assert to_money(figure) == Decimal("-9000.00")
+
+    @pytest.mark.parametrize("figure", ["9,000.00", "Rs. 9,000.00", "₹ 9,000.00"])
+    def test_an_ordinary_amount_is_unchanged(self, figure):
+        assert to_money(figure) == Decimal("9000.00")
+
+    @pytest.mark.parametrize(
+        "line", ["IGST @ 18% (9,000.00)", "IGST @ 18% 9,000.00-"]
+    )
+    def test_the_heuristic_tax_line_reads_the_sign(self, line):
+        raw = parse_heuristic(f"TAX INVOICE\nTaxable Value: 50,000.00\n{line}\n")
+        assert raw.igst == Decimal("-9000.00")
+
+    @pytest.mark.parametrize("figure", ["(50,000.00)", "50,000.00-"])
+    def test_the_heuristic_labelled_amount_reads_the_sign(self, figure):
+        raw = parse_heuristic(f"TAX INVOICE\nTaxable Value: {figure}\n")
+        assert raw.taxable_value == Decimal("-50000.00")
+
+    def test_a_tally_credit_note_is_flagged_not_filed(self):
+        parsed = parse_invoice(
+            text=(
+                f"CREDIT NOTE\nGSTIN: {SUPPLIER_GSTIN_SAME_STATE}\n"
+                "Invoice No: CN/2026/7\nInvoice Date: 02/05/2026\n"
+                "Taxable Value: 50,000.00-\nIGST @ 18% 9,000.00-\n"
+                "Grand Total: 59,000.00-\n"
+            )
+        )
+
+        assert (parsed.taxable_value, parsed.igst, parsed.total_value) == (ZERO, ZERO, ZERO)
+        assert "Discarded a negative igst: -9000.00" in parsed.warnings
+
+    def test_a_hyphen_between_label_and_amount_is_still_punctuation(self):
+        # "Total - 5,000.00" reads as before; only a minus *on* the figure counts.
+        raw = parse_heuristic("TAX INVOICE\nTaxable Value - 5,000.00\n")
+        assert raw.taxable_value == Decimal("5000.00")
 
 
 class TestAPartlyReadAmountIsNotStored:

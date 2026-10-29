@@ -124,6 +124,25 @@ _MONEY_FIGURE = re.compile(r"-?\d[\d,]*\.\d{1,2}|-?\d{1,3}(?:,\d{2,3})+")
 _JOINED_TO_DIGITS = re.compile(r"[./]\d")
 
 
+# The two other ways an amount is printed negative. "(9,000.00)" is how an
+# accounting export writes one and "9,000.00-" is how Tally prints one; only
+# "-9,000.00" was recognised, so both were read as positive and a credit note
+# in either notation was stored as an invoice — past the guard in ``validate``
+# that exists to stop a negative reaching the row. A minus after a *space* is
+# not taken: on a line of columns that is as likely a separator as a sign.
+def _accounting_negative(text: str, start: int, end: int) -> bool:
+    """Whether the figure at ``text[start:end]`` is printed as a negative."""
+    before = text[:start].rstrip(" ")
+    after = text[end:]
+    if before.endswith("(") and after.lstrip(" ").startswith(")"):
+        return True
+    return after.startswith("-") and not after[1:2].isdigit()
+
+
+def _signed(figure: str, negative: bool) -> str:
+    return "-" + figure.lstrip("-") if negative else figure
+
+
 def _money_figures_in(text: str) -> list[str]:
     """The money-shaped figures in *text*, minus the ones inside a date.
 
@@ -131,7 +150,7 @@ def _money_figures_in(text: str) -> list[str]:
     :data:`_JOINED_TO_DIGITS` for what disqualifies a match that is.
     """
     return [
-        match.group()
+        _signed(match.group(), _accounting_negative(text, match.start(), match.end()))
         for match in _MONEY_FIGURE.finditer(text)
         if not _JOINED_TO_DIGITS.match(text, match.end())
     ]
@@ -303,7 +322,15 @@ def to_decimal(value: object, default: Decimal | None = Decimal("0.00")) -> Deci
         return coerced if coerced.is_finite() else default
     # Match the number rather than stripping non-digits: stripping leaves the
     # full stop in "Rs. 1000.50" behind, and ".1000.50" is not a Decimal.
-    text = str(value)
+    text = str(value).strip()
+    # The accounting notations, for a value that is nothing but a figure — a
+    # model's JSON or a spreadsheet cell; see :func:`_accounting_negative`.
+    wrapped = text.startswith("(") and text.endswith(")")
+    if wrapped:
+        text = text[1:-1].strip()
+    trailing = text.endswith("-") and not text.startswith("-")
+    if trailing:
+        text = text[:-1].rstrip()
     match = _FULL_NUMBER.search(text)
     if match is None:
         return default
@@ -312,9 +339,10 @@ def to_decimal(value: object, default: Decimal | None = Decimal("0.00")) -> Deci
     if _EXPONENT_SUFFIX.match(text, match.end()) or _TRAILING_GROUP.match(text, match.end()):
         return default
     try:
-        return Decimal(match.group(0).replace(",", ""))
+        number = Decimal(match.group(0).replace(",", ""))
     except InvalidOperation:
         return default
+    return -abs(number) if wrapped or trailing else number
 
 
 def to_money(value: object, default: Decimal | None = Decimal("0.00")) -> Decimal | None:
@@ -1007,7 +1035,8 @@ _TAXABLE_PATTERN = re.compile(
     rf"|sub{_SAME_LINE_SPACE}*-?{_SAME_LINE_SPACE}*total"
     rf"|net{_SAME_LINE_SPACE}*amount)"
     rf"{_SAME_LINE_SPACE}*[:.\-]?{_SAME_LINE_SPACE}*"
-    rf"(?:INR|Rs\.?|₹)?{_SAME_LINE_SPACE}*{_AMOUNT}",
+    # An opening parenthesis may stand before the figure: see _accounting_negative.
+    rf"(?:INR|Rs\.?|₹)?{_SAME_LINE_SPACE}*\(?{_SAME_LINE_SPACE}*{_AMOUNT}",
     re.IGNORECASE,
 )
 
@@ -1043,7 +1072,8 @@ _TOTAL_PATTERN = re.compile(
     rf"|invoice{_SAME_LINE_SPACE}*total"
     rf"|net{_SAME_LINE_SPACE}*payable|^[ \t]*total)"
     rf"{_SAME_LINE_SPACE}*[:.\-]?{_SAME_LINE_SPACE}*"
-    rf"(?:INR|Rs\.?|₹)?{_SAME_LINE_SPACE}*{_AMOUNT}",
+    # An opening parenthesis may stand before the figure: see _accounting_negative.
+    rf"(?:INR|Rs\.?|₹)?{_SAME_LINE_SPACE}*\(?{_SAME_LINE_SPACE}*{_AMOUNT}",
     re.IGNORECASE | re.MULTILINE,
 )
 _HSN_PATTERN = re.compile(r"\b(?:HSN|SAC)(?:\s*/\s*SAC)?\s*(?:code)?\s*[:.\-]?\s*(\d{4,8})\b",
@@ -1186,6 +1216,8 @@ def _labelled_amount(pattern: re.Pattern[str], text: str) -> tuple[Decimal | Non
         # Enough of the line to show a reviewer what the page actually held.
         seen = text[match.start(1):match.start(1) + 24].splitlines()[0].strip()
         return None, seen
+    if _accounting_negative(text, match.start(1), match.end(1)):
+        figure = _signed(figure, True)
     return to_money(figure, default=None), figure
 # "Whether the tax is payable on reverse charge basis" is required on the face
 # of every tax invoice by rule 46(p), so the answer is printed on essentially
