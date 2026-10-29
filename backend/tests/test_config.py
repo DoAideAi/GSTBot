@@ -19,6 +19,8 @@ PROD = {
     "debug": False,
     "jwt_secret": "a-genuinely-long-random-production-secret-value-here",
     "backend_cors_origins": "https://app.example.com",
+    # The site the origins above belong to; a clean config names its own.
+    "public_site_url": "https://app.example.com",
     "database_url": "postgresql+psycopg://u:p@db:5432/gstbot",
     # Stated rather than left to the default, because conftest exports
     # BCRYPT_ROUNDS=4 for the whole suite and Settings reads the environment
@@ -279,6 +281,32 @@ class TestStartupWarnings:
     def test_production_without_rate_limiting_warns(self):
         warnings = validate_startup_config(Settings(**prod(rate_limit_enabled=False)))
         assert any("RATE_LIMIT_ENABLED" in w for w in warnings)
+
+    def test_cors_origins_left_from_an_earlier_domain_warn(self):
+        """P23 M16: production allowed only the product's previous domain to
+        call the API with credentials, and the site's own origin was absent;
+        nothing broke, so nothing said so."""
+        warnings = validate_startup_config(
+            Settings(
+                **prod(
+                    backend_cors_origins="https://gstbot.aiknol.com",
+                    public_site_url="https://gst.doaide.com",
+                )
+            )
+        )
+        (warning,) = [w for w in warnings if "BACKEND_CORS_ORIGINS" in w]
+        assert "https://gstbot.aiknol.com" in warning and "https://gst.doaide.com" in warning
+
+    def test_cors_origins_that_include_the_site_do_not_warn(self):
+        warnings = validate_startup_config(
+            Settings(
+                **prod(
+                    backend_cors_origins="https://gst.doaide.com,https://partner.example.com",
+                    public_site_url="https://gst.doaide.com/",
+                )
+            )
+        )
+        assert not [w for w in warnings if "BACKEND_CORS_ORIGINS" in w]
 
     def test_production_with_public_docs_warns(self):
         warnings = validate_startup_config(Settings(**prod(docs_enabled=True)))

@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 import warnings
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -699,6 +700,18 @@ def validate_startup_config(settings_obj: Settings | None = None) -> list[str]:
             )
         if current.docs_enabled:
             found.append("DOCS_ENABLED is true in production; the schema is public at /docs.")
+        # The shape a stale list takes after a domain move: the site's own
+        # origin missing from the origins allowed to call the API with
+        # credentials. On 2026-10-29 production allowed only the product's
+        # previous domain, and nothing said so — the site itself is same-origin
+        # and never needs the entry, so nothing broke to draw attention to it.
+        site = "://".join(urlsplit(current.public_site_url)[:2])
+        if current.cors_origins and site not in current.cors_origins:
+            found.append(
+                f"BACKEND_CORS_ORIGINS ({', '.join(current.cors_origins)}) does not include "
+                f"PUBLIC_SITE_URL's origin {site}. Every origin listed there may call the "
+                "API with credentials; one left from an earlier domain should be replaced."
+            )
     elif current.jwt_secret == _DEFAULT_JWT_SECRET:
         found.append(
             "JWT_SECRET is the sample value. Fine locally; a deployment with "
