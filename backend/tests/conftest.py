@@ -144,6 +144,21 @@ def client(db_session):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def _openrouter_breaker_closed():
+    """Every test starts with the model provider's breaker closed.
+
+    It is process state: a test that fails three model calls on purpose would
+    otherwise open it for every test after, which would then never reach the
+    transport they script.
+    """
+    from app.services import openrouter_client
+
+    openrouter_client.reset_breaker()
+    yield
+    openrouter_client.reset_breaker()
+
+
 @pytest.fixture()
 def production_error_handling():
     """Run against the app's own error handling, the way it is deployed.
