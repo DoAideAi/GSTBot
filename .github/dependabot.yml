@@ -1,11 +1,15 @@
 # Automated dependency updates.
 #
-# This exists because of how the dependencies are written rather than in spite
-# of it. `requirements.txt` pins floors (`fastapi>=0.115`), so a rebuild picks
-# up whatever has been published since — the version that ships is decided by
-# the clock, not by the repository. npm is the opposite: `package-lock.json`
-# pins exactly, so the frontend never moves at all until somebody moves it, and
-# an advisory against a locked version sits there indefinitely.
+# Both halves ship exact pins: `backend/requirements.lock` and
+# `frontend/package-lock.json`. Nothing moves until somebody moves it, and an
+# advisory against a locked version sits there indefinitely.
+#
+# On the backend this only raises the floors in `requirements.txt`. It cannot
+# re-lock (the lock is uv-compiled), so its pull requests stay red in
+# tests/test_requirements.py until someone re-locks them with the command in the
+# lock's header. That is deliberate: a merged floor the lock doesn't meet would
+# ship nothing. It also never sees a transitive pin. That is what
+# workflows/audit.yml is for: it audits the lock itself, weekly.
 #
 # Both failure modes are the same thing from CI's point of view: nobody is
 # looking. A pull request per update puts the change in front of the full suite

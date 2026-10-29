@@ -1,0 +1,60 @@
+# Known advisories against what a release actually installs.
+#
+# Releases install backend/requirements.lock: about seventy exact pins, most of
+# them transitive. Dependabot watches the floors in requirements.txt, so an
+# advisory against a pin only the lock names (starlette, urllib3, h11) raises
+# no pull request at all. Every advisory fixed so far was found by someone
+# running this by hand.
+#
+# A schedule, not a pull-request check, for the reason .github/dependabot.yml
+# gives: an advisory can be published against code nobody touched, and a gate
+# that turns unrelated work red teaches people to merge past it. A red run here
+# is the report, and re-locking (the command is in requirements.lock's header)
+# is the fix.
+name: Dependency audit
+
+on:
+  schedule:
+    # Mondays, after Dependabot's run, so its pull requests are already open.
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Audit requirements.lock
+        working-directory: backend
+        # --require-hashes and --no-deps read the lock exactly as written,
+        # with nothing resolved: what deploy.sh installs, not what PyPI would
+        # pick today. Pinned so the verdict only moves when an advisory does.
+        run: |
+          python -m pip install pip-audit==2.10.1
+          pip-audit --require-hashes --no-deps --disable-pip -r requirements.lock
+
+  frontend:
+    name: Frontend packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit what the build ships
+        working-directory: frontend
+        # From package-lock.json alone, so nothing is installed. Dev-only
+        # packages (vitest, eslint) never reach a browser, so they are left
+        # to Dependabot rather than reported here.
+        run: npm audit --omit=dev --audit-level=moderate

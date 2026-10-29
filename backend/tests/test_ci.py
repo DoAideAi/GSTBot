@@ -574,3 +574,46 @@ def _thresholds_block(vite: str) -> str:
     match = re.search(r"thresholds: \{([^}]*)\}", vite)
     assert match is not None, "vite.config.js has no coverage thresholds block"
     return match.group(1)
+
+
+class TestWhatShipsIsAuditedOnASchedule:
+    """P37 M11: nothing automated audited the versions a release installs.
+
+    Releases install ``requirements.lock``, about seventy exact pins, most of
+    them transitive. Dependabot watches the floors in ``requirements.txt``,
+    so an advisory against a pin only the lock names (starlette, urllib3, h11)
+    raised no pull request, and this repository's Dependabot alerts are off.
+    Every advisory fixed so far, 27 on pypdf and six on authlib, was found by
+    someone running an audit by hand. It runs weekly rather than on pull
+    requests, for the reason ``.github/dependabot.yml`` gives: an advisory
+    published against code nobody touched must not turn unrelated work red.
+    """
+
+    AUDIT = REPO_ROOT / ".github" / "workflows" / "audit.yml"
+
+    @pytest.fixture(scope="class")
+    def audit(self) -> dict:
+        assert self.AUDIT.exists(), "no scheduled dependency audit"
+        return yaml.safe_load(self.AUDIT.read_text())
+
+    def test_it_runs_weekly_and_on_demand_but_never_gates_a_pull_request(self, audit):
+        on = triggers(audit)
+        assert on["schedule"][0]["cron"]
+        assert "workflow_dispatch" in on
+        assert "pull_request" not in on and "push" not in on
+
+    def test_it_audits_the_lock_a_release_installs_not_the_floors(self, audit):
+        run = "\n".join(commands(job) for job in audit["jobs"].values())
+        assert "pip-audit" in run
+        assert "requirements.lock" in run
+        assert "--require-hashes" in run
+        assert "requirements.txt" not in run
+
+    def test_it_audits_the_frontend_packages_that_ship(self, audit):
+        run = "\n".join(commands(job) for job in audit["jobs"].values())
+        assert "npm audit" in run and "--omit=dev" in run
+
+    def test_the_auditor_itself_is_pinned(self, audit):
+        # A floating auditor can change its verdict without the lock moving.
+        run = "\n".join(commands(job) for job in audit["jobs"].values())
+        assert re.search(r"pip-audit==\d+\.\d+\.\d+", run), run
