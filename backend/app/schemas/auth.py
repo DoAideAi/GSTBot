@@ -29,6 +29,16 @@ _COMMON_PASSWORDS = frozenset(
 )
 
 
+class GoogleAccountLinkRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+    csrf_token: str = Field(min_length=1, max_length=128)
+
+
+class GoogleAccountLinkStatus(BaseModel):
+    email: EmailStr
+    csrf_token: str
+
+
 class BusinessOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

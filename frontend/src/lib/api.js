@@ -460,6 +460,16 @@ const FIELD_ACRONYMS = new Set(["gst", "gstin", "hsn", "sac", "pan", "arn", "itc
 
 export const api = {
   // ---- Auth ----
+  googleLinkStatus: () => request("/auth/google/link", { auth: false }),
+
+  async linkGoogle(password, csrfToken) {
+    const data = await request("/auth/google/link", {
+      method: "POST", body: { password, csrf_token: csrfToken }, auth: false,
+    });
+    beginSession(data.access_token);
+    return data;
+  },
+
   async login(email, password) {
     // The token endpoint is OAuth2 password flow, so it takes form fields and
     // calls the email "username".

@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,6 +16,8 @@ from app.core.rate_limit import RateLimit
 from app.core.security import create_access_token
 from app.models.business import Business, BusinessPlan
 from app.models.user import User, UserRole
+from app.schemas.auth import GoogleAccountLinkRequest, GoogleAccountLinkStatus, Token
+from app.services import google_account_link
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,7 @@ if settings.microsoft_client_id:
 
 _oauth_initiate_limit = RateLimit("oauth_initiate", "30/minute", by="ip")
 _oauth_callback_limit = RateLimit("oauth_callback", "30/minute", by="ip")
+_oauth_link_limit = RateLimit("oauth_link", "5/minute", by="ip")
 
 # What these six routes answer, for the spec. Each one *redirects* — to the
 # provider, or back into the app with a token or an error code — and the spec
@@ -198,7 +201,8 @@ def _find_or_create_oauth_user(
             # does any membership it was used to grant. Refused rather than
             # merged, because either side of a merge would be someone else's
             # data. An owner who registered with a password signs in with it;
-            # the login page says so for this refusal.
+            # Google can instead offer explicit linking after the owner proves
+            # this account's password too; this helper never merges it by email.
             #
             # Only Microsoft-created accounts with no password were refused
             # here, on the premise that a password account "proved its address
@@ -298,6 +302,7 @@ def providers() -> dict[str, list[str]]:
     **_LOGIN_REDIRECT,
 )
 async def google_login(request: Request):
+    request.session.pop(google_account_link.SESSION_KEY, None)
     return await _start_login(request, "google")
 
 
@@ -307,7 +312,8 @@ async def google_login(request: Request):
     description=(
         "Exchanges Google's authorization code for a token, resolves the user "
         "(creating an account if needed), and redirects into the app with a "
-        "bearer token in the URL fragment. On failure, redirects to `/login?error=…`."
+        "bearer token in the URL fragment. Existing password accounts confirm their "
+        "password at `/auth/link-google` first. On failure, redirects to `/login?error=…`."
     ),
     dependencies=[Depends(_oauth_callback_limit)],
     **_CALLBACK_REDIRECT,
@@ -336,9 +342,44 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         oauth_id=oauth_id,
         email=email.lower(),
         name=userinfo.get("name"),
-        email_verified=bool(userinfo.get("email_verified")),
+        email_verified=userinfo.get("email_verified") is True,
     )
+    if user is None and userinfo.get("email_verified") is True:
+        existing = db.scalar(select(User).where(User.email == email.lower()))
+        if existing is not None and google_account_link.eligible(existing):
+            google_account_link.begin(request, existing, oauth_id)
+            return RedirectResponse(f"{settings.frontend_origin}/auth/link-google")
+        if existing is not None and existing.is_active:
+            return _login_error("account_link_required")
     return _complete_oauth_login(user, "google")
+
+
+@router.get(
+    "/google/link", response_model=GoogleAccountLinkStatus,
+    summary="Read the pending Google account link in this browser",
+    dependencies=[Depends(_oauth_initiate_limit)],
+)
+def google_link_status(request: Request, response: Response, db: Session = Depends(get_db)):
+    response.headers["Cache-Control"] = "no-store"
+    user, proof = google_account_link.pending(request, db)
+    return GoogleAccountLinkStatus(email=user.email, csrf_token=proof["csrf_token"])
+
+
+@router.post(
+    "/google/link", response_model=Token,
+    summary="Link verified Google sign-in after confirming the existing password",
+    dependencies=[Depends(_oauth_link_limit)],
+)
+def complete_google_link(
+    body: GoogleAccountLinkRequest, request: Request, response: Response,
+    db: Session = Depends(get_db),
+):
+    response.headers["Cache-Control"] = "no-store"
+    user = google_account_link.complete(request, db, body.password, body.csrf_token)
+    logger.info(
+        "Google account linked", extra={"user_id": user.id, "business_id": user.business_id},
+    )
+    return Token(access_token=create_access_token(user.id))
 
 
 # ── GitHub ────────────────────────────────────────────────

@@ -497,6 +497,8 @@ UNGATED_MUTATIONS = {
     # proof of who is asking, as the password is at login.
     "/api/v1/auth/forgot-password",
     "/api/v1/auth/reset-password",
+    # Connect one's own login by proving Google and the existing password.
+    "/api/v1/auth/google/link",
     # These two manage *this login's* access, not any business's books. They
     # resolve through ``get_current_user`` and never through a tenant, and
     # linking is proven by the other account's own password — a role on some

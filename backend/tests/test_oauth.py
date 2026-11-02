@@ -727,4 +727,12 @@ def _squat_then_sign_in(client, monkeypatch, oauth_router):
 
     assert resp.status_code in (302, 307)
     assert "token=" not in resp.headers["location"]
-    assert "/login?error=" in resp.headers["location"]
+    assert "/auth/link-google" in resp.headers["location"]
+    # Google proof alone cannot open the squatter's books. Linking requires
+    # the password too, which the legitimate Google owner does not possess.
+    pending = client.get("/api/v1/auth/google/link").json()
+    refused = client.post("/api/v1/auth/google/link", json={
+        "password": "owners-own-password", "csrf_token": pending["csrf_token"],
+    })
+    assert refused.status_code == 400
+    assert "access_token" not in refused.json()

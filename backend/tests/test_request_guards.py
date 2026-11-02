@@ -118,6 +118,8 @@ class TestSetOffNeedsAToken:
             # OAuth SSO — redirects to provider, no token needed.
             "/api/v1/auth/google",
             "/api/v1/auth/google/callback",
+            # Requires browser-bound Google proof and the existing password.
+            "/api/v1/auth/google/link",
             "/api/v1/auth/github",
             "/api/v1/auth/github/callback",
             "/api/v1/auth/microsoft",

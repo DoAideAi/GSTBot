@@ -682,3 +682,35 @@ Retain old hashed chunks for open tabs and the previous complete tree under
 `/var/backups/gstbot/frontend-pre-ui-<revision>`. Store the old/new frontend
 source IDs and rollback tree in `frontend-ui-<revision>.json` in that directory.
 Do not run the full backend deploy script for this release.
+
+## Google account linking — 2 November 2026
+
+Google's callback previously reported `account_deactivated` for an active,
+password-created account with the same email. Automatic merging remains refused:
+an unverified email entered at registration does not prove ownership. A verified
+Google callback now offers `/auth/link-google`, where the existing GST password
+must be confirmed once. Successful linking preserves the user, business, role,
+password and books; subsequent Google sign-ins resolve the stored Google subject.
+
+The pending proof lives in the signed HttpOnly session for five minutes, bound
+to the OAuth client, user and current password. The POST requires a CSRF nonce
+and the password, with both IP and account attempt limits. A conditional update
+and the identity uniqueness constraint reject replay, competing links and
+concurrent password resets. No database migration or OAuth credential change is
+needed. Accounts already connected to another provider are not overwritten.
+
+Build the frontend off-server, retain the prior tree and cached hashed assets,
+and deploy the matching backend source under the deployment lock. Update
+`backend/.release` and restart only `gstbot-api` after the frontend swap. Verify
+readiness, the worker probe and service restart count. A direct request to
+`GET /api/v1/auth/google/link` without the browser proof must return 400 and
+`Cache-Control: no-store`. Rollback restores the previous source, complete
+frontend tree, `.dist-source` and `.release`, then restarts the API. Retain the
+release record at `/var/backups/gstbot/google-link-<revision>.json`.
+
+Browser verification covers desktop/mobile layout, password error recovery and
+expired-proof recovery. Automated integration tests exercise successful linking,
+preserved account data, later Google sign-ins, wrong passwords, CSRF, tampered or
+replayed cookies, expiration, deactivation, client/password changes, concurrent
+resets and attempt limits. A real Google account holder still completes the
+one-time password confirmation in their own browser.

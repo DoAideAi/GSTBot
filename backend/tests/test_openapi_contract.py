@@ -123,6 +123,10 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/auth/github/callback",
             "/api/v1/auth/google",
             "/api/v1/auth/google/callback",
+            # GET/POST require the signed browser proof; POST also verifies
+            # the existing password and CSRF token instead of a bearer token.
+            "/api/v1/auth/google/link",
+            "/api/v1/auth/google/link",
             "/api/v1/auth/login",
             "/api/v1/auth/microsoft",
             "/api/v1/auth/microsoft/callback",

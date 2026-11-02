@@ -45,6 +45,7 @@ const SuppliersPage = lazy(() => import("./pages/SuppliersPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const UsagePage = lazy(() => import("./pages/UsagePage"));
 const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
+const GoogleAccountLinkPage = lazy(() => import("./pages/GoogleAccountLinkPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
@@ -244,6 +245,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/auth/callback" element={<Lazy><AuthCallbackPage /></Lazy>} />
+        <Route path="/auth/link-google" element={<Lazy><GoogleAccountLinkPage /></Lazy>} />
         <Route path="/forgot-password" element={<Lazy><ForgotPasswordPage /></Lazy>} />
         <Route path="/reset-password" element={<Lazy><ResetPasswordPage /></Lazy>} />
         <Route path="/unsubscribe" element={<Lazy><UnsubscribePage /></Lazy>} />

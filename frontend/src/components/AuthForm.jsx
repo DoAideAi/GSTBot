@@ -48,6 +48,9 @@ export function ssoErrorMessage(code) {
       "deactivated, contact support."
     );
   }
+  if (code === "account_link_required") {
+    return "This Google account is not connected to your existing GST account. Sign in using the password or provider you originally used.";
+  }
   return "Single sign-on did not complete. Try again, or sign in with your email and password.";
 }
 

@@ -10,6 +10,7 @@ describe("ssoErrorMessage", () => {
   it("explains each refusal the callbacks send", () => {
     expect(ssoErrorMessage("no_email")).toMatch(/did not share an email/);
     expect(ssoErrorMessage("account_deactivated")).toMatch(/sign in with your email and password/);
+    expect(ssoErrorMessage("account_link_required")).toMatch(/provider you originally used/);
   });
 
   it("is empty without a code and generic for an unknown one", () => {
