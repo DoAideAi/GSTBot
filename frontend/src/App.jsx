@@ -7,6 +7,7 @@ import { SkeletonPanel } from "./components/Skeleton";
 import { useAuth } from "./hooks/useAuth";
 import LandingPage from "./pages/LandingPage";
 import ToolTracker from "./components/ToolTracker";
+import MetricoolTracker from "./components/MetricoolTracker";
 import SocialProofBar from "./components/SocialProofBar";
 
 // The floating widgets are below the fold of every page and none of them is
@@ -249,6 +250,7 @@ export default function App() {
   return (
     <Suspense fallback={<LazyFallback />}>
       <ToolTracker />
+      <MetricoolTracker />
       <SocialProofBar />
       <Routes>
         <Route path="/login" element={<LoginRoute />} />

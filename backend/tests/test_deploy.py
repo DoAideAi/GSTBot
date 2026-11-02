@@ -867,6 +867,7 @@ class TestTheSiteBlock:
         )
 
         assert directives["default-src"] == "'self'"
+        assert directives["img-src"] == "'self' data: https://tracker.metricool.com"
         # Exactly these origins. Each is there for one named reason — Umami,
         # and Razorpay Checkout's script — and anything else is a widening
         # somebody should have to justify here. The one hash is the inline

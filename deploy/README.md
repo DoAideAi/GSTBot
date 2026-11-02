@@ -844,3 +844,25 @@ the browser redirect and API 501, Google initiation, and service restart counts.
 Rollback restores the source, frontend tree and both release markers before
 restarting the API. Save metadata in
 `/var/backups/gstbot/login-brand-<revision>.json`.
+
+## Metricool website connection — 3 November 2026
+
+Metricool brand `7824654` uses tracking hash
+`36195e51b9aa7f88d328d9d285bb8be`, confirmed against the connected account.
+The local JavaScript adapter sends the same `c3po.jpg` image request as the
+provided `be.js` tag, retaining the brand, page URL and viewport dimensions.
+The vendor tag copies the complete URL/referrer; the adapter sends only public
+paths from the sitemap and known HSN/product pages, and only the external
+referrer's origin. Query strings, fragments, GSTIN lookup identifiers, auth and
+workspace routes are excluded. Signed-in users, local previews and prerendering
+do not send visits. SPA navigation records a new page view without requiring a
+document reload; StrictMode does not double-count the initial visit.
+
+Only `https://tracker.metricool.com` is added to the SPA's `img-src`. No inline
+script, extra script origin, cookie or backend change is needed. Build off-server
+and deploy the frontend with the existing locked atomic exchange. Update only
+the GST site's `img-src` in the shared Caddyfile, preserving all other sites and
+directives. Validate the candidate, reload Caddy without a restart, then verify
+the public CSP and a real Metricool beacon. Retain the prior Caddyfile securely
+alongside the previous frontend and release metadata for rollback. The API
+release marker stays unchanged.
