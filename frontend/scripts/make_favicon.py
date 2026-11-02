@@ -1,121 +1,79 @@
-"""Draw the GSTIndia favicon: a receipt with a check mark, in the brand green.
+"""Generate all app icons from the same nine-dot SVG used for the favicon.
 
-Run it to regenerate frontend/public/, so the icons are not four binaries with
-no source:
+Run from the repository root:
 
     backend/.venv/bin/python frontend/scripts/make_favicon.py
 
-Everything is drawn at 16x the target size and downsampled with LANCZOS, which
-is what gives the diagonal check and the receipt's torn edge clean antialiasing
-at 16px. Colours come from src/index.css (--brand, --brand-dark, --good).
-Pillow is already a backend dependency; nothing new is installed for this.
+The SVG matches components/BrandMark.jsx. Reading its geometry and colours
+keeps regeneration from bringing back the old receipt or robot artwork.
+Pillow is already a backend dependency; no additional renderer is needed for
+this mark's rectangles and circles.
 """
 
-import os
+from pathlib import Path
+from xml.etree import ElementTree
 
 from PIL import Image, ImageDraw
 
-BRAND = (26, 107, 79)  # --brand  #1a6b4f
-BRAND_DARK = (18, 80, 59)  # --brand-dark  #12503b
-PAPER = (255, 255, 255)
-RULE = (196, 206, 216)
-CHECK = (26, 127, 79)  # --good  #1a7f4f
-
-SS = 16  # supersample factor
+PUBLIC = Path(__file__).resolve().parent.parent / "public"
+SVG = ElementTree.parse(PUBLIC / "favicon.svg").getroot()
+BACKGROUND = SVG.find("{http://www.w3.org/2000/svg}rect").attrib["fill"]
+VIEWBOX = tuple(float(value) for value in SVG.attrib["viewBox"].split())
+SS = 4
 
 
-def gradient(size, top, bottom):
-    """Vertical brand gradient, drawn a row at a time."""
-    img = Image.new("RGB", (size, size))
-    d = ImageDraw.Draw(img)
-    for y in range(size):
-        t = y / max(size - 1, 1)
-        d.line(
-            [(0, y), (size, y)],
-            fill=tuple(round(top[i] + (bottom[i] - top[i]) * t) for i in range(3)),
-        )
-    return img
-
-
-def draw_icon(px, rounded=True, detail=True):
-    """Render one icon at `px` pixels square.
-
-    `detail` draws the ruled lines on the receipt; they turn to mud below
-    32px, so the 16px icon leaves them out and lets the shape carry it.
-    """
+def draw_icon(px, opaque=False, inset=0):
+    """Supersample the source mark, optionally on an OS-masked canvas."""
+    assert VIEWBOX == (0, 0, 24, 24), "Review icon geometry if the source viewBox changes"
     n = px * SS
-    u = n / 100.0  # one unit = 1% of the canvas, so the geometry reads as %
+    icon = Image.new("RGBA", (n, n), BACKGROUND if opaque else (0, 0, 0, 0))
+    draw = ImageDraw.Draw(icon)
+    unit = n * (1 - 2 * inset) / VIEWBOX[2]
+    offset = n * inset
 
-    icon = gradient(n, BRAND, BRAND_DARK).convert("RGBA")
-    if rounded:
-        mask = Image.new("L", (n, n), 0)
-        ImageDraw.Draw(mask).rounded_rectangle([0, 0, n - 1, n - 1], radius=22 * u, fill=255)
-        icon.putalpha(mask)
-
-    d = ImageDraw.Draw(icon)
-
-    # The receipt: a slip of paper with a torn bottom edge. The check sits
-    # wholly inside it — a mark that crossed onto the green needed a white
-    # keyline to stay readable, and at 16px that keyline swallowed the shape.
-    left, right, top = 21 * u, 79 * u, 13 * u
-    body_bottom, teeth_bottom = 80 * u, 88 * u
-    d.rounded_rectangle([left, top, right, body_bottom], radius=5 * u, fill=PAPER)
-
-    teeth = 4
-    step = (right - left) / (teeth * 2)
-    edge = [(left, body_bottom - 3 * u)]
-    for i in range(teeth * 2 + 1):
-        edge.append((left + i * step, teeth_bottom if i % 2 else body_bottom - 3 * u))
-    edge.append((right, body_bottom - 3 * u))
-    d.polygon(edge, fill=PAPER)
-
-    if detail:
-        for y, span in ((24, 0.80), (34, 0.55)):
-            d.rounded_rectangle(
-                [left + 7 * u, y * u, left + 7 * u + (right - left - 14 * u) * span, (y + 5) * u],
-                radius=2.5 * u,
-                fill=RULE,
+    for shape in SVG:
+        tag = shape.tag.rsplit("}", 1)[-1]
+        fill = shape.attrib["fill"]
+        if tag == "rect":
+            x = offset + float(shape.get("x", 0)) * unit
+            y = offset + float(shape.get("y", 0)) * unit
+            width = float(shape.attrib["width"]) * unit
+            height = float(shape.attrib["height"]) * unit
+            draw.rounded_rectangle(
+                (x, y, x + width - 1, y + height - 1),
+                radius=float(shape.get("rx", 0)) * unit,
+                fill=fill,
             )
+        elif tag == "circle":
+            x = offset + float(shape.attrib["cx"]) * unit
+            y = offset + float(shape.attrib["cy"]) * unit
+            radius = float(shape.attrib["r"]) * unit
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
+        else:
+            raise ValueError(f"Unsupported SVG shape: {tag}")
 
-    stroke = (13 if detail else 14) * u
-    path = [(32 * u, 57 * u), (44 * u, 69 * u), (68 * u, 37 * u)]
-    d.line(path, fill=CHECK, width=round(stroke), joint="curve")
-    for point in (path[0], path[-1]):  # round the caps; PIL only joins interiors
-        d.ellipse(
-            [point[0] - stroke / 2, point[1] - stroke / 2, point[0] + stroke / 2, point[1] + stroke / 2],
-            fill=CHECK,
-        )
-
-    return icon.resize((px, px), Image.Resampling.LANCZOS)
+    icon = icon.resize((px, px), Image.Resampling.LANCZOS)
+    return icon.convert("RGB") if opaque else icon
 
 
 def main():
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "public")
-    os.makedirs(out, exist_ok=True)
+    for size in (16, 32):
+        draw_icon(size).save(PUBLIC / f"favicon-{size}x{size}.png", optimize=True)
+    for size in (192, 512):
+        draw_icon(size).save(PUBLIC / f"icon-{size}.png", optimize=True)
 
-    png32 = draw_icon(32)
-    png16 = draw_icon(16, detail=False)
-    png32.save(os.path.join(out, "favicon-32x32.png"))
-    png16.save(os.path.join(out, "favicon-16x16.png"))
+    # iOS supplies its own corner mask. Android's maskable variant keeps all
+    # nine dots inside the central safe circle, even with a circular mask.
+    draw_icon(180, opaque=True).save(PUBLIC / "apple-touch-icon.png", optimize=True)
+    draw_icon(512, opaque=True, inset=0.125).save(PUBLIC / "icon-maskable-512.png", optimize=True)
 
-    # Apple wants an opaque square; iOS applies its own corner mask.
-    apple = draw_icon(180, rounded=False)
-    flat = Image.new("RGB", apple.size, BRAND)
-    flat.paste(apple, mask=apple.split()[3])
-    flat.save(os.path.join(out, "apple-touch-icon.png"))
-
-    # 48px is the size Windows and some browsers reach for. The .ico is saved
-    # from the largest render: Pillow drops any requested size bigger than the
-    # image it is called on, so saving from the 32 silently yields a two-entry
-    # icon. Each entry is a purpose-drawn render, not a resample of another.
-    png48 = draw_icon(48)
-    png48.save(
-        os.path.join(out, "favicon.ico"),
+    draw_icon(48).save(
+        PUBLIC / "favicon.ico",
         format="ICO",
         sizes=[(48, 48), (32, 32), (16, 16)],
-        append_images=[png32, png16],
+        append_images=[draw_icon(32), draw_icon(16)],
     )
-    print("wrote", sorted(os.listdir(out)))
+    print("Generated browser, Apple, and installable app icons from favicon.svg")
 
 
 if __name__ == "__main__":
