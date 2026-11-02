@@ -74,6 +74,7 @@ _LOGIN_REDIRECT: dict[str, Any] = {
     "response_class": RedirectResponse,
     "responses": {
         302: {"description": "Redirect to the provider's consent screen."},
+        307: {"description": "Redirect a browser to login when this provider is unavailable."},
         **_NOT_CONFIGURED,
     },
 }
@@ -123,7 +124,15 @@ def _configured_client(provider: str) -> Any:
 
 async def _start_login(request: Request, provider: str) -> Any:
     """Redirect to *provider*'s consent screen."""
-    client = _configured_client(provider)
+    try:
+        client = _configured_client(provider)
+    except HTTPException as exc:
+        # Bookmarks and already-open tabs can still point at a provider that
+        # has been disabled. Keep browser users in the app; API callers retain
+        # the documented 501 instead of receiving HTML.
+        if exc.status_code == 501 and "text/html" in request.headers.get("accept", ""):
+            return _login_error(f"{provider}_unavailable")
+        raise
     # Google and Microsoft are registered by discovery URL, so building this
     # redirect fetches the provider's metadata first. With the provider (or
     # this box's outbound network) unreachable that raised out of here as a

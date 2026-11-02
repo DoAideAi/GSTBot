@@ -36,3 +36,15 @@ def test_an_unreachable_provider_sends_the_user_back_to_login(client, provider):
 def test_an_unconfigured_provider_is_still_a_501(client):
     with patch.object(settings, "google_client_id", ""):
         assert client.get("/api/v1/auth/google").status_code == 501
+
+
+@pytest.mark.parametrize("provider", ["google", "github", "microsoft"])
+def test_an_old_browser_link_to_a_disabled_provider_returns_to_login(client, provider):
+    with patch.object(settings, f"{provider}_client_id", ""):
+        response = client.get(
+            f"/api/v1/auth/{provider}", headers={"Accept": "text/html,application/xhtml+xml"},
+            follow_redirects=False,
+        )
+    assert response.status_code == 307
+    assert response.headers["location"].endswith(f"/login?error={provider}_unavailable")
+    assert response.headers["Cache-Control"] == "no-store"

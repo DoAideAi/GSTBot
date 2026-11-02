@@ -14,6 +14,7 @@ import "./index.css";
 import "./brand-ui.css";
 import "./landing.css";
 import "./workspace.css";
+import "./auth.css";
 
 installStaleChunkReload();
 // Before the first render, so an error thrown while mounting is caught and the

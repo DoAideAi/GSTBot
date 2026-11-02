@@ -8,6 +8,7 @@ describe("ssoErrorMessage", () => {
   });
 
   it("explains each refusal the callbacks send", () => {
+    expect(ssoErrorMessage("microsoft_unavailable")).toMatch(/Sign-in with Microsoft is not available right now/);
     expect(ssoErrorMessage("no_email")).toMatch(/did not share an email/);
     expect(ssoErrorMessage("account_deactivated")).toMatch(/sign in with your email and password/);
     expect(ssoErrorMessage("account_link_required")).toMatch(/provider you originally used/);

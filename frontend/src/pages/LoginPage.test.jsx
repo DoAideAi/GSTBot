@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../hooks/useAuth";
 import LoginPage from "./LoginPage";
+import { api } from "../lib/api";
 
 function jsonResponse(body, { status = 200 } = {}) {
   return {
@@ -14,9 +15,9 @@ function jsonResponse(body, { status = 200 } = {}) {
   };
 }
 
-function renderPage() {
+function renderPage(url = "/login?mode=register") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <AuthProvider>
         <LoginPage />
       </AuthProvider>
@@ -28,6 +29,7 @@ describe("LoginPage", () => {
   beforeEach(() => {
     localStorage.clear();
     global.fetch = vi.fn();
+    vi.spyOn(api, "authProviders").mockResolvedValue({ providers: [] });
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -53,9 +55,31 @@ describe("LoginPage", () => {
 
     it("shows nothing without an error", async () => {
       renderAt("/login");
-      await screen.findByRole("button", { name: "Create account" });
+      await screen.findByRole("button", { name: "Sign in" });
       expect(screen.queryByText(/did not complete/)).not.toBeInTheDocument();
     });
+  });
+
+  it("opens a login link on sign in, and an explicit signup link on registration", async () => {
+    const user = userEvent.setup();
+    renderPage("/login");
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Create account" }));
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeInTheDocument();
+  });
+
+  it("lets the user check their password without submitting or losing it", async () => {
+    const user = userEvent.setup();
+    renderPage("/login");
+    const password = screen.getByLabelText("Password");
+    await user.type(password, "my-secret-password");
+    await user.click(screen.getByRole("button", { name: "Show password" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(password).toHaveValue("my-secret-password");
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(password).toHaveAttribute("type", "password");
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("signs in and stores the session", async () => {

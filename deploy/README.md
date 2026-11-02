@@ -805,3 +805,42 @@ Publish using the existing off-server build and locked atomic frontend exchange,
 retaining prior hashed assets and the previous tree. Store release metadata in
 `/var/backups/gstbot/workspace-brand-<revision>.json`. No database, environment or
 service restart is needed; the backend release marker remains unchanged.
+
+## GST login alignment and unavailable SSO recovery — 3 November 2026
+
+The login page now uses the landing page's brand header, grid/glow treatment,
+navy primary action and shared light/dark colours. `/login` opens on sign in;
+`/login?mode=register` opens registration, and both remain available in the form.
+Password visibility, validation, GSTIN entry and password recovery remain usable
+on mobile. The provider buttons read `/api/v1/auth/providers`, so a disabled
+provider is not advertised and enabling one does not require a frontend rebuild.
+A failed provider lookup can be retried without blocking email sign-in.
+
+Old browser links to an unconfigured OAuth provider now redirect to
+`/login?error=<provider>_unavailable` with an explanation and working alternatives.
+API requests retain the documented 501 response. Existing OAuth state, token,
+email verification and account-linking rules are unchanged.
+
+Validation: 4,677 frontend tests and 8,063 backend tests pass (11 backend skips).
+Both linters have no errors; frontend lint retains four existing warnings.
+Browser checks cover sign-in, registration, GSTIN validation, password visibility,
+provider availability/retry and Microsoft errors at 320, 390, 768, 1024 and 1440px
+in light and dark mode, using isolated sample API responses.
+
+At diagnosis, production had Google configured and neither Microsoft credential
+set. The available Azure CLI session was expired. Microsoft activation requires
+an authenticated Entra administrator to configure the application and place
+`MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET` in the protected server
+environment. Never commit or paste the secret into chat. The Web redirect URI
+must be `https://gst.doaide.com/api/v1/auth/microsoft/callback`. Verify the complete
+provider round trip with an account holder before calling Microsoft enabled;
+the unavailable-provider recovery alone does not activate Microsoft sign-in.
+
+Build off-server and publish the matching frontend and backend source under the
+existing deployment lock, retaining old hashed assets. Update `.dist-source`
+and `backend/.release`, then restart only `gstbot-api`. No dependencies, database
+migrations or environment changes are required for this release. Check readiness,
+the browser redirect and API 501, Google initiation, and service restart counts.
+Rollback restores the source, frontend tree and both release markers before
+restarting the API. Save metadata in
+`/var/backups/gstbot/login-brand-<revision>.json`.

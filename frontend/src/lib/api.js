@@ -475,6 +475,10 @@ export const api = {
     return data;
   },
 
+  authProviders() {
+    return request("/auth/providers", { auth: false });
+  },
+
   async login(email, password) {
     // The token endpoint is OAuth2 password flow, so it takes form fields and
     // calls the email "username".
