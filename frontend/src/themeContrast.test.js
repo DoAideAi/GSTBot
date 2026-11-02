@@ -73,3 +73,21 @@ describe("focus indicators on the light theme", () => {
     },
   );
 });
+
+// The shared refresh is loaded after the legacy styles. Check the values that
+// visitors actually receive, including the ink on primary action buttons.
+describe("DoAide's refreshed palette", () => {
+  it("keeps text and primary actions readable in both themes", () => {
+    const source = css("brand-ui.css");
+    for (const theme of ["light", "dark"]) {
+      const block = source.slice(source.indexOf(`[data-theme="${theme}"]`)).split("}")[0];
+      const value = (name) => block.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "i"))[1];
+      for (const ink of ["--ink", "--ink-soft", "--ink-muted", "--brand-ink"]) {
+        for (const ground of ["--canvas", "--card", "--surface"]) {
+          expect(contrast(value(ink), value(ground))).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+      expect(contrast(value("--brand"), value("--brand-text"))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});

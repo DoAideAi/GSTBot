@@ -1,33 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BrandMark from "../components/BrandMark";
+import ThemeToggle from "../components/ThemeToggle";
 import AnimatedCounter from "../components/AnimatedCounter";
-import BusinessCounter from "../components/BusinessCounter";
 import DeadlineCountdown from "../components/DeadlineCountdown";
-import GstNewsUpdates from "../components/GstNewsUpdates";
 import RecentTools from "../components/RecentTools";
 import SeoHead from "../components/SeoHead";
-import StickyToolsBanner from "../components/StickyToolsBanner";
-import TrendingTools from "../components/TrendingTools";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { track } from "../lib/track";
 import { formatStat, getUsageStats } from "../lib/usageStats";
-
-function RobotFace({ size = 32, color }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
-      <line x1="16" y1="6" x2="16" y2="2" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="16" cy="1.5" r="1.5" fill={color} />
-      <rect x="5" y="6" width="22" height="17" rx="5" fill={color} />
-      <ellipse cx="11" cy="13" rx="2.5" ry="3" fill="#0A0A0B" />
-      <ellipse cx="21" cy="13" rx="2.5" ry="3" fill="#0A0A0B" />
-      <circle cx="11.5" cy="12.5" r="1" fill={color} opacity="0.6" />
-      <circle cx="21.5" cy="12.5" r="1" fill={color} opacity="0.6" />
-      <path d="M12 19Q16 22 20 19" stroke="#0A0A0B" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-      <rect x="1" y="10" width="4" height="5" rx="2" fill={color} opacity="0.8" />
-      <rect x="27" y="10" width="4" height="5" rx="2" fill={color} opacity="0.8" />
-    </svg>
-  );
-}
 
 
 const FEATURES = [
@@ -35,7 +16,7 @@ const FEATURES = [
     title: "GSTR-2B Reconciliation",
     desc: "Auto-match your purchase invoices against the GSTR-2B statement. Flag mismatches instantly.",
     icon: (
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <rect x="3" y="3" width="8" height="10" rx="1.5" />
         <rect x="8" y="7" width="8" height="10" rx="1.5" />
         <circle cx="19" cy="17" r="3.5" />
@@ -47,7 +28,7 @@ const FEATURES = [
     title: "ITC Calculator",
     desc: "Calculate eligible Input Tax Credit automatically. Exclude blocked credits under Section 17(5).",
     icon: (
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <rect x="4" y="2" width="16" height="20" rx="2" />
         <line x1="8" y1="6" x2="16" y2="6" />
         <line x1="8" y1="10" x2="16" y2="10" />
@@ -60,7 +41,7 @@ const FEATURES = [
     title: "GST Return Preparation",
     desc: "Prepare GSTR-1 and GSTR-3B data for review and export. Complete filing separately on the GST portal.",
     icon: (
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
         <polyline points="14 2 14 8 20 8" />
         <line x1="8" y1="13" x2="16" y2="13" />
@@ -72,7 +53,7 @@ const FEATURES = [
     title: "Deadline Alerts",
     desc: "Track GSTR-1 and GSTR-3B due dates and configure reminders for your filing workflow.",
     icon: (
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M18 8A6 6 0 106 8c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.73 21a2 2 0 01-3.46 0" />
       </svg>
@@ -82,7 +63,7 @@ const FEATURES = [
     title: "Supplier Tracking",
     desc: "Monitor supplier compliance scores. Know which suppliers file on time and which put your ITC at risk.",
     icon: (
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 00-3-3.87" />
@@ -94,7 +75,7 @@ const FEATURES = [
     title: "AI Invoice Parsing",
     desc: "Upload supported invoice files. Review extracted GSTINs, amounts, HSN codes and tax breakdowns before using them.",
     icon: (
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 2L2 7l10 5 10-5-10-5z" />
         <path d="M2 17l10 5 10-5" />
         <path d="M2 12l10 5 10-5" />
@@ -109,7 +90,7 @@ const HOW_IT_WORKS = [
     title: "Upload invoices",
     desc: "Upload supported PDFs, images or spreadsheets, or enter invoices manually. Review the extracted fields.",
     icon: (
-      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
         <polyline points="17 8 12 3 7 8" />
         <line x1="12" y1="3" x2="12" y2="15" />
@@ -121,7 +102,7 @@ const HOW_IT_WORKS = [
     title: "Auto-reconcile",
     desc: "DoAide matches your invoices against GSTR-2B, flags mismatches, and calculates eligible ITC.",
     icon: (
-      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
       </svg>
     ),
@@ -131,7 +112,7 @@ const HOW_IT_WORKS = [
     title: "Review and prepare",
     desc: "Review return summaries and export supported return data. Submission on the GST portal remains a separate step.",
     icon: (
-      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
         <polyline points="22 4 12 14.01 9 11.01" />
       </svg>
@@ -311,79 +292,68 @@ function InstantLookup() {
   };
 
   return (
-    <section className="landing-instant">
-      <h1 className="landing-hero-title">Free GST Tools for Indian Businesses</h1>
-      <p className="landing-hero-subtitle">25+ free tools — no login required. Calculate GST, verify GSTIN, search HSN codes, and more.</p>
-      <form onSubmit={handleSubmit} className="landing-search-box" role="search" aria-label="GSTIN verification">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Enter a GSTIN, e.g. 27AAPFU0939F1ZV"
-          className="landing-search-input"
-          spellCheck={false}
-          autoComplete="off"
-          aria-label="GSTIN or search term"
-        />
-        <button type="submit" className="btn btn-primary landing-search-btn">
-          Verify
-        </button>
-      </form>
-      <div className="landing-trust-bar">
-        {trustItems.map((item, i) => (
-          <div key={item.label} style={{ display: "contents" }}>
-            {i > 0 && <div className="landing-trust-sep" aria-hidden="true" />}
-            <div className="landing-trust-item">
-              <strong>{item.figure}</strong>
-              <span>{item.label}</span>
-            </div>
+    <section className="gst-hero">
+      <div className="gst-wrap gst-hero-grid">
+        <div className="gst-hero-copy">
+          <span className="gst-eyebrow"><span /> For businesses &amp; accounting firms</span>
+          <h1 className="landing-hero-title">Everyday GST work.<br /><em>A clearer starting point.</em></h1>
+          <p className="landing-hero-subtitle">25+ free tools to calculate tax, check GSTINs and find the right codes. Your next task, without the clutter.</p>
+          <div className="gst-hero-actions">
+            <a href="#tools" className="btn btn-primary">Explore free tools <span aria-hidden="true">↗</span></a>
+            <Link to="/login" className="btn btn-ghost">Open your workspace</Link>
           </div>
-        ))}
-      </div>
-      <div className="landing-compliance-badges">
-        <div className="landing-badge">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--good)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-          <span>GST-compliant calculations</span>
-        </div>
-        <div className="landing-badge">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--good)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-          <span>Updated for FY 2026-27</span>
-        </div>
-        <div className="landing-badge">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--good)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="11" width="18" height="11" rx="2" />
-            <path d="M7 11V7a5 5 0 0110 0v4" />
-          </svg>
-          <span>No login required</span>
-        </div>
-        <div className="landing-badge">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--good)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span>Results in seconds</span>
-        </div>
-      </div>
-
-      {TOOL_CATEGORIES.map((cat) => (
-        <div key={cat.title} className="landing-category">
-          <h2 className="landing-category-title">{cat.title}</h2>
-          <div className="landing-tool-cards">
-            {cat.tools.map((t) => (
-              <Link key={t.to} to={t.to} className="landing-tool-card">
-                <strong>{t.title}</strong>
-                <span>{t.desc}</span>
-                <span className="landing-tool-cta">Use Now →</span>
-              </Link>
+          <div className="landing-trust-bar">
+            {trustItems.map((item) => (
+              <div key={item.label} className="landing-trust-item"><strong>{item.figure}</strong><span>{item.label}</span></div>
             ))}
           </div>
         </div>
-      ))}
+        <div className="gst-lookup-card">
+          <div className="gst-card-overline"><span className="gst-tool-icon" aria-hidden="true">✓</span><span>QUICK CHECK</span></div>
+          <h2>Start with a GSTIN.</h2>
+          <p>Look up a business registration before you get to work.</p>
+          <form onSubmit={handleSubmit} className="landing-search-box" role="search" aria-label="GSTIN verification">
+            <label htmlFor="gstin-quick-check">GSTIN or business search</label>
+            <input id="gstin-quick-check" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. 27AAPFU0939F1ZV" className="landing-search-input" spellCheck={false} autoComplete="off" aria-label="GSTIN or search term" />
+            <button type="submit" className="btn btn-primary landing-search-btn">Verify <span aria-hidden="true">→</span></button>
+          </form>
+          <div className="gst-lookup-note"><span aria-hidden="true">↳</span> No login required for public tools.</div>
+          <div className="gst-lookup-links"><Link to="/hsn">Find an HSN code ↗</Link><Link to="/calculator">Calculate GST ↗</Link></div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const FEATURED_PATHS = ["/calculator", "/lookup", "/hsn", "/invoice-generator", "/itc-calculator", "/due-dates"];
+
+function ToolsDirectory() {
+  const [category, setCategory] = useState("Popular");
+  const [search, setSearch] = useState("");
+  const allTools = TOOL_CATEGORIES.flatMap((group) => group.tools.map((tool) => ({ ...tool, category: group.title })));
+  const query = search.trim().toLowerCase();
+  const shown = allTools.filter((tool) => {
+    const matches = `${tool.title} ${tool.desc}`.toLowerCase().includes(query);
+    if (query && category === "Popular") return matches;
+    if (category === "Popular") return FEATURED_PATHS.includes(tool.to);
+    return matches && (category === "All tools" || category === tool.category);
+  });
+  const reset = () => { setSearch(""); setCategory("Popular"); };
+
+  return (
+    <section className="gst-directory gst-wrap" id="tools" aria-labelledby="tools-heading">
+      <div className="gst-section-heading"><div><p className="gst-kicker">Your GST toolkit</p><h2 id="tools-heading">What are you working on?</h2><p>Pick a tool and get straight to it. No account needed.</p></div>
+        <label className="gst-tool-search"><span className="visually-hidden">Search GST tools</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg><input type="search" placeholder="Find a tool…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+      </div>
+      <div className="gst-category-filters" role="group" aria-label="Filter GST tools">
+        {["Popular", ...TOOL_CATEGORIES.map((group) => group.title), "All tools"].map((name) => <button key={name} type="button" aria-pressed={category === name} onClick={() => setCategory(name)}>{name}</button>)}
+      </div>
+      <p className="gst-results-count" role="status">{shown.length} {shown.length === 1 ? "tool" : "tools"}{query ? ` matching “${search.trim()}”` : " to get you started"}</p>
+      <div className="landing-tool-cards">
+        {shown.map((tool) => <Link key={tool.to} to={tool.to} className="landing-tool-card"><div className="gst-tool-top"><span className="gst-tool-icon" aria-hidden="true">{tool.category === "Calculators" ? "±" : tool.category === "Lookup & Verification" ? "⌕" : tool.category === "Compliance & Filing" ? "≡" : "◇"}</span><span className="gst-tool-arrow" aria-hidden="true">↗</span></div><strong>{tool.title}</strong><span>{tool.desc}</span><span className="landing-tool-cta">Open tool <span aria-hidden="true">→</span></span></Link>)}
+      </div>
+      {shown.length === 0 && <div className="gst-tools-empty"><h3>No matching tools</h3><p>Try a shorter search or choose another category.</p><button type="button" className="btn btn-ghost" onClick={reset}>Reset filters</button></div>}
+      <div className="gst-directory-bottom"><span>Looking for a filing walkthrough?</span><Link to="/guides">Explore GST guides <span aria-hidden="true">→</span></Link></div>
     </section>
   );
 }
@@ -449,26 +419,23 @@ export default function LandingPage() {
         path="/"
         jsonLd={softwareAppSchema}
       />
+      <a href="#main" className="skip-link">Skip to content</a>
       <header className="landing-header landing-visible">
-        <a href="https://doaide.com" className="landing-brand">
-          <RobotFace size={28} color="#F0B429" />
-          <span className="landing-brand-text">
-            DoAide <em>GST</em>
-          </span>
-        </a>
-      </header>
-
-      <main>
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 1rem" }}>
-          <RecentTools />
+        <div className="gst-header-inner gst-wrap">
+          <a href="https://doaide.com" className="landing-brand"><BrandMark /><span className="landing-brand-text">DoAide <em>GST</em></span></a>
+          <nav className="gst-primary-nav" aria-label="Primary"><a href="#tools">Free tools</a><a href="#workflow">For your firm</a><Link to="/guides">Guides</Link><Link to="/pricing">Pricing</Link></nav>
+          <div className="gst-header-actions"><ThemeToggle /><Link to="/login" className="gst-sign-in">Sign in</Link><a href="https://doaide.com/demo/" className="btn btn-primary gst-header-demo">Book a demo</a></div>
         </div>
+      </header>
+      <main id="main">
         <InstantLookup />
-
-        <BusinessCounter />
+        <div className="gst-wrap gst-recent"><RecentTools /></div>
+        <ToolsDirectory />
 
         <DeadlineCountdown />
 
-        <section className="landing-section" aria-labelledby="features-heading">
+        <section className="landing-section gst-workflow" id="workflow" aria-labelledby="features-heading">
+          <p className="gst-kicker">Beyond the free tools</p>
           <h2 id="features-heading" className="landing-section-title">Invoice Review and Return Preparation</h2>
           <div className="landing-features-grid">
             {FEATURES.map((f) => (
@@ -507,13 +474,9 @@ export default function LandingPage() {
 
         <PopularSearches />
 
-        <GstNewsUpdates />
 
         <FaqSection />
 
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 1rem" }}>
-          <TrendingTools />
-        </div>
 
         <section className="landing-section landing-advisor-cta" aria-labelledby="advisor-heading">
           <h2 id="advisor-heading" className="landing-section-title">
@@ -544,7 +507,6 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <StickyToolsBanner />
       <footer className="landing-footer">
         <div className="landing-footer-nav">
           <div className="landing-footer-col">
@@ -618,7 +580,7 @@ export default function LandingPage() {
         </div>
         <div className="landing-footer-bottom">
           <a href="https://doaide.com" className="landing-footer-home">
-            <RobotFace size={16} color="#F0B429" />
+            <BrandMark size={20} />
             doaide.com
           </a>
           <span className="landing-footer-copy">&copy; 2026 DoAide</span>

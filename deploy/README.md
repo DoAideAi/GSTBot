@@ -653,3 +653,32 @@ The server checkout advances only by a fast-forward after verifying the original
 revision and a clean worktree. Record the new frontend tree id in
 `frontend/.dist-source`; restore its previous value along with the retained tree
 if rolling back. A full backend deployment still follows the normal runbook above.
+
+## GST visual refresh — 2 November 2026
+
+The next frontend-only release starts from `c5ef02e` and adopts the main site's
+Inter typography, teal palette and nine-dot brand mark. The homepage has a
+focused GSTIN lookup and a searchable, category-filtered directory: six common
+tools appear initially, with the full catalogue available through search and
+All tools. Repeated promotions, news and the scrolling banner leave the homepage.
+Shared tool, account and pricing styles follow the same light/dark theme. Public
+pricing gains navigation and a styled billing-period control. Calculator,
+authentication, subscription and API behaviour remain the same.
+
+Validation: 4,643 frontend tests and 7,974 backend tests pass (11 backend skips).
+Backend ruff passes; frontend lint has zero errors and four existing warnings.
+The production build prerenders all 1,134 routes. Chrome checks cover widths
+360, 390, 768 and 1440, search/filter/reset, GSTIN routing, calculator results,
+sign-in, monthly/annual pricing and persisted dark mode. Local pricing visual
+checks use the public production pricing response; no checkout is submitted.
+
+The existing frontend coverage ratchet still fails. A clean `c5ef02e` baseline
+with the same dependencies and Node 24 also fails (93.29% statements, 90.44%
+branches, 88.30% functions, 95.83% lines); the refreshed landing's coverage
+improves. No coverage threshold or exclusion is changed for this visual release.
+
+Use the same off-server build and locked atomic frontend swap described above.
+Retain old hashed chunks for open tabs and the previous complete tree under
+`/var/backups/gstbot/frontend-pre-ui-<revision>`. Store the old/new frontend
+source IDs and rollback tree in `frontend-ui-<revision>.json` in that directory.
+Do not run the full backend deploy script for this release.

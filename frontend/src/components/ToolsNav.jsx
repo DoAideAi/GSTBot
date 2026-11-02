@@ -1,5 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 
+import BrandMark from "./BrandMark";
+import ThemeToggle from "./ThemeToggle";
+
 const TOOLS = [
   { path: "/calculator", label: "GST Calculator" },
   { path: "/lookup", label: "GSTIN Lookup" },
@@ -15,7 +18,7 @@ export default function ToolsNav() {
   return (
     <nav className="tools-nav" aria-label="GST tools">
       <a href="https://gst.doaide.com" className="tools-nav-brand">
-        DoAide <em>GST</em>
+        <BrandMark size={26} /> DoAide <em>GST</em>
       </a>
       <div className="tools-nav-links">
         {TOOLS.map((t) => (
@@ -28,6 +31,7 @@ export default function ToolsNav() {
           </Link>
         ))}
       </div>
+      <ThemeToggle />
       <Link to="/login" className="tools-nav-cta">Sign up free</Link>
     </nav>
   );

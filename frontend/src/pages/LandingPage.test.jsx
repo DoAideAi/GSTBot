@@ -25,7 +25,7 @@ describe("LandingPage", () => {
   it("shows the hero headline", () => {
     renderLanding();
 
-    expect(screen.getByText("Free GST Tools for Indian Businesses")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Everyday GST work.A clearer starting point.");
   });
 
   it("shows the hero subtitle", () => {
@@ -95,7 +95,7 @@ describe("LandingPage", () => {
   it("sends demo visitors to the request flow instead of presenting a video or customer endorsement", async () => {
     const { track } = await import("../lib/track");
     renderLanding();
-    const demo = screen.getByRole("link", { name: "Book a demo" });
+    const demo = screen.getAllByRole("link", { name: "Book a demo" }).at(-1);
     expect(demo).toHaveAttribute("href", "https://doaide.com/demo/");
     await userEvent.click(demo);
     expect(track).toHaveBeenCalledWith("demo_request_open");
@@ -207,13 +207,9 @@ describe("LandingPage", () => {
       expect(screen.queryByText("Invoices processed")).not.toBeInTheDocument();
     });
 
-    it("shows compliance trust badges", () => {
+    it("explains that the public tools need no account", () => {
       renderLanding();
-
-      expect(screen.getAllByText("GST-compliant calculations").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText("Updated for FY 2026-27")).toBeInTheDocument();
-      expect(screen.getByText("No login required")).toBeInTheDocument();
-      expect(screen.getByText("Results in seconds")).toBeInTheDocument();
+      expect(screen.getByText("No login required for public tools.")).toBeInTheDocument();
     });
 
     it("renders tool category sections", () => {
@@ -331,24 +327,33 @@ describe("LandingPage", () => {
     });
   });
 
-  describe("Business Counter section", () => {
-    it("renders the business counter", () => {
+  describe("tool discovery", () => {
+    it("starts with six tools and keeps the full catalogue reachable", async () => {
       renderLanding();
-      expect(screen.getByRole("status", { name: "Business usage count" })).toBeInTheDocument();
-      expect(screen.getByText("Built for Indian businesses")).toBeInTheDocument();
-    });
-  });
-
-  describe("GST News section", () => {
-    it("renders the news heading", () => {
-      renderLanding();
-      expect(screen.getByText(/GST News/)).toBeInTheDocument();
+      expect(document.querySelectorAll(".landing-tool-card")).toHaveLength(6);
+      await userEvent.click(screen.getByRole("button", { name: "All tools", exact: true }));
+      expect(document.querySelectorAll(".landing-tool-card").length).toBeGreaterThan(25);
+      expect(screen.getByRole("button", { name: "All tools", exact: true })).toHaveAttribute("aria-pressed", "true");
     });
 
-    it("shows news items with tags", () => {
+    it("finds a non-featured tool by name without requiring a category", async () => {
       renderLanding();
-      expect(screen.getByText("Rate Change")).toBeInTheDocument();
-      expect(screen.getByText("Compliance")).toBeInTheDocument();
+      await userEvent.type(screen.getByRole("searchbox", { name: "Search GST tools" }), "reverse GST");
+      expect(document.querySelectorAll(".landing-tool-card")).toHaveLength(1);
+      expect(document.querySelector(".landing-tool-card")).toHaveAttribute("href", "/reverse-gst-calculator");
+    });
+
+    it("combines the category and search and recovers from an empty result", async () => {
+      renderLanding();
+      await userEvent.click(screen.getByRole("button", { name: "Lookup & Verification" }));
+      await userEvent.type(screen.getByRole("searchbox", { name: "Search GST tools" }), "HSN");
+      expect(document.querySelectorAll(".landing-tool-card")).toHaveLength(2);
+      await userEvent.clear(screen.getByRole("searchbox", { name: "Search GST tools" }));
+      await userEvent.type(screen.getByRole("searchbox", { name: "Search GST tools" }), "unknown tool");
+      expect(screen.getByRole("heading", { name: "No matching tools" })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+      expect(screen.getByRole("searchbox", { name: "Search GST tools" })).toHaveValue("");
+      expect(document.querySelectorAll(".landing-tool-card")).toHaveLength(6);
     });
   });
 });

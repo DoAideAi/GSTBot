@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SeoHead from "../components/SeoHead";
+import ToolsNav from "../components/ToolsNav";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { announceSubscriptionChange, api } from "../lib/api";
 import { track } from "../lib/track";
@@ -156,7 +157,7 @@ export default function PricingPage() {
           email: user?.email || "",
           name: user?.full_name || "",
         },
-        theme: { color: "#F0B429" },
+        theme: { color: "#0f766e" },
       };
 
       const rzp = new window.Razorpay(options);
@@ -210,6 +211,8 @@ export default function PricingPage() {
   const endsSoon = paidUntil && paidUntil.getTime() - Date.now() <= RENEWAL_WARNING_MS;
 
   return (
+    <>
+      {!user && <ToolsNav />}
     <div className="pricing-page">
       <SeoHead
         title="Pricing — DoAide GST"
@@ -358,5 +361,6 @@ export default function PricingPage() {
           })}
       </div>
     </div>
+    </>
   );
 }

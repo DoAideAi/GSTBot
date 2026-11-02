@@ -470,8 +470,10 @@ export default function App() {
       <Suspense fallback={null}>
         <InstallPrompt />
         <ReferralBanner />
-        <GstAdvisor />
-        <FeedbackWidget />
+        <div className="support-tools">
+          <GstAdvisor />
+          <FeedbackWidget />
+        </div>
       </Suspense>
     </Suspense>
   );

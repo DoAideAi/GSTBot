@@ -5,15 +5,15 @@ import { getRecentTools } from "../lib/doaideViral";
 const section = {
   margin: "2rem 0",
   padding: "1.25rem 1.5rem",
-  background: "rgba(240, 180, 41, 0.06)",
-  border: "1px solid rgba(240, 180, 41, 0.15)",
+  background: "var(--surface)",
+  border: "1px solid var(--line)",
   borderRadius: "12px",
 };
 
 const title = {
   fontSize: "0.85rem",
   fontWeight: 600,
-  color: "#F0B429",
+  color: "var(--brand-ink)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   marginBottom: "0.75rem",
@@ -35,7 +35,7 @@ const chip = {
   border: "1px solid var(--border, #2a2a2b)",
   borderRadius: "20px",
   textDecoration: "none",
-  color: "var(--text, #e5e5e5)",
+  color: "var(--ink)",
   fontSize: "0.82rem",
   fontWeight: 500,
   whiteSpace: "nowrap",
@@ -45,7 +45,7 @@ const chip = {
 const cta = {
   fontSize: "0.75rem",
   fontWeight: 700,
-  color: "#F0B429",
+  color: "var(--brand-ink)",
 };
 
 export default function RecentTools() {
