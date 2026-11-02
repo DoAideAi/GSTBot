@@ -43,17 +43,9 @@ describe("LandingPage", () => {
     expect(brand).toHaveAttribute("href", "https://doaide.com");
   });
 
-  it("renders the footer with DoAide product links", () => {
+  it("links the company information to the secondary company page", () => {
     renderLanding();
-
-    expect(screen.getByText("Desk")).toBeInTheDocument();
-    expect(screen.getByText("Jobs")).toBeInTheDocument();
-    expect(screen.getByText("Pulse")).toBeInTheDocument();
-    expect(screen.getByText("409A")).toBeInTheDocument();
-    expect(screen.getByText("Resume")).toBeInTheDocument();
-    expect(screen.getByText("Contracts")).toBeInTheDocument();
-    expect(screen.getByText("Invoicer")).toBeInTheDocument();
-    expect(screen.getByText("doaide.com")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "About DoAide" })).toHaveAttribute("href", "https://doaide.com/company/");
   });
 
   describe("feature highlights section", () => {
@@ -63,7 +55,7 @@ describe("LandingPage", () => {
       expect(screen.getByText("GSTR-2B Reconciliation")).toBeInTheDocument();
       // "ITC Calculator" also appears in the tool categories grid — check that at least one exists
       expect(screen.getAllByText("ITC Calculator").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText("GST Return Filing")).toBeInTheDocument();
+      expect(screen.getByText("GST Return Preparation")).toBeInTheDocument();
       expect(screen.getByText("Deadline Alerts")).toBeInTheDocument();
       expect(screen.getByText("Supplier Tracking")).toBeInTheDocument();
       expect(screen.getByText("AI Invoice Parsing")).toBeInTheDocument();
@@ -72,7 +64,7 @@ describe("LandingPage", () => {
     it("has a section heading", () => {
       renderLanding();
 
-      expect(screen.getByText("Everything You Need for GST Compliance")).toBeInTheDocument();
+      expect(screen.getByText("Invoice Review and Return Preparation")).toBeInTheDocument();
     });
   });
 
@@ -82,7 +74,7 @@ describe("LandingPage", () => {
 
       expect(screen.getByText("Upload invoices")).toBeInTheDocument();
       expect(screen.getByText("Auto-reconcile")).toBeInTheDocument();
-      expect(screen.getByText("File returns")).toBeInTheDocument();
+      expect(screen.getByText("Review and prepare")).toBeInTheDocument();
     });
 
     it("shows step numbers", () => {
@@ -96,65 +88,39 @@ describe("LandingPage", () => {
     it("shows the subtitle", () => {
       renderLanding();
 
-      expect(screen.getByText(/Get started in under 2 minutes/)).toBeInTheDocument();
+      expect(screen.getByText(/Import your data, review exceptions/)).toBeInTheDocument();
     });
   });
 
-  describe("demo video section", () => {
-    it("renders the demo heading", () => {
-      renderLanding();
-
-      expect(screen.getByText("See DoAide GST in Action")).toBeInTheDocument();
-    });
-
-    it("shows the demo caption", () => {
-      renderLanding();
-
-      expect(screen.getByText(/try it free/)).toBeInTheDocument();
-    });
-
-    it("links to signup", () => {
-      renderLanding();
-
-      const link = screen.getByText(/try it free/).closest("a");
-      expect(link).toHaveAttribute("href", "/login");
-    });
-  });
-
-  describe("testimonials section", () => {
-    it("renders testimonial quotes", () => {
-      renderLanding();
-
-      expect(screen.getByText(/cut our reconciliation time/)).toBeInTheDocument();
-      expect(screen.getByText(/missing ITC on mismatched invoices/)).toBeInTheDocument();
-      expect(screen.getByText(/free plan handles our monthly volume/)).toBeInTheDocument();
-    });
-
-    it("shows reviewer names and roles", () => {
-      renderLanding();
-
-      expect(screen.getByText("Priya S.")).toBeInTheDocument();
-      expect(screen.getByText("CA, Mumbai")).toBeInTheDocument();
-    });
+  it("sends demo visitors to the request flow instead of presenting a video or customer endorsement", async () => {
+    const { track } = await import("../lib/track");
+    renderLanding();
+    const demo = screen.getByRole("link", { name: "Book a demo" });
+    expect(demo).toHaveAttribute("href", "https://doaide.com/demo/");
+    await userEvent.click(demo);
+    expect(track).toHaveBeenCalledWith("demo_request_open");
+    expect(screen.queryByText("Trusted by Indian Businesses")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Play demo video")).not.toBeInTheDocument();
+    expect(document.querySelector('meta[name="description"]').content).not.toMatch(/#1|12,000/);
   });
 
   describe("FAQ section", () => {
     it("renders all FAQ questions", () => {
       renderLanding();
 
-      expect(screen.getByText("What is GST and who needs to file GST returns?")).toBeInTheDocument();
+      expect(screen.getByText("Who is DoAide GST for?")).toBeInTheDocument();
       expect(screen.getByText("How does GSTR-2B reconciliation work?")).toBeInTheDocument();
-      expect(screen.getByText("What is Input Tax Credit (ITC) and how is it calculated?")).toBeInTheDocument();
+      expect(screen.getByText("Does DoAide file returns automatically?")).toBeInTheDocument();
       expect(screen.getByText("Is DoAide GST really free?")).toBeInTheDocument();
-      expect(screen.getByText("What are HSN codes and why do they matter for GST?")).toBeInTheDocument();
-      expect(screen.getByText("What happens if I miss a GST filing deadline?")).toBeInTheDocument();
-      expect(screen.getByText("Can DoAide GST help with GST compliance for small businesses?")).toBeInTheDocument();
+      expect(screen.getByText("Can I review uploaded invoice data?")).toBeInTheDocument();
+      expect(screen.getByText("Can I book a demo for my firm?")).toBeInTheDocument();
+      expect(screen.getByText("Can I keep using the free GST tools?")).toBeInTheDocument();
     });
 
     it("answers are hidden by default", () => {
       renderLanding();
 
-      expect(screen.queryByText(/indirect tax on goods and services/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/supports Indian accounting firms/)).not.toBeInTheDocument();
     });
 
     it("expands an answer when the question is clicked", async () => {
@@ -162,7 +128,7 @@ describe("LandingPage", () => {
 
       await userEvent.click(screen.getByText("Is DoAide GST really free?"));
 
-      expect(screen.getByText(/All features are included free/)).toBeInTheDocument();
+      expect(screen.getByText(/The public GST tools are free/)).toBeInTheDocument();
     });
 
     it("collapses an open answer when clicked again", async () => {
@@ -170,21 +136,21 @@ describe("LandingPage", () => {
 
       const question = screen.getByText("Is DoAide GST really free?");
       await userEvent.click(question);
-      expect(screen.getByText(/All features are included free/)).toBeInTheDocument();
+      expect(screen.getByText(/The public GST tools are free/)).toBeInTheDocument();
 
       await userEvent.click(question);
-      expect(screen.queryByText(/All features are included free/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/The public GST tools are free/)).not.toBeInTheDocument();
     });
 
     it("closes the previous answer when opening a new one", async () => {
       renderLanding();
 
       await userEvent.click(screen.getByText("Is DoAide GST really free?"));
-      expect(screen.getByText(/All features are included free/)).toBeInTheDocument();
+      expect(screen.getByText(/The public GST tools are free/)).toBeInTheDocument();
 
       await userEvent.click(screen.getByText("How does GSTR-2B reconciliation work?"));
-      expect(screen.queryByText(/All features are included free/)).not.toBeInTheDocument();
-      expect(screen.getByText(/eligible ITC based on suppliers/)).toBeInTheDocument();
+      expect(screen.queryByText(/The public GST tools are free/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Import your GSTR-2B statement/)).toBeInTheDocument();
     });
   });
 
@@ -192,8 +158,8 @@ describe("LandingPage", () => {
     it("renders the call to action", () => {
       renderLanding();
 
-      expect(screen.getByText("Need Automated GST Filing?")).toBeInTheDocument();
-      expect(screen.getByText("Create Free Account")).toBeInTheDocument();
+      expect(screen.getByText("Need Help Reconciling Client Invoices?")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open GST App" })).toHaveAttribute("href", "/login");
       expect(screen.getByText(/View Plans/)).toBeInTheDocument();
     });
   });
@@ -337,9 +303,9 @@ describe("LandingPage", () => {
     it("shows trust signals", () => {
       renderLanding();
 
-      expect(screen.getByText("256-bit SSL encrypted")).toBeInTheDocument();
+      expect(screen.getByText("HTTPS connection")).toBeInTheDocument();
       expect(screen.getAllByText("GST-compliant calculations").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText("Your data stays private")).toBeInTheDocument();
+      expect(screen.getByText("Account-based access")).toBeInTheDocument();
     });
 
     it("has comparison page links", () => {

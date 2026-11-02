@@ -623,3 +623,33 @@ delete, not for losing the box.
 A `FLUSHALL`, a runaway connection count, or a bad `/opt/knol/Caddyfile` edit
 takes out more than GSTIndia. That is a trade the box was already making before
 this app arrived; it is worth knowing rather than discovering.
+
+## GST marketing frontend release — 2 November 2026
+
+The marketing-only release is based on deployed commit `482f1c5`. It changes the
+landing page and its tests: accurate return-preparation language, a real link to
+`https://doaide.com/demo/`, removal of unverified endorsements/customer counts,
+and a secondary link to `https://doaide.com/company/`. Existing tool, login,
+pricing and guide routes remain intact. The main marketing site is a separate
+Cloudflare Pages project (`DoAideAi/products-site`), not this server's Caddy route.
+
+Validation: all 4,642 frontend tests, the backend pytest suite and backend ruff
+check pass. Frontend lint has zero errors and four pre-existing warnings.
+The local production build prerenders all 1,134 routes. Chrome checks cover the
+landing page at desktop/mobile widths, demo/app destinations, calculator and
+sign-in rendering. The demo flow prepares an email; it does not confirm a booking.
+
+This release is built off-server with `npm ci` and `npm run build`. Production
+has no `VITE_*` overrides (SHA-256 prefix `e3b0c44298fc1c14`). The built tree is
+uploaded separately, checked against the committed frontend tree, and assigned
+root ownership with read-only access for other users. Linux `renameat2` with
+`RENAME_EXCHANGE` swaps the ready tree and live `frontend/dist` atomically; the
+previous complete tree remains at the staging path for rollback. Old hashed
+assets are retained in the new tree for visitors who already have a tab open.
+
+No database migration or API/worker/web restart is necessary for these static
+file changes. The running API continues to report its previous release revision.
+The server checkout advances only by a fast-forward after verifying the original
+revision and a clean worktree. Record the new frontend tree id in
+`frontend/.dist-source`; restore its previous value along with the retained tree
+if rolling back. A full backend deployment still follows the normal runbook above.

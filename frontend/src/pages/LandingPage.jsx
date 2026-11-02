@@ -12,18 +12,6 @@ import { usePageTitle } from "../hooks/usePageTitle";
 import { track } from "../lib/track";
 import { formatStat, getUsageStats } from "../lib/usageStats";
 
-const DOAIDE_PRODUCTS = [
-  { name: "Docs", url: "https://docs.doaide.com" },
-  { name: "Resume", url: "https://resume.doaide.com" },
-  { name: "409A", url: "https://409.doaide.com" },
-  { name: "GST", url: "https://gst.doaide.com" },
-  { name: "Contracts", url: "https://contracts.doaide.com" },
-  { name: "Invoicer", url: "https://invoicer.doaide.com" },
-  { name: "Jobs", url: "https://job.doaide.com" },
-  { name: "Desk", url: "https://desk.doaide.com" },
-  { name: "Pulse", url: "https://pulse.doaide.com" },
-];
-
 function RobotFace({ size = 32, color }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
@@ -69,8 +57,8 @@ const FEATURES = [
     ),
   },
   {
-    title: "GST Return Filing",
-    desc: "Prepare GSTR-1 and GSTR-3B returns in minutes. Export-ready for the GST portal.",
+    title: "GST Return Preparation",
+    desc: "Prepare GSTR-1 and GSTR-3B data for review and export. Complete filing separately on the GST portal.",
     icon: (
       <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -82,7 +70,7 @@ const FEATURES = [
   },
   {
     title: "Deadline Alerts",
-    desc: "Never miss a filing deadline. Get notified before GSTR-1 and GSTR-3B due dates.",
+    desc: "Track GSTR-1 and GSTR-3B due dates and configure reminders for your filing workflow.",
     icon: (
       <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M18 8A6 6 0 106 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -104,7 +92,7 @@ const FEATURES = [
   },
   {
     title: "AI Invoice Parsing",
-    desc: "Upload invoices in any format. AI extracts GSTIN, amounts, HSN codes, and tax breakup automatically.",
+    desc: "Upload supported invoice files. Review extracted GSTINs, amounts, HSN codes and tax breakdowns before using them.",
     icon: (
       <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -119,7 +107,7 @@ const HOW_IT_WORKS = [
   {
     step: "1",
     title: "Upload invoices",
-    desc: "Upload your sales and purchase invoices in any format — PDF, Excel, or structured data — or enter them manually.",
+    desc: "Upload supported PDFs, images or spreadsheets, or enter invoices manually. Review the extracted fields.",
     icon: (
       <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -140,8 +128,8 @@ const HOW_IT_WORKS = [
   },
   {
     step: "3",
-    title: "File returns",
-    desc: "Download your prepared GSTR-1 and GSTR-3B, ready to submit on the GST portal.",
+    title: "Review and prepare",
+    desc: "Review return summaries and export supported return data. Submission on the GST portal remains a separate step.",
     icon: (
       <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#F0B429" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
@@ -151,45 +139,34 @@ const HOW_IT_WORKS = [
   },
 ];
 
-const TESTIMONIALS = [
-  { name: "Priya S.", role: "CA, Mumbai", stars: 5, quote: "DoAide GST cut our reconciliation time from 2 days to 20 minutes. The GSTR-2B matching is spot-on." },
-  { name: "Rahul M.", role: "Founder, textile exports", stars: 5, quote: "We were missing ITC on mismatched invoices every month. DoAide caught them all in the first run." },
-  { name: "Anita K.", role: "Accountant, retail chain", stars: 5, quote: "The free plan handles our monthly volume perfectly. Filing GSTR-3B used to be stressful — now it takes minutes." },
-  { name: "Suresh Gupta", role: "Tax Consultant, Ahmedabad", stars: 4, quote: "The HSN code finder and penalty calculator are tools I use daily. Clients love the instant GST breakdowns." },
-  { name: "Deepak Joshi", role: "Owner, electronics store, Jaipur", stars: 5, quote: "The invoice generator saved us from buying expensive billing software. We create 50+ invoices a month for free." },
-  { name: "Meena R.", role: "Freelance accountant, Chennai", stars: 5, quote: "I handle GST for 12 small businesses. The return calendar and deadline alerts mean I never miss a date anymore." },
-  { name: "Vikram Patel", role: "Startup founder, Bangalore", stars: 5, quote: "We didn't know our interstate invoices needed IGST instead of CGST+SGST. The GSTIN validator caught it before filing." },
-  { name: "Sunita Agarwal", role: "CA firm, Kolkata", stars: 4, quote: "The ITC calculator handles Section 17(5) blocked credits correctly — something even some paid tools get wrong." },
-];
-
 const FAQ_ITEMS = [
   {
-    q: "What is GST and who needs to file GST returns?",
-    a: "GST is India’s indirect tax on goods and services. Every registered business must file GSTR-1 and GSTR-3B. Registration is mandatory above ₹40 lakhs turnover for goods.",
+    q: "Who is DoAide GST for?",
+    a: "DoAide GST supports Indian accounting firms and businesses with invoice review, GSTR-2B reconciliation and return preparation.",
   },
   {
     q: "How does GSTR-2B reconciliation work?",
-    a: "GSTR-2B lists your eligible ITC based on suppliers’ filings. Reconciliation matches your purchase invoices against it. DoAide automates this so you claim the right amount.",
+    a: "Import your GSTR-2B statement and compare it with purchase invoices. Review mismatches, missing entries and duplicates before using the results to prepare a return.",
   },
   {
-    q: "What is Input Tax Credit (ITC) and how is it calculated?",
-    a: "ITC lets you offset tax paid on purchases against your output liability. DoAide reconciles invoices with GSTR-2B and excludes blocked credits to calculate your eligible ITC.",
+    q: "Does DoAide file returns automatically?",
+    a: "No. DoAide helps prepare and export return data. You or your accountant must review the figures and complete submission on the GST portal.",
   },
   {
     q: "Is DoAide GST really free?",
-    a: "Yes. All features are included free for up to 50 invoices per month — no credit card required. Paid plans start at ₹499/month for higher volumes.",
+    a: "The public GST tools are free to use without signing in. Account features have plan limits; see the pricing page for current prices and inclusions.",
   },
   {
-    q: "What are HSN codes and why do they matter for GST?",
-    a: "HSN codes classify goods for tax purposes and determine the GST rate. Wrong codes cause tax and ITC mismatches. DoAide validates HSN codes on your invoices automatically.",
+    q: "Can I review uploaded invoice data?",
+    a: "Yes. Review the extracted fields and correct them before reconciliation. Extraction and matching still need your review.",
   },
   {
-    q: "What happens if I miss a GST filing deadline?",
-    a: "Late filing attracts ₹50/day penalty (capped at ₹5,000) plus 18% interest on unpaid tax. DoAide sends alerts before each deadline so you never miss one.",
+    q: "Can I book a demo for my firm?",
+    a: "Yes. Use the Book a demo link to prepare an email request describing your workflow. Send the email to request a time; availability is confirmed by reply.",
   },
   {
-    q: "Can DoAide GST help with GST compliance for small businesses?",
-    a: "Yes. DoAide handles invoices, GSTR-2B reconciliation, ITC calculation, and return prep — built for Indian SMBs. The free plan covers most small businesses.",
+    q: "Can I keep using the free GST tools?",
+    a: "Yes. The calculators, lookups and guides remain available at their existing addresses on gst.doaide.com.",
   },
 ];
 
@@ -453,7 +430,7 @@ export default function LandingPage() {
       "@type": "Offer",
       price: "0",
       priceCurrency: "INR",
-      description: "Free plan with up to 50 invoices/month",
+      description: "Free public GST tools; account plans and limits are listed on the pricing page",
     },
     featureList: "GST Calculator, GSTIN Lookup, HSN Code Finder, GSTR-2B Reconciliation, ITC Calculator, Invoice Generator, Penalty Calculator, E-Way Bill Checker",
     screenshot: "https://gst.doaide.com/og-image.png",
@@ -468,7 +445,7 @@ export default function LandingPage() {
     <div className="landing-root">
       <SeoHead
         title="Free GST Calculator India | GSTIN Verification & HSN Code Search — DoAide GST"
-        description="India's #1 free GST toolkit — calculate CGST, SGST, IGST instantly, verify any GSTIN, search HSN codes & GST rates, track filing due dates. Trusted by 12,000+ businesses. No sign-up required."
+        description="Free GST tools for Indian businesses: calculate tax breakdowns, look up GSTINs, search HSN codes and explore filing calendars. Public tools need no sign-up."
         path="/"
         jsonLd={softwareAppSchema}
       />
@@ -492,7 +469,7 @@ export default function LandingPage() {
         <DeadlineCountdown />
 
         <section className="landing-section" aria-labelledby="features-heading">
-          <h2 id="features-heading" className="landing-section-title">Everything You Need for GST Compliance</h2>
+          <h2 id="features-heading" className="landing-section-title">Invoice Review and Return Preparation</h2>
           <div className="landing-features-grid">
             {FEATURES.map((f) => (
               <div key={f.title} className="landing-feature-card">
@@ -506,7 +483,7 @@ export default function LandingPage() {
 
         <section className="landing-section" aria-labelledby="how-heading">
           <h2 id="how-heading" className="landing-section-title">How It Works</h2>
-          <p className="landing-section-subtitle">Get started in under 2 minutes — no technical setup required.</p>
+          <p className="landing-section-subtitle">Import your data, review exceptions and prepare the figures for filing.</p>
           <div className="landing-steps">
             {HOW_IT_WORKS.map((s) => (
               <div key={s.step} className="landing-step">
@@ -521,35 +498,11 @@ export default function LandingPage() {
 
         <section className="landing-section landing-demo" aria-labelledby="demo-heading">
           <h2 id="demo-heading" className="landing-section-title">See DoAide GST in Action</h2>
-          <p className="landing-section-subtitle">Indian businesses save hours every month on GST compliance.</p>
-          <Link to="/login" className="landing-demo-placeholder" onClick={() => track("demo_cta_click")}>
-            <div className="landing-demo-play" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="48" height="48" fill="#F0B429" aria-hidden="true">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
-              </svg>
-            </div>
-            <p className="landing-demo-caption">Upload → Reconcile → File — try it free</p>
-          </Link>
-        </section>
-
-        <section className="landing-section" aria-labelledby="testimonials-heading">
-          <h2 id="testimonials-heading" className="landing-section-title">Trusted by Indian Businesses</h2>
-          <div className="landing-testimonials">
-            {TESTIMONIALS.map((t) => (
-              <blockquote key={t.name} className="landing-testimonial">
-                <div style={{ display: "flex", gap: "2px", marginBottom: "8px" }}>
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <span key={i} style={{ color: i < t.stars ? "var(--brand)" : "var(--ink-faint)", fontSize: "14px" }}>★</span>
-                  ))}
-                </div>
-                <p>&ldquo;{t.quote}&rdquo;</p>
-                <footer>
-                  <strong>{t.name}</strong>
-                  <span>{t.role}</span>
-                </footer>
-              </blockquote>
-            ))}
-          </div>
+          <p className="landing-section-subtitle">Discuss your invoice review and reconciliation workflow in a demo for your firm.</p>
+          <a href="https://doaide.com/demo/" className="btn btn-primary" onClick={() => track("demo_request_open")}>
+            Book a demo
+          </a>
+          <p className="landing-demo-caption">Request a time by email. Availability is confirmed by reply.</p>
         </section>
 
         <PopularSearches />
@@ -578,11 +531,11 @@ export default function LandingPage() {
         </section>
 
         <section className="landing-cta">
-          <h2>Need Automated GST Filing?</h2>
-          <p>Free for up to 50 invoices/month — upload invoices, auto-reconcile GSTR-2B, and prepare returns in minutes.</p>
+          <h2>Need Help Reconciling Client Invoices?</h2>
+          <p>Explore invoice review, GSTR-2B matching and return preparation. Check current plans and limits before choosing an account plan.</p>
           <div className="landing-cta-actions">
             <Link to="/login" className="btn btn-primary landing-cta-btn" onClick={() => track("signup_click")}>
-              Create Free Account
+              Open GST App
             </Link>
             <Link to="/pricing" className="btn landing-cta-secondary">
               View Plans →
@@ -637,7 +590,7 @@ export default function LandingPage() {
           </div>
           <div className="landing-footer-col">
             <h4>Company</h4>
-            <a href="https://doaide.com">About DoAide</a>
+            <a href="https://doaide.com/company/">About DoAide</a>
             <a href="mailto:support@doaide.com">Contact</a>
           </div>
         </div>
@@ -646,7 +599,7 @@ export default function LandingPage() {
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--good)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            <span>256-bit SSL encrypted</span>
+            <span>HTTPS connection</span>
           </div>
           <div className="landing-footer-trust-item">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--good)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -660,15 +613,8 @@ export default function LandingPage() {
               <rect x="3" y="11" width="18" height="11" rx="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
-            <span>Your data stays private</span>
+            <span>Account-based access</span>
           </div>
-        </div>
-        <div className="landing-footer-products">
-          {DOAIDE_PRODUCTS.map((p) => (
-            <a key={p.name} href={p.url} className="landing-footer-link">
-              {p.name}
-            </a>
-          ))}
         </div>
         <div className="landing-footer-bottom">
           <a href="https://doaide.com" className="landing-footer-home">
