@@ -28,7 +28,9 @@ def _actual() -> Counter:
 
 def test_every_area_is_in_the_table_with_its_route_count():
     text = README.read_text()
-    documented = {area: int(n) for area, n in re.findall(r"^\| `([a-z]+)` \| (\d+) \|", text, re.M)}
+    documented = {area: int(n) for area, n in re.findall(
+        r"^\| `([a-z-]+)` \| (\d+) \|", text, re.M
+    )}
     assert documented == dict(_actual()), "update the API table in README.md"
 
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import ReadOnlyNotice from "../components/ReadOnlyNotice";
 import { SkeletonStats } from "../components/Skeleton";
@@ -10,7 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api, isAbortError } from "../lib/api";
 import { track } from "../lib/track";
-import { currentPeriod, dateLabel, periodLabel, previousPeriod, rupees } from "../lib/format";
+import { linkedPeriod, currentPeriod, dateLabel, periodLabel, previousPeriod, rupees } from "../lib/format";
 import { arnError, normalizeArn } from "../lib/validate";
 
 /** The last 12 filing periods, newest first. */
@@ -116,7 +116,8 @@ function latenessLine(owed) {
 export default function FilingPage() {
   usePageTitle("Filing");
   const { canWrite } = useAuth();
-  const [period, setPeriod] = useState(previousPeriod());
+  const location = useLocation();
+  const [period, setPeriod] = useState(() => linkedPeriod(location.search, previousPeriod()));
   const [returnType, setReturnType] = useState("gstr1");
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
@@ -321,7 +322,7 @@ export default function FilingPage() {
         <label className="period-picker">
           <span>Period</span>
           <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-            {recentPeriodOptions().map((option) => (
+            {[...new Set([period, ...recentPeriodOptions()])].sort().reverse().map((option) => (
               <option key={option} value={option}>
                 {periodLabel(option)}
               </option>

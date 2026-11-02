@@ -9,6 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
   { to: "/", label: "Dashboard", end: true, group: "Workspace", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" },
+  { to: "/action-agent", label: "AI action plan", group: "Workspace", icon: "M12 3v4m0 10v4M3 12h4m10 0h4M7 7l2 2m6 6 2 2M7 17l2-2m6-6 2-2M12 8l4 4-4 4-4-4z" },
   { to: "/invoices", label: "Invoices", group: "Workspace", icon: "M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5" },
   { to: "/upload", label: "Upload", group: "Workspace", icon: "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" },
   { to: "/reconcile", label: "Reconcile", group: "Workspace", icon: "M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4" },

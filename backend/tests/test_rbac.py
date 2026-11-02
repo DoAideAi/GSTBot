@@ -483,6 +483,9 @@ class TestTheRoleCostsNoExtraQuery:
 # a security decision — it says a read-only session may perform this write —
 # and each entry says why it is not one.
 UNGATED_MUTATIONS = {
+    # Reads the active tenant's summaries and returns advice; it cannot write
+    # records, send messages or file returns. Viewers may review their data.
+    "/api/v1/action-agent/review",
     # There is no session yet, so there is no role to read.
     "/api/v1/auth/login",
     "/api/v1/auth/register",

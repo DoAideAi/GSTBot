@@ -32,6 +32,7 @@ from app.core.redis_client import close as redis_close
 from app.core.redis_client import ping as redis_ping
 from app.core.storage import check_upload_dir
 from app.routers import (
+    action_agent,
     advisor,
     alerts,
     auth,
@@ -390,6 +391,7 @@ def create_app() -> FastAPI:
     application.add_middleware(TrailingSlashMiddleware)
 
     prefix = settings.api_v1_prefix
+    application.include_router(action_agent.router, prefix=prefix)
     application.include_router(advisor.router, prefix=prefix)
     application.include_router(misc.router, prefix=prefix)
     application.include_router(feedback.router, prefix=prefix)

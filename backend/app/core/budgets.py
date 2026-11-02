@@ -36,6 +36,8 @@ ROUTE_BUDGETS_MS: dict[tuple[str, str], int] = {
     ("GET", "/reconciliation/{run_id}/report.pdf"): 3000,
     # One upstream model call, bounded by its own 20 s timeout.
     ("POST", "/advisor/ask"): 20000,
+    # Several short model calls and period checks, rather than a normal write.
+    ("POST", "/action-agent/review"): 20000,
     # A period's returns assembled from every invoice in it.
     ("GET", "/filing/gstr1"): 2000,
     ("GET", "/filing/gstr3b"): 2000,

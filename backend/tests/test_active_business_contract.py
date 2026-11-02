@@ -295,6 +295,9 @@ class TestTheSweepCoversEveryBusinessScopedRoute:
             if method != "GET" and not _ROW_ID.search(path)
         } == {
             ("POST", "/api/v1/invoices/upload"),
+            # Read-only review; test_action_agent proves switched summaries
+            # come from the selected business before reaching the provider.
+            ("POST", "/api/v1/action-agent/review"),
             ("POST", "/api/v1/invoices/bulk"),
             ("POST", "/api/v1/reconciliation/gstr2b/import"),
             ("POST", "/api/v1/reconciliation/run"),

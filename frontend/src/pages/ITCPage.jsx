@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import { SkeletonStats } from "../components/Skeleton";
 import StatCard from "../components/StatCard";
 import TableScroll from "../components/TableScroll";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api, isAbortError } from "../lib/api";
-import { currentPeriod, dateLabel, periodLabel, rupees } from "../lib/format";
+import { linkedPeriod, currentPeriod, dateLabel, periodLabel, rupees } from "../lib/format";
 
 /** The last 12 filing periods, newest first. */
 function recentPeriodOptions(now = new Date()) {
@@ -74,7 +74,8 @@ function HeadsTable({ caption, label, rows }) {
 
 export default function ITCPage() {
   usePageTitle("ITC");
-  const [period, setPeriod] = useState(currentPeriod());
+  const location = useLocation();
+  const [period, setPeriod] = useState(() => linkedPeriod(location.search, currentPeriod()));
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -150,7 +151,7 @@ export default function ITCPage() {
         <label className="period-picker">
           <span>Period</span>
           <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-            {recentPeriodOptions().map((option) => (
+            {[...new Set([period, ...recentPeriodOptions()])].sort().reverse().map((option) => (
               <option key={option} value={option}>
                 {periodLabel(option)}
               </option>

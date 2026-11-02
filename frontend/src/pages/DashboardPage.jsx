@@ -107,6 +107,7 @@ function QuickActions({ data, canWrite }) {
     <section className="panel dashboard-quick-actions">
       <h2>Quick actions</h2>
       <div className="button-row">
+        <Link to={`/action-agent?period=${data.period}`} className="btn btn-ghost">Create AI action plan</Link>
         {canWrite && (
           <Link to="/upload" className="btn btn-primary">
             Upload invoices

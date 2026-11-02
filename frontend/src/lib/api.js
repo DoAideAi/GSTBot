@@ -459,6 +459,9 @@ function fieldMessage({ loc, msg }) {
 const FIELD_ACRONYMS = new Set(["gst", "gstin", "hsn", "sac", "pan", "arn", "itc", "otp"]);
 
 export const api = {
+  reviewActions(body, { signal } = {}) {
+    return request("/action-agent/review", { method: "POST", body, signal });
+  },
   pilotStatus: () => request("/subscriptions/pilot"),
   startPilot: (tier) => request("/subscriptions/pilot", { method: "POST", body: { tier } }),
   coverPilotBusiness: (businessId) => request("/subscriptions/pilot/businesses", {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import ErrorBanner from "../components/ErrorBanner";
 import Pager, { stepBackOffset } from "../components/Pager";
 import ReadOnlyNotice from "../components/ReadOnlyNotice";
@@ -12,7 +12,7 @@ import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { api, isAbortError } from "../lib/api";
 import { track } from "../lib/track";
-import { currentPeriod, dateLabel, periodLabel, rupees } from "../lib/format";
+import { linkedPeriod, currentPeriod, dateLabel, periodLabel, rupees } from "../lib/format";
 import { GSTR2B_EXTENSIONS, fileError } from "../lib/validate";
 
 const ACCEPT = GSTR2B_EXTENSIONS.join(",");
@@ -168,7 +168,8 @@ function FindingRow({ finding }) {
 export default function ReconcilePage() {
   usePageTitle("Reconcile");
   const { canWrite } = useAuth();
-  const [period, setPeriod] = useState(currentPeriod());
+  const location = useLocation();
+  const [period, setPeriod] = useState(() => linkedPeriod(location.search, currentPeriod()));
   const [imported, setImported] = useState(null);
   const [run, setRun] = useState(null);
   const [filter, setFilter] = useState("all");

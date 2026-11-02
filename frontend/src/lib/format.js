@@ -114,3 +114,10 @@ export function formatMarkdown(text) {
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\n/g, "<br />");
 }
+
+/** Preserve a filing period when following a workspace action link. */
+export function linkedPeriod(search, fallback) {
+  const value = new URLSearchParams(search).get("period");
+  return /^(?:2017-(?:0[7-9]|1[0-2])|20(?:1[89]|[2-9][0-9])-(?:0[1-9]|1[0-2]))$/.test(value ?? "")
+    ? value : fallback;
+}

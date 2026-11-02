@@ -126,7 +126,8 @@ class TestJsonFormatter:
 
     @pytest.mark.parametrize(
         "key",
-        ["password", "token", "authorization", "api_key", "jwt_secret", "hashed_password"],
+        ["password", "token", "authorization", "api_key", "jwt_secret",
+         "openai_api_key", "hashed_password"],
     )
     def test_secrets_are_redacted_by_key_name(self, key):
         # Logs are read by more people than the database is.

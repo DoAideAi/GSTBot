@@ -193,6 +193,10 @@ class Settings(BaseSettings):
     # these must fit inside that limit; ``test_openrouter_client`` holds it.
     openrouter_call_budget_seconds: float = Field(default=80.0, gt=0, le=600)
 
+    # ---- AI (OpenAI — signed-in, read-only action plans) ----
+    openai_api_key: str = Field(default="", repr=False)
+    openai_agent_model: str = "gpt-5.4-mini"
+
     # ---- AI (TypeSafe Jev — structured classification) ----
     # Empty key = Jev is never called and every caller keeps its non-Jev path.
     # Jev's answers are advisory: stored beside the extraction for a reviewer,

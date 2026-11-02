@@ -8,6 +8,7 @@ Disallow: /reconcile
 Disallow: /itc$
 Disallow: /filing$
 Disallow: /suppliers
+Disallow: /action-agent
 Disallow: /alerts
 Disallow: /usage
 Disallow: /status

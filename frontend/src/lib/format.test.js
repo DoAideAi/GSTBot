@@ -158,3 +158,13 @@ describe("status helpers", () => {
     expect(statusTone("uploaded")).toBe("neutral");
   });
 });
+
+describe("linkedPeriod", () => {
+  it("keeps a valid linked period and falls back for absent or invalid values", async () => {
+    const { linkedPeriod } = await import("./format");
+    expect(linkedPeriod("?period=2026-10", "2026-11")).toBe("2026-10");
+    for (const value of ["", "?period=2026-13", "?period=2017-06", "?period=https://evil.example"]) {
+      expect(linkedPeriod(value, "2026-11")).toBe("2026-11");
+    }
+  });
+});

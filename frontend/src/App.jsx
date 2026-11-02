@@ -20,6 +20,7 @@ const FeedbackWidget = lazy(() => import("./components/FeedbackWidget"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const ActionAgentPage = lazy(() => import("./pages/ActionAgentPage"));
 const AdminFeedbackPage = lazy(() => import("./pages/AdminFeedbackPage"));
 const BulkGstinPage = lazy(() => import("./pages/BulkGstinPage"));
 const BlogLayout = lazy(() => import("./pages/BlogLayout"));
@@ -381,6 +382,7 @@ export default function App() {
         <Route path="/widget" element={<Lazy><WidgetPage /></Lazy>} />
         <Route path="/widget/hsn" element={<Lazy><HsnWidgetPage /></Lazy>} />
         <Route path="/" element={<Home />} />
+        <Route path="/action-agent" element={<Protected><ActionAgentPage /></Protected>} />
         <Route
           path="/invoices"
           element={

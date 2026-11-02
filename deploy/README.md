@@ -866,3 +866,52 @@ directives. Validate the candidate, reload Caddy without a restart, then verify
 the public CSP and a real Metricool beacon. Retain the prior Caddyfile securely
 alongside the previous frontend and release metadata for rollback. The API
 release marker stays unchanged.
+
+## GST Action Agent — 3 November 2026
+
+The signed-in `/action-agent` page creates a read-only plan for a selected period.
+It calls `POST /api/v1/action-agent/review` with a period and one of three review
+focuses. The current tenant is resolved through the ordinary session and
+`X-Business-Id` membership checks; the model cannot supply a tenant or period to
+a tool. Viewers may request a review because no business records are written.
+
+Set `OPENAI_API_KEY` in `/etc/gstbot/gstbot.env` using the server's secret handling;
+never place it in a frontend variable or source control. `OPENAI_AGENT_MODEL`
+defaults to `gpt-5.4-mini`. The Responses API is called directly with existing
+httpx; no dependency install or schema migration is required. Keep provider
+responses out of error logs. Only period totals, filing status, reconciliation
+counts and validator field/severity counts are sent. Invoice text, supplier
+names, GSTINs, contact details and documents are excluded. The page describes
+this use before the user starts a review. `store: false` disables Responses
+application-state storage; it is not a claim of zero provider retention.
+
+The agent may call only `check_reconciliation` and `check_invoice_quality`.
+Checks are required for the selected focus. At most three provider requests,
+2,200 output tokens each, run inside a 55-second network-workflow deadline.
+Invoice validation above 2,000 records is explicitly skipped and directs the
+user to Filing. Model outputs are validated against a fixed schema; navigation
+uses a local destination allowlist. No messages are sent, invoices edited or
+returns filed. AI advice is presented with sources and review guidance.
+
+The normal Redis-backed limiter allows three reviews per minute and ten per day
+per authenticated account, with a shared 200/day site limit. Overrides use
+`action_agent_minute`, `action_agent_daily` and `action_agent_site_daily`.
+Like existing limits, Redis failure falls back to per-process counters; these
+are request controls, not a provider billing cap. Three provider failures open
+a 120-second breaker. Missing credentials and provider failures return a usable
+503 without interrupting the rest of the product.
+
+Build off-server and publish the frontend and backend source together under the
+existing deployment lock. Retain the old frontend, source revision, backend
+release marker, and a root-only backup of the environment file. Install the key,
+update `.dist-source` and `backend/.release`, and restart only `gstbot-api`.
+Verify readiness, anonymous refusal, UI navigation, and a synthetic OpenAI review
+without reading customer data. Rollback restores those files and restarts the
+API. The production database and shared Caddyfile require no changes.
+
+Validation includes a real OpenAI review using synthetic records, tenant and
+switched-business isolation, denied tool arguments, no database writes, provider
+failures, rate limits, cancellation and mobile/light/dark browser checks. The
+frontend coverage gate already fails on the prior release (`4b4a932`): 95.72%
+lines against 99%, despite all tests passing. This release leaves the thresholds
+unchanged; fixing the repository-wide coverage gap is separate work.

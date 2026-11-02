@@ -139,7 +139,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-106 routes under `/api/v1`. The generated reference is the authority — start the
+107 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -173,6 +173,7 @@ The surface, by area:
 | `subscribers` | 3 | Newsletter sign-up, and unsubscribe by link or one-click POST |
 | `feedback` | 6 | Send feedback, report a browser error; admin inbox and error log, and deleting from each |
 | `advisor` | 2 | The GST AI advisor, answered whole or streamed |
+| `action-agent` | 1 | Read-only AI action plans from the active business's period summaries |
 | `gpt` | 7 | GPT Actions for ChatGPT: GSTIN, HSN, calculator, invoice data, filing dates, spec, privacy |
 | `whatsapp` | 2 | The WhatsApp bot's webhook and its verification handshake |
 | `seo` | 3 | `robots.txt`, the sitemap, share images |

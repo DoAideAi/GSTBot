@@ -203,6 +203,7 @@ CLIENT_FACING = {
 }
 
 INTERNAL_ONLY = {
+    "AgentUnavailable": "mapped to a fixed actionable 503; provider errors stay private",
     # The parser degrades to regex extraction rather than surfacing any of
     # these; a caller whose upload took the fallback gets an invoice, not an
     # error. Naming the provider and the status is exactly what the operator
