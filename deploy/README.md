@@ -778,3 +778,30 @@ the clean production checkout and source marker before publishing; retain old
 hashed assets and the previous complete tree. Record both source markers and
 the rollback tree in `/var/backups/gstbot/landing-brand-<revision>.json`.
 No database migration, environment change or service restart is required.
+
+## GST signed-in workspace alignment — 3 November 2026
+
+This frontend-only release starts from `1a20389` and extends the landing-page
+design to the authenticated workspace. A compact brand header and grouped
+sidebar replace the overflowing navigation row. The same navigation becomes a
+scrollable drawer on smaller screens. Business selection stays in the header;
+account export and sign-out are in the sidebar. Cards, tables, forms, primary
+buttons and light/dark themes use the shared brand tokens. Help controls sit
+below the content so they do not cover financial figures or table actions.
+
+Authenticated pricing now retains the workspace shell and active registration.
+Public pricing remains accessible without signing in. Dashboard and password
+form changes are presentational; no API, authentication or financial calculation
+changes are included.
+
+Validation: 4,666 frontend tests pass, including current-page drawer dismissal
+and signed-in/public/loading pricing routes. Lint has zero errors and four
+existing warnings. The build prerenders all 1,134 routes and remains below the
+140KB first-load gzip budget. Browser checks use isolated sample API responses
+for all 11 workspace routes at 320, 390, 768, 1024 and 1440px, plus mobile and
+desktop dark mode. No real account or business data is changed by these checks.
+
+Publish using the existing off-server build and locked atomic frontend exchange,
+retaining prior hashed assets and the previous tree. Store release metadata in
+`/var/backups/gstbot/workspace-brand-<revision>.json`. No database, environment or
+service restart is needed; the backend release marker remains unchanged.

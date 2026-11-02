@@ -25,6 +25,7 @@ vi.mock("./pages/DashboardPage", () => ({
 }));
 vi.mock("./pages/LandingPage", () => ({ default: () => <div>Landing page</div> }));
 vi.mock("./pages/LoginPage", () => ({ default: () => <div>Login page</div> }));
+vi.mock("./pages/PricingPage", () => ({ default: () => <div>Pricing page</div> }));
 vi.mock("./pages/InvoicesPage", () => ({ default: () => <div>Invoices page</div> }));
 vi.mock("./pages/InvoiceDetailPage", () => ({ default: () => <div>Invoice detail page</div> }));
 vi.mock("./pages/UploadPage", () => ({ default: () => <div>Upload page</div> }));
@@ -62,6 +63,25 @@ function renderAt(route, state = { user: USER, loading: false }) {
     </MemoryRouter>,
   );
 }
+
+it("keeps signed-in pricing inside the workspace navigation", async () => {
+  renderAt("/pricing");
+  expect(await screen.findByText("Pricing page")).toBeInTheDocument();
+  expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Pricing", exact: true })).toHaveAttribute("aria-current", "page");
+});
+
+it("keeps pricing public for a signed-out visitor", async () => {
+  renderAt("/pricing", { user: null, loading: false });
+  expect(await screen.findByText("Pricing page")).toBeInTheDocument();
+  expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
+});
+
+it("waits for the session before selecting the pricing layout", () => {
+  renderAt("/pricing", { user: null, loading: true });
+  expect(screen.queryByText("Pricing page")).not.toBeInTheDocument();
+  expect(screen.getByText(/Checking your session/)).toBeInTheDocument();
+});
 
 beforeEach(() => {
   crash.current = false;

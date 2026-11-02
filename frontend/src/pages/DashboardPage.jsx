@@ -104,7 +104,7 @@ function QuickActions({ data, canWrite }) {
   const needsReview = data.counts.needs_review > 0;
   const hasRecon = data.last_reconciliation !== null;
   return (
-    <section className="panel">
+    <section className="panel dashboard-quick-actions">
       <h2>Quick actions</h2>
       <div className="button-row">
         {canWrite && (
@@ -373,6 +373,7 @@ export default function DashboardPage() {
     <div className={loading ? "page is-refreshing" : "page"} aria-busy={loading}>
       <div className="page-head">
         <div>
+          <p className="workspace-eyebrow">Your GST workspace</p>
           <h1>Dashboard</h1>
           {data && (
             <p className="muted">

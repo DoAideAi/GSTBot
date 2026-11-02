@@ -118,6 +118,14 @@ describe("Shell", () => {
     );
   });
 
+  it("closes the menu when the current page is selected again", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    await user.click(screen.getByRole("link", { name: "Dashboard", exact: true }));
+    expect(screen.getByRole("button", { name: "Open menu" })).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("closes the menu when the scrim is tapped", async () => {
     const user = userEvent.setup();
     const { container } = renderShell();

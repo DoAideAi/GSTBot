@@ -222,6 +222,14 @@ function Lazy({ children }) {
   return <Suspense fallback={<LazyFallback />}>{children}</Suspense>;
 }
 
+// Pricing is public, but a signed-in visit should keep the workspace navigation
+// and active registration just like the other account screens.
+function PricingRoute() {
+  const { user, loading } = useAuth();
+  if (user || loading) return <Protected><PricingPage /></Protected>;
+  return <Lazy><PricingPage /></Lazy>;
+}
+
 // /login is the one public route whose content depends on the session: a
 // signed-in visitor belongs on the dashboard, not over a sign-in form.
 function LoginRoute() {
@@ -249,7 +257,7 @@ export default function App() {
         <Route path="/forgot-password" element={<Lazy><ForgotPasswordPage /></Lazy>} />
         <Route path="/reset-password" element={<Lazy><ResetPasswordPage /></Lazy>} />
         <Route path="/unsubscribe" element={<Lazy><UnsubscribePage /></Lazy>} />
-        <Route path="/pricing" element={<Lazy><PricingPage /></Lazy>} />
+        <Route path="/pricing" element={<PricingRoute />} />
         <Route path="/blog" element={<Lazy><BlogLayout /></Lazy>}>
           <Route index element={<Lazy><BlogIndex /></Lazy>} />
           <Route path="gst-filing-guide-india-2026" element={<Lazy><GstFilingGuide /></Lazy>} />

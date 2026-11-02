@@ -84,7 +84,7 @@ export default function ChangePasswordForm() {
             a live region — which is announced — rather than one inserted
             already full, which often is not. */}
         <p role="status">{done ? "Password changed." : ""}</p>
-        <button type="submit" disabled={busy}>
+        <button type="submit" className="btn btn-primary" disabled={busy}>
           Change password
         </button>
       </form>

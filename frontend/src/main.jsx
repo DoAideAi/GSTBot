@@ -13,6 +13,7 @@ import { installStaleChunkReload } from "./lib/staleChunk";
 import "./index.css";
 import "./brand-ui.css";
 import "./landing.css";
+import "./workspace.css";
 
 installStaleChunkReload();
 // Before the first render, so an error thrown while mounting is caught and the

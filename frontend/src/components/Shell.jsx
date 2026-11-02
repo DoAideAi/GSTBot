@@ -8,18 +8,20 @@ import ExportAccountButton from "./ExportAccountButton";
 import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
-  { to: "/", label: "Dashboard", end: true },
-  { to: "/invoices", label: "Invoices" },
-  { to: "/upload", label: "Upload" },
-  { to: "/reconcile", label: "Reconcile" },
-  { to: "/itc", label: "ITC" },
-  { to: "/filing", label: "Filing" },
-  { to: "/suppliers", label: "Suppliers" },
-  { to: "/bulk-gstin", label: "Bulk GSTIN" },
-  { to: "/alerts", label: "Alerts", badge: true },
-  { to: "/pricing", label: "Pricing" },
-  { to: "/usage", label: "Usage" },
+  { to: "/", label: "Dashboard", end: true, group: "Workspace", icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" },
+  { to: "/invoices", label: "Invoices", group: "Workspace", icon: "M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5" },
+  { to: "/upload", label: "Upload", group: "Workspace", icon: "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" },
+  { to: "/reconcile", label: "Reconcile", group: "Workspace", icon: "M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4" },
+  { to: "/itc", label: "ITC", group: "Workspace", icon: "M4 3h16v18H4zM8 7h8M8 11h5m-5 5 2 2 5-5" },
+  { to: "/filing", label: "Filing", group: "Workspace", icon: "M6 3h9l4 4v14H6zM14 3v5h5m-10 7 2 2 4-4" },
+  { to: "/suppliers", label: "Suppliers", group: "Management", icon: "M4 21V7l8-4 8 4v14M9 21v-5h6v5M8 9h1m6 0h1m-8 3h1m6 0h1" },
+  { to: "/bulk-gstin", label: "Bulk GSTIN", group: "Management", icon: "M8 3h12v14H8zM4 7v14h12M11 7h6m-6 4h6" },
+  { to: "/alerts", label: "Alerts", badge: true, group: "Management", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" },
+  { to: "/pricing", label: "Pricing", group: "Account", icon: "M3 5h18v14H3zM3 10h18M7 15h4" },
+  { to: "/usage", label: "Usage", group: "Account", icon: "M4 3v18h17M8 16v-4m5 4V7m5 9V4" },
 ];
+
+const NAV_GROUPS = ["Workspace", "Management", "Account"];
 
 const TIER_BADGE = { pro: "PRO", enterprise: "CA" };
 
@@ -82,10 +84,7 @@ export default function Shell({ children }) {
     return fetchAlertCount();
   }, [location.pathname, fetchAlertCount]);
 
-  // Eight links do not fit on a phone, so below 860px they collapse behind a
-  // button. The menu stays in the DOM either way — CSS decides whether it is a
-  // row or a drawer — so there is one nav for assistive tech rather than two
-  // that can drift apart.
+  // The same navigation serves the desktop sidebar and mobile drawer.
   useEffect(() => {
     setNavOpen(false);
   }, [location.pathname]);
@@ -116,64 +115,81 @@ export default function Shell({ children }) {
       </a>
 
       <header className="shell-header">
-        <div className="brand">
+        <NavLink to="/" className="brand" aria-label="DoAide GST dashboard">
           <BrandMark />
           <span className="brand-name">DoAide <span className="brand-accent">GST</span></span>
-        </div>
-
-        <button
-          type="button"
-          ref={toggleRef}
-          className="nav-toggle"
-          aria-expanded={navOpen}
-          aria-controls="main-nav"
-          onClick={() => setNavOpen((open) => !open)}
-        >
-          <span className="nav-toggle-bars" aria-hidden="true" />
-          <span className="visually-hidden">{navOpen ? "Close menu" : "Open menu"}</span>
-        </button>
-
-        <nav
-          id="main-nav"
-          className={navOpen ? "shell-nav is-open" : "shell-nav"}
-          aria-label="Main"
-        >
-          {LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) => (isActive ? "nav-link is-active" : "nav-link")}
-            >
-              {link.label}
-              {link.badge && alertCount > 0 && (
-                <>
-                  <span className="nav-badge" aria-hidden="true">
-                    {alertCount > 99 ? "99+" : alertCount}
-                  </span>
-                  <span className="visually-hidden">
-                    {` (${alertCount} open)`}
-                  </span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="shell-user">
+        </NavLink>
+        <span className="shell-label">Workspace</span>
+        <div className="shell-business-controls">
+          <BusinessSwitcher />
           {TIER_BADGE[subTier] && (
             <NavLink to="/pricing" className="tier-badge" title={pilotEnd ? "Free pilot active — see pricing for the end date" : "Premium plan active"}>
               {TIER_BADGE[subTier]}{pilotEnd ? " PILOT" : ""}
             </NavLink>
           )}
-          <BusinessSwitcher />
+        </div>
+        <div className="shell-header-actions">
           <ThemeToggle />
-          <ExportAccountButton />
-          <button type="button" className="btn btn-ghost" onClick={handleLogout}>
-            Sign out
+          <button
+            type="button"
+            ref={toggleRef}
+            className="nav-toggle"
+            aria-expanded={navOpen}
+            aria-controls="main-nav"
+            onClick={() => setNavOpen((open) => !open)}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d={navOpen ? "M6 6l12 12M6 18 18 6" : "M4 6h16M4 12h16M4 18h16"} /></svg>
+            <span className="visually-hidden">{navOpen ? "Close menu" : "Open menu"}</span>
           </button>
         </div>
       </header>
+
+      <aside className={navOpen ? "workspace-sidebar is-open" : "workspace-sidebar"}>
+        <nav
+          id="main-nav"
+          className={navOpen ? "shell-nav is-open" : "shell-nav"}
+          aria-label="Main"
+        >
+          {NAV_GROUPS.map((group) => (
+            <div className="workspace-nav-group" key={group}>
+              <h2>{group}</h2>
+              {LINKS.filter((link) => link.group === group).map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={link.end}
+                  onClick={() => setNavOpen(false)}
+                  className={({ isActive }) => (isActive ? "nav-link is-active" : "nav-link")}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={link.icon} /></svg>
+                  <span>{link.label}</span>
+                  {link.badge && alertCount > 0 && (
+                    <>
+                      <span className="nav-badge" aria-hidden="true">
+                        {alertCount > 99 ? "99+" : alertCount}
+                      </span>
+                      <span className="visually-hidden">
+                        {` (${alertCount} open)`}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="workspace-account">
+          <p className="workspace-account-label">Signed in as</p>
+          <p className="workspace-account-email" title={user?.email}>{user?.email}</p>
+          <div className="workspace-account-actions">
+            <ExportAccountButton />
+            <button type="button" className="btn btn-ghost" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </aside>
 
       {/* Tapping outside the drawer closes it. Hidden from assistive tech: the
           Escape handler above is the accessible equivalent. */}
