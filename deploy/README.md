@@ -758,3 +758,23 @@ cover payment/tenant behavior; new tests exercise admission, retries, limits,
 expiry, paid-plan precedence, report exports and membership boundaries. Chrome
 checks exercise public/login/active/expired screens at 360, 390 and 1440 pixels
 with local API fixtures; no real customer's pilot is started for verification.
+
+## GST landing-page brand alignment — 2 November 2026
+
+This frontend-only update starts from `8061362`. The homepage follows the current
+doaide.com design: a 64px header, dark primary buttons, gradient headline, subtle
+hero grid, consistent card spacing and a branded footer. Mobile navigation is
+collapsible, closes on selection or Escape, and restores toggle focus on Escape.
+The scoped `landing.css` prevents legacy styles from centering tool-card content
+or constraining the final call to action. Existing tools and pilot terms remain.
+
+Validation: 4,662 frontend tests pass; lint has zero errors and the four existing
+warnings. All 1,134 routes prerender successfully. First-load assets remain under
+the 140KB gzip budget. Browser checks cover 320, 390, 768, 980 and 1440px, both
+themes, mobile-menu layout and keyboard dismissal, search, filters and FAQs.
+
+Use the existing off-server build and locked atomic frontend exchange. Verify
+the clean production checkout and source marker before publishing; retain old
+hashed assets and the previous complete tree. Record both source markers and
+the rollback tree in `/var/backups/gstbot/landing-brand-<revision>.json`.
+No database migration, environment change or service restart is required.

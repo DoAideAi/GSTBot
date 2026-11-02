@@ -295,14 +295,14 @@ function InstantLookup() {
     <section className="gst-hero">
       <div className="gst-wrap gst-hero-grid">
         <div className="gst-hero-copy">
-          <span className="gst-eyebrow"><span /> For businesses &amp; accounting firms</span>
+          <span className="gst-eyebrow"><span>DoAide GST</span> For businesses &amp; accounting firms</span>
           <h1 className="landing-hero-title">Everyday GST work.<br /><em>A clearer starting point.</em></h1>
           <p className="landing-hero-subtitle">25+ free tools to calculate tax, check GSTINs and find the right codes. Your next task, without the clutter.</p>
           <div className="gst-hero-actions">
             <a href="#tools" className="btn btn-primary">Explore free tools <span aria-hidden="true">↗</span></a>
             <Link to="/login" className="btn btn-ghost">Open your workspace</Link>
           </div>
-          <p><Link to="/pricing">Try SMB or CA free for 60 days</Link> · No payment details required. Limited pilot places.</p>
+          <p className="gst-pilot-note"><Link to="/pricing">Try SMB or CA free for 60 days</Link><span> No payment details required. Limited pilot places.</span></p>
           <div className="landing-trust-bar">
             {trustItems.map((item) => (
               <div key={item.label} className="landing-trust-item"><strong>{item.figure}</strong><span>{item.label}</span></div>
@@ -386,6 +386,7 @@ function PopularSearches() {
 }
 
 export default function LandingPage() {
+  const [menuOpen, setMenuOpen] = useState(false);
   usePageTitle("Free GST Tools India | GST Calculator, GSTIN Lookup & HSN Code Search");
 
   const softwareAppSchema = {
@@ -421,12 +422,29 @@ export default function LandingPage() {
         jsonLd={softwareAppSchema}
       />
       <a href="#main" className="skip-link">Skip to content</a>
-      <header className="landing-header landing-visible">
+      <header className="landing-header landing-visible" onKeyDown={(event) => {
+        if (event.key === "Escape" && menuOpen) {
+          setMenuOpen(false);
+          event.currentTarget.querySelector(".gst-menu-toggle")?.focus();
+        }
+      }}>
         <div className="gst-header-inner gst-wrap">
           <a href="https://doaide.com" className="landing-brand"><BrandMark /><span className="landing-brand-text">DoAide <em>GST</em></span></a>
           <nav className="gst-primary-nav" aria-label="Primary"><a href="#tools">Free tools</a><a href="#workflow">For your firm</a><Link to="/guides">Guides</Link><Link to="/pricing">Pricing</Link></nav>
-          <div className="gst-header-actions"><ThemeToggle /><Link to="/login" className="gst-sign-in">Sign in</Link><a href="https://doaide.com/demo/" className="btn btn-primary gst-header-demo">Book a demo</a></div>
+          <div className="gst-header-actions">
+            <ThemeToggle />
+            <Link to="/login" className="gst-sign-in">Sign in</Link>
+            <a href="https://doaide.com/demo/" className="btn btn-primary gst-header-demo">Book a demo</a>
+            <button type="button" className="gst-menu-toggle" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="gst-mobile-navigation" onClick={() => setMenuOpen(!menuOpen)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d={menuOpen ? "M6 6l12 12M6 18 18 6" : "M4 6h16M4 12h16M4 18h16"} /></svg>
+            </button>
+          </div>
         </div>
+        <nav id="gst-mobile-navigation" className="gst-mobile-navigation gst-wrap" aria-label="Mobile" hidden={!menuOpen} onClick={() => setMenuOpen(false)}>
+          <a href="#tools">Free tools</a><a href="#workflow">For your firm</a><Link to="/guides">Guides</Link><Link to="/pricing">Pricing</Link>
+          <Link to="/login">Sign in to your workspace <span aria-hidden="true">→</span></Link>
+          <a href="https://doaide.com/demo/">Book a demo <span aria-hidden="true">↗</span></a>
+        </nav>
       </header>
       <main id="main">
         <InstantLookup />
@@ -465,34 +483,34 @@ export default function LandingPage() {
         </section>
 
         <section className="landing-section landing-demo" aria-labelledby="demo-heading">
-          <h2 id="demo-heading" className="landing-section-title">See DoAide GST in Action</h2>
-          <p className="landing-section-subtitle">Discuss your invoice review and reconciliation workflow in a demo for your firm.</p>
-          <a href="https://doaide.com/demo/" className="btn btn-primary" onClick={() => track("demo_request_open")}>
-            Book a demo
-          </a>
-          <p className="landing-demo-caption">Request a time by email. Availability is confirmed by reply.</p>
-        </section>
-
-        <PopularSearches />
-
-
-        <FaqSection />
-
-
-        <section className="landing-section landing-advisor-cta" aria-labelledby="advisor-heading">
-          <h2 id="advisor-heading" className="landing-section-title">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style={{ verticalAlign: "middle", marginRight: 6, color: "var(--brand, #2563eb)" }} aria-hidden="true">
-              <path d="M12 1l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z" />
-            </svg>
-            Ask our AI Advisor any GST question — Free!
-          </h2>
-          <p style={{ textAlign: "center", color: "var(--text-secondary, #666)", maxWidth: 520, margin: "0 auto 16px" }}>
-            Get instant answers on GST registration, filing, rates, ITC claims, and compliance — powered by AI.
-          </p>
-          <div style={{ textAlign: "center" }}>
-            <Link to="/advisor" className="btn btn-primary">Try AI Advisor →</Link>
+          <div>
+            <p className="gst-kicker">A workspace for your firm</p>
+            <h2 id="demo-heading" className="landing-section-title">See DoAide GST in Action</h2>
+            <p className="landing-section-subtitle">Discuss your invoice review and reconciliation workflow in a demo for your firm.</p>
+          </div>
+          <div className="gst-demo-actions">
+            <a href="https://doaide.com/demo/" className="btn btn-primary" onClick={() => track("demo_request_open")}>
+              Book a demo <span aria-hidden="true">→</span>
+            </a>
+            <Link to="/pricing" className="btn btn-ghost">Explore the 60-day pilot</Link>
+            <p className="landing-demo-caption">Request a time by email. Availability is confirmed by reply.</p>
           </div>
         </section>
+
+        <div className="gst-resources gst-wrap">
+          <PopularSearches />
+          <section className="landing-section landing-advisor-cta" aria-labelledby="advisor-heading">
+            <div className="gst-advisor-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="28" height="28"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z" /></svg>
+            </div>
+            <p className="gst-kicker">A little guidance</p>
+            <h2 id="advisor-heading" className="landing-section-title">Have a GST question?</h2>
+            <p>Explore registration, returns and input tax credit with the AI advisor, then review the guidance for your situation.</p>
+            <Link to="/advisor" className="btn btn-ghost">Ask the AI advisor <span aria-hidden="true">→</span></Link>
+          </section>
+        </div>
+
+        <FaqSection />
 
         <section className="landing-cta">
           <h2>Need Help Reconciling Client Invoices?</h2>
@@ -509,6 +527,10 @@ export default function LandingPage() {
       </main>
 
       <footer className="landing-footer">
+        <div className="gst-footer-intro">
+          <a href="https://doaide.com" className="landing-brand"><BrandMark /><span className="landing-brand-text">DoAide <em>GST</em></span></a>
+          <p>Practical tools for everyday GST work.<br />Made for Indian businesses and accounting firms.</p>
+        </div>
         <div className="landing-footer-nav">
           <div className="landing-footer-col">
             <h4>Free Tools</h4>

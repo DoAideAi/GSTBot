@@ -1,0 +1,334 @@
+/* The public GST directory follows doaide.com's marketing design. Keep these
+   rules scoped: calculator and authenticated workspace layouts have their own
+   density, and legacy landing selectors in index.css must not leak into cards. */
+.landing-root {
+  --landing-grid: rgba(15, 23, 42, .05);
+  --landing-glow: rgba(13, 148, 136, .13);
+  --landing-accent-soft: #ccfbf1;
+  font-family: var(--doaide-font);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--canvas);
+  font-feature-settings: "cv11", "ss01";
+}
+[data-theme="dark"] .landing-root {
+  --landing-grid: rgba(255, 255, 255, .04);
+  --landing-glow: rgba(45, 212, 191, .1);
+  --landing-accent-soft: #153b35;
+}
+.landing-root .gst-wrap { width: min(1072px, calc(100% - 48px)); margin-inline: auto; }
+.landing-root .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: .9375rem;
+  font-weight: 600;
+  line-height: 1.45;
+  text-decoration: none;
+  gap: 10px;
+}
+.landing-root .btn-primary {
+  /* doaide-theme.css has an important legacy primary-button rule. */
+  background: var(--ink) !important;
+  color: var(--canvas) !important;
+  border-color: var(--ink) !important;
+}
+.landing-root .btn.btn-primary:hover:not(:disabled) { background: var(--ink-soft) !important; border-color: var(--ink-soft) !important; color: var(--canvas) !important; }
+.landing-root .btn-ghost:hover { border-color: var(--ink-muted); }
+.landing-root a:focus-visible,
+.landing-root button:focus-visible { outline-offset: 4px; }
+
+/* Navigation uses the same height, mark and spacing as the main site. */
+.landing-root .landing-header {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 0;
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.landing-root .gst-header-inner { min-height: 64px; padding-block: 0; gap: 28px; flex-wrap: nowrap; }
+.landing-root .landing-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; white-space: nowrap; }
+.landing-root .landing-brand svg { width: 26px; height: 26px; flex-shrink: 0; }
+.landing-root .landing-brand-text { font-size: 1.125rem; letter-spacing: -.025em; font-weight: 700; color: var(--ink); }
+.landing-root .landing-brand-text em { margin-left: 5px; color: var(--brand-ink); font-style: normal; }
+.landing-root .gst-primary-nav { display: flex; gap: 26px; margin-left: auto; width: auto; padding: 0; border: 0; }
+.landing-root .gst-primary-nav a,
+.landing-root .gst-sign-in { font-size: .875rem; font-weight: 400; color: var(--ink-soft); text-decoration: none; }
+.landing-root .gst-primary-nav a:hover,
+.landing-root .gst-sign-in:hover { color: var(--ink); }
+.landing-root .gst-header-actions { display: flex; gap: 16px; align-items: center; margin: 0; }
+.landing-root .gst-header-demo { display: inline-flex !important; min-height: 36px; padding: 7px 14px; font-size: .875rem; border-radius: 9px; }
+.landing-root .theme-toggle,
+.landing-root .gst-menu-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.landing-root .gst-menu-toggle,
+.landing-root .gst-mobile-navigation { display: none; }
+
+/* Hero: a restrained grid and the teal-to-blue heading used on doaide.com. */
+.landing-root .gst-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 80px 0 72px;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--line);
+}
+.landing-root .gst-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(var(--landing-grid) 1px, transparent 1px), linear-gradient(90deg, var(--landing-grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 75% at 50% 0%, #000 35%, transparent 100%);
+}
+.landing-root .gst-hero::after {
+  content: "";
+  position: absolute;
+  top: -260px;
+  left: 50%;
+  z-index: -1;
+  width: 1000px;
+  height: 640px;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, var(--landing-glow), transparent);
+}
+.landing-root .gst-hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 56px; }
+.landing-root .gst-hero-copy { min-width: 0; }
+.landing-root .gst-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 5px 12px 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: .75rem;
+  font-weight: 500;
+}
+.landing-root .gst-eyebrow > span {
+  width: auto;
+  height: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--landing-accent-soft);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+.landing-root .landing-hero-title { margin: 24px 0 0; max-width: none; font-size: clamp(2.5rem, 4.3vw, 3.75rem); line-height: 1.06; letter-spacing: -.045em; font-weight: 800; }
+.landing-root .landing-hero-title em {
+  font-style: normal;
+  background: linear-gradient(105deg, #0d9488, #0284c7 55%, #4f46e5);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+[data-theme="dark"] .landing-root .landing-hero-title em { background-image: linear-gradient(105deg, #5eead4, #38bdf8 55%, #a5b4fc); }
+.landing-root .landing-hero-subtitle { margin: 24px 0 0; max-width: 560px; font-size: 1.0625rem; line-height: 1.65; color: var(--ink-soft); }
+.landing-root .gst-hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.landing-root .gst-pilot-note { font-size: .8125rem; line-height: 1.7; margin: 22px 0 0; color: var(--ink-muted); }
+.landing-root .gst-pilot-note a { text-underline-offset: 4px; color: var(--brand-ink); }
+.landing-root .gst-pilot-note span { display: block; margin-top: 3px; }
+.landing-root .landing-trust-bar { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 12px 24px; margin: 24px 0 0; padding: 0; }
+.landing-root .landing-trust-item { display: inline-flex; flex-direction: row; align-items: baseline; gap: 6px; }
+.landing-root .landing-trust-item strong { font-size: .8125rem; color: var(--ink); }
+.landing-root .landing-trust-item span { font-size: .75rem; color: var(--ink-muted); }
+.landing-root .gst-lookup-card { padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: 0 16px 32px -20px #0f172a40; }
+.landing-root .gst-card-overline { display: flex; align-items: center; gap: 10px; font-size: .6875rem; letter-spacing: .08em; color: var(--brand-ink); font-weight: 700; }
+.landing-root .gst-lookup-card h2 { font-size: 1.375rem; font-weight: 700; line-height: 1.3; letter-spacing: -.03em; margin: 22px 0 8px; }
+.landing-root .gst-lookup-card > p { margin: 0 0 24px; font-size: .875rem; line-height: 1.6; color: var(--ink-soft); }
+.landing-root .landing-search-box { display: grid; gap: 10px; padding: 0; margin: 0; background: transparent; border: 0; box-shadow: none; }
+.landing-root .landing-search-box label { font-size: .8125rem; font-weight: 500; }
+.landing-root .landing-search-input { width: 100%; min-height: 48px; padding: 12px 14px; font-size: .875rem; border: 1px solid var(--glass-input-border); border-radius: 9px; color: var(--ink); background: var(--card); }
+.landing-root .landing-search-btn { min-height: 44px; margin: 2px 0 0; justify-content: space-between; }
+.landing-root .gst-lookup-note { margin-top: 16px; font-size: .75rem; }
+.landing-root .gst-lookup-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.landing-root .gst-lookup-links a { font-size: .75rem; font-weight: 600; text-decoration: none; }
+
+/* Directory cards own their alignment, including nested spans. */
+.landing-root .gst-directory { padding-block: 72px; scroll-margin-top: 88px; }
+.landing-root .gst-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; }
+.landing-root .gst-kicker { font-size: .75rem; line-height: 1.5; letter-spacing: .065em; font-weight: 600; color: var(--brand-ink); margin: 0 0 12px; }
+.landing-root .gst-section-heading h2,
+.landing-root .landing-section-title { font-size: clamp(1.75rem, 3vw, 2.375rem); line-height: 1.18; letter-spacing: -.035em; font-weight: 700; color: var(--ink); margin: 0 0 18px; text-align: left; }
+.landing-root .gst-section-heading p:not(.gst-kicker),
+.landing-root .landing-section-subtitle { max-width: 660px; font-size: 1rem; color: var(--ink-soft); line-height: 1.65; margin: 0 0 28px; text-align: left; }
+.landing-root .gst-section-heading p:not(.gst-kicker) { margin: 0; }
+.landing-root .gst-tool-search { width: 264px; min-width: 220px; min-height: 46px; padding: 10px 14px; border-radius: 10px; }
+.landing-root .gst-tool-search input { font-size: .875rem; line-height: 1.5; min-height: 24px; }
+.landing-root .gst-category-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 0; }
+.landing-root .gst-category-filters button { min-height: 40px; padding: 8px 12px; font-size: .75rem; line-height: 1.4; border: 1px solid var(--line); border-radius: 8px; }
+.landing-root .gst-category-filters button[aria-pressed="true"] { border-color: var(--brand-ink); background: var(--glass-feature-bg); color: var(--brand-ink); }
+.landing-root .gst-results-count { margin: 18px 0 14px; font-size: .75rem; color: var(--ink-muted); }
+.landing-root .landing-tool-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; width: 100%; max-width: none; margin: 0; }
+.landing-root .landing-tool-card { display: flex; flex-direction: column; align-items: stretch; min-width: 0; padding: 24px; gap: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-align: left; box-shadow: none; }
+.landing-root .landing-tool-card:hover { border-color: var(--glass-feature-border); box-shadow: var(--shadow); transform: translateY(-2px); }
+.landing-root .gst-tool-top { display: flex; align-items: center; justify-content: space-between; position: static; width: 100%; margin: 0 0 6px; }
+.landing-root .gst-tool-icon { display: inline-grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--glass-feature-border); border-radius: 10px; background: var(--glass-feature-bg); color: var(--brand-ink); font-size: 1.375rem; line-height: 1; }
+.landing-root .gst-tool-arrow { display: inline; color: var(--ink-muted); font-size: 1.125rem; }
+.landing-root .landing-tool-card strong { font-size: 1rem; font-weight: 600; line-height: 1.4; color: var(--ink); padding: 0; text-align: left; }
+.landing-root .landing-tool-card > span { font-size: .875rem; line-height: 1.65; text-align: left; margin: 0; color: var(--ink-soft); }
+.landing-root .landing-tool-card .landing-tool-cta { display: block; font-size: .8125rem; font-weight: 600; color: var(--brand-ink); margin-top: auto; padding-top: 10px; text-align: left; }
+.landing-root .landing-tool-cta span { color: inherit; font-size: inherit; }
+.landing-root .gst-directory-bottom { margin-top: 28px; font-size: .8125rem; }
+
+/* Secondary sections share the main site's widths and typography. */
+.landing-root .landing-section,
+.landing-root .landing-faq { width: min(1072px, calc(100% - 48px)); max-width: 1072px; margin: 0 auto; padding: 72px 0; border-top: 0; }
+.landing-root .gst-workflow { width: 100%; max-width: none; padding: 72px max(24px, calc((100% - 1072px) / 2)); background: var(--surface); border-block: 1px solid var(--line); scroll-margin-top: 64px; }
+.landing-root .landing-features-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 32px; }
+.landing-root .landing-feature-card { padding: 26px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+.landing-root .landing-feature-icon { color: var(--brand-ink); margin-bottom: 18px; }
+.landing-root .landing-feature-card h3,
+.landing-root .landing-step h3 { margin: 0 0 10px; font-size: 1rem; font-weight: 600; line-height: 1.45; }
+.landing-root .landing-feature-card p,
+.landing-root .landing-step p { margin: 0; color: var(--ink-soft); font-size: .875rem; line-height: 1.7; }
+.landing-root .landing-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 32px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.landing-root .landing-step { border: 0; border-right: 1px solid var(--line); padding: 28px; text-align: left; }
+.landing-root .landing-step:last-child { border-right: 0; }
+.landing-root .landing-step-num { margin: 0 0 20px; font-size: .8125rem; color: var(--brand-ink); background: var(--glass-feature-bg); }
+.landing-root .landing-demo { display: grid; grid-template-columns: 1.35fr 1fr; align-items: center; gap: 48px; padding: 40px; margin-bottom: 0; border: 1px solid var(--line); border-radius: 18px; background: radial-gradient(ellipse at top right, var(--landing-glow), transparent 65%), var(--card); }
+.landing-root .landing-demo .landing-section-title { font-size: 2rem; }
+.landing-root .landing-demo .landing-section-subtitle { margin: 0; }
+.landing-root .gst-demo-actions { display: grid; gap: 10px; }
+.landing-root .landing-demo-caption { margin: 4px 0 0; font-size: .75rem; line-height: 1.6; color: var(--ink-muted); }
+.landing-root .deadline-countdown { width: min(1072px, calc(100% - 48px)); max-width: 1072px; padding: 28px; margin: 0 auto 72px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.landing-root .deadline-countdown .landing-section-title { display: flex; align-items: center; font-size: 1.125rem; letter-spacing: -.025em; margin-bottom: 24px; }
+.landing-root .deadline-countdown .landing-section-title svg { flex-shrink: 0; stroke: var(--brand-ink); }
+.landing-root .deadline-countdown-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.landing-root .deadline-countdown-card { padding: 20px; background: var(--card); border-radius: 10px; }
+.landing-root .deadline-countdown-num { color: var(--brand-ink); }
+.landing-root .gst-resources { display: grid; grid-template-columns: 1.35fr 1fr; gap: 48px; padding-block: 72px; }
+.landing-root .gst-resources .landing-section { width: 100%; padding: 0; margin: 0; min-width: 0; }
+.landing-root .gst-resources .landing-section-title { font-size: 1.5rem; }
+.landing-root .gst-resources .landing-section-subtitle { font-size: .875rem; margin-bottom: 22px; }
+.landing-root .landing-popular-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: none; margin: 0; }
+.landing-root .landing-popular-card { padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+.landing-root .landing-popular-code { font-size: .8125rem; color: var(--brand-ink); }
+.landing-root .landing-popular-desc { font-size: .75rem; line-height: 1.5; color: var(--ink-muted); }
+.landing-root .gst-resources .landing-advisor-cta { padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; text-align: left; }
+.landing-root .gst-advisor-icon { display: inline-grid; place-items: center; padding: 10px; margin-bottom: 24px; color: var(--brand-ink); background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.landing-root .landing-advisor-cta > p:not(.gst-kicker) { font-size: .9375rem; line-height: 1.7; color: var(--ink-soft); margin: 0 0 24px; }
+.landing-root .landing-faq { max-width: 760px; padding-top: 0; padding-bottom: 72px; }
+.landing-root .landing-faq .landing-section-title { text-align: center; margin-bottom: 32px; }
+.landing-root .landing-faq-list { max-width: none; margin: 0; }
+.landing-root .landing-faq-item { border-bottom: 1px solid var(--line); }
+.landing-root .landing-faq-item:first-child { border-top: 1px solid var(--line); }
+.landing-root .landing-faq-q { display: flex; justify-content: space-between; align-items: center; gap: 20px; width: 100%; min-height: 64px; padding: 20px 0; text-align: left; font-size: 1rem; font-weight: 500; line-height: 1.5; }
+.landing-root .landing-faq-a { margin: 0; padding: 0 32px 22px 0; font-size: .9375rem; line-height: 1.75; color: var(--ink-soft); }
+.landing-root .landing-cta { width: 100%; max-width: none; margin: 0; padding: 72px 24px; background: var(--surface); border-block: 1px solid var(--line); text-align: center; }
+.landing-root .landing-cta h2 { max-width: 800px; margin: 0 auto; font-size: clamp(1.75rem, 3vw, 2.375rem); line-height: 1.2; letter-spacing: -.035em; font-weight: 700; }
+.landing-root .landing-cta p { max-width: 620px; margin: 20px auto 28px; font-size: 1rem; line-height: 1.7; color: var(--ink-soft); }
+.landing-root .landing-cta-actions { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.landing-root .landing-cta-secondary { background: var(--card); color: var(--ink); }
+.landing-root .landing-footer { padding: 48px max(24px, calc((100% - 1072px) / 2)) 24px; background: var(--canvas); text-align: left; }
+.landing-root .gst-footer-intro { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
+.landing-root .gst-footer-intro p { margin: 0; color: var(--ink-muted); font-size: .8125rem; line-height: 1.7; }
+.landing-root .landing-footer-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; max-width: none; margin: 0; padding: 0; }
+.landing-root .landing-footer-col { text-align: left; align-items: flex-start; }
+.landing-root .landing-footer-col h4 { font-size: .75rem; font-weight: 500; letter-spacing: .06em; color: var(--ink-muted); margin: 0 0 18px; }
+.landing-root .landing-footer-col a { font-size: .8125rem; line-height: 1.6; margin-bottom: 10px; }
+.landing-root .landing-footer-trust { margin-top: 28px; padding-top: 24px; gap: 16px 28px; }
+.landing-root .landing-footer-bottom { justify-content: space-between; margin-top: 24px; padding-top: 20px; font-size: .75rem; }
+.landing-root .landing-footer-home { font-size: .8125rem; }
+
+/* Breakpoints retain usable targets and avoid a second permanent mobile header. */
+@media (max-width: 980px) {
+  .landing-root .gst-primary-nav { gap: 16px; }
+  .landing-root .gst-header-inner { gap: 20px; }
+  .landing-root .gst-sign-in { display: none; }
+  .landing-root .gst-hero-grid { gap: 32px; grid-template-columns: 1.1fr 1fr; }
+  .landing-root .gst-hero-actions .btn { padding-inline: 16px; }
+}
+@media (max-width: 760px) {
+  .landing-root .gst-primary-nav { display: none; }
+  .landing-root .gst-header-actions { margin-left: auto; gap: 10px; }
+  .landing-root .gst-menu-toggle { display: inline-grid; }
+  .landing-root .gst-mobile-navigation:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; border-top: 1px solid var(--line); padding-block: 12px 20px; }
+  .landing-root .gst-mobile-navigation a { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 8px 0; color: var(--ink-soft); font-size: .875rem; text-decoration: none; }
+  .landing-root .gst-mobile-navigation a:last-child,
+  .landing-root .gst-mobile-navigation a:nth-last-child(2) { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+  .landing-root .gst-hero { padding: 48px 0; }
+  .landing-root .gst-hero-grid { grid-template-columns: 1fr; gap: 36px; }
+  .landing-root .landing-hero-title { font-size: clamp(2.375rem, 7.6vw, 3.5rem); }
+  .landing-root .landing-hero-subtitle { font-size: 1rem; }
+  .landing-root .gst-section-heading { align-items: stretch; flex-direction: column; gap: 24px; }
+  .landing-root .gst-tool-search { width: 100%; }
+  .landing-root .gst-category-filters { flex-wrap: nowrap; overflow-x: auto; margin-inline: -4px; padding: 4px 4px 12px; }
+  .landing-root .gst-category-filters button { min-height: 44px; flex-shrink: 0; }
+  .landing-root .landing-tool-cards,
+  .landing-root .landing-features-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-root .gst-directory,
+  .landing-root .landing-section { padding-block: 48px; }
+  .landing-root .gst-workflow { padding-inline: 24px; }
+  .landing-root .landing-feature-card { padding: 22px; }
+  .landing-root .landing-steps { grid-template-columns: 1fr; }
+  .landing-root .landing-step { border-right: 0; border-bottom: 1px solid var(--line); padding: 24px; }
+  .landing-root .landing-step:last-child { border-bottom: 0; }
+  .landing-root .landing-step-num { margin-bottom: 12px; }
+  .landing-root .landing-demo { grid-template-columns: 1fr; gap: 24px; padding: 28px; }
+  .landing-root .landing-demo .landing-section-title { font-size: 1.75rem; }
+  .landing-root .deadline-countdown { padding: 24px; margin-bottom: 48px; }
+  .landing-root .gst-resources { grid-template-columns: 1fr; gap: 32px; padding-block: 48px; }
+  .landing-root .gst-resources .landing-section { padding: 0; }
+  .landing-root .gst-resources .landing-advisor-cta { padding: 28px; }
+  .landing-root .landing-faq { padding-bottom: 48px; }
+  .landing-root .landing-cta { padding-block: 48px; }
+  .landing-root .gst-footer-intro { align-items: flex-start; flex-direction: column; gap: 16px; }
+  .landing-root .landing-footer-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 20px; }
+}
+@media (max-width: 480px) {
+  .landing-root .gst-wrap,
+  .landing-root .landing-section,
+  .landing-root .landing-faq,
+  .landing-root .deadline-countdown { width: calc(100% - 40px); }
+  .landing-root .gst-header-demo { display: none !important; }
+  .landing-root .gst-header-actions { gap: 8px; }
+  .landing-root .theme-toggle,
+  .landing-root .gst-menu-toggle { width: 40px; height: 40px; min-height: 40px; }
+  .landing-root .gst-eyebrow { font-size: .6875rem; gap: 6px; }
+  .landing-root .gst-hero-actions { flex-direction: column; }
+  .landing-root .gst-hero-actions .btn { width: 100%; min-height: 46px; flex: none; }
+  .landing-root .gst-lookup-card { padding: 24px; }
+  .landing-root .gst-lookup-links { gap: 14px; }
+  .landing-root .landing-tool-cards,
+  .landing-root .landing-features-grid { grid-template-columns: 1fr; }
+  .landing-root .landing-tool-card { padding: 22px; }
+  .landing-root .gst-workflow { width: 100%; padding-inline: 20px; }
+  .landing-root .landing-demo { padding: 24px; }
+  .landing-root .gst-resources .landing-section { width: 100%; }
+  .landing-root .deadline-countdown { padding: 20px; }
+  .landing-root .deadline-countdown-card { padding: 16px 10px; }
+  .landing-root .deadline-countdown-type { font-size: .8125rem; }
+  .landing-root .deadline-countdown-date { font-size: .6875rem; }
+  .landing-root .landing-footer { padding-inline: 20px; }
+  .landing-root .landing-footer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-root .landing-footer-col a { display: inline-flex; align-items: center; min-height: 36px; margin-bottom: 0; }
+  .landing-root .landing-footer-bottom { gap: 16px; flex-wrap: wrap; }
+  .landing-root .landing-cta-actions { flex-direction: column; align-items: center; }
+  .landing-root .landing-cta-actions .btn { width: min(100%, 320px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-root *, .landing-root *::before, .landing-root *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

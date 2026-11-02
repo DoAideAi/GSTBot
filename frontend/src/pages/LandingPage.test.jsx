@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -22,6 +22,34 @@ function renderLanding() {
 }
 
 describe("LandingPage", () => {
+  it("opens navigation and restores focus to the toggle when Escape closes it", async () => {
+    renderLanding();
+    const toggle = screen.getByRole("button", { name: "Open navigation" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("navigation", { name: "Mobile" })).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+    const navigation = screen.getByRole("navigation", { name: "Mobile" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    within(navigation).getByRole("link", { name: "Free tools" }).focus();
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByRole("navigation", { name: "Mobile" })).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+  });
+
+  it("closes navigation after choosing a section", async () => {
+    renderLanding();
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    const navigation = screen.getByRole("navigation", { name: "Mobile" });
+    const tools = within(navigation).getByRole("link", { name: "Free tools" });
+    expect(tools).toHaveAttribute("href", "#tools");
+    await userEvent.click(tools);
+    expect(screen.queryByRole("navigation", { name: "Mobile" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open navigation" })).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("shows the hero headline", () => {
     renderLanding();
 
