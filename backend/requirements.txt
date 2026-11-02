@@ -42,6 +42,6 @@ reportlab>=5.1
 # Tesseract OCR fallback for image invoices when no vision model is reachable.
 # Needs the `tesseract` binary on the host; the parser degrades gracefully
 # without either, so this stays a soft dependency at runtime.
-pytesseract>=0.3.10
+pytesseract>=0.3.13
 # 12.x carries 38 advisories (M20, 2026-10-28).
 pillow>=13.0.0
