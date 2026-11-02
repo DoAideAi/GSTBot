@@ -135,7 +135,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "Is DoAide GST really free?",
-    a: "The public GST tools are free to use without signing in. Account features have plan limits; see the pricing page for current prices and inclusions.",
+    a: "The public GST tools are free without signing in. SMB and CA customers can join a limited 60-day free pilot with no payment details. See pricing for available places, usage limits and regular prices afterward.",
   },
   {
     q: "Can I review uploaded invoice data?",
@@ -302,6 +302,7 @@ function InstantLookup() {
             <a href="#tools" className="btn btn-primary">Explore free tools <span aria-hidden="true">↗</span></a>
             <Link to="/login" className="btn btn-ghost">Open your workspace</Link>
           </div>
+          <p><Link to="/pricing">Try SMB or CA free for 60 days</Link> · No payment details required. Limited pilot places.</p>
           <div className="landing-trust-bar">
             {trustItems.map((item) => (
               <div key={item.label} className="landing-trust-item"><strong>{item.figure}</strong><span>{item.label}</span></div>

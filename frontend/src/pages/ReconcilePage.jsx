@@ -740,7 +740,7 @@ export default function ReconcilePage() {
               viewer is not offered it: buying is a write, and the backend
               refuses one from them. */}
           {canWrite && shown.status === "completed" && (
-            <ReportPurchaseButton key={shown.id} runId={shown.id} />
+            <ReportPurchaseButton key={shown.id} runId={shown.id} included={shown.report_included} />
           )}
 
           <section className="panel">

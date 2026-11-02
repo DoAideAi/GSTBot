@@ -30,7 +30,7 @@ const BUSY_LABELS = {
  * business has already paid for comes back as `already_purchased` and goes
  * straight to the download, so the same click never charges twice.
  */
-export default function ReportPurchaseButton({ runId }) {
+export default function ReportPurchaseButton({ runId, included = false }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(null);
   const [purchased, setPurchased] = useState(false);
@@ -54,7 +54,8 @@ export default function ReportPurchaseButton({ runId }) {
       // Said in terms of the money, because that is what the reader is
       // worried about the moment a paid download fails.
       setError(
-        `Your payment went through, but the PDF did not download (${err.message}). ` +
+        (included ? `The included PDF did not download (${err.message}). ` :
+        `Your payment went through, but the PDF did not download (${err.message}). `) +
           "Press the button again — you will not be charged again.",
       );
     }
@@ -66,7 +67,7 @@ export default function ReportPurchaseButton({ runId }) {
     setError("");
     setBusy("paying");
     try {
-      if (!purchased) {
+      if (!purchased && !included) {
         let payment = unverified;
         if (!payment) {
           const order = await api.purchaseReport(runId);
@@ -119,13 +120,14 @@ export default function ReportPurchaseButton({ runId }) {
       >
         {busy
           ? BUSY_LABELS[busy]
-          : purchased
+          : purchased || included
             ? "Download PDF report"
             : unverified
               ? "Retry confirming payment"
               : "Download PDF Report — ₹99"}
       </button>
-      {!purchased && !busy && !unverified && (
+      {included && <p className="small muted">Included in your pilot. This report stays available after the pilot ends.</p>}
+      {!purchased && !included && !busy && !unverified && (
         <p className="small muted">
           Matched and unmatched invoices with the ITC impact, for this run. Pay once;
           download it again any time.

@@ -401,7 +401,9 @@ def run(
     except reconciliation.ConcurrentReconciliation as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    return ReconciliationDetailOut.model_validate(completed)
+    return ReconciliationDetailOut.model_validate(completed).model_copy(
+        update={"report_included": _pilot_report(db, business.id, completed)},
+    )
 
 
 @router.get(
@@ -478,7 +480,9 @@ def latest_run(
                 "GSTR-2B and run one."
             ),
         )
-    return ReconciliationDetailOut.model_validate(found)
+    return ReconciliationDetailOut.model_validate(found).model_copy(
+        update={"report_included": _pilot_report(db, business.id, found)},
+    )
 
 
 @router.get(
@@ -517,7 +521,9 @@ def get_run(
                 "period's history instead."
             ),
         )
-    return ReconciliationDetailOut.model_validate(found)
+    return ReconciliationDetailOut.model_validate(found).model_copy(
+        update={"report_included": _pilot_report(db, business.id, found)},
+    )
 
 
 @router.get(
@@ -606,6 +612,12 @@ def _purchase_for(db: Session, business_id: int, run_id: int) -> ReportPurchase 
     )
 
 
+def _pilot_report(db: Session, business_id: int, run: ReconciliationRun) -> bool:
+    from app.services import pilots
+
+    return pilots.report_included(db, business_id, run.created_at)
+
+
 def _download_path(run_id: int) -> str:
     return f"/reconciliation/{run_id}/report.pdf"
 
@@ -637,7 +649,7 @@ def purchase_report(
     business: Business = Depends(get_current_business),
 ) -> ReportOrderOut:
     run = _reportable_run(db, business, payload.run_id)
-    if _purchase_for(db, business.id, run.id) is not None:
+    if _purchase_for(db, business.id, run.id) is not None or _pilot_report(db, business.id, run):
         return ReportOrderOut(run_id=run.id, already_purchased=True)
 
     if not razorpay_client.is_configured():
@@ -877,7 +889,7 @@ def download_report(
     business: Business = Depends(get_current_business),
 ) -> Response:
     run = _reportable_run(db, business, run_id)
-    if _purchase_for(db, business.id, run.id) is None:
+    if _purchase_for(db, business.id, run.id) is None and not _pilot_report(db, business.id, run):
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail="Buy this report to download it. It is Rs. 99, once, for this run.",

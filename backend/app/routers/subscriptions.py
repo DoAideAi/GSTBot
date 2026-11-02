@@ -27,16 +27,18 @@ from app.models.subscription import (
 from app.models.subscription_payment import SubscriptionPayment
 from app.models.user import User
 from app.schemas.subscription import (
+    CoverPilotBusinessRequest,
     CreateOrderRequest,
     CreateOrderResponse,
     PricingResponse,
+    StartPilotRequest,
     SubscriptionOut,
     TierFeatures,
     UsageItem,
     UsageSummaryResponse,
     VerifyPaymentRequest,
 )
-from app.services import gst_calendar, invoice_service, razorpay_client
+from app.services import gst_calendar, invoice_service, pilots, razorpay_client
 from app.services import usage as usage_service
 
 logger = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ _webhook_limit = RateLimit("razorpay_webhook", "30/minute", by="ip")
     ),
     dependencies=[Depends(_pricing_limit)],
 )
-def pricing() -> PricingResponse:
+def pricing(db: Session = Depends(get_db)) -> PricingResponse:
     tiers = {
         tier.value: TierFeatures(**info)
         for tier, info in razorpay_client.TIER_PRICING.items()
@@ -74,6 +76,7 @@ def pricing() -> PricingResponse:
     return PricingResponse(
         tiers=tiers,
         razorpay_key_id=settings.razorpay_key_id,
+        pilot=pilots.offer(db),
     )
 
 
@@ -95,9 +98,48 @@ def current_subscription(
     db: Session = Depends(get_db),
 ) -> SubscriptionOut | None:
     sub = usage_service.get_subscription(db, business.id)
+    pilot = pilots.for_business(db, business.id)
+    if pilot is not None and (sub is None or (not sub.is_paid() and pilot.active())):
+        return SubscriptionOut(
+            id=pilot.id, business_id=business.id, tier=pilot.tier,
+            status=SubscriptionStatus.ACTIVE if pilot.active() else SubscriptionStatus.EXPIRED,
+            current_period_end=pilot.ends_at, source="pilot",
+            created_at=pilot.starts_at, updated_at=pilot.starts_at,
+        )
     if sub is None:
         return None
     return SubscriptionOut.model_validate(sub)
+
+
+@router.get("/pilot", summary="Introductory pilot status and eligible registrations",
+            dependencies=[Depends(_usage_limit)])
+def pilot_status(
+    user: User = Depends(get_current_user), business: Business = Depends(get_current_business),
+    db: Session = Depends(get_db),
+) -> dict:
+    return pilots.status(db, user, business)
+
+
+@router.post("/pilot", summary="Start the owner's one-time 60-day introductory pilot",
+             dependencies=[Depends(require_owner), Depends(_order_limit)])
+def start_pilot(
+    payload: StartPilotRequest, user: User = Depends(get_current_user),
+    business: Business = Depends(get_current_business), db: Session = Depends(get_db),
+) -> dict:
+    pilot = pilots.start(db, user, business, payload.tier)
+    logger.info("Pilot started", extra={"business_id": business.id, "user_id": user.id,
+                                        "tier": pilot.tier, "pilot_id": pilot.id})
+    return pilots.status(db, user, business)
+
+
+@router.post("/pilot/businesses", summary="Include an authorized registration in the owner's pilot",
+             dependencies=[Depends(require_owner), Depends(_order_limit)])
+def cover_pilot_business(
+    payload: CoverPilotBusinessRequest, user: User = Depends(get_current_user),
+    business: Business = Depends(get_current_business), db: Session = Depends(get_db),
+) -> dict:
+    pilots.cover(db, user, business, payload.business_id)
+    return pilots.status(db, user, business)
 
 
 # Plans by what they include, for telling an upgrade from a downgrade.
@@ -139,6 +181,12 @@ def create_order(
                 "The Free plan costs nothing, so there is nothing to pay for. "
                 "Choose SMB or CA to upgrade."
             ),
+        )
+    pilot = pilots.active(db, business.id)
+    if pilot is not None and not pilots._paid(db, business.id):
+        raise HTTPException(
+            409, "Your free pilot is still active. Paid upgrades open when it ends; "
+            "you will not be charged automatically.",
         )
     # Paying for a lower plan while a higher one runs replaced it at once —
     # tier and status move on verify, with no proration — so a CA who bought
@@ -791,7 +839,10 @@ def usage_summary(
     # recorded this month" to a business that had uploaded all month.
     invoices = UsageItem(
         endpoint="invoice_uploads",
-        call_count=invoice_service.monthly_usage(db, business.id, actual_period),
+        call_count=invoice_service.monthly_usage(
+            db, business.id, actual_period,
+            include_deleted=pilots.active(db, business.id) is not None,
+        ),
         limit=invoice_service.plan_limit(business),
         period=actual_period,
     )

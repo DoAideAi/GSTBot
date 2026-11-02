@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -19,6 +20,15 @@ class TierFeatures(BaseModel):
 class PricingResponse(BaseModel):
     tiers: dict[str, TierFeatures]
     razorpay_key_id: str
+    pilot: dict | None = None
+
+
+class StartPilotRequest(BaseModel):
+    tier: Literal["pro", "enterprise"]
+
+
+class CoverPilotBusinessRequest(BaseModel):
+    business_id: int = Field(ge=1, le=9223372036854775807)
 
 
 class CreateOrderRequest(BaseModel):
@@ -55,6 +65,7 @@ class SubscriptionOut(BaseModel):
     current_period_end: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    source: Literal["paid", "pilot"] = "paid"
 
     @model_validator(mode="after")
     def _a_lapsed_period_reads_as_expired(self) -> SubscriptionOut:

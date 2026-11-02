@@ -19,6 +19,7 @@ from app.core.params import MAX_ID, MIN_ID
 from app.core.security import decode_access_claims
 from app.models.business import Business
 from app.models.business_membership import BusinessMembership
+from app.models.pilot import PilotEnrollment
 from app.models.revoked_token import RevokedToken
 from app.models.subscription import Subscription
 from app.models.user import User, UserRole
@@ -264,8 +265,8 @@ require_owner = RequireRole(UserRole.OWNER)
 def require_paid_tier(
     business: Business = Depends(get_current_business),
     db: Session = Depends(get_db),
-) -> Subscription:
-    """Refuse unless the business has an active paid subscription.
+) -> Subscription | PilotEnrollment:
+    """Refuse unless the business has an active paid subscription or pilot.
 
     Returns the subscription so a handler can read the tier without a second
     query. 403 rather than 402 — HTTP 402 is reserved and no browser handles
@@ -275,6 +276,11 @@ def require_paid_tier(
     # `is_paid` rather than the tier and status alone: a paid period that has
     # run out is not paid for, whatever the row's status still says.
     if sub is None or not sub.is_paid():
+        from app.services import pilots
+
+        pilot = pilots.active(db, business.id)
+        if pilot is not None:
+            return pilot
         # Keywords, so the prose sweep in test_error_prose reads this detail
         # with every other refusal's rather than skipping a positional one.
         raise CodedHTTPException(

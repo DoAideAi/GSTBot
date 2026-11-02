@@ -9,6 +9,7 @@ from app.models.business_membership import BusinessMembership, MembershipRole
 from app.models.feedback import ClientError, Feedback, FeedbackCategory
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
 from app.models.invoice import Invoice, InvoiceSource, InvoiceStatus, InvoiceType
+from app.models.pilot import PilotBusiness, PilotEnrollment
 from app.models.reconciliation_run import (
     MatchCategory,
     ReconciliationRun,
@@ -42,6 +43,8 @@ __all__ = [
     "InvoiceType",
     "MatchCategory",
     "MembershipRole",
+    "PilotBusiness",
+    "PilotEnrollment",
     "ReconciliationRun",
     "ReconciliationStatus",
     "Referral",

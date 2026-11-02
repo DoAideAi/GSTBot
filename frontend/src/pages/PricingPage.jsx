@@ -3,9 +3,11 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SeoHead from "../components/SeoHead";
 import ToolsNav from "../components/ToolsNav";
+import PilotStatus, { pilotDate } from "../components/PilotStatus";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { announceSubscriptionChange, api } from "../lib/api";
 import { track } from "../lib/track";
+import { rememberReturnTo } from "../lib/returnTo";
 
 /** How close to the end of a paid period the renewal is called out. */
 const RENEWAL_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
@@ -69,6 +71,8 @@ export default function PricingPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [billing, setBilling] = useState("monthly");
+  const [pilotState, setPilotState] = useState(null);
+  const [startingPilot, setStartingPilot] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -77,6 +81,7 @@ export default function PricingPage() {
       if (user) {
         const sub = await api.currentSubscription();
         setCurrentSub(sub);
+        if (p.pilot) setPilotState(await api.pilotStatus());
       }
     } catch (err) {
       setError(err.message);
@@ -92,6 +97,36 @@ export default function PricingPage() {
   useEffect(() => {
     track("pricing_view");
   }, []);
+
+  async function startPilot(tier) {
+    if (startingPilot) return;
+    setStartingPilot(true);
+    setError(null);
+    try {
+      setPilotState(await api.startPilot(tier));
+      track("pilot_started", { tier });
+      await fetchData();
+      announceSubscriptionChange();
+      setSuccess("Your 60-day free pilot has started. No payment details are needed.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStartingPilot(false);
+    }
+  }
+
+  async function coverBusiness(id) {
+    setStartingPilot(true);
+    setError(null);
+    try {
+      setPilotState(await api.coverPilotBusiness(id));
+      announceSubscriptionChange();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setStartingPilot(false);
+    }
+  }
 
   async function handleSubscribe(tier) {
     if (tier === "free") return;
@@ -201,6 +236,9 @@ export default function PricingPage() {
   // An expired or cancelled row keeps its tier; the plan the business is on
   // is free until it pays again, and the page has to offer that.
   const currentTier = currentSub?.status === "active" ? currentSub.tier : "free";
+  const isPilot = currentSub?.source === "pilot";
+  const pilotActive = isPilot && currentSub?.status === "active";
+  const offer = pricing?.pilot;
   // Plans are one-time orders, not auto-renewing mandates: when the period
   // ends the business drops to Free with nothing charged and, until now,
   // nothing said. The date is shown, and renewing early extends from it.
@@ -216,14 +254,25 @@ export default function PricingPage() {
     <div className="pricing-page">
       <SeoHead
         title="Pricing — DoAide GST"
-        description="Free GST calculator, GSTIN lookup, and HSN search forever. Upgrade from ₹499/month for filing assistance, bulk validation, and GSTR-2B reconciliation."
+        description="Try DoAide GST free for 60 days. No payment details required. Limited SMB and CA pilot places; regular plans from ₹499/month afterward."
         path="/pricing"
       />
+      {user && <p><Link to="/">Return to dashboard</Link></p>}
       <div className="pricing-header">
         <h1>Simple, transparent pricing</h1>
         <p>Calculator, GSTIN lookup, and HSN search are free forever — no login required.</p>
         <p>Upgrade for bulk validation, reconciliation, and ITC optimization.</p>
+        {offer && <div className="pilot-offer">
+          <h2>Try DoAide GST free for {offer.days} days</h2>
+          <p>No payment details required. No automatic charge. One pilot per account and business.</p>
+          <p>Founding cohort: {offer.capacity.pro} SMBs and {offer.capacity.enterprise} CA firms. Includes {offer.monthly_invoice_limit} invoice uploads per registration per calendar month, reconciliation and report downloads.</p>
+          <p>AI advisor: {offer.advisor_allowance || "100/day"} per network, subject to shared availability. Invoice re-reading: {offer.reparse_allowance || "100/day"} per login.</p>
+          <p><a href="https://doaide.com/demo/">Request onboarding help for your firm</a>.</p>
+        </div>}
       </div>
+
+      <PilotStatus state={pilotState} busy={startingPilot} onCover={coverBusiness} />
+      {offer && user && !pilotState?.is_home && pilotState && <p className="pricing-loading">Switch to your own business to start or manage a pilot.</p>}
 
       <div className="pricing-toggle" role="radiogroup" aria-label="Billing period">
         <button
@@ -278,6 +327,11 @@ export default function PricingPage() {
                   <div className="pricing-badge">Most Popular</div>
                 )}
                 <h2>{tier.name}</h2>
+                {offer && tierKey !== "free" && <div className="pilot-card-offer">
+                  <strong>Free for {offer.days} days</strong>
+                  <p>{offer.business_limits[tierKey]} {tierKey === "pro" ? "registration" : "registrations, including your own"} · {offer.remaining[tierKey]} pilot places available</p>
+                  <span>Regular price after the pilot:</span>
+                </div>}
                 <div className="pricing-price">
                   {price === 0 ? (
                     "Free forever"
@@ -302,18 +356,18 @@ export default function PricingPage() {
                   {isCurrent ? (
                     <>
                       <button className="btn btn-ghost" disabled>
-                        Current plan
+                        {pilotActive ? "Pilot active" : "Current plan"}
                       </button>
                       {tierKey !== "free" && paidUntil && (
                         <p className={endsSoon ? "pricing-period pricing-period-soon" : "pricing-period"}>
-                          Paid until{" "}
-                          {paidUntil.toLocaleDateString("en-IN", { dateStyle: "medium" })}.{" "}
-                          {endsSoon
+                          {pilotActive ? "Free until " : "Paid until "}
+                          {pilotDate(currentSub.current_period_end)}.{" "}
+                          {pilotActive ? "Choose a paid upgrade after it ends. No automatic charge." : endsSoon
                             ? "It does not renew on its own — extend it to keep your paid features."
                             : "It does not renew on its own."}
                         </p>
                       )}
-                      {tierKey !== "free" && paidUntil && (
+                      {tierKey !== "free" && paidUntil && !isPilot && (
                         <button
                           className={endsSoon ? "btn btn-primary" : "btn btn-ghost"}
                           disabled={paying}
@@ -324,7 +378,7 @@ export default function PricingPage() {
                             : `Extend by a ${billing === "annual" ? "year" : "month"}`}
                         </button>
                       )}
-                      {tierKey !== "free" && (
+                      {tierKey !== "free" && !isPilot && (
                         <button
                           className="btn btn-danger-ghost"
                           onClick={handleCancel}
@@ -335,13 +389,20 @@ export default function PricingPage() {
                       )}
                     </>
                   ) : tierKey === "free" ? (
-                    currentTier !== "free" ? (
+                    currentTier !== "free" && !isPilot ? (
                       <button className="btn btn-ghost" onClick={handleCancel} disabled={cancelling}>
                         {cancelling ? "Cancelling…" : "Downgrade"}
                       </button>
                     ) : null
                   ) : (
-                    user ? (
+                    offer && (!user || pilotState?.can_start) && offer.remaining[tierKey] > 0 ? (
+                      user ? <button className="btn btn-primary" disabled={startingPilot} onClick={() => startPilot(tierKey)}>{startingPilot ? "Starting…" : `Start ${tier.name} free pilot`}</button>
+                        : <Link className="btn btn-primary" to="/login" onClick={() => rememberReturnTo("/pricing")}>Start {tier.name} free pilot</Link>
+                    ) : pilotActive ? (
+                      <p>Paid upgrades open after your pilot ends.</p>
+                    ) : offer && !pricing.razorpay_key_id ? (
+                      <a className="btn btn-ghost" href="https://doaide.com/demo/">{offer.remaining[tierKey] === 0 ? "Ask about the next pilot" : "Contact us about a paid plan"}</a>
+                    ) : user ? (
                       <button
                         className="btn btn-primary"
                         disabled={paying}

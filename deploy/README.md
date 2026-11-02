@@ -714,3 +714,47 @@ preserved account data, later Google sign-ins, wrong passwords, CSRF, tampered o
 replayed cookies, expiration, deactivation, client/password changes, concurrent
 resets and attempt limits. A real Google account holder still completes the
 one-time password confirmation in their own browser.
+
+## Free introductory pilot — 2 November 2026
+
+Owners can start one 60-day pilot from Pricing: 20 lifetime SMB places and 10
+lifetime CA-firm places. SMB covers the home registration; CA covers up to five
+registrations including the home registration. Additional registrations must
+already be accessible through a live owner/accountant membership. Coverage never
+creates a membership, and unlinking a client does not recycle a place. Each
+registration receives 500 invoice uploads per calendar month, counting deleted
+uploads. Existing configured daily AI limits continue to apply.
+
+Pilot entitlements are separate from paid subscriptions and payment history.
+Active paid plans take precedence. No payment details, order, mandate or charge
+is created. Expiry uses UTC timestamps on every access check, without a cron
+job; Pricing shows the end date in India time. The business returns to its
+ordinary free allowance unless it explicitly buys a plan. Existing account data
+and reconciliation reports created before the pilot ended remain exportable.
+Regular prices remain SMB ₹499/month and CA ₹2,999/month. With no Razorpay key
+configured, the paid-upgrade CTA requests help through the main site's demo
+page instead of opening an unavailable checkout.
+
+Migration `0029` adds `pilot_enrollments` and `pilot_businesses`. It changes no
+existing table or customer row. PostgreSQL transaction advisory locks serialize
+admission/coverage; unique and check constraints enforce account, business and
+cohort limits. Never reset pilot dates or delete coverage to reuse a place.
+
+Build off-server and verify the frontend manifest and source marker. Take a
+fresh `gstbot-backup.service` dump and uploaded-file snapshot before migration.
+Under `/run/lock/gstbot-deploy.lock`, fast-forward the clean server checkout,
+run `systemctl restart gstbot-migrate.service`, then atomically exchange the
+frontend trees and update `.dist-source` and `backend/.release`. Restart the API
+and worker (both depend on the migration unit), web and beat. Verify migration
+0029, live readiness/jobs, public pricing, authenticated-route rejection and
+settled service restart counts. Keep prior hashed assets for open browser tabs.
+Record the backup and rollback tree in
+`/var/backups/gstbot/free-pilot-<revision>.json`.
+
+Rollback restores source, frontend and release markers and restarts the services.
+Leave the additive pilot tables in place: downgrading could destroy enrollments
+made after release. The prior application ignores those tables. Existing tests
+cover payment/tenant behavior; new tests exercise admission, retries, limits,
+expiry, paid-plan precedence, report exports and membership boundaries. Chrome
+checks exercise public/login/active/expired screens at 360, 390 and 1440 pixels
+with local API fixtures; no real customer's pilot is started for verification.

@@ -56,6 +56,22 @@ afterEach(() => {
 });
 
 describe("ReportPurchaseButton", () => {
+  it("downloads an included pilot report without buying it", async () => {
+    render(<StubAuth><ReportPurchaseButton runId={7} included /></StubAuth>);
+    expect(button()).not.toHaveTextContent("₹99");
+    fireEvent.click(button());
+    await waitFor(() => expect(api.downloadReport).toHaveBeenCalledWith(7));
+    expect(api.purchaseReport).not.toHaveBeenCalled();
+    expect(razorpay.loadRazorpay).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a payment was taken when an included download fails", async () => {
+    api.downloadReport.mockRejectedValue(new Error("Connection lost"));
+    render(<StubAuth><ReportPurchaseButton runId={7} included /></StubAuth>);
+    fireEvent.click(button());
+    expect(await screen.findByRole("alert")).toHaveTextContent("included PDF did not download");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("payment went through");
+  });
   it("offers the report at its price before it is bought", () => {
     renderButton();
     expect(button()).toHaveTextContent("Download PDF Report — ₹99");

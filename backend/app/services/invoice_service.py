@@ -118,7 +118,9 @@ def month_bounds(period: str) -> tuple[datetime, datetime]:
     return start.astimezone(UTC), end.astimezone(UTC)
 
 
-def monthly_usage(db: Session, business_id: int, period: str | None = None) -> int:
+def monthly_usage(
+    db: Session, business_id: int, period: str | None = None, *, include_deleted: bool = False,
+) -> int:
     """Invoices uploaded by this tenant in *period* (default: this month).
 
     Counts by upload month rather than by invoice date, because the plan sells
@@ -137,7 +139,7 @@ def monthly_usage(db: Session, business_id: int, period: str | None = None) -> i
         db.scalar(
             select(func.count(Invoice.id)).where(
                 Invoice.business_id == business_id,
-                Invoice.deleted_at.is_(None),
+                True if include_deleted else Invoice.deleted_at.is_(None),
                 Invoice.created_at >= start,
                 Invoice.created_at < end,
             )
@@ -165,12 +167,25 @@ def effective_plan(business: Business) -> str:
         sub = db.scalar(select(Subscription).where(Subscription.business_id == business.id))
         if sub is not None and sub.is_paid():
             return _TIER_PLAN.get(sub.tier, business.plan.value)
+        from app.services import pilots
+
+        pilot = pilots.active(db, business.id)
+        if pilot is not None:
+            return "pilot_" + pilot.tier
     return business.plan.value
 
 
 def plan_limit(business: Business) -> int:
     """Monthly invoice cap for this tenant's plan; 0 means unlimited."""
-    return settings.plan_limits.get(effective_plan(business), 0)
+    return _limit_for_plan(effective_plan(business))
+
+
+def _limit_for_plan(plan: str) -> int:
+    if plan.startswith("pilot_"):
+        from app.services.pilots import INVOICE_LIMIT
+
+        return INVOICE_LIMIT
+    return settings.plan_limits.get(plan, 0)
 
 
 @dataclass(frozen=True)
@@ -206,7 +221,7 @@ class TenantSnapshot:
             id=business.id,
             gstin=business.gstin,
             plan=plan,
-            monthly_limit=settings.plan_limits.get(plan, 0),
+            monthly_limit=_limit_for_plan(plan),
         )
 
 
@@ -218,7 +233,15 @@ def check_plan_limit(db: Session, tenant: TenantSnapshot) -> None:
     at all: the plan cannot change mid-request, and the count rises with every
     file the batch has already stored.
     """
-    if tenant.monthly_limit and monthly_usage(db, tenant.id) >= tenant.monthly_limit:
+    if tenant.monthly_limit and monthly_usage(
+        db, tenant.id, include_deleted=tenant.plan.startswith("pilot_"),
+    ) >= tenant.monthly_limit:
+        if tenant.plan.startswith("pilot_"):
+            raise PlanLimitExceeded(
+                f"Your free pilot allows {tenant.monthly_limit} invoice uploads per registration "
+                "per calendar month. You have used this month's allowance, including deleted "
+                "uploads. Monthly allowances reset at the start of the next calendar month."
+            )
         raise PlanLimitExceeded(
             f"Plan '{tenant.plan}' allows {tenant.monthly_limit} invoices per month. "
             "Upgrade to continue uploading."

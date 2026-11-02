@@ -305,6 +305,10 @@ class TestTheSweepCoversEveryBusinessScopedRoute:
             ("POST", "/api/v1/subscriptions/cancel"),
             ("POST", "/api/v1/subscriptions/create-order"),
             ("POST", "/api/v1/subscriptions/verify-payment"),
+            # Pilot admission/coverage must be managed from the owner's home
+            # business. test_pilots checks both writes refuse switched headers.
+            ("POST", "/api/v1/subscriptions/pilot"),
+            ("POST", "/api/v1/subscriptions/pilot/businesses"),
             # Writes nothing: it is here because the tier gate resolves the
             # active business to read its plan. Whose plan answers while
             # switched is TestThePlanThatCountsIsTheActiveBusinesss, below.

@@ -55,6 +55,11 @@ def get_subscription(db: Session, business_id: int) -> Subscription | None:
 def get_tier(db: Session, business_id: int) -> SubscriptionTier:
     sub = get_subscription(db, business_id)
     if sub is None or not sub.is_paid():
+        from app.services import pilots
+
+        pilot = pilots.active(db, business_id)
+        if pilot is not None:
+            return SubscriptionTier(pilot.tier)
         # Covers a lapsed period as well as a cancelled row: once the paid
         # period ends, the business is on the free tier's limits.
         return SubscriptionTier.FREE

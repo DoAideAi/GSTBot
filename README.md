@@ -139,7 +139,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-103 routes under `/api/v1`. The generated reference is the authority — start the
+106 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -167,7 +167,7 @@ The surface, by area:
 | `suppliers` | 3 | Compliance scores, rescore |
 | `alerts` | 3 | Deadline alerts, mark read, dismiss |
 | `dashboard` | 1 | The monthly summary |
-| `subscriptions` | 7 | Plans and prices, current plan, usage, Razorpay order and verify, cancel, webhook |
+| `subscriptions` | 10 | Plans and prices, current plan, usage, pilot admission and client coverage, Razorpay order and verify, cancel, webhook |
 | `referrals` | 4 | Referral code, stats, leaderboard, tracking a visit |
 | `meta` | 6 | State codes, GSTIN lookup, bulk GSTIN validation (paid), recent lookups, stats, deadline-reminder sign-up |
 | `subscribers` | 3 | Newsletter sign-up, and unsubscribe by link or one-click POST |
@@ -263,3 +263,13 @@ are predicated on `deleted_at IS NULL`. Filter it in queries.
 Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`). Run
 `ruff check` and both suites before pushing — CI runs the same pinned ruff and pytest
 (`backend/requirements-dev.txt`), so what passes here passes there.
+
+## Introductory SMB and CA pilot
+
+Pricing offers a one-time 60-day free pilot, limited to 20 SMB businesses and
+10 CA firms. SMB covers one registration; CA covers five including its own,
+with 500 invoice uploads per registration per calendar month. Daily AI limits
+remain in effect. No payment details or automatic charge; the published paid
+prices remain visible for an explicit upgrade after expiry. Existing data and
+included reconciliation reports stay exportable. See `deploy/README.md` for
+migration 0029, operational limits and rollback instructions.

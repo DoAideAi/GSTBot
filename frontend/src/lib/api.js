@@ -459,6 +459,11 @@ function fieldMessage({ loc, msg }) {
 const FIELD_ACRONYMS = new Set(["gst", "gstin", "hsn", "sac", "pan", "arn", "itc", "otp"]);
 
 export const api = {
+  pilotStatus: () => request("/subscriptions/pilot"),
+  startPilot: (tier) => request("/subscriptions/pilot", { method: "POST", body: { tier } }),
+  coverPilotBusiness: (businessId) => request("/subscriptions/pilot/businesses", {
+    method: "POST", body: { business_id: businessId },
+  }),
   // ---- Auth ----
   googleLinkStatus: () => request("/auth/google/link", { auth: false }),
 

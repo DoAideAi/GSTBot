@@ -30,6 +30,7 @@ export default function Shell({ children }) {
   const [navOpen, setNavOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const [subTier, setSubTier] = useState(null);
+  const [pilotEnd, setPilotEnd] = useState(null);
   const toggleRef = useRef(null);
 
   const businessId = user?.business?.id;
@@ -49,7 +50,10 @@ export default function Shell({ children }) {
       api.currentSubscription()
         // Only an active plan earns the badge: a paid period that ran out comes
         // back as status "expired" with its tier still set.
-        .then((sub) => { if (!stale) setSubTier(sub?.status === "active" ? sub.tier : "free"); })
+        .then((sub) => { if (!stale) {
+          setSubTier(sub?.status === "active" ? sub.tier : "free");
+          setPilotEnd(sub?.source === "pilot" && sub.status === "active" ? sub.current_period_end : null);
+        } })
         .catch(() => {});
     load();
     // And again when the plan changes in this tab: fetched only per business,
@@ -158,8 +162,8 @@ export default function Shell({ children }) {
 
         <div className="shell-user">
           {TIER_BADGE[subTier] && (
-            <NavLink to="/pricing" className="tier-badge" title="Premium plan active">
-              {TIER_BADGE[subTier]}
+            <NavLink to="/pricing" className="tier-badge" title={pilotEnd ? "Free pilot active — see pricing for the end date" : "Premium plan active"}>
+              {TIER_BADGE[subTier]}{pilotEnd ? " PILOT" : ""}
             </NavLink>
           )}
           <BusinessSwitcher />

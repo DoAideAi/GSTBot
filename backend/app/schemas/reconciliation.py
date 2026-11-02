@@ -71,6 +71,7 @@ class ReconciliationDetailOut(ReconciliationRunOut):
     """A run with its findings — what the reconciliation screen renders."""
 
     report: dict | None = None
+    report_included: bool = False
 
 
 class ImportedPeriodsOut(BaseModel):
