@@ -213,9 +213,31 @@ def _a_member_of_this_business(auth_client, db_session, business) -> int:
     return membership.id
 
 
+def _an_invitation(auth_client, db_session, business):
+    response = auth_client.post("/api/v1/invitations", json={
+        "email": "invited@example.com", "role": "accountant"})
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+def _a_register_preview(auth_client, db_session, business):
+    from tests.test_practice_workflows import preview
+
+    response = preview(auth_client)
+    assert response.status_code == 200, response.text
+    return response.json()["id"]
+
+
 # Keyed by path, because the two alert routes and the four invoice routes each
 # address the same kind of row and differ only in what they do to it.
 FACTORIES = {
+    "/api/v1/invitations/{invitation_id}": _an_invitation,
+    "/api/v1/invitations/members/{membership_id}": _a_member_of_this_business,
+    "/api/v1/register-imports/{import_id}/commit": _a_register_preview,
+    "/api/v1/practice/runs/{run_id}": _a_run,
+    "/api/v1/practice/runs/{run_id}/findings/{finding_index}": _a_run,
+    "/api/v1/practice/runs/{run_id}/approve": _a_run,
+    "/api/v1/practice/runs/{run_id}/export.csv": _a_run,
     "/api/v1/invoices/{invoice_id}": _an_invoice,
     "/api/v1/invoices/{invoice_id}/reparse": _an_invoice,
     "/api/v1/alerts/{alert_id}/read": _an_alert,
@@ -231,12 +253,16 @@ FACTORIES = {
 # not a malformed field being refused before the row is ever looked up. Only
 # PATCH needs one; the rest carry no body.
 BODIES = {
+    ("POST", "/api/v1/register-imports/{import_id}/commit"): {},
+    ("PATCH", "/api/v1/invitations/members/{membership_id}"): {"role": "viewer"},
+    ("PATCH", "/api/v1/practice/runs/{run_id}/findings/{finding_index}"): {
+        "version": 0, "status": "open", "decision": "none"},
     ("PATCH", "/api/v1/invoices/{invoice_id}"): {"hsn_code": "8471"},
 }
 
 
 def _call(client, method: str, path: str, row_id: int, *, token: str | None = None):
-    url = _ROW_ID.sub(str(row_id), path)
+    url = _ROW_ID.sub(str(row_id), path).replace("{finding_index}", "0")
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     return client.request(
         method, url, json=BODIES.get((method, path)), headers=headers

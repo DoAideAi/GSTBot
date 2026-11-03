@@ -10,6 +10,14 @@ from app.models.feedback import ClientError, Feedback, FeedbackCategory
 from app.models.gstr_return import GSTRReturn, ReturnStatus, ReturnType
 from app.models.invoice import Invoice, InvoiceSource, InvoiceStatus, InvoiceType
 from app.models.pilot import PilotBusiness, PilotEnrollment
+from app.models.practice import (
+    BusinessInvitation,
+    FindingReview,
+    FindingReviewEvent,
+    RegisterImport,
+    RegisterMapping,
+    ReportReview,
+)
 from app.models.reconciliation_run import (
     MatchCategory,
     ReconciliationRun,
@@ -26,6 +34,12 @@ from app.models.usage import UsageRecord
 from app.models.user import User, UserRole
 
 __all__ = [
+    "BusinessInvitation",
+    "FindingReview",
+    "FindingReviewEvent",
+    "RegisterImport",
+    "RegisterMapping",
+    "ReportReview",
     "Alert",
     "AlertSeverity",
     "AlertStatus",

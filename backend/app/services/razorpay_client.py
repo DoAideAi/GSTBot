@@ -257,7 +257,7 @@ TIER_PRICING = {
             "Bulk GSTIN validation (up to 100)",
             "GSTR-2B reconciliation",
             "ITC optimization report",
-            "Export to Tally/Excel",
+            "CSV exports for spreadsheet review",
             "Priority AI assistant",
             "No ads",
             "GST filing assistance",
@@ -273,7 +273,7 @@ TIER_PRICING = {
         "features": [
             "Everything in SMB",
             "Multi-client management",
-            "Bulk filing",
+            "Multi-client return preparation and export",
             "API access",
             "Priority support",
             "Custom reports",

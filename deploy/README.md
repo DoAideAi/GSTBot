@@ -915,3 +915,68 @@ failures, rate limits, cancellation and mobile/light/dark browser checks. The
 frontend coverage gate already fails on the prior release (`4b4a932`): 95.72%
 lines against 99%, despite all tests passing. This release leaves the thresholds
 unchanged; fixing the repository-wide coverage gap is separate work.
+
+
+## CA purchase-data and review workflows — 3 November 2026
+
+This release adds `/purchase-import`, `/client-access`, `/join`, `/clients` and
+`/review/:runId`. Purchase registers accept invoice-level UTF-8 CSV or one-sheet
+XLSX, limited to 5 MB and 2,000 rows. Mapping and row validation precede explicit
+commit; invalid rows require an explicit skip choice. Existing duplicates are
+skipped, repeated rows within the file are refused, and monthly allowances are
+checked atomically using the ordinary upload lock. Credit notes, formulas and
+multi-line invoice grouping are not supported by this importer. Saved mappings
+belong to the selected business. No AI service processes these imports.
+
+Owners create seven-day, single-use invitation links for accountant/viewer
+access. The owner copies and shares a link manually; the app sends no invitation
+email. Only token hashes are stored. Acceptance requires the invited login email
+and a still-authorized inviting owner. Reissuing invalidates earlier pending
+links. Roles and revocation apply to linked memberships; invitation acceptance
+does not allocate pilot capacity or extend trial terms. The switcher's password
+linking form is replaced with invitation management; its older API remains for
+compatibility with existing same-person accounts.
+
+Finding reviews preserve the original reconciliation and append actor/version
+history. A resolved finding needs a confirming decision and evidence note.
+Disagreements require correcting the source and reconciling again. Changed
+sources or a newer run prevent completing/exporting an old review. Whole-report
+approval and reviewed CSV export are explicit; export uses the existing
+pilot/report entitlement and escapes spreadsheet formulas. The dashboard's last
+onboarding step completes only after a current reviewed report is exported.
+The client queue only lists businesses the login can access, with unknown
+exception counts left unknown until reconciliation. Copy no longer advertises
+bulk portal filing or a native Tally export. Pilot limits and prices are unchanged.
+
+Migration `0030` creates six tables and their indexes; it does not rewrite old
+customer rows. Back up the database using `gstbot-backup.service` before applying
+it with `gstbot-migrate.service`. Build the frontend off-server, verify the
+artifact manifest and source fingerprint, and publish source plus static files
+under `/run/lock/gstbot-deploy.lock`. Restart only `gstbot-api`, retain old hashed
+assets, and allow Caddy's 30-second health check to recover before public probes.
+No dependency install, secret update or Caddy change is needed.
+
+Rollback restores the preceding application source, backend release marker and
+static tree. Leave the additive `0030` tables and Alembic revision in place:
+downgrading would erase any reviews or invitations created after launch. Restore
+a database backup only through a separately reviewed recovery procedure.
+
+Validation covers tenant/role boundaries, switched-business writes, invitation
+expiry and single use, atomic quotas, review version conflicts and invalidation,
+the real import-to-reconciliation-to-reviewed-export workflow, and PostgreSQL
+migration/schema/rollback checks. Browser checks use synthetic local accounts;
+no production customer records or pilot places are used for testing. The
+repository's existing coverage thresholds remain unchanged; record their actual
+result separately from functional test results.
+
+
+Release checks: the full backend run passed 8,382 tests (12 skipped), followed by
+33 focused import/review tests including 17 added financial-input cases. All
+4,754 frontend tests passed. PostgreSQL passed 54 migration tests and the actual
+import/reconcile/review/export and invitation/revocation flows. Desktop/mobile
+and light/dark browser checks passed. The build prerendered 1,134 routes; first
+load is 121.1 KB gzipped against a 140 KB budget. Coverage gates are not green:
+backend combined coverage is 97.19% against 99%; frontend lines are 94.49%,
+statements 92.12%, branches 89.37% and functions 86.28%, below their thresholds.
+The preceding frontend release was already below its gate; this change reduces
+the measured frontend percentages further. No threshold was lowered.

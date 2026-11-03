@@ -97,6 +97,7 @@ class DashboardOut(BaseModel):
     next_due_date: date | None = None
     gstr1_due_date: date | None = None
     last_reconciliation: dict | None = None
+    reviewed_report_exported: bool = False
     # Only set once the GSTR-3B for `period` is actually overdue and still
     # unfiled — see app.services.late_fee. A period that is on time, or
     # already recorded filed, has nothing running on it to show here.

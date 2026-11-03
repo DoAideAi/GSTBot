@@ -12,7 +12,7 @@ class MyBusinessOut(BaseModel):
     """One business this login can act for, and how."""
 
     id: int
-    gstin: str
+    gstin: str | None = None
     legal_name: str
     trade_name: str | None = None
     plan: BusinessPlan

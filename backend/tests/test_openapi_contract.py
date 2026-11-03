@@ -146,6 +146,9 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/health/jobs",
             "/api/v1/health/live",
             "/api/v1/health/ready",
+            # The expiring, high-entropy link reveals invitation details only;
+            # accepting it still requires the matching authenticated email.
+            "/api/v1/invitations/inspect",
             "/api/v1/meta/gstin/{gstin}",
             "/api/v1/meta/recent-lookups",
             "/api/v1/meta/reminder-subscribe",

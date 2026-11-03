@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../hooks/useAuth";
-import { getActiveBusinessId, getToken, setToken } from "../lib/api";
+import { getActiveBusinessId, setToken } from "../lib/api";
 import BusinessSwitcher from "./BusinessSwitcher";
 
 const HOME = { id: 1, gstin: "27AAPFU0939F1ZV", legal_name: "Umang Traders", plan: "free" };
@@ -195,21 +195,6 @@ describe("BusinessSwitcher", () => {
     expect(calls.filter((c) => c.path.endsWith("/businesses/mine")).length).toBe(1);
   });
 
-  it("links another registration by its own credentials and reloads the list", async () => {
-    const calls = await renderSwitcher();
-    await userEvent.click(currentControl());
-    await userEvent.click(await screen.findByRole("button", { name: "Link another GSTIN" }));
-
-    await userEvent.type(screen.getByLabelText("Email"), "other@acme.in");
-    await userEvent.type(screen.getByLabelText("Password"), "hunter2");
-    await userEvent.click(screen.getByRole("button", { name: "Link" }));
-
-    await waitFor(() =>
-      expect(calls.filter((c) => c.path.endsWith("/businesses/mine")).length).toBe(2),
-    );
-    expect(calls.some((c) => c.path.endsWith("/businesses/mine/link"))).toBe(true);
-  });
-
   it("offers no unlink for the login's own tenant", async () => {
     // There is no membership row behind it to revoke and the server refuses;
     // a button whose only outcome is an error is worse than no button.
@@ -277,27 +262,6 @@ describe("BusinessSwitcher", () => {
     expect(calls.filter((c) => c.path.endsWith("/auth/me"))).toHaveLength(1);
   });
 
-  it("says why a link was refused instead of closing the form", async () => {
-    // The wrong password for the other account is the common case here, and the
-    // form has to still be there to correct it.
-    await renderSwitcher();
-    await userEvent.click(currentControl());
-    await userEvent.click(await screen.findByRole("button", { name: "Link another GSTIN" }));
-    await userEvent.type(screen.getByLabelText("Email"), "other@acme.in");
-    await userEvent.type(screen.getByLabelText("Password"), "wrong");
-
-    global.fetch.mockResolvedValueOnce(
-      reply({ detail: "Incorrect email or password" }, 401),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Link" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect email or password/i);
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    // And the caller is still signed in. The 401 was about the password typed
-    // into this form, not about the session it was typed from.
-    expect(getToken()).toBe("a-token");
-  });
-
   it("says why an unlink was refused rather than dropping the row silently", async () => {
     await renderSwitcher();
     await userEvent.click(currentControl());
@@ -310,34 +274,18 @@ describe("BusinessSwitcher", () => {
     expect(screen.getByRole("button", { name: /^Umang Exports/ })).toBeInTheDocument();
   });
 
-  it("still offers the link form when the list comes back without a list in it", async () => {
-    // A 200 carrying no `items` is not an answer the server should give, but
-    // it is the shape a truncated proxy response arrives in. Taken literally
-    // it leaves `businesses` holding nothing iterable, and the way *out* of
-    // this menu — linking the registration whose absence is the whole reason
-    // it was opened — has to survive that, or the fix is unreachable from the
-    // screen that shows the problem.
-    await renderSwitcher({ mine: {} });
-    await userEvent.click(currentControl());
-
-    expect(
-      await screen.findByRole("button", { name: "Link another GSTIN" }),
-    ).toBeInTheDocument();
-    // No rows, and no complaint either: nothing failed.
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
-  it("forgets the other account's password when the link form is cancelled", async () => {
-    // It belongs to another login and this component has no further use for it;
-    // leaving it in state means reopening the form re-fills it.
+  it("directs client access through invitations without collecting another password", async () => {
     await renderSwitcher();
     await userEvent.click(currentControl());
-    await userEvent.click(await screen.findByRole("button", { name: "Link another GSTIN" }));
-    await userEvent.type(screen.getByLabelText("Password"), "hunter2");
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    await userEvent.click(screen.getByRole("button", { name: "Link another GSTIN" }));
-    expect(screen.getByLabelText("Password")).toHaveValue("");
+    expect(await screen.findByRole("link", { name: "Manage client invitations" })).toHaveAttribute("href", "/client-access");
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(screen.getByText(/Keep passwords private/)).toBeInTheDocument();
   });
+
+  it("keeps invitation management reachable when the client list is empty", async () => {
+    await renderSwitcher({ mine: {} });
+    await userEvent.click(currentControl());
+    expect(await screen.findByRole("link", { name: "Manage client invitations" })).toBeInTheDocument();
+  });
+
 });

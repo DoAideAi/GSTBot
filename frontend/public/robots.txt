@@ -15,3 +15,9 @@ Disallow: /status
 Disallow: /auth/callback
 
 Sitemap: https://gst.doaide.com/sitemap.xml
+
+Disallow: /purchase-import
+Disallow: /client-access
+Disallow: /clients
+Disallow: /review/
+Disallow: /join

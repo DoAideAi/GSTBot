@@ -2,21 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
 
-/**
- * Which GSTIN the app is acting for, and how to reach the others.
- *
- * A GST registration is one GSTIN and this product's tenant is the
- * registration, so a company holding three of them — or an accountant serving
- * several clients — signs up three times and ends up with three logins. The
- * backend has been able to join them for a while: link another account by
- * proving you hold its password, then send `X-Business-Id`. Nothing on any
- * screen could do either, so in practice the second registration meant signing
- * out and back in.
- *
- * The list is fetched when the menu is opened rather than on mount. Most logins
- * hold exactly one business and never open this, and the header is on every
- * page — an eager fetch would put a request nobody reads on every page load.
- */
+// The owner grants client access through an expiring invitation link.
 export default function BusinessSwitcher() {
   const { user, switchBusiness } = useAuth();
   const [open, setOpen] = useState(false);
@@ -26,9 +12,6 @@ export default function BusinessSwitcher() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const toggleRef = useRef(null);
   const menuRef = useRef(null);
   // Whether *this* opening of the menu has already asked. The list cannot
@@ -114,26 +97,6 @@ export default function BusinessSwitcher() {
       // alternative is a closed menu and a header that never changed, which
       // reads as a click that did nothing.
       setOpen(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleLink(event) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api.linkBusiness(email, password);
-      // The password is out of React state the moment it is no longer needed;
-      // it belongs to another account and this component has no further use
-      // for it.
-      setPassword("");
-      setEmail("");
-      setLinkOpen(false);
-      await load();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -238,58 +201,8 @@ export default function BusinessSwitcher() {
             </ul>
           )}
 
-          {linkOpen ? (
-            <form className="business-link-form" onSubmit={handleLink}>
-              <p className="muted small">
-                Sign in to the other registration once to link it. You keep both
-                logins; this only lets this one act for that business too.
-              </p>
-              <label>
-                <span>Email</span>
-                <input
-                  type="email"
-                  required
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label>
-                <span>Password</span>
-                <input
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              <div className="button-row">
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? "Linking…" : "Link"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  disabled={busy}
-                  onClick={() => {
-                    setLinkOpen(false);
-                    setPassword("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-ghost business-link-open"
-              onClick={() => setLinkOpen(true)}
-            >
-              Link another GSTIN
-            </button>
-          )}
+          <a className="btn btn-ghost business-link-open" href="/client-access">Manage client invitations</a>
+          <p className="muted small">Ask each client’s owner to invite your email. Keep passwords private.</p>
         </div>
       )}
     </div>

@@ -483,6 +483,9 @@ class TestTheRoleCostsNoExtraQuery:
 # a security decision — it says a read-only session may perform this write —
 # and each entry says why it is not one.
 UNGATED_MUTATIONS = {
+    # Inspect grants no access; acceptance binds an owner-issued token to the caller email.
+    "/api/v1/invitations/inspect",
+    "/api/v1/invitations/accept",
     # Reads the active tenant's summaries and returns advice; it cannot write
     # records, send messages or file returns. Viewers may review their data.
     "/api/v1/action-agent/review",
@@ -780,21 +783,10 @@ def test_the_business_switcher_still_reports_the_role_it_now_enforces(viewer):
     assert home["gstin"] == BUSINESS_GSTIN
 
 
-def test_the_gate_governs_existing_logins_rather_than_creating_them():
-    """Guards a misreading: this is not an invitation flow.
+def test_invitation_membership_management_is_explicitly_owner_gated():
+    from app.core.deps import require_owner
 
-    There is no endpoint that adds a second user to an existing business —
-    sign-up is one GSTIN and one owner. A viewer today is a login whose row
-    says so, or a membership carried over by ``POST /businesses/mine/link``.
-    If an invite route is added later it will need a role on the payload, and
-    this assertion is where that gets noticed.
-
-    Reading and revoking links (``GET`` and ``DELETE /businesses/mine/members``)
-    is not that: neither grants anyone a role, so only creating verbs count.
-    """
-    creating = {
-        route.path
-        for route in API_ROUTES
-        if route.methods & {"POST", "PUT", "PATCH"}
-    }
-    assert not [path for path in creating if "invite" in path or "member" in path]
+    managed = {"/api/v1/invitations", "/api/v1/invitations/members/{membership_id}"}
+    for route in API_ROUTES:
+        if route.path in managed and route.methods & {"POST", "PATCH"}:
+            assert require_owner in set(TestEveryMutatingRouteIsGated._calls(route.dependant))

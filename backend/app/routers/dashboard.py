@@ -14,6 +14,7 @@ from app.models.alert import OPEN_STATUSES, Alert
 from app.models.business import Business
 from app.models.gstr_return import ReturnType
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
+from app.models.practice import ReportReview
 from app.schemas.dashboard import (
     DashboardOut,
     InvoiceCounts,
@@ -22,7 +23,7 @@ from app.schemas.dashboard import (
     PlanUsage,
     TaxBucket,
 )
-from app.services import gst_calendar, invoice_service, reconciliation
+from app.services import gst_calendar, invoice_service, practice, reconciliation
 from app.services import itc as itc_service
 from app.services import late_fee as late_fee_service
 from app.services.gst_calendar import gstr1_due_date, gstr3b_due_date
@@ -236,7 +237,17 @@ def get_dashboard(
         if estimate.days_late > 0:
             late_fee_estimate = estimate.as_dict()
 
+    reviewed_report_exported = False
+    if last_run:
+        approval = db.scalar(select(ReportReview).where(
+            ReportReview.business_id == business.id, ReportReview.run_id == last_run.id,
+            ReportReview.deleted_at.is_(None)))
+        if approval and approval.exported_at and approval.invalidated_at is None:
+            full_run = practice.scoped_run(db, business.id, last_run.id)
+            reviewed_report_exported = not practice.is_stale(db, business.id, full_run)
+
     return DashboardOut(
+        reviewed_report_exported=reviewed_report_exported,
         business_gstin=business.gstin,
         business_name=business.trade_name or business.legal_name,
         period=period,

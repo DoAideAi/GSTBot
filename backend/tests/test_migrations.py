@@ -252,7 +252,7 @@ def _fingerprint(url: str) -> dict:
                     for index in inspector.get_indexes(table)
                 ),
                 "unique": sorted(
-                    (constraint["name"], tuple(constraint["column_names"]))
+                    (constraint["name"] or "", tuple(constraint["column_names"]))
                     for constraint in inspector.get_unique_constraints(table)
                 ),
                 "foreign_keys": sorted(

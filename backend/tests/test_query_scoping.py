@@ -43,6 +43,11 @@ SCOPED_MODELS = frozenset(
 # function the statement sits in; the value is why. Anything not here that
 # omits the predicate fails, which is the point — this list is the review.
 CROSS_TENANT_BY_DESIGN: dict[tuple[str, str], str] = {
+    ("routers/invitations.py", "by_token"): (
+        "A 256-bit invitation token selects its tenant before membership exists. "
+        "Only its SHA-256 hash is stored; expiry, revocation, creator ownership "
+        "and the accepting account's email are checked before granting access."
+    ),
     ("services/alert_delivery.py", "_send_pending_alerts"): (
         "The digest is the one place the product loops over every business "
         "at once: it finds which tenants have something to send, then reads "

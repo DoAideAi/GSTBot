@@ -270,6 +270,7 @@ export default function UploadPage() {
         </div>
       </div>
 
+      <p>Importing many invoices from one spreadsheet? <Link to="/purchase-import">Import a purchase register</Link>.</p>
       <ErrorBanner message={error} onDismiss={() => setError("")} />
 
       {limitReached && (

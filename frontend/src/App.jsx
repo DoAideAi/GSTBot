@@ -160,6 +160,12 @@ const GstInvoiceFormatGuide2026 = lazy(() => import("./pages/blog/GstInvoiceForm
 const LastDateToClaimItc = lazy(() => import("./pages/blog/LastDateToClaimItc"));
 const ItcReversalRules = lazy(() => import("./pages/blog/ItcReversalRules"));
 
+const PurchaseImportPage = lazy(() => import("./pages/PurchaseImportPage"));
+const ClientAccessPage = lazy(() => import("./pages/ClientAccessPage"));
+const JoinClientPage = lazy(() => import("./pages/JoinClientPage"));
+const ClientsPage = lazy(() => import("./pages/ClientsPage"));
+const ReviewWorkbenchPage = lazy(() => import("./pages/ReviewWorkbenchPage"));
+
 function LazyFallback() {
   return (
     <div className="shell-main">
@@ -254,6 +260,7 @@ export default function App() {
       <MetricoolTracker />
       <SocialProofBar />
       <Routes>
+        <Route path="/join" element={<Lazy><JoinClientPage /></Lazy>} />
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/auth/callback" element={<Lazy><AuthCallbackPage /></Lazy>} />
         <Route path="/auth/link-google" element={<Lazy><GoogleAccountLinkPage /></Lazy>} />
@@ -382,6 +389,10 @@ export default function App() {
         <Route path="/widget" element={<Lazy><WidgetPage /></Lazy>} />
         <Route path="/widget/hsn" element={<Lazy><HsnWidgetPage /></Lazy>} />
         <Route path="/" element={<Home />} />
+        <Route path="/purchase-import" element={<Protected><PurchaseImportPage /></Protected>} />
+        <Route path="/clients" element={<Protected><ClientsPage /></Protected>} />
+        <Route path="/client-access" element={<Protected><ClientAccessPage /></Protected>} />
+        <Route path="/review/:runId" element={<Protected><ReviewWorkbenchPage /></Protected>} />
         <Route path="/action-agent" element={<Protected><ActionAgentPage /></Protected>} />
         <Route
           path="/invoices"

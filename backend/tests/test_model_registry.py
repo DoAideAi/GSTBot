@@ -63,6 +63,12 @@ def test_the_registry_sweep_is_actually_looking_at_the_scoped_models() -> None:
     """
     tables = {m.class_.__tablename__ for m in _scoped_mappers()}
     assert tables == {
+        "business_invitations",
+        "finding_reviews",
+        "finding_review_events",
+        "register_imports",
+        "register_mappings",
+        "report_reviews",
         "alerts",
         "gstr_returns",
         "invoices",

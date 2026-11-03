@@ -845,6 +845,30 @@ export const api = {
   /** Revokes access gained through `linkBusiness`. Never removes your own tenant. */
   unlinkBusiness: (id) => request(`/businesses/mine/${id}`, { method: "DELETE" }),
 
+  // ---- CA practice workflows ----
+  registerMappings: () => request("/register-imports/mappings"),
+  previewRegister(file, mapping, dateFormat) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("mapping", JSON.stringify(mapping || {}));
+    form.append("date_format", dateFormat);
+    return request("/register-imports/preview", { method: "POST", form });
+  },
+  commitRegister: (id, payload) => request(`/register-imports/${id}/commit`, { method: "POST", body: payload }),
+  invitations: () => request("/invitations"),
+  createInvitation: (payload) => request("/invitations", { method: "POST", body: payload }),
+  inspectInvitation: (token) => request("/invitations/inspect", { method: "POST", body: { token }, auth: false }),
+  acceptInvitation: (token) => request("/invitations/accept", { method: "POST", body: { token } }),
+  revokeInvitation: (id) => request(`/invitations/${id}`, { method: "DELETE" }),
+  clientMembers: () => request("/businesses/mine/members"),
+  revokeClientMember: (id) => request(`/businesses/mine/members/${id}`, { method: "DELETE" }),
+  changeMemberRole: (id, role) => request(`/invitations/members/${id}`, { method: "PATCH", body: { role } }),
+  practiceClients: (period, offset = 0, { signal } = {}) => request(`/practice/clients${query({ period, offset })}`, { signal }),
+  reviewWorkbench: (id, { signal } = {}) => request(`/practice/runs/${id}`, { signal }),
+  saveFindingReview: (id, index, payload) => request(`/practice/runs/${id}/findings/${index}`, { method: "PATCH", body: payload }),
+  approveReviewedReport: (id) => request(`/practice/runs/${id}/approve`, { method: "POST" }),
+  exportReviewedReport: (id) => fetchFile(`${BASE}/practice/runs/${id}/export.csv`),
+
   // ---- Subscriptions & Payments ----
   pricing: () => request("/subscriptions/pricing", { auth: false }),
   currentSubscription: () => request("/subscriptions/current"),

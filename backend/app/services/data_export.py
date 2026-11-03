@@ -54,6 +54,7 @@ _dumps = json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).encode
 # something to an attacker.
 WITHHELD = frozenset(
     {
+        ("business_invitations", "token_hash"),
         ("users", "hashed_password"),
         ("users", "oauth_id"),
         ("invoices", "storage_path"),

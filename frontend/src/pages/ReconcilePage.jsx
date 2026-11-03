@@ -559,6 +559,7 @@ export default function ReconcilePage() {
         </label>
       </div>
 
+      {shown?.status === "completed" && <p><Link className="btn btn-primary" to={`/review/${shown.id}`}>Review exceptions and export</Link></p>}
       <ErrorBanner message={error} onDismiss={() => setError("")} />
       {notice && (
         <div className="banner banner-good" role="status">

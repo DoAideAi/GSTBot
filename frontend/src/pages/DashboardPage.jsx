@@ -156,10 +156,10 @@ function OnboardingChecklist({ data, canWrite }) {
       hint: "Match your books against what suppliers declared.",
     },
     {
-      done: false,
-      label: "Prepare and file your return",
-      action: data.counts.total > 0 ? "/filing" : null,
-      hint: "Generate GSTR-1 or GSTR-3B for the portal.",
+      done: Boolean(data.reviewed_report_exported),
+      label: "Review and export your report",
+      action: data.last_reconciliation ? `/review/${data.last_reconciliation.id}` : null,
+      hint: "Review exceptions and export the current reconciliation report.",
     },
   ];
 
@@ -168,7 +168,7 @@ function OnboardingChecklist({ data, canWrite }) {
     <section className="panel">
       <h2>Get started</h2>
       <p className="muted small">
-        {completed} of {steps.length} steps done — complete these to file your first return.
+        {completed} of {steps.length} steps done — complete these to review and export your first reconciliation.
       </p>
       <ol className="onboarding-list">
         {steps.map((step) => (

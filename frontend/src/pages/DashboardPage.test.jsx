@@ -859,17 +859,18 @@ describe("DashboardPage", () => {
       expect(hrefs).toContain("/reconcile");
     });
 
-    it("offers filing once any invoices exist", async () => {
+    it("offers report review once reconciliation is complete", async () => {
       mockDashboard(dashboard({
         business_gstin: null,
         counts: { total: 1, sales: 1, purchase: 0, by_status: { parsed: 1 }, needs_review: 0 },
+        last_reconciliation: { id: 42, matched: 1 },
       }));
       renderPage();
 
       expect(await screen.findByText("Get started")).toBeInTheDocument();
       const links = screen.getAllByRole("link", { name: /Start/ });
       const hrefs = links.map((l) => l.getAttribute("href"));
-      expect(hrefs).toContain("/filing");
+      expect(hrefs).toContain("/review/42");
     });
   });
 

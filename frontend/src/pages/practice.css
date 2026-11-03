@@ -1,0 +1,178 @@
+.practice-page {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.practice-page .page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.practice-page .page-heading h1 {
+  margin: 0 0 0.5rem;
+}
+.practice-page .eyebrow {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.practice-page .panel {
+  margin-bottom: 1.25rem;
+}
+.practice-page .practice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 1rem;
+}
+.practice-page label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+.practice-page input:not([type="checkbox"]),
+.practice-page select,
+.practice-page textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface, var(--bg));
+  color: var(--text);
+  border-radius: 8px;
+  font: inherit;
+}
+.practice-page textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+.practice-page .practice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.practice-page .practice-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+.practice-page .practice-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.practice-page .practice-stat {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  flex: 1 1 150px;
+}
+.practice-page .practice-stat strong {
+  display: block;
+  font-size: 1.6rem;
+}
+.practice-page .practice-note {
+  padding: 0.85rem 1rem;
+  border-left: 3px solid #0d9488;
+  background: rgba(13, 148, 136, 0.07);
+  border-radius: 6px;
+}
+.practice-page .practice-table {
+  overflow-x: auto;
+  width: 100%;
+}
+.practice-page table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+.practice-page th,
+.practice-page td {
+  padding: 0.8rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.practice-page th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.practice-page .practice-error {
+  color: var(--danger, #b91c1c);
+}
+.practice-page .practice-row {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.practice-page .practice-row summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.5rem 0;
+}
+.practice-page .practice-row small {
+  display: block;
+  color: var(--muted);
+  margin: 0.4rem 0;
+}
+.practice-page .practice-token {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+.practice-page .practice-history {
+  max-height: 320px;
+  overflow: auto;
+}
+.practice-page .practice-empty {
+  padding: 2rem;
+  text-align: center;
+}
+.practice-page .practice-footer {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.join-client {
+  padding: 2rem 1rem;
+  max-width: 640px;
+  margin: 4vh auto;
+}
+@media (max-width: 600px) {
+  .practice-page .panel {
+    padding: 1rem;
+  }
+  .practice-page .practice-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .practice-page th,
+  .practice-page td {
+    padding: 0.6rem;
+  }
+}
+
+/* The global form input rule fills the row; checkboxes must keep their own size. */
+.practice-page .practice-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: 0 0 18px;
+  margin: 3px 0 0;
+  accent-color: var(--accent, #0d9488);
+}
+@media (max-width: 600px) {
+  .client-queue table, .client-queue tbody, .client-queue tr { display: block; width: 100%; }
+  .client-queue thead { display: none; }
+  .client-queue tr { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+  .client-queue td { display: block; border: 0; padding: .4rem 0; overflow-wrap: anywhere; }
+  .client-queue td::before { content: attr(data-label); display: block; font-size: .72rem; color: var(--muted); margin-bottom: .2rem; }
+  .client-queue td .btn { width: 100%; white-space: normal; }
+}

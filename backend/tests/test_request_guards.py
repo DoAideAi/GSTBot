@@ -81,6 +81,7 @@ class TestSetOffNeedsAToken:
         from tests.test_route_contracts import API_ROUTES
 
         public = {
+            "/api/v1/invitations/inspect",  # High-entropy link preview, rate limited; no grant.
             "/",
             "/api/v1/health",
             "/api/v1/health/live",

@@ -41,12 +41,15 @@ from app.routers import (
     feedback,
     filing,
     gpt,
+    invitations,
     invoices,
     itc,
     misc,
     oauth,
+    practice,
     reconciliation,
     referrals,
+    register_import,
     seo,
     subscriptions,
     suppliers,
@@ -399,6 +402,9 @@ def create_app() -> FastAPI:
     application.include_router(oauth.router, prefix=prefix)
     application.include_router(businesses.router, prefix=prefix)
     application.include_router(invoices.router, prefix=prefix)
+    application.include_router(invitations.router, prefix=prefix)
+    application.include_router(practice.router, prefix=prefix)
+    application.include_router(register_import.router, prefix=prefix)
     application.include_router(dashboard.router, prefix=prefix)
     application.include_router(reconciliation.router, prefix=prefix)
     application.include_router(itc.router, prefix=prefix)

@@ -39,7 +39,7 @@ from app.services.gstin import compute_check_digit
 from tests.conftest import BUSINESS_GSTIN, make_paid
 from tests.test_businesses import SECOND_GSTIN, link, register_second_business
 from tests.test_route_contracts import API_ROUTES
-from tests.test_tenancy_contract import FACTORIES, ROW_ID_ROUTES
+from tests.test_tenancy_contract import BODIES, FACTORIES, ROW_ID_ROUTES
 
 PERIOD = "2026-04"
 
@@ -294,6 +294,8 @@ class TestTheSweepCoversEveryBusinessScopedRoute:
             for method, path in BUSINESS_SCOPED_ROUTES
             if method != "GET" and not _ROW_ID.search(path)
         } == {
+            ("POST", "/api/v1/register-imports/preview"),
+            ("POST", "/api/v1/invitations"),
             ("POST", "/api/v1/invoices/upload"),
             # Read-only review; test_action_agent proves switched summaries
             # come from the selected business before reaching the provider.
@@ -358,8 +360,8 @@ def test_a_row_of_the_home_tenants_is_unreachable_while_switched(
 
     response = auth_client.request(
         method,
-        _ROW_ID.sub(str(row_id), path),
-        json={"hsn_code": "8471"} if method == "PATCH" else None,
+        _ROW_ID.sub(str(row_id), path).replace("{finding_index}", "0"),
+        json=BODIES.get((method, path)),
         headers={"X-Business-Id": str(switched)},
     )
 
@@ -418,8 +420,8 @@ class TestTheSweepIsNotVacuous:
 
         response = auth_client.request(
             method,
-            _ROW_ID.sub(str(row_id), path),
-            json={"hsn_code": "8471"} if method == "PATCH" else None,
+            _ROW_ID.sub(str(row_id), path).replace("{finding_index}", "0"),
+            json=BODIES.get((method, path)),
         )
 
         assert response.status_code != 404, (
@@ -545,3 +547,26 @@ class TestThePlanThatCountsIsTheActiveBusinesss:
             "/api/v1/meta/gstin/bulk", json=self.BODY, headers={"X-Business-Id": str(switched)}
         )
         assert response.status_code == 200, response.text
+
+
+def test_register_imports_and_invitations_are_created_in_the_selected_business(
+    auth_client, switched, db_session, business,
+):
+    from app.models.practice import BusinessInvitation, RegisterImport
+    from tests.test_practice_workflows import register_csv
+
+    headers = {"X-Business-Id": str(switched)}
+    draft = auth_client.post("/api/v1/register-imports/preview", headers=headers,
+                             files={"file": ("register.csv", register_csv(), "text/csv")})
+    assert draft.status_code == 200, draft.text
+    assert db_session.get(RegisterImport, draft.json()["id"]).business_id == switched
+    committed = auth_client.post(f'/api/v1/register-imports/{draft.json()["id"]}/commit',
+                                 headers=headers, json={})
+    assert committed.status_code == 200, committed.text
+    assert all(db_session.get(Invoice, i).business_id == switched
+               for i in committed.json()["invoice_ids"])
+    invite = auth_client.post("/api/v1/invitations", headers=headers,
+                              json={"email": "client-reviewer@example.com", "role": "viewer"})
+    assert invite.status_code == 201, invite.text
+    assert db_session.get(BusinessInvitation, invite.json()["id"]).business_id == switched
+    assert auth_client.get("/api/v1/invitations").json()["items"] == []
