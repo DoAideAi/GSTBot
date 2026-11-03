@@ -879,7 +879,7 @@ class TestTheSiteBlock:
         # so stale copies of the page can run it and pick up the
         # self-removing sw.js; never 'unsafe-inline'.
         assert directives["script-src"] == (
-            "'self' https://analytics.doaide.com https://checkout.razorpay.com"
+            "'self' https://analytics.doaide.com https://checkout.razorpay.com https://cdn.razorpay.com"
             " https://www.googletagmanager.com https://www.googleadservices.com https://www.google.com"
             " 'sha256-P3upB5nSJgaMZ66JypQ23kO70VzvIaT2MSedNexWFNk='"
         )
@@ -896,7 +896,7 @@ class TestTheSiteBlock:
             "https://www.google.co.in https://ad.doubleclick.net"
         )
         assert directives["frame-src"] == (
-            "https://api.razorpay.com https://checkout.razorpay.com https://www.googletagmanager.com"
+            "https://api.razorpay.com https://checkout.razorpay.com https://cdn.razorpay.com https://www.googletagmanager.com"
         )
         assert directives["frame-ancestors"] == "'none'"
         assert directives["object-src"] == "'none'"
