@@ -134,6 +134,7 @@ class TestUnauthorizedIsDocumentedWhereItCanHappen:
             "/api/v1/auth/register",
             "/api/v1/auth/reset-password",
             "/api/v1/feedback",
+            "/api/v1/feedback/demo",  # Anonymous contact form; rate limited, admin-only inbox.
             "/api/v1/feedback/error",
             "/api/v1/gpt/calculate",
             "/api/v1/gpt/filing-dates",

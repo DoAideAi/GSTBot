@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -12,6 +12,32 @@ from app.models.feedback import FeedbackCategory
 MAX_MESSAGE = 5000
 MAX_PAGE_URL = 2048
 DAY_MS = 86_400_000
+
+
+class DemoRequestCreate(BaseModel):
+    """A contact request, kept in the existing private operator inbox."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=100)
+    firm: str = Field(min_length=1, max_length=150)
+    email: EmailStr = Field(max_length=254)
+    volume: Literal["1–10", "11–50", "51–100", "More than 100", "Still exploring"]
+    workflow: str = Field(default="", max_length=1000)
+    # A honeypot is refused, never acknowledged as a saved lead.
+    website: str = Field(default="", max_length=0)
+
+    @field_validator("name", "firm", "workflow")
+    @classmethod
+    def _visible(cls, value: str, info) -> str:
+        value = visible_text(value, keep_newlines=info.field_name == "workflow")
+        if info.field_name != "workflow" and not value:
+            raise ValueError("Please complete this field.")
+        return value
+
+
+class DemoRequestAck(BaseModel):
+    reference: str
 
 Path = Annotated[str, Field(max_length=300)]
 Note = Annotated[str, Field(max_length=300)]

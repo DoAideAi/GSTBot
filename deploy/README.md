@@ -980,3 +980,33 @@ backend combined coverage is 97.19% against 99%; frontend lines are 94.49%,
 statements 92.12%, branches 89.37% and functions 86.28%, below their thresholds.
 The preceding frontend release was already below its gate; this change reduces
 the measured frontend percentages further. No threshold was lowered.
+
+## Acquisition fixes — 3 November 2026
+
+`POST /api/v1/feedback/demo` validates and saves demo requests in the existing
+operator inbox at `/admin/feedback`. Only approved administrators can read it;
+the public response contains only a reference. Rate limit: five requests per
+hour per IP. No migration or new mail service. SMTP is not configured on
+production, so check the inbox for new requests. A request is not an appointment.
+
+Add `https://doaide.com,https://www.doaide.com` to `BACKEND_CORS_ORIGINS`, keeping
+`https://gst.doaide.com` first. Update only the GST site's CSP from
+`deploy/caddy-gstbot.conf`; production was missing the existing Razorpay
+allowances. Validate and reload Caddy, never restart the shared proxy.
+
+`frontend/public/ads.js` must match the marketing repository's `assets/ads.js`.
+It uses Google Ads account 952-322-4323 / AW-18552515324 and five explicit
+conversion labels from that account. Measurement is disabled until consent;
+consent is shared on the parent domain. No automatic enhanced conversions or
+ad personalization. No token-bearing auth URL is tagged; a completed OAuth
+signup is queued for the next page. URL queries, fragments and private record
+paths are excluded from ad events. Failed forms/uploads, empty reconciliations,
+checkout clicks and free pilots never count as paid revenue. Verified payments
+carry the order reference and actual INR amount, deduplicated by transaction ID.
+
+Publish the local frontend build and matching source under the deployment lock,
+checking that production is still the expected parent commit. Retain the previous
+frontend tree, backend release marker, CORS configuration and GST CSP. Back up the
+database before deployment. Restart only the API; the static server reads the
+new files. Rollback restores those retained artifacts and the prior source.
+No campaign or advertising budget is created by this release.

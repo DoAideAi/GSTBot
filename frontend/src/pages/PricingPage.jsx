@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SeoHead from "../components/SeoHead";
 import ToolsNav from "../components/ToolsNav";
@@ -64,6 +64,8 @@ export function cancelConfirmation(sub, now = new Date()) {
 export default function PricingPage() {
   usePageTitle("Pricing — DoAide GST");
   const { user } = useAuth();
+  const [search] = useSearchParams();
+  const requestedTier = ["pro", "enterprise"].includes(search.get("pilot")) ? search.get("pilot") : null;
   const [pricing, setPricing] = useState(null);
   const [currentSub, setCurrentSub] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -169,7 +171,10 @@ export default function PricingPage() {
               razorpay_signature: response.razorpay_signature,
               tier,
             });
-            track("subscribe_success", step);
+            track("subscribe_success", step, {
+              value: order.amount / 100,
+              transaction_id: order.order_id,
+            });
             setSuccess(`Subscribed to ${TIER_LABELS[tier]} plan!`);
             const sub = await api.currentSubscription();
             setCurrentSub(sub);
@@ -310,7 +315,7 @@ export default function PricingPage() {
             const tier = pricing.tiers[tierKey];
             if (!tier) return null;
             const isCurrent = currentTier === tierKey;
-            const isHighlight = tierKey === HIGHLIGHT_TIER;
+            const isHighlight = tierKey === (requestedTier || HIGHLIGHT_TIER);
             const price = billing === "annual" && tier.price_annual
               ? tier.price_annual
               : tier.price_monthly;
@@ -324,7 +329,7 @@ export default function PricingPage() {
                 className={`pricing-card${isHighlight ? " pricing-card-highlight" : ""}${isCurrent ? " pricing-card-current" : ""}`}
               >
                 {isHighlight && (
-                  <div className="pricing-badge">Most Popular</div>
+                  <div className="pricing-badge">{requestedTier ? "Your selected pilot" : "Most Popular"}</div>
                 )}
                 <h2>{tier.name}</h2>
                 {offer && tierKey !== "free" && <div className="pilot-card-offer">
@@ -397,7 +402,7 @@ export default function PricingPage() {
                   ) : (
                     offer && (!user || pilotState?.can_start) && offer.remaining[tierKey] > 0 ? (
                       user ? <button className="btn btn-primary" disabled={startingPilot} onClick={() => startPilot(tierKey)}>{startingPilot ? "Starting…" : `Start ${tier.name} free pilot`}</button>
-                        : <Link className="btn btn-primary" to="/login" onClick={() => rememberReturnTo("/pricing")}>Start {tier.name} free pilot</Link>
+                        : <Link className="btn btn-primary" to="/login?mode=register" onClick={() => rememberReturnTo(`/pricing?pilot=${tierKey}`)}>Start {tier.name} free pilot</Link>
                     ) : pilotActive ? (
                       <p>Paid upgrades open after your pilot ends.</p>
                     ) : offer && !pricing.razorpay_key_id ? (

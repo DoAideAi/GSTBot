@@ -9,8 +9,8 @@ vi.mock("../lib/track", () => ({ track: vi.fn() }));
 let state, subscription, pricing, posts, reject;
 const enrollment = { tier: "enterprise", starts_at: "2026-11-02T12:00:00Z", ends_at: "2027-01-01T12:00:00Z", active: true, business_limit: 5, business_ids: [1] };
 function response(body, status = 200) { return { ok: status < 400, status, text: async () => JSON.stringify(body) }; }
-function land(authenticated = true) {
-  return render(<MemoryRouter>{authenticated ? <StubAuth><PricingPage /></StubAuth> : <AuthContext.Provider value={{ user: null }}><PricingPage /></AuthContext.Provider>}</MemoryRouter>);
+function land(authenticated = true, route = "/pricing") {
+  return render(<MemoryRouter initialEntries={[route]}>{authenticated ? <StubAuth><PricingPage /></StubAuth> : <AuthContext.Provider value={{ user: null }}><PricingPage /></AuthContext.Provider>}</MemoryRouter>);
 }
 beforeEach(() => {
   sessionStorage.clear(); subscription = null; posts = []; reject = false;
@@ -45,8 +45,9 @@ it("shows regular prices and remembers pricing after sign-in", async () => {
   expect(screen.getByText("₹499")).toBeVisible();
   expect(screen.getByText("₹2,999")).toBeVisible();
   expect(screen.getByText(/500 invoice uploads/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Start CA free pilot" })).toHaveAttribute("href", "/login?mode=register");
   fireEvent.click(screen.getByRole("link", { name: "Start CA free pilot" }));
-  expect(takeReturnTo()).toBe("/pricing");
+  expect(takeReturnTo()).toBe("/pricing?pilot=enterprise");
   expect(posts).toEqual([]);
 });
 it("starts without Razorpay and shows the end date without paid cancellation controls", async () => {
@@ -88,4 +89,11 @@ it("shows admission errors without claiming success", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Start SMB free pilot" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("cohort is full");
   expect(screen.queryByText("Your free pilot is active")).not.toBeInTheDocument();
+});
+
+it("keeps the selected CA pilot visible after account creation without starting it automatically", async () => {
+  land(true, "/pricing?pilot=enterprise");
+  const badge = await screen.findByText("Your selected pilot");
+  expect(badge.closest(".pricing-card")).toHaveTextContent("CA");
+  expect(posts).toEqual([]);
 });

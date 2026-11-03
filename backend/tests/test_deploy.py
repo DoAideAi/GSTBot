@@ -867,15 +867,20 @@ class TestTheSiteBlock:
         )
 
         assert directives["default-src"] == "'self'"
-        assert directives["img-src"] == "'self' data: https://tracker.metricool.com"
+        assert directives["img-src"] == (
+            "'self' data: https://tracker.metricool.com https://www.googletagmanager.com "
+            "https://www.googleadservices.com https://googleads.g.doubleclick.net "
+            "https://pagead2.googlesyndication.com https://www.google.com https://www.google.co.in"
+        )
         # Exactly these origins. Each is there for one named reason — Umami,
-        # and Razorpay Checkout's script — and anything else is a widening
+        # Razorpay Checkout and consented Google Ads measurement — and anything else is a widening
         # somebody should have to justify here. The one hash is the inline
         # service-worker registration index.html carried until a863c71, kept
         # so stale copies of the page can run it and pick up the
         # self-removing sw.js; never 'unsafe-inline'.
         assert directives["script-src"] == (
             "'self' https://analytics.doaide.com https://checkout.razorpay.com"
+            " https://www.googletagmanager.com https://www.googleadservices.com https://www.google.com"
             " 'sha256-P3upB5nSJgaMZ66JypQ23kO70VzvIaT2MSedNexWFNk='"
         )
         assert "'unsafe-inline'" not in directives["script-src"]
@@ -885,9 +890,14 @@ class TestTheSiteBlock:
         # the page still cannot post a tenant's invoices to a host of its own.
         assert directives["connect-src"] == (
             "'self' https://analytics.doaide.com https://api.razorpay.com "
-            "https://lumberjack.razorpay.com"
+            "https://lumberjack.razorpay.com https://www.googletagmanager.com "
+            "https://www.googleadservices.com https://googleads.g.doubleclick.net "
+            "https://pagead2.googlesyndication.com https://www.google.com "
+            "https://www.google.co.in https://ad.doubleclick.net"
         )
-        assert directives["frame-src"] == "https://api.razorpay.com https://checkout.razorpay.com"
+        assert directives["frame-src"] == (
+            "https://api.razorpay.com https://checkout.razorpay.com https://www.googletagmanager.com"
+        )
         assert directives["frame-ancestors"] == "'none'"
         assert directives["object-src"] == "'none'"
         assert directives["base-uri"] == "'none'"

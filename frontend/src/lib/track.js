@@ -62,12 +62,22 @@ export function analyticsSafe(data) {
  * `window.umami` without a working `track`, turned "analytics failed" into
  * "payment failed".
  */
-export function track(event, data) {
+export function track(event, data, conversion) {
   try {
     if (typeof window !== "undefined" && typeof window.umami?.track === "function") {
       window.umami.track(event, analyticsSafe(data));
     }
   } catch {
     // Analytics is never worth the flow it is measuring.
+  }
+  // Ads sees only named outcomes, never the arbitrary event data sent to Umami.
+  // Keep the two sinks independent: a blocked Umami must not block measurement.
+  try {
+    const completed = ["signup_complete", "pilot_started", "subscribe_success"].includes(event);
+    const used = (event === "invoice_upload" && data?.accepted > 0)
+      || (event === "reconcile_run" && data?.invoices > 0);
+    if (completed || used) window.doaideAds?.conversion(used ? "product_used" : event, conversion);
+  } catch {
+    // Consent, storage or tracking failures cannot interrupt the product.
   }
 }

@@ -139,7 +139,7 @@ deploy/           systemd units, Caddy config, deploy.sh for the Hetzner box.
 
 ## The API
 
-121 routes under `/api/v1`. The generated reference is the authority — start the
+122 routes under `/api/v1`. The generated reference is the authority — start the
 API and read it:
 
 | | |
@@ -171,7 +171,7 @@ The surface, by area:
 | `referrals` | 4 | Referral code, stats, leaderboard, tracking a visit |
 | `meta` | 6 | State codes, GSTIN lookup, bulk GSTIN validation (paid), recent lookups, stats, deadline-reminder sign-up |
 | `subscribers` | 3 | Newsletter sign-up, and unsubscribe by link or one-click POST |
-| `feedback` | 6 | Send feedback, report a browser error; admin inbox and error log, and deleting from each |
+| `feedback` | 7 | Save demo requests, send feedback, report a browser error; admin inbox and error log, and deleting from each |
 | `advisor` | 2 | The GST AI advisor, answered whole or streamed |
 | `register-imports` | 3 | Preview and map invoice-level CSV/XLSX purchases, save mappings and commit validated rows |
 | `invitations` | 6 | Create, inspect, accept and revoke email-bound invitations; list invitations and change linked roles |

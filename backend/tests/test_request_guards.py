@@ -133,6 +133,7 @@ class TestSetOffNeedsAToken:
             "/api/v1/feedback",
             # Uncaught browser errors, reported by the page on its own.
             "/api/v1/feedback/error",
+            "/api/v1/feedback/demo",  # Anonymous contact form; rate limited, admin-only inbox.
             # AI advisor chatbot — public, proxied through the backend.
             "/api/v1/advisor/ask",
             "/api/v1/advisor/ask/stream",

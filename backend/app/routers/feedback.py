@@ -22,6 +22,8 @@ from app.schemas.feedback import (
     ClientErrorCreate,
     ClientErrorListOut,
     ClientErrorOut,
+    DemoRequestAck,
+    DemoRequestCreate,
     FeedbackCreate,
     FeedbackListOut,
     FeedbackOut,
@@ -35,6 +37,7 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
 # Five an hour per address: enough for someone who has several things to say,
 # few enough that the inbox cannot be flooded from one connection.
 _submit_limit = RateLimit("feedback", "5/hour", by="ip")
+_demo_limit = RateLimit("demo_request", "5/hour", by="ip")
 _read_limit = RateLimit("feedback_read", "120/minute")
 # Error reports are sent by the browser on its own, so a visitor never sees
 # this refused: the widget sends each distinct error once per page load. It is
@@ -47,6 +50,41 @@ MAX_USER_AGENT = 512
 # which a daily beat task also runs; re-exported under their old names.
 CLIENT_ERROR_RETENTION = retention.CLIENT_ERROR_RETENTION
 FEEDBACK_IP_RETENTION = retention.FEEDBACK_IP_RETENTION
+
+
+@router.post(
+    "/demo",
+    summary="Request a GST demo",
+    description=(
+        "Public contact form. Saved in the private admin feedback inbox; no appointment is booked."
+    ),
+    status_code=status.HTTP_201_CREATED,
+    response_model=DemoRequestAck,
+    dependencies=[Depends(_demo_limit)],
+    responses={429: {"description": "Too many requests from this address."}},
+)
+def request_demo(
+    body: DemoRequestCreate, request: Request, db: Session = Depends(get_db)
+) -> DemoRequestAck:
+    row = Feedback(
+        category=FeedbackCategory.OTHER,
+        message=(
+            f"DEMO REQUEST\nName: {body.name}\nFirm: {body.firm}\n"
+            f"Client GSTINs: {body.volume}\n"
+            f"Workflow / preferred time: {body.workflow or 'To discuss'}"
+        ),
+        email=str(body.email),
+        page_url="https://doaide.com/demo/",
+        meta={"feature_area": "demo-request"},
+        user_agent=(request.headers.get("user-agent") or "")[:MAX_USER_AGENT] or None,
+        ip_address=client_ip(request),
+    )
+    db.add(row)
+    retention.clear_old_feedback_ips(db)
+    db.commit()
+    db.refresh(row)
+    # Return only an acknowledgement after the commit, not the contact details.
+    return DemoRequestAck(reference=f"DEMO-{row.id}")
 
 
 @router.post(

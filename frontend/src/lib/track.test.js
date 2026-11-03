@@ -92,3 +92,32 @@ describe("track never breaks the flow it measures", () => {
     expect(() => track("checkout_open")).not.toThrow();
   });
 });
+
+
+describe("advertising conversion boundaries", () => {
+  afterEach(() => { delete window.doaideAds; delete window.umami; });
+  it("counts completed outcomes, not clicks, failed uploads or empty reconciliations", () => {
+    window.doaideAds = { conversion: vi.fn() };
+    for (const event of ["signup_click", "checkout_open", "upgrade_failed", "pricing_view"]) track(event);
+    track("invoice_upload", { accepted: 0 });
+    track("reconcile_run", { invoices: 0 });
+    expect(window.doaideAds.conversion).not.toHaveBeenCalled();
+    track("signup_complete", { method: "google", email: "private@example.com" });
+    track("pilot_started", { tier: "enterprise" });
+    track("invoice_upload", { accepted: 1, filename: "private.pdf" });
+    track("reconcile_run", { invoices: 1 });
+    expect(window.doaideAds.conversion.mock.calls).toEqual([
+      ["signup_complete", undefined], ["pilot_started", undefined],
+      ["product_used", undefined], ["product_used", undefined],
+    ]);
+  });
+  it("sends the verified order amount separately from product data even if Umami fails", () => {
+    window.umami = { track: () => { throw new Error("blocked"); } };
+    window.doaideAds = { conversion: vi.fn() };
+    const order = { value: 2999, transaction_id: "order_123" };
+    track("subscribe_success", { tier: "enterprise" }, order);
+    expect(window.doaideAds.conversion).toHaveBeenCalledWith("subscribe_success", order);
+    window.doaideAds.conversion.mockImplementation(() => { throw new Error("blocked"); });
+    expect(() => track("pilot_started")).not.toThrow();
+  });
+});
