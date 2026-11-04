@@ -215,6 +215,7 @@ export default function ReviewWorkbenchPage() {
             the source invoice and reconcile again when the figures or match are
             wrong.
           </p>
+          <p><Link className="btn btn-ghost" to={`/review/${runId}/suppliers`}>Prepare supplier follow-ups</Link></p>
           {data.stale && (
             <p className="practice-error" role="alert">
               This run is historical or its source data changed. Reconcile again
@@ -334,6 +335,11 @@ export default function ReviewWorkbenchPage() {
               >
                 Export reviewed CSV
               </button>
+              <button className="btn btn-ghost" disabled={busy || data.stale || !data.approved}
+                onClick={() => perform(async () => {
+                  const file = await api.exportReviewWorkbook(runId);
+                  saveBlob(file.blob, file.filename);
+                }, "Excel workbook exported with summary, supplier totals, findings and review history.")}>Export reviewed Excel</button>
             </div>
             <p className="practice-footer">
               Export follows the existing pilot/report entitlement. New source

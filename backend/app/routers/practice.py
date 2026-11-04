@@ -19,7 +19,7 @@ from app.models.practice import FindingReview, FindingReviewEvent, ReportReview
 from app.models.user import User
 from app.routers.reconciliation import _pilot_report, _purchase_for
 from app.schemas.practice import ClientQueueOut, FindingReviewUpdate
-from app.services import gst_calendar, practice, reconciliation
+from app.services import gst_calendar, practice, reconciliation, review_workbook
 
 router = APIRouter(prefix="/practice", tags=["CA workspace"])
 
@@ -272,6 +272,11 @@ def safe_cell(value):
 def export_review(
     run_id: RowId, db: Session = Depends(get_db), business: Business = Depends(get_current_business)
 ) -> Response:
+    run, reviews, approval = reviewed_export(db, business, run_id)
+    return csv_export(db, run, reviews, approval)
+
+
+def reviewed_export(db, business, run_id):
     run = practice.scoped_run(db, business.id, run_id, lock=True)
     if not _pilot_report(db, business.id, run) and _purchase_for(db, business.id, run.id) is None:
         raise HTTPException(
@@ -290,6 +295,10 @@ def export_review(
         raise HTTPException(
             409, "Complete review of the current run before exporting the reviewed report."
         )
+    return run, reviews, approval
+
+
+def csv_export(db, run, reviews, approval):
     by_index = {r.finding_index: r for r in reviews}
     stream = io.StringIO()
     writer = csv.writer(stream)
@@ -332,6 +341,31 @@ def export_review(
         stream.getvalue(),
         media_type="text/csv",
         headers={
+            "Cache-Control": "no-store",
             "Content-Disposition": f'attachment; filename="reviewed-reconciliation-{run.id}.csv"'
         },
     )
+
+
+@router.get(
+    "/runs/{run_id}/export.xlsx",
+    summary="Export an entitled reviewed report as an Excel workbook",
+    dependencies=[Depends(RateLimit("practice_workbook", "10/minute"))],
+    response_class=Response,
+)
+def export_workbook(
+    run_id: RowId, db: Session = Depends(get_db), business: Business = Depends(get_current_business)
+) -> Response:
+    run, reviews, approval = reviewed_export(db, business, run_id)
+    events = db.scalars(select(FindingReviewEvent).where(
+        FindingReviewEvent.business_id == business.id,
+        FindingReviewEvent.deleted_at.is_(None),
+        FindingReviewEvent.review_id.in_([r.id for r in reviews]),
+    ).order_by(FindingReviewEvent.id))
+    content = review_workbook.build(run, business, reviews, approval, events)
+    approval.exported_at = utcnow()
+    db.commit()
+    return Response(content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Cache-Control": "no-store", "Content-Disposition":
+                 f'attachment; filename="reviewed-reconciliation-{run.id}.xlsx"'})

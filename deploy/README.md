@@ -1010,3 +1010,52 @@ frontend tree, backend release marker, CORS configuration and GST CSP. Back up t
 database before deployment. Restart only the API; the static server reads the
 new files. Rollback restores those retained artifacts and the prior source.
 No campaign or advertising budget is created by this release.
+
+## Supplier follow-ups and reviewed Excel — 4 November 2026
+
+The report review page now links to `/review/:runId/suppliers`. The queue groups
+missing-in-2B and mismatched findings by validated supplier GSTIN, excluding
+resolved findings. Explicit accountant follow-up decisions can include other
+categories. The queue shows absolute recorded tax differences for prioritization,
+not confirmed recoverable credit. Findings without valid supplier identities are
+flagged separately. Search and pagination keep the supplier list manageable.
+
+Each supplier has an editable message draft and a CSV containing only that
+supplier's outstanding invoice facts. No message is sent or recorded as sent;
+the user copies the draft and attaches the invoice list in their own messaging
+app. Internal reviewer notes and other suppliers' invoices are excluded. The
+download checks the draft's finding fingerprint so intervening review changes
+cannot silently produce a different attachment. Historical runs and changed
+source records block both new drafts and downloads.
+
+The reviewed Excel export contains Summary, Suppliers, Findings and Review
+history sheets. It uses the same current-run, resolved-review, approval and
+pilot/report entitlement checks as the reviewed CSV. Text remains literal text,
+including spreadsheet formulas embedded in invoice identifiers or review notes.
+Workbook generation must succeed before recording the export. Supplier totals
+describe the recorded findings, not a certified credit entitlement or return.
+
+This release needs no schema migration, dependency install, environment update
+or Caddy change. Its parent is production `2e8cf03`; preserve the demo-request,
+consent-based acquisition measurement and checkout-CSP fixes in that release.
+Build off-server, verify every artifact against its manifest and frontend tree
+fingerprint, and publish under `/run/lock/gstbot-deploy.lock`. Restart only the
+API. Retain the previous frontend, hashed assets and release markers for
+rollback; the database remains at revision `0030`. Check readiness, protected
+route refusals and service stability after publication. Never create customer
+records or consume pilot capacity for release verification.
+
+Release validation: 8,497 backend tests pass (12 skipped), including the route
+inventory, tenancy, role and OpenAPI sweeps; all 4,770 frontend tests pass. Ruff
+passes and frontend lint has zero errors and four existing warnings. Chrome
+checks against the production build with synthetic API fixtures cover draft
+editing/copy, the supplier-specific download request and reviewed Excel download
+at desktop/mobile widths, with no page overflow or JavaScript errors. Backend
+tests independently open the generated XLSX and check its sheets, numeric cells,
+literal formula text, review history and export gates. The frontend build
+prerenders all 1,134 public routes.
+
+The existing coverage gates still fail: backend combined coverage is 97.24%
+(99% required); frontend lines 94.39%, statements 92.00%, functions 85.98% and
+branches 89.32% remain below their thresholds. Functional test results above
+do not imply green coverage checks. No threshold was changed.

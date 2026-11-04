@@ -868,6 +868,10 @@ export const api = {
   saveFindingReview: (id, index, payload) => request(`/practice/runs/${id}/findings/${index}`, { method: "PATCH", body: payload }),
   approveReviewedReport: (id) => request(`/practice/runs/${id}/approve`, { method: "POST" }),
   exportReviewedReport: (id) => fetchFile(`${BASE}/practice/runs/${id}/export.csv`),
+  exportReviewWorkbook: (id) => fetchFile(`${BASE}/practice/runs/${id}/export.xlsx`),
+  supplierFollowups: (id, { signal } = {}) => request(`/practice/runs/${id}/supplier-followups`, { signal }),
+  supplierDraft: (id, gstin) => request(`/practice/runs/${id}/supplier-draft${query({ gstin })}`),
+  exportSupplierInvoices: (id, gstin, draft_fingerprint) => fetchFile(`${BASE}/practice/runs/${id}/supplier-invoices.csv${query({ gstin, draft_fingerprint })}`),
 
   // ---- Subscriptions & Payments ----
   pricing: () => request("/subscriptions/pricing", { auth: false }),

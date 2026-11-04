@@ -165,6 +165,7 @@ const ClientAccessPage = lazy(() => import("./pages/ClientAccessPage"));
 const JoinClientPage = lazy(() => import("./pages/JoinClientPage"));
 const ClientsPage = lazy(() => import("./pages/ClientsPage"));
 const ReviewWorkbenchPage = lazy(() => import("./pages/ReviewWorkbenchPage"));
+const SupplierFollowupsPage = lazy(() => import("./pages/SupplierFollowupsPage"));
 
 function LazyFallback() {
   return (
@@ -393,6 +394,7 @@ export default function App() {
         <Route path="/clients" element={<Protected><ClientsPage /></Protected>} />
         <Route path="/client-access" element={<Protected><ClientAccessPage /></Protected>} />
         <Route path="/review/:runId" element={<Protected><ReviewWorkbenchPage /></Protected>} />
+        <Route path="/review/:runId/suppliers" element={<Protected><SupplierFollowupsPage /></Protected>} />
         <Route path="/action-agent" element={<Protected><ActionAgentPage /></Protected>} />
         <Route
           path="/invoices"
